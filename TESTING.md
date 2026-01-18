@@ -1,6 +1,8 @@
 # Testing Guide
 
-Methods to test line-cook commands and plugins via bash.
+**For Developers Only.** End-users should install via plugin commands in README.md.
+
+Methods to test line-cook commands and plugins during development.
 
 ## Claude Code
 
