@@ -24,6 +24,22 @@ Or use `/work` to run the full cycle.
 | `/tidy` | Commit and push changes |
 | `/work` | Orchestrate full prep→cook→serve→tidy cycle |
 
+## Platform Command Naming
+
+Claude Code and OpenCode use different command naming conventions:
+
+| Platform | Syntax | Example |
+|----------|--------|---------|
+| Claude Code | `namespace:command` | `/line:prep` |
+| OpenCode | `namespace-command` | `/line-prep` |
+
+This is a fundamental platform difference, not a design choice. Each platform discovers and registers commands differently:
+
+- **Claude Code**: Uses `plugin.json` namespace + flat filename → `line:prep`
+- **OpenCode**: Uses file path as command name → `line-prep`
+
+Folder structures cannot unify this (Claude Code doesn't traverse subfolders; OpenCode creates `/folder/command` slash syntax).
+
 ## Dependencies
 
 - **beads** (`bd`) - Git-native issue tracking for multi-session work
@@ -42,10 +58,14 @@ Or use `/work` to run the full cycle.
 ```
 line-cook/
 ├── commands/              # Claude Code command definitions
+│   ├── getting-started.md # → /line:getting-started
 │   ├── prep.md            # → /line:prep
 │   ├── cook.md            # → /line:cook
 │   ├── serve.md           # → /line:serve
-│   └── tidy.md            # → /line:tidy
+│   ├── tidy.md            # → /line:tidy
+│   └── work.md            # → /line:work
+├── scripts/               # Installation scripts
+│   └── install-claude-code.sh
 ├── line-cook-opencode/    # OpenCode plugin
 │   ├── package.json       # Plugin manifest
 │   ├── install.sh         # Installation script
@@ -54,10 +74,10 @@ line-cook/
 │       ├── line-prep.md   # → /line-prep
 │       ├── line-cook.md   # → /line-cook
 │       ├── line-serve.md  # → /line-serve
-│       └── line-tidy.md   # → /line-tidy
+│       ├── line-tidy.md   # → /line-tidy
+│       └── line-work.md   # → /line-work
 ├── skills/
 │   └── workflows/         # Supporting skills
-├── scripts/               # Hook scripts
 ├── .claude-plugin/
 │   └── plugin.json        # Claude Code plugin manifest
 ├── AGENTS.md              # Agent workflow instructions
@@ -68,12 +88,25 @@ line-cook/
 
 ### Claude Code
 
+**First-time setup:**
 ```bash
-# Load plugin from local directory
-claude --plugin-dir /path/to/line-cook
+# Add marketplace (one-time)
+/plugin marketplace add line-cook-marketplace --source directory --path /path/to/line-cook
 
-# Commands available as: /line:prep, /line:cook, /line:serve, /line:tidy
+# Install plugin
+/plugin install line@line-cook-marketplace
 ```
+
+**Updating after source changes:**
+```bash
+# Sync source to marketplace
+./scripts/install-claude-code.sh
+
+# Update plugin cache
+/plugin update line
+```
+
+Commands available as: `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`
 
 ### OpenCode
 
@@ -82,7 +115,7 @@ claude --plugin-dir /path/to/line-cook
 cd /path/to/line-cook/line-cook-opencode
 ./install.sh
 
-# Commands available as: /line-prep, /line-cook, /line-serve, /line-tidy
+# Commands available as: /line-prep, /line-cook, /line-serve, /line-tidy, /line-work
 ```
 
 ## Testing

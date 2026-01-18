@@ -4,7 +4,7 @@ description: Select and execute a task with completion guardrails
 
 ## Task
 
-Execute work on a task with guardrails ensuring completion. Part of the `/line-prep` → `/line-cook` → `/line-tidy` workflow loop.
+Execute work on a task with guardrails ensuring completion. Part of the `/line-prep` → `/line-cook` → `/line-serve` → `/line-tidy` workflow loop.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to work on
 
@@ -19,47 +19,24 @@ Execute work on a task with guardrails ensuring completion. Part of the `/line-p
 - Run `bd ready` to get available tasks
 - Select the highest priority task (lowest P number)
 
-Once selected:
+Once selected, claim the work:
 ```bash
 bd show <id>                           # Display full task details
 bd update <id> --status=in_progress    # Claim the work
+bd comments add <id> "PHASE: COOK
+Status: started"
 ```
 
 ### Step 2: Plan the Work
 
-**CRITICAL:** Break the task into granular, atomic steps using TodoWrite.
+Break the task into steps using TodoWrite:
 
 1. Read the task description carefully
-2. Identify all deliverables and sub-tasks
-3. Decompose each deliverable into small, concrete actions
-4. Add ALL steps to TodoWrite before starting work
+2. Identify all deliverables
+3. Add steps to TodoWrite before starting work
+4. Include verification steps (test, compile, etc.)
 
-**Granularity guidelines:**
-- Each todo should be completable in ~1-5 minutes
-- Prefer too many small steps over too few large ones
-- Include verification steps (e.g., "Test X works", "Verify Y compiles")
-- Include file operations explicitly (e.g., "Create foo.md", "Update bar.json")
-
-**Example decomposition:**
-```
-Task: "Add new command"
-
-BAD (too coarse):
-- [ ] Implement the command
-
-GOOD (granular):
-- [ ] Create command file with frontmatter
-- [ ] Write command process steps
-- [ ] Add example usage section
-- [ ] Add entry to plugin.json
-- [ ] Copy to .claude/commands/
-- [ ] Test command loads correctly
-```
-
-For complex tasks:
-- Consider using explore-plan-code workflow
-- Ask clarifying questions via AskUserQuestion before starting
-- For non-trivial tasks, confirm approach with user
+For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
 ### Step 3: Execute Work
 
@@ -69,14 +46,28 @@ Work through TodoWrite items systematically:
 - Mark items `completed` immediately when done
 - Only one item should be `in_progress` at a time
 
-Add progress comments to the bead for significant milestones:
-```bash
-bd comments add <id> "Implemented core logic, moving to tests"
+**Output format during execution:**
 ```
+COOKING: <id> - <title>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1/N] <todo item> ... ✓
+[2/N] <todo item> ... ✓
+[3/N] <todo item> ... in progress
+
+Progress: 2/N complete
+```
+
+**Collecting findings:** As you work, note (but do NOT file yet):
+- New work discovered
+- Potential issues or bugs
+- Areas for improvement
+
+These will be filed as beads in `/line-tidy`.
 
 ### Step 4: Verify Completion
 
-**CRITICAL:** Before marking the task done, verify ALL guardrails pass:
+Before marking the task done, verify ALL guardrails pass:
 
 - [ ] All TodoWrite items completed
 - [ ] Code compiles/runs without errors
@@ -95,111 +86,68 @@ Only after all guardrails pass:
 
 ```bash
 bd close <id>
+bd comments add <id> "PHASE: COOK
+Status: completed
+Summary: <what was done>
+Files: <count> changed
+Findings: <issues/improvements noted for tidy>"
 ```
 
-**Automatically invoke /serve for peer review:**
-
-Use the Skill tool to review the completed work:
+**Completion output format:**
 ```
-Skill(skill="serve", args="<bead-id>")
-```
+DONE: <id> - <title>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-The serve command will review changes and report results.
+Summary:
+  <1-2 sentence description of what was accomplished>
 
-Output summary:
-```
-Task <id> completed: <title>
+Files changed:
+  M src/foo.ts
+  A src/bar.ts
 
-Changes made:
-- <summary of changes>
+Verification:
+  [✓] All todos complete
+  [✓] Code compiles
+  [✓] Tests pass
 
-Review: <approved|needs_changes|blocked>
+Findings (to file in /tidy):
+  New work:
+    - "Add support for edge case X"
+  Potential issues:
+    - "Error handling in Y could be improved"
+  Improvements:
+    - "Consider refactoring Z for clarity"
 
-Run /line-tidy to commit and push, or /line-cook for next task.
+Run /line-serve for review, or /line-tidy to commit.
 ```
 
 ## Guardrails (Critical)
 
-This command enforces strict rules:
-
 1. **No silent failures** - If something breaks, report it clearly
 2. **No premature completion** - Task stays open until verification passes
 3. **No scope creep** - Stay focused on the specific task
-4. **Discovered work → beads** - New issues found during work get created as beads (P3/P4)
+4. **Note, don't file** - Discovered work is noted for `/line-tidy`, not filed during cook
 
-When discovering new work during execution:
-```bash
-bd create --title="<discovered issue>" --type=task --priority=3
+## Error Handling
+
+If execution is blocked:
 ```
+⚠️ BLOCKED: <description>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Do NOT work on discovered issues in the current task. Create the bead and stay focused.
+Reason: <why it failed>
+Progress: <what was completed>
 
-## Example Session
+Options:
+  1. <recovery option>
+  2. <alternative>
 
-```
-/line-cook beads-042
-
-Selecting task: beads-042
-━━━━━━━━━━━━━━━━━━━━━━━━━
-
-beads-042 [P1] Implement prep command
-Type: task
-Status: open → in_progress
-Description: Create /prep command for session setup...
-
-Planning work...
-━━━━━━━━━━━━━━━
-
-TodoWrite items:
-1. [ ] Create claude-plugin/commands/prep.md
-2. [ ] Add command to plugin.json
-3. [ ] Create .claude/commands/prep.md copy
-4. [ ] Test command execution
-
-Executing...
-━━━━━━━━━━━
-
-[1/4] Creating claude-plugin/commands/prep.md...
-✓ Created with frontmatter and 5-step process
-
-[2/4] Adding to plugin.json...
-✓ Added command entry
-
-[3/4] Creating local copy...
-✓ Copied to .claude/commands/prep.md
-
-[4/4] Testing...
-✓ Command loads and displays expected output
-
-Verification:
-━━━━━━━━━━━━
-
-[✓] All TodoWrite items completed
-[✓] No syntax errors
-[✓] Changes match task description
-
-Invoking /serve for peer review...
-
-Review Complete: beads-042 - Implement prep command
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Verdict: approved
-Issues: 0 (0 auto-fixed, 0 beads created)
-
-Task beads-042 completed: Implement prep command
-
-Changes made:
-- Created prep.md command in claude-plugin/commands/
-- Added entry to plugin.json
-- Created local copy in .claude/commands/
-
-Review: approved
-
-Run /line-tidy to commit and push, or /line-cook for next task.
+Task remains in_progress. Run /line-tidy to save partial progress.
 ```
 
 ## Example Usage
 
 ```
 /line-cook              # Pick highest priority ready task
-/line-cook beads-042    # Work on specific task
+/line-cook lc-042       # Work on specific task
 ```

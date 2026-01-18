@@ -4,11 +4,52 @@ description: Commit changes, sync beads, and push to remote
 
 ## Task
 
-Session housekeeping: commit all changes and push to remote. Operates non-interactively; any concerns are filed as beads.
+Session cleanup: file discovered work, commit changes, and push to remote. This is where findings from `/line-cook` and `/line-serve` get filed as beads.
+
+## Bead Creation Reference
+
+Use this when filing discovered work:
+
+```bash
+# Standard issues (blocking work)
+bd create --title="..." --type=task|bug|feature --priority=0-4
+
+# Priority: 0=critical, 1=high, 2=medium, 3=low, 4=backlog
+# Types: task (work item), bug (broken), feature (new capability)
+
+# Minor improvements (review later)
+bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic>
+```
+
+**Retrospective Epic Pattern:**
+
+For minor suggestions, improvements, and "nice-to-haves" discovered during work, file them to a retrospective epic. This keeps the main backlog focused on real work.
+
+```bash
+# One-time setup (if not exists)
+bd create --title="Retrospective" --type=epic --priority=4
+
+# Then file minor items as children
+bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<retro-epic-id>
+```
 
 ## Process
 
-### Step 1: Review In-Progress Issues
+### Step 1: File Discovered Work
+
+Review findings from `/line-cook` and `/line-serve` and create beads:
+
+**Blocking work** (needs attention):
+```bash
+bd create --title="<issue>" --type=bug|task --priority=1-3
+```
+
+**Non-blocking findings** (review later):
+```bash
+bd create --title="<suggestion>" --type=task --priority=4 --parent=<retro-epic>
+```
+
+### Step 2: Review In-Progress Issues
 
 Check current work state:
 ```bash
@@ -18,40 +59,11 @@ bd list --status=in_progress
 For each **in-progress** issue:
 - If work appears complete based on git changes → `bd close <id>`
 - If work is incomplete → leave as-is (will be picked up next session)
-- If status is unclear → create a P4 bead to review later:
-  ```bash
-  bd create --title="Review status of <id>: <title>" --type=task --priority=4
-  ```
+- If status is unclear → create a P4 bead to review later
 
 **Do NOT ask the user** - make a reasonable judgment or file a bead.
 
-### Step 2: Capture Discovered Work
-
-During the session, the `/cook` command should have created beads for any discovered work. This step verifies that pattern was followed.
-
-If you notice uncommitted work that isn't tracked:
-```bash
-bd create --title="<discovered issue>" --type=task --priority=3
-```
-
-**Do NOT ask the user** - file it as a bead for later triage.
-
-### Step 3: Check Documentation Staleness
-
-Quick automated check:
-```bash
-# Check if key docs were modified
-git diff --name-only HEAD~5 | grep -E "(CLAUDE|AGENTS|README)\.md" || echo "No recent doc changes"
-```
-
-If documentation appears stale or inconsistent with code changes:
-```bash
-bd create --title="Review <file> for staleness" --type=task --priority=4
-```
-
-**Do NOT ask the user** - file it as a bead for later review.
-
-### Step 4: Commit Changes
+### Step 3: Commit Changes
 
 Show pending changes:
 ```bash
@@ -63,68 +75,77 @@ If changes exist:
 2. Create a commit with a descriptive message summarizing the session's work
 3. Use conventional commit format (feat:, fix:, docs:, etc.)
 
-### Step 5: Sync and Push
+### Step 4: Sync and Push
 
 ```bash
-bd sync                    # Commit beads changes
+bd sync                        # Commit beads changes
 git pull --rebase && git push  # Push to remote (if remote exists)
 ```
 
 If no remote is configured, skip the push step.
 
 If push fails:
-- Attempt to diagnose and resolve automatically
-- If unresolvable, create a P2 bead:
-  ```bash
-  bd create --title="Resolve git push failure: <error>" --type=bug --priority=2
-  ```
-
-### Step 6: Summary
-
-Report what was done:
-```
-Tidy Summary:
-━━━━━━━━━━━━━
-- Issues closed: <count>
-- Issues created: <count> (for later review)
-- Commits made: <count>
-- Push status: <success|skipped|failed>
-
-Beads created during tidy:
-- <id>: <title>
+```bash
+bd create --title="Resolve git push failure: <error>" --type=bug --priority=2
 ```
 
-## Example Session
+### Step 5: Record Session Summary
+
+**Add final comment to the task:**
+```bash
+bd comments add <id> "PHASE: TIDY
+Status: completed
+
+SESSION SUMMARY
+━━━━━━━━━━━━━━━
+Work completed:
+  <summary of what was accomplished>
+
+Problems encountered:
+  - <problem>: <how resolved>
+
+Issues filed:
+  - <new-id>: <title> [P<n>]
+
+Commit: <hash>
+Push: <success|failed>"
+```
+
+### Step 6: Output Summary
 
 ```
-/tidy
+TIDY: Session cleanup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Reviewing in-progress issues...
-  lc-k6i: Appears complete based on git changes
-  → Closing lc-k6i
+SESSION SUMMARY
+━━━━━━━━━━━━━━━
 
-Checking for untracked work...
-  → No orphaned work detected
+Work completed:
+  Task: <id> - <title>
+  <1-2 sentence summary of what was accomplished>
 
-Checking documentation...
-  → No staleness detected
+Files changed:
+  M src/foo.ts (+45, -12)
+  A src/bar.ts (+78)
 
-Committing changes...
-  → Staged 2 files
-  → Committed: "fix: make tidy command non-interactive"
+Problems encountered:
+  - <problem description>
+    Resolution: <how it was resolved>
+  - (none)
 
-Syncing beads...
-  → bd sync complete
+Issues closed: <count>
+  ✓ <id>: <title>
 
-Pushing to remote...
-  → No remote configured, skipping push
+Issues filed: <count>
+  + <new-id>: <title> [P<n>]
+  + <new-id>: <title> [P4/retro]
 
-Tidy Summary:
-━━━━━━━━━━━━━
-- Issues closed: 1
-- Issues created: 0
-- Commits made: 1
-- Push status: skipped (no remote)
+Commit: <hash>
+  <commit message>
+
+Push: ✓ origin/main | ⚠️ <error> | skipped (no remote)
+
+Session complete.
 ```
 
 ## Design Rationale
@@ -132,16 +153,16 @@ Tidy Summary:
 This command is intentionally **non-interactive** to support:
 
 1. **Workflow velocity** - No blocking on user input
-2. **Automated pipelines** - Can run in CI/headless mode
-3. **Deferred decisions** - Unclear items become beads, not blockers
-4. **Session end discipline** - Quick cleanup without decision fatigue
+2. **Deferred decisions** - Unclear items become beads, not blockers
+3. **Session end discipline** - Quick cleanup without decision fatigue
+4. **Information when needed** - Bead creation reference provided here, where it's actually used
 
 The pattern "file, don't block" means any concern that would require user judgment gets captured as a bead for later triage rather than interrupting the current flow.
 
 ## Example Usage
 
 ```
-/tidy
+/line-tidy
 ```
 
 This command takes no arguments.

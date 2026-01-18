@@ -15,7 +15,9 @@
       "line-prep",
       "line-cook",
       "line-serve",
-      "line-tidy"
+      "line-tidy",
+      "line-work",
+      "line-getting-started"
     ]
   },
   "license": "MIT",
