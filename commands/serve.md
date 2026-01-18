@@ -74,7 +74,7 @@ Output format (JSON):
     }
   ],
   \"positive\": [\"things done well\"]
-}" --max-turns 1 --output-format text --allowedTools "Read,Glob,Grep"
+}" --output-format text --allowedTools "Read,Glob,Grep"
 ```
 
 **Note:** The headless Claude has read-only access to explore the codebase for context but cannot make changes.
