@@ -97,7 +97,7 @@ Line Cook sits between manual prompting and full autonomy:
 |----------|---------|------------|
 | Manual prompting | Full | None |
 | Beads | High | Low |
-| **Linpue Cook** | Medium | Medium |
+| **Line Cook** | Medium | Medium |
 | Gas Town | Low | High |
 
 The goal: build confidence in AI workflows before going full YOLO mode.
