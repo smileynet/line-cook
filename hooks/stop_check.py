@@ -55,9 +55,7 @@ def main():
     log_hook_start(logger, input_data)
 
     # Get project directory
-    project_dir = os.environ.get(
-        "CLAUDE_PROJECT_DIR", input_data.get("cwd", ".")
-    )
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", input_data.get("cwd", "."))
 
     # Check if we're in a git repo
     git_dir = os.path.join(project_dir, ".git")
@@ -67,28 +65,21 @@ def main():
 
     # Check for uncommitted changes
     uncommitted = count_uncommitted_changes()
-    if uncommitted > 0:
-        output = {
-            "continue": False,
-            "systemMessage": f"Warning: {uncommitted} uncommitted changes. Consider running /line:tidy before stopping.",
-        }
-        print(json.dumps(output))
-        log_hook_end(logger, 0, f"warned: {uncommitted} uncommitted changes")
-        sys.exit(0)
-
-    # Check for unpushed commits
     unpushed = count_unpushed_commits()
-    if unpushed > 0:
-        output = {
-            "continue": False,
-            "systemMessage": f"Warning: {unpushed} unpushed commits. Consider running git push before stopping.",
-        }
-        print(json.dumps(output))
-        log_hook_end(logger, 0, f"warned: {unpushed} unpushed commits")
-        sys.exit(0)
 
-    # All clear - allow stop
-    log_hook_end(logger, 0, "all clear")
+    # Build warnings list (log only, don't output to user)
+    warnings = []
+    if uncommitted > 0:
+        warnings.append(f"{uncommitted} uncommitted changes")
+    if unpushed > 0:
+        warnings.append(f"{unpushed} unpushed commits")
+
+    if warnings:
+        log_hook_end(logger, 0, f"warn: {', '.join(warnings)}")
+    else:
+        log_hook_end(logger, 0, "all clear")
+
+    # Allow stop - warnings logged but not shown to user
     sys.exit(0)
 
 
