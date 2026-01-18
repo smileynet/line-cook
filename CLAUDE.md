@@ -1,6 +1,6 @@
 # line-cook
 
-Task-focused workflow orchestration for Claude Code sessions.
+Task-focused workflow orchestration for Claude Code and OpenCode sessions.
 
 ## Overview
 
@@ -27,7 +27,7 @@ Or use `/work` to run the full cycle.
 ## Dependencies
 
 - **beads** (`bd`) - Git-native issue tracking for multi-session work
-- **Claude Code** - AI coding assistant
+- **Claude Code** or **OpenCode** - AI coding assistant
 
 ## Workflow Principles
 
@@ -41,25 +41,53 @@ Or use `/work` to run the full cycle.
 
 ```
 line-cook/
-├── commands/           # Slash command definitions
-│   ├── prep.md
-│   ├── cook.md
-│   ├── serve.md
-│   ├── tidy.md
-│   └── work.md
+├── commands/              # Claude Code command definitions
+│   ├── prep.md            # → /line:prep
+│   ├── cook.md            # → /line:cook
+│   ├── serve.md           # → /line:serve
+│   └── tidy.md            # → /line:tidy
+├── line-cook-opencode/    # OpenCode plugin
+│   ├── package.json       # Plugin manifest
+│   ├── install.sh         # Installation script
+│   ├── AGENTS.md          # Agent instructions (bundled)
+│   └── commands/          # OpenCode command definitions
+│       ├── line-prep.md   # → /line-prep
+│       ├── line-cook.md   # → /line-cook
+│       ├── line-serve.md  # → /line-serve
+│       └── line-tidy.md   # → /line-tidy
 ├── skills/
-│   └── workflows/      # Supporting skills
-├── scripts/            # Hook scripts
-└── .claude-plugin/
-    └── plugin.json     # Plugin manifest
+│   └── workflows/         # Supporting skills
+├── scripts/               # Hook scripts
+├── .claude-plugin/
+│   └── plugin.json        # Claude Code plugin manifest
+├── AGENTS.md              # Agent workflow instructions
+└── TESTING.md             # Testing guide for both platforms
 ```
 
 ## Installation
 
+### Claude Code
+
 ```bash
-# Add to Claude Code plugins
-claude plugins add /path/to/line-cook
+# Load plugin from local directory
+claude --plugin-dir /path/to/line-cook
+
+# Commands available as: /line:prep, /line:cook, /line:serve, /line:tidy
 ```
+
+### OpenCode
+
+```bash
+# Run the install script
+cd /path/to/line-cook/line-cook-opencode
+./install.sh
+
+# Commands available as: /line-prep, /line-cook, /line-serve, /line-tidy
+```
+
+## Testing
+
+See [TESTING.md](TESTING.md) for validation and testing methods.
 
 ## Related
 
