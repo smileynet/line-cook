@@ -1,0 +1,11 @@
+{
+  "name": "line-cook",
+  "description": "Task-focused workflow orchestration for Claude Code",
+  "owner": "smileynet",
+  "plugins": [
+    {
+      "name": "line",
+      "source": "./"
+    }
+  ]
+}
