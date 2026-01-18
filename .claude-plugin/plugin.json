@@ -1,0 +1,19 @@
+{
+  "name": "line-cook",
+  "description": "Task-focused workflow orchestration for Claude Code sessions - prep, cook, serve, tidy",
+  "version": "0.1.0",
+  "author": {
+    "name": "smileynet",
+    "url": "https://github.com/smileynet"
+  },
+  "repository": "https://github.com/smileynet/line-cook",
+  "license": "MIT",
+  "homepage": "https://github.com/smileynet/line-cook",
+  "keywords": [
+    "claude-code",
+    "workflow",
+    "task-management",
+    "beads",
+    "productivity"
+  ]
+}
