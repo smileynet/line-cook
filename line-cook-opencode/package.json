@@ -1,9 +1,12 @@
 {
-  "name": "line-cook-opencode",
+  "name": "@line-cook/opencode-plugin",
   "version": "0.3.1",
   "description": "Task-focused workflow orchestration for OpenCode sessions - prep, cook, serve, tidy",
+  "main": "dist/line-cook-plugin.js",
+  "types": "dist/line-cook-plugin.d.ts",
   "type": "module",
   "files": [
+    "dist",
     "commands",
     "AGENTS.md"
   ],
@@ -21,6 +24,19 @@
       "line-getting-started"
     ]
   },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "^1.0.0"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.0.0",
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "build": "bun build src/line-cook-plugin.ts --outdir dist --target bun",
+    "dev": "bun build src/line-cook-plugin.ts --outdir dist --target bun --watch",
+    "typecheck": "tsc --noEmit"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -29,6 +45,7 @@
   "homepage": "https://github.com/smileynet/line-cook",
   "keywords": [
     "opencode",
+    "opencode-plugin",
     "workflow",
     "task-management",
     "beads",
