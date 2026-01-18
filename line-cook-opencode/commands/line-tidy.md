@@ -4,7 +4,7 @@ description: Commit changes, sync beads, and push to remote
 
 ## Summary
 
-**File discovered work, commit changes, and push to remote.** Part of prep → cook → serve → tidy.
+**File discovered issues, commit changes, and push to remote.** Part of prep → cook → serve → tidy.
 
 This is where findings from `/line-cook` and `/line-serve` get filed as beads.
 
@@ -12,14 +12,14 @@ This is where findings from `/line-cook` and `/line-serve` get filed as beads.
 
 ## Bead Creation Reference
 
-Use this when filing discovered work:
+Use this when filing discovered issues:
 
 ```bash
-# Standard issues (blocking work)
+# Standard issues (blocking tasks)
 bd create --title="..." --type=task|bug|feature --priority=0-4
 
 # Priority: 0=critical, 1=high, 2=medium, 3=low, 4=backlog
-# Types: task (work item), bug (broken), feature (new capability)
+# Types: task, bug (broken), feature (new capability)
 
 # Minor improvements (review later)
 bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic>
@@ -27,7 +27,7 @@ bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic>
 
 **Retrospective Epic Pattern:**
 
-For minor suggestions, improvements, and "nice-to-haves" discovered during work, file them to a retrospective epic. This keeps the main backlog focused on real work.
+For minor suggestions, improvements, and "nice-to-haves" discovered during execution, file them to a retrospective epic. This keeps the main backlog focused on real issues.
 
 ```bash
 # One-time setup (if not exists)
@@ -39,11 +39,11 @@ bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<re
 
 ## Process
 
-### Step 1: File Discovered Work
+### Step 1: File Discovered Issues
 
 Review findings from `/line-cook` and `/line-serve` and create beads:
 
-**Blocking work** (needs attention):
+**Blocking issues** (needs attention):
 ```bash
 bd create --title="<issue>" --type=bug|task --priority=1-3
 ```
@@ -55,14 +55,14 @@ bd create --title="<suggestion>" --type=task --priority=4 --parent=<retro-epic>
 
 ### Step 2: Review In-Progress Issues
 
-Check current work state:
+Check current task state:
 ```bash
 bd list --status=in_progress
 ```
 
 For each **in-progress** issue:
-- If work appears complete based on git changes → `bd close <id>`
-- If work is incomplete → leave as-is (will be picked up next session)
+- If task appears complete based on git changes → `bd close <id>`
+- If task is incomplete → leave as-is (will be picked up next session)
 - If status is unclear → create a P4 bead to review later
 
 **Do NOT ask the user** - make a reasonable judgment or file a bead.
@@ -76,7 +76,7 @@ git status
 
 If changes exist:
 1. Stage all relevant files: `git add -A`
-2. Create a commit with a descriptive message summarizing the session's work
+2. Create a commit with a descriptive message summarizing the session
 3. Use conventional commit format (feat:, fix:, docs:, etc.)
 
 ### Step 4: Sync and Push
@@ -102,7 +102,7 @@ Status: completed
 
 SESSION SUMMARY
 ━━━━━━━━━━━━━━━
-Work completed:
+Task completed:
   <summary of what was accomplished>
 
 Problems encountered:
@@ -124,7 +124,7 @@ TIDY: Session cleanup
 SESSION SUMMARY
 ━━━━━━━━━━━━━━━
 
-Work completed:
+Task completed:
   Task: <id> - <title>
   <1-2 sentence summary of what was accomplished>
 

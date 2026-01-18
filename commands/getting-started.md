@@ -17,35 +17,35 @@ This guide explains the line-cook workflow and provides a complete reference for
 
 Or use `/line:work` to run the full cycle.
 
-### /line:prep - "What's my work?"
+### /line:prep - "What's ready?"
 - Syncs git and beads
 - Shows available tasks
 - Identifies the next recommended task
 
 ### /line:cook - "Execute the task"
 - Claims a task
-- Plans and executes the work
-- Notes discovered work for later (doesn't file beads yet)
+- Plans and executes the task
+- Notes discovered issues for later (doesn't file beads yet)
 - Closes the task when done
 
-### /line:serve - "Review the work"
+### /line:serve - "Review changes"
 - Invokes headless Claude for peer review
 - Auto-fixes minor issues
 - Categorizes findings for /tidy
 
 ### /line:tidy - "Commit and capture"
-- Files discovered work as beads
+- Files discovered issues as beads
 - Commits changes
 - Pushes to remote
 - Records session summary
 
 ## Workflow Principles
 
-1. **Sync before work** - Always start with current state
-2. **Track with beads** - Strategic work lives in issue tracker
-3. **Note, then file** - Discovered work is noted in /cook, filed in /tidy
+1. **Sync before starting** - Always start with current state
+2. **Track with beads** - Strategic tasks live in issue tracker
+3. **Note, then file** - Discovered issues are noted in /cook, filed in /tidy
 4. **Guardrails on completion** - Verify before marking done
-5. **Push before stop** - Work isn't done until pushed
+5. **Push before stop** - Session isn't done until pushed
 
 ---
 
@@ -60,7 +60,7 @@ bd create --title="..." --type=task|bug|feature --priority=0-4
 
 # Priority levels:
 #   0 = P0 = critical (production down)
-#   1 = P1 = high (blocking work)
+#   1 = P1 = high (blocking)
 #   2 = P2 = medium (normal priority)
 #   3 = P3 = low (when time permits)
 #   4 = P4 = backlog (someday/maybe)
@@ -69,7 +69,7 @@ bd create --title="..." --type=task|bug|feature --priority=0-4
 #   task    = work item
 #   bug     = broken behavior
 #   feature = new capability
-#   epic    = container for related work
+#   epic    = container for related tasks
 ```
 
 ### Epics and Children
@@ -104,15 +104,15 @@ bd dep add beads-002 beads-001  # 002 waits for 001 to complete
 ### Workflow Commands
 
 ```bash
-# Finding work
+# Finding tasks
 bd ready                      # Tasks with no blockers
 bd list --status=open         # All open issues
-bd list --status=in_progress  # Active work
+bd list --status=in_progress  # Active tasks
 bd blocked                    # Tasks with unmet dependencies
 
-# Working on issues
+# Managing issues
 bd show <id>                           # View details
-bd update <id> --status=in_progress    # Claim work
+bd update <id> --status=in_progress    # Claim task
 bd comments add <id> "progress note"   # Add context
 bd close <id>                          # Mark done
 
@@ -133,14 +133,14 @@ bd create --title="Retrospective" --type=epic --priority=4
 bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<retro-epic-id>
 ```
 
-This keeps the main backlog focused on real work while preserving good ideas for later review.
+This keeps the main backlog focused on real tasks while preserving good ideas for later review.
 
 ---
 
 ## Quick Start
 
-1. Run `/line:prep` to see available work
-2. Run `/line:cook` to work on the top task
+1. Run `/line:prep` to see ready tasks
+2. Run `/line:cook` to execute the top task
 3. Run `/line:tidy` when done to commit and push
 
 Or just run `/line:work` for the full cycle.

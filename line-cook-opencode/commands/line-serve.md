@@ -4,9 +4,9 @@ description: Review changes via headless Claude and file issues
 
 ## Summary
 
-**Review completed work via headless Claude.** Part of prep → cook → serve → tidy.
+**Review changes via headless Claude.** Part of prep → cook → serve → tidy.
 
-After cooking (doing work), you "serve" it for review before tidying up.
+After cooking (executing a task), you "serve" it for review before tidying up.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific bead ID to review
 
@@ -16,7 +16,7 @@ After cooking (doing work), you "serve" it for review before tidying up.
 
 ## Process
 
-### Step 1: Identify Work to Review
+### Step 1: Identify Changes to Review
 
 **If `$ARGUMENTS` provided:**
 - Use that bead ID directly

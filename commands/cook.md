@@ -7,7 +7,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 
 **Execute a task with guardrails ensuring completion.** Part of prep → cook → serve → tidy.
 
-**Arguments:** `$ARGUMENTS` (optional) - Specific task ID to work on
+**Arguments:** `$ARGUMENTS` (optional) - Specific task ID to execute
 
 **STOP after completing.** Show NEXT STEP and wait for user.
 
@@ -24,28 +24,28 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 - Run `bd ready` to get available tasks
 - Select the highest priority task (lowest P number)
 
-Once selected, claim the work:
+Once selected, claim the task:
 ```bash
 bd show <id>                           # Display full task details
-bd update <id> --status=in_progress    # Claim the work
+bd update <id> --status=in_progress    # Claim the task
 bd comments add <id> "PHASE: COOK
 Status: started"
 ```
 
-### Step 2: Plan the Work
+### Step 2: Plan the Task
 
 Break the task into steps using TodoWrite:
 
 1. Read the task description carefully
 2. Identify all deliverables
-3. Add steps to TodoWrite before starting work
+3. Add steps to TodoWrite before starting
 4. Include verification steps (test, compile, etc.)
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
-### Step 3: Execute Work
+### Step 3: Execute Task
 
-Work through TodoWrite items systematically:
+Process TodoWrite items systematically:
 
 - Mark items `in_progress` when starting
 - Mark items `completed` immediately when done
@@ -63,8 +63,8 @@ COOKING: <id> - <title>
 Progress: 2/N complete
 ```
 
-**Collecting findings:** As you work, note (but do NOT file yet):
-- New work discovered
+**Collecting findings:** As you execute, note (but do NOT file yet):
+- New tasks discovered
 - Potential issues or bugs
 - Areas for improvement
 
@@ -116,7 +116,7 @@ Verification:
   [✓] Tests pass
 
 Findings (to file in /tidy):
-  New work:
+  New tasks:
     - "Add support for edge case X"
   Potential issues:
     - "Error handling in Y could be improved"
@@ -131,7 +131,7 @@ NEXT STEP: /line:serve (review) or /line:tidy (commit)
 1. **No silent failures** - If something breaks, report it clearly
 2. **No premature completion** - Task stays open until verification passes
 3. **No scope creep** - Stay focused on the specific task
-4. **Note, don't file** - Discovered work is noted for `/line:tidy`, not filed during cook
+4. **Note, don't file** - Discovered issues are noted for `/line:tidy`, not filed during cook
 
 ## Error Handling
 
@@ -154,5 +154,5 @@ Task remains in_progress. Run /line:tidy to save partial progress.
 
 ```
 /line:cook              # Pick highest priority ready task
-/line:cook lc-042       # Work on specific task
+/line:cook lc-042       # Execute specific task
 ```
