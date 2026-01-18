@@ -42,6 +42,26 @@ graph LR
 | `/tidy` | Commit, sync beads, push |
 | `/work` | Run the full cycle |
 
+## Getting Started
+
+Run each command individually first to understand what happens at each step:
+
+```bash
+# 1. Prep: See what syncs and what tasks are available
+/line:prep
+
+# 2. Cook: Watch task selection and execution with guardrails
+/line:cook
+
+# 3. Serve: See the AI peer review process
+/line:serve
+
+# 4. Tidy: Watch commit, sync, and push
+/line:tidy
+```
+
+Once comfortable with each step, use `/line:work` to run them all together.
+
 ## Installation
 
 > **Requires:** [beads](https://github.com/steveyegge/beads) for task tracking, Git, Claude Code or OpenCode
