@@ -15,7 +15,7 @@ Orchestrate a complete work cycle by running the full workflow sequence. This is
 Invoke the prep command to sync state and identify available work:
 
 ```
-/line-prep
+Skill(skill="line-prep")
 ```
 
 Wait for prep to complete.
@@ -26,12 +26,12 @@ Invoke the cook command to execute work:
 
 **If `$ARGUMENTS` provided:**
 ```
-/line-cook <task-id>
+Skill(skill="line-cook", args="<task-id>")
 ```
 
 **Otherwise:**
 ```
-/line-cook
+Skill(skill="line-cook")
 ```
 
 Wait for cook to complete. Cook will select a task, execute the work, and output findings for tidy.
@@ -41,7 +41,7 @@ Wait for cook to complete. Cook will select a task, execute the work, and output
 Invoke the serve command for peer review:
 
 ```
-/line-serve
+Skill(skill="line-serve")
 ```
 
 Wait for review to complete. Serve will invoke headless Claude and categorize any issues found.
@@ -51,7 +51,7 @@ Wait for review to complete. Serve will invoke headless Claude and categorize an
 Invoke tidy to file discovered work, commit, and push:
 
 ```
-/line-tidy
+Skill(skill="line-tidy")
 ```
 
 Tidy will file beads for discovered work, commit all changes, sync beads, and push to remote.
