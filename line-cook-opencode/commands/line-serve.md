@@ -2,6 +2,8 @@
 description: Review changes via headless Claude and file issues
 ---
 
+**STOP after completing.** Do NOT auto-continue to /line-tidy. Show NEXT STEP and wait for user.
+
 ## Task
 
 Review work completed by `/line-cook` via a headless Claude instance. Part of the `/line-prep` → `/line-cook` → `/line-serve` → `/line-tidy` workflow loop.
@@ -134,7 +136,7 @@ Positive notes:
   - <good thing>
   - <good thing>
 
-Run /line-tidy to commit.
+NEXT STEP: /line-tidy
 ```
 
 ## Error Handling

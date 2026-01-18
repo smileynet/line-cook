@@ -2,6 +2,8 @@
 description: Select and execute a task with completion guardrails
 ---
 
+**STOP after completing.** Do NOT auto-continue to /line-serve. Show NEXT STEP and wait for user.
+
 ## Task
 
 Execute work on a task with guardrails ensuring completion. Part of the `/line-prep` → `/line-cook` → `/line-serve` → `/line-tidy` workflow loop.
@@ -118,7 +120,7 @@ Findings (to file in /tidy):
   Improvements:
     - "Consider refactoring Z for clarity"
 
-Run /line-serve for review, or /line-tidy to commit.
+NEXT STEP: /line-serve (review) or /line-tidy (commit)
 ```
 
 ## Guardrails (Critical)
