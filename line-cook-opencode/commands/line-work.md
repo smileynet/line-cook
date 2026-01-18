@@ -12,49 +12,47 @@ Orchestrate a complete work cycle by running the full workflow sequence. This is
 
 ### Step 1: Run /line-prep
 
-Invoke the prep command to sync state and identify available work:
+Read and execute the prep command instructions:
 
 ```
-Skill(skill="line-prep")
+Read(~/.config/opencode/commands/line-prep.md)
 ```
 
-Wait for prep to complete.
+Execute all steps from that command. Wait for prep to complete before proceeding.
 
 ### Step 2: Run /line-cook
 
-Invoke the cook command to execute work:
+Read and execute the cook command instructions:
 
-**If `$ARGUMENTS` provided:**
 ```
-Skill(skill="line-cook", args="<task-id>")
-```
-
-**Otherwise:**
-```
-Skill(skill="line-cook")
+Read(~/.config/opencode/commands/line-cook.md)
 ```
 
-Wait for cook to complete. Cook will select a task, execute the work, and output findings for tidy.
+**If `$ARGUMENTS` provided:** Pass `<task-id>` as the task to work on.
+
+**Otherwise:** Let cook select the highest priority ready task.
+
+Execute all steps from that command. Wait for cook to complete before proceeding.
 
 ### Step 3: Run /line-serve
 
-Invoke the serve command for peer review:
+Read and execute the serve command instructions:
 
 ```
-Skill(skill="line-serve")
+Read(~/.config/opencode/commands/line-serve.md)
 ```
 
-Wait for review to complete. Serve will invoke headless Claude and categorize any issues found.
+Execute all steps from that command. Wait for review to complete before proceeding.
 
 ### Step 4: Run /line-tidy
 
-Invoke tidy to file discovered work, commit, and push:
+Read and execute the tidy command instructions:
 
 ```
-Skill(skill="line-tidy")
+Read(~/.config/opencode/commands/line-tidy.md)
 ```
 
-Tidy will file beads for discovered work, commit all changes, sync beads, and push to remote.
+Execute all steps from that command. Tidy will file beads for discovered work, commit all changes, sync beads, and push to remote.
 
 ### Step 5: Cycle Summary
 
