@@ -2,6 +2,8 @@
 description: Sync state, load context, show ready tasks
 ---
 
+**STOP after completing.** Do NOT auto-continue to /line-cook. Show NEXT STEP and wait for user.
+
 ## Task
 
 Session preparation: sync state and identify available work. Part of the `/line-prep` → `/line-cook` → `/line-serve` → `/line-tidy` workflow loop.
@@ -56,7 +58,8 @@ NEXT TASK:
   <first line of description if available>
 
 New to line-cook? Run /line-getting-started for workflow guide.
-Run /line-cook to start, or /line-cook <id> for specific task.
+
+NEXT STEP: /line-cook (or /line-cook <id> for specific task)
 ```
 
 **Important:** Do NOT include bead command reference here. That information is available via `/line-getting-started` and `/line-tidy` (where it's actually needed).
@@ -92,7 +95,8 @@ NEXT TASK:
   Create /prep command for session setup with minimal context
 
 New to line-cook? Run /line-getting-started for workflow guide.
-Run /line-cook to start, or /line-cook lc-042 for this task.
+
+NEXT STEP: /line-cook (or /line-cook lc-042 for this task)
 ```
 
 ## Example Usage
