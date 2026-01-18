@@ -1,0 +1,38 @@
+{
+  "name": "line-cook-opencode",
+  "version": "0.1.0",
+  "description": "Task-focused workflow orchestration for OpenCode sessions - prep, cook, serve, tidy",
+  "type": "module",
+  "files": [
+    "commands",
+    "AGENTS.md"
+  ],
+  "opencode": {
+    "name": "line",
+    "version": "0.1.0",
+    "description": "Task-focused workflow orchestration for AI-assisted development",
+    "commands": [
+      "line-prep",
+      "line-cook",
+      "line-serve",
+      "line-tidy"
+    ]
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smileynet/line-cook.git"
+  },
+  "homepage": "https://github.com/smileynet/line-cook",
+  "keywords": [
+    "opencode",
+    "workflow",
+    "task-management",
+    "beads",
+    "productivity"
+  ],
+  "author": {
+    "name": "smileynet",
+    "url": "https://github.com/smileynet"
+  }
+}
