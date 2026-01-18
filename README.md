@@ -1,8 +1,8 @@
 # Line Cook
 
-**Structured AI pair programming with guardrails.**
+**You design. It ships.**
 
-Execute tasks systematically while keeping a human in the loop. Plan with AI, then let Line Cook handle the prep→cook→serve→tidy workflow.
+Focus on the what and why—Line Cook handles the how. Structured execution with guardrails that keeps you in deep work while AI runs the prep→cook→serve→tidy cycle.
 
 ## Quick Start
 
@@ -96,8 +96,8 @@ Line Cook sits between manual prompting and full autonomy:
 | Approach | Control | Automation |
 |----------|---------|------------|
 | Manual prompting | Full | None |
-| **beads** | High | Low |
-| **Line Cook** | Medium | Medium |
+| Beads | High | Low |
+| **Linpue Cook** | Medium | Medium |
 | Gas Town | Low | High |
 
 The goal: build confidence in AI workflows before going full YOLO mode.
