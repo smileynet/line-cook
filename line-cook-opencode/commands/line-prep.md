@@ -4,7 +4,7 @@ description: Load work context, sync state, review available tasks
 
 ## Task
 
-Session preparation: load context, sync state, and understand available work. Part of the `/line-prep` → `/line-cook` → `/line-tidy` workflow loop.
+Session preparation: sync state and identify available work. Part of the `/line-prep` → `/line-cook` → `/line-serve` → `/line-tidy` workflow loop.
 
 ## Process
 
@@ -22,118 +22,77 @@ If `.beads/` directory exists:
 bd sync
 ```
 
-### Step 2: Load Project Context
+### Step 2: Gather Work Queue
 
-Read and summarize key project files:
-
-1. Read `CLAUDE.md` (project instructions) if present
-2. Read `AGENTS.md` if present (workflow instructions)
-3. Summarize key constraints and patterns for this project
-
-Output a brief summary of project-specific context that applies to the session.
-
-### Step 3: Display Bead Usage Reference
-
-If `.beads/` exists, output this reference:
-
+Get project and branch info:
+```bash
+pwd                           # Project directory
+git branch --show-current     # Current branch
 ```
-Bead Quick Reference:
-━━━━━━━━━━━━━━━━━━━━━
-
-Creating issues:
-  bd create --title="..." --type=task|bug|feature --priority=0-4
-
-  Priority: P0=critical, P1=high, P2=medium, P3=low, P4=backlog
-  Types: task (work item), bug (broken), feature (new capability)
-
-Epics & children:
-  bd create --title="Parent epic" --type=epic
-  bd create --title="Child task" --type=task --parent=<epic-id>
-
-Dependencies (B blocks A):
-  bd dep add <issue-a> <depends-on-b>
-
-  Example: Tests depend on implementation
-  bd dep add beads-002 beads-001  # 002 waits for 001
-
-Key fields:
-  --assignee=<user>     Who owns this
-  --description="..."   Detailed context (use for complex tasks)
-  --labels=a,b,c        Categorization tags
-
-Workflow:
-  bd update <id> --status=in_progress   # Claim work
-  bd comments add <id> "progress note"  # Add context
-  bd close <id>                         # Mark done
-```
-
-### Step 4: Show Work Queue
 
 Display current work state:
-
 ```bash
 bd ready                      # Available tasks (no blockers)
 bd list --status=in_progress  # Active work
 bd blocked                    # Blocked tasks (for awareness)
 ```
 
-### Step 5: Output Work Summary
+### Step 3: Output Session Summary
 
-Provide a concise session readiness summary:
+Output a focused, scannable summary:
 
 ```
-Session Ready:
-- Project: <name from CLAUDE.md or directory>
-- Branch: <current-branch>
-- Ready tasks: <count>
-- In progress: <count>
-- Blocked: <count>
+SESSION: <project-name> @ <branch>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Next recommended: <highest priority ready task with title>
+Sync: ✓ up to date | ⚠️ <issue>
 
-Run /line-cook to start working, or /line-cook <id> for specific task.
+Ready: <count> tasks
+In progress: <count>
+Blocked: <count>
+
+NEXT TASK:
+  <id> [P<n>] <title>
+  <first line of description if available>
+
+New to line-cook? Run /line-getting-started for workflow guide.
+Run /line-cook to start, or /line-cook <id> for specific task.
+```
+
+**Important:** Do NOT include bead command reference here. That information is available via `/line-getting-started` and `/line-tidy` (where it's actually needed).
+
+## Error Handling
+
+If sync fails:
+```
+⚠️ SYNC FAILED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Reason: <error message>
+
+Options:
+  1. Resolve manually and run /line-prep again
+  2. Run /line-cook to work offline (will sync later)
 ```
 
 ## Example Output
 
 ```
-/line-prep
+SESSION: line-cook @ main
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Syncing state...
-✓ git pull --rebase (up to date)
-✓ bd sync (2 changes synced)
+Sync: ✓ up to date
 
-Project Context:
-- meta-claude: Claude Code documentation and workflows
-- Key pattern: Progressive disclosure in skills
-- Constraint: Never create docs unless explicitly requested
+Ready: 3 tasks
+In progress: 1
+Blocked: 1
 
-Bead Quick Reference:
-━━━━━━━━━━━━━━━━━━━━━
-[reference output...]
+NEXT TASK:
+  lc-042 [P1] Implement prep command
+  Create /prep command for session setup with minimal context
 
-Work Queue:
-Ready (3):
-  beads-042 [P1] Implement prep command
-  beads-043 [P2] Add tests for cook command
-  beads-044 [P3] Review documentation structure
-
-In Progress (1):
-  beads-041 [P1] Create workflow commands (assigned: sam)
-
-Blocked (1):
-  beads-045 [P2] Deploy to production (blocked by: beads-044)
-
-Session Ready:
-- Project: meta-claude
-- Branch: main
-- Ready tasks: 3
-- In progress: 1
-- Blocked: 1
-
-Next recommended: beads-042 [P1] Implement prep command
-
-Run /line-cook to start working, or /line-cook <id> for specific task.
+New to line-cook? Run /line-getting-started for workflow guide.
+Run /line-cook to start, or /line-cook lc-042 for this task.
 ```
 
 ## Example Usage
