@@ -21,14 +21,14 @@ cat > "$MARKETPLACE_DIR/.claude-plugin/marketplace.json" << 'EOF'
   "owner": { "name": "smileynet" },
   "metadata": {
     "description": "Task-focused workflow orchestration for Claude Code sessions",
-    "version": "0.2.0"
+    "version": "0.3.1"
   },
   "plugins": [
     {
       "name": "line",
       "source": "./line",
       "description": "Task-focused workflow orchestration - prep, cook, serve, tidy, work",
-      "version": "0.2.0"
+      "version": "0.3.1"
     }
   ]
 }
