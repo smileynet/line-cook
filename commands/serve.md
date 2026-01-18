@@ -1,5 +1,5 @@
 ---
-description: Review completed work via headless Claude and file issues
+description: Review changes via headless Claude and file issues
 allowed-tools: Bash, Read, Glob, Grep, Edit, TodoWrite
 ---
 

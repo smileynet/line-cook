@@ -1,5 +1,5 @@
 ---
-description: Load work context, sync state, review available tasks
+description: Sync state, load context, show ready tasks
 ---
 
 ## Task
