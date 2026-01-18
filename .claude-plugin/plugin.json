@@ -1,5 +1,5 @@
 {
-  "name": "line-cook",
+  "name": "line",
   "description": "Task-focused workflow orchestration for Claude Code sessions - prep, cook, serve, tidy",
   "version": "0.1.0",
   "author": {
