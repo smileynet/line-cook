@@ -8,7 +8,7 @@ Methods to test line-cook commands and plugins via bash.
 
 ```bash
 # Test plugin from local directory
-claude --plugin-dir /path/to/line-cook
+claude --plugin-dir ~/line-cook
 
 # Verify plugin loaded
 # In Claude Code REPL, commands should be available as:
@@ -19,10 +19,10 @@ claude --plugin-dir /path/to/line-cook
 
 ```bash
 # Run command in non-interactive mode
-echo "/line:prep" | claude --plugin-dir /path/to/line-cook
+echo "/line:prep" | claude --plugin-dir ~/line-cook
 
 # Or use print mode for quick testing
-claude -p "Run /line:prep and summarize the output" --plugin-dir /path/to/line-cook
+claude -p "Run /line:prep and summarize the output" --plugin-dir ~/line-cook
 ```
 
 ### Verify Plugin Structure

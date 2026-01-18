@@ -1,6 +1,6 @@
 {
   "name": "line-cook-opencode",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Task-focused workflow orchestration for OpenCode sessions - prep, cook, serve, tidy",
   "type": "module",
   "files": [
@@ -9,7 +9,7 @@
   ],
   "opencode": {
     "name": "line",
-    "version": "0.1.0",
+    "version": "0.3.0",
     "description": "Task-focused workflow orchestration for AI-assisted development",
     "commands": [
       "line-prep",
@@ -17,6 +17,7 @@
       "line-serve",
       "line-tidy",
       "line-work",
+      "line-setup",
       "line-getting-started"
     ]
   },

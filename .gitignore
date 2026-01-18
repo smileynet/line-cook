@@ -1,0 +1,25 @@
+# Local Claude Code settings (user-specific permissions)
+.claude/settings.local.json
+
+# Generated hook files (users run setup.sh to generate their own)
+# hooks/settings.json  # Keep template for reference
+# hooks/post-tool-use-edit.sh  # Keep template for reference
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Node modules (if any)
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
