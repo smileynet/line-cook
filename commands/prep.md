@@ -5,7 +5,7 @@ allowed-tools: Bash, Read, Glob
 
 ## Summary
 
-**Sync state and identify available work.** Part of prep → cook → serve → tidy.
+**Sync state and identify ready tasks.** Part of prep → cook → serve → tidy.
 
 **STOP after completing.** Show NEXT STEP and wait for user.
 
@@ -27,7 +27,7 @@ If `.beads/` directory exists:
 bd sync
 ```
 
-### Step 2: Gather Work Queue
+### Step 2: Gather Task Queue
 
 Get project and branch info:
 ```bash
@@ -35,10 +35,10 @@ pwd                           # Project directory
 git branch --show-current     # Current branch
 ```
 
-Display current work state:
+Display current task state:
 ```bash
 bd ready                      # Available tasks (no blockers)
-bd list --status=in_progress  # Active work
+bd list --status=in_progress  # Active tasks
 bd blocked                    # Blocked tasks (for awareness)
 ```
 
@@ -78,7 +78,7 @@ Reason: <error message>
 
 Options:
   1. Resolve manually and run /line:prep again
-  2. Run /line:cook to work offline (will sync later)
+  2. Run /line:cook to proceed offline (will sync later)
 ```
 
 ## Example Output
