@@ -2,15 +2,17 @@
 description: Review changes via headless Claude and file issues
 ---
 
-**STOP after completing.** Do NOT auto-continue to /line-tidy. Show NEXT STEP and wait for user.
+## Summary
 
-## Task
+**Review completed work via headless Claude.** Part of prep → cook → serve → tidy.
 
-Review work completed by `/line-cook` via a headless Claude instance. Part of the `/line-prep` → `/line-cook` → `/line-serve` → `/line-tidy` workflow loop.
-
-**Concept**: After cooking (doing work), you "serve" it for review before tidying up.
+After cooking (doing work), you "serve" it for review before tidying up.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific bead ID to review
+
+**STOP after completing.** Show NEXT STEP and wait for user.
+
+---
 
 ## Process
 

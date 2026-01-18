@@ -3,11 +3,13 @@ description: Sync state, load context, show ready tasks
 allowed-tools: Bash, Read, Glob
 ---
 
-**STOP after completing.** Do NOT auto-continue to /line:cook. Show NEXT STEP and wait for user.
+## Summary
 
-## Task
+**Sync state and identify available work.** Part of prep → cook → serve → tidy.
 
-Session preparation: sync state and identify available work. Part of the `/line:prep` → `/line:cook` → `/line:serve` → `/line:tidy` workflow loop.
+**STOP after completing.** Show NEXT STEP and wait for user.
+
+---
 
 ## Process
 

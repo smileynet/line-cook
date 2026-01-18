@@ -2,11 +2,13 @@
 description: Orchestrate full prep→cook→serve→tidy workflow cycle
 ---
 
-## Task
+## Summary
 
-Orchestrate a complete work cycle by running the full workflow sequence. This is the primary entry point for a focused work session.
+**Run the full prep → cook → serve → tidy cycle.** Primary entry point for focused work sessions.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to work on (passed to cook)
+
+---
 
 ## Process
 

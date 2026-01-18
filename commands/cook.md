@@ -3,13 +3,15 @@ description: Select and execute a task with completion guardrails
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQuestion
 ---
 
-**STOP after completing.** Do NOT auto-continue to /line:serve. Show NEXT STEP and wait for user.
+## Summary
 
-## Task
-
-Execute work on a task with guardrails ensuring completion. Part of the `/line:prep` → `/line:cook` → `/line:serve` → `/line:tidy` workflow loop.
+**Execute a task with guardrails ensuring completion.** Part of prep → cook → serve → tidy.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to work on
+
+**STOP after completing.** Show NEXT STEP and wait for user.
+
+---
 
 ## Process
 

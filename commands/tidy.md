@@ -3,9 +3,13 @@ description: Commit changes, sync beads, and push to remote
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite
 ---
 
-## Task
+## Summary
 
-Session cleanup: file discovered work, commit changes, and push to remote. This is where findings from `/line:cook` and `/line:serve` get filed as beads.
+**File discovered work, commit changes, and push to remote.** Part of prep → cook → serve → tidy.
+
+This is where findings from `/line:cook` and `/line:serve` get filed as beads.
+
+---
 
 ## Bead Creation Reference
 
