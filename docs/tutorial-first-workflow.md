@@ -107,7 +107,8 @@ Through this conversation, you've identified:
 | Task | JSON file storage | No dependencies (do first) |
 | Task | Add book command | Depends on storage |
 | Task | List books command | Depends on storage |
-| Task | Mark read command | Depends on storage |
+| Task | Done command | Depends on storage |
+| Task | Remove command | Depends on storage (cut in Part 2) |
 
 This structure captures both the work and the order it should happen in. Dependencies ensure you don't start "add book" before storage exists.
 
@@ -160,8 +161,8 @@ Claude: I'll create the epic and tasks with dependencies. Here's my plan:
 Take a moment to review. This is your chance to catch issues:
 
 ```
-You: Wait - we said 4 commands in MVP, not 5. Let's skip "remove" for now
-     and add it later. Also, make storage P1 since everything depends on it.
+You: Actually, let's drop "remove" for MVP - 3 commands is enough to start.
+     We can add it later. Also, make storage P1 since everything depends on it.
 
 Claude: Good catch. Updated plan:
 
@@ -230,7 +231,7 @@ Project stats:
 ### Why Review Matters
 
 Notice what happened:
-- Claude proposed 5 tasks, but you caught the scope creep (remove command)
+- Claude proposed 4 command tasks, but you trimmed scope further (dropped remove)
 - You upgraded storage priority since it's the critical path
 - The review took 30 seconds but prevented creating work you didn't want
 
