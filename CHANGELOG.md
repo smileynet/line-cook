@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-01-19
+
+### Added
+- `/line:doctor` command to validate hook configurations and detect orphaned configs
+- `hooks/line_doctor.py` validation script with cross-platform support
+
 ## [0.6.2] - 2026-01-19
 
 ### Added
@@ -38,7 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/smileynet/line-cook/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/smileynet/line-cook/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/smileynet/line-cook/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/smileynet/line-cook/releases/tag/v0.6.0
