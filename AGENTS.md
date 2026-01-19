@@ -241,3 +241,47 @@ Available hooks:
 ## Testing
 
 See [TESTING.md](TESTING.md) for validation and testing methods.
+
+## Release Process
+
+**When making changes to core functionality** (commands, hooks, plugin manifests, workflow logic), you MUST bump the version and push updates.
+
+### Files Requiring Version Update
+
+| File | Field(s) |
+|------|----------|
+| `.claude-plugin/plugin.json` | `version` |
+| `line-cook-opencode/package.json` | `version` AND `opencode.version` |
+
+### Version Bump Procedure
+
+```bash
+# 1. Determine version (semantic versioning)
+#    Patch: bug fixes → 0.4.5 → 0.4.6
+#    Minor: new features → 0.4.5 → 0.5.0
+#    Major: breaking changes → 0.4.5 → 1.0.0
+
+# 2. Update all version locations (must be identical)
+#    - .claude-plugin/plugin.json: "version"
+#    - line-cook-opencode/package.json: "version" AND "opencode.version"
+
+# 3. Commit and push
+git add .claude-plugin/plugin.json line-cook-opencode/package.json
+git commit -m "chore: bump version to X.Y.Z"
+bd sync
+git push
+```
+
+### When to Bump Version
+
+**DO bump for:**
+- Command changes (commands/*.md)
+- Hook changes (hooks/*.py, src/*.ts)
+- Plugin manifest changes
+- Core workflow logic
+
+**DON'T bump for:**
+- Documentation-only (README, AGENTS.md, docs/)
+- CI/CD configuration
+- .beads/ changes
+- Test files only

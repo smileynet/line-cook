@@ -131,3 +131,14 @@ OpenCode provides events across these categories:
 - **Command**: `command.executed`
 
 See [OpenCode Plugin Docs](https://opencode.ai/docs/plugins/) for the complete event reference.
+
+## Release Process
+
+**When making changes to core functionality** (commands, hooks, plugin logic), bump the version in:
+
+| File | Field(s) |
+|------|----------|
+| `.claude-plugin/plugin.json` | `version` |
+| `line-cook-opencode/package.json` | `version` AND `opencode.version` |
+
+All three version values MUST be identical. See the main [AGENTS.md](../AGENTS.md) for full release checklist.
