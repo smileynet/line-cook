@@ -4,13 +4,18 @@
   "workspaces": {
     "": {
       "name": "@line-cook/opencode-plugin",
+      "dependencies": {
+        "@opencode-ai/sdk": "^1.1.0",
+      },
       "devDependencies": {
         "@opencode-ai/plugin": "^1.0.0",
+        "@opencode-ai/sdk": "^1.1.0",
         "bun-types": "latest",
         "typescript": "^5.0.0",
       },
       "peerDependencies": {
         "@opencode-ai/plugin": "^1.0.0",
+        "@opencode-ai/sdk": "^1.0.0",
       },
     },
   },
