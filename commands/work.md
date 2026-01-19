@@ -29,7 +29,7 @@ Invoke the cook command to execute work:
 
 **If `$ARGUMENTS` provided:**
 ```
-Skill(skill="line:cook", args="<task-id>")
+Skill(skill="line:cook", args="$ARGUMENTS")
 ```
 
 **Otherwise:**
