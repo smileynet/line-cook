@@ -64,7 +64,10 @@ Once comfortable with each step, use `/line:work` to run them all together.
 
 ## Installation
 
-> **Requires:** [beads](https://github.com/steveyegge/beads) for task tracking, Git, Claude Code or OpenCode
+> **Requires:**
+> - [beads](https://github.com/steveyegge/beads): `brew install steveyegge/beads/bd` (or see repo for npm/go options)
+> - Git
+> - Claude Code or OpenCode
 
 ### Claude Code
 
@@ -94,6 +97,8 @@ opencode plugin install https://github.com/smileynet/line-cook
 ```
 
 **Local:**
+> Requires [bun](https://bun.sh/) for building
+
 ```bash
 git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
@@ -111,9 +116,9 @@ Line Cook enforces discipline so you don't have to:
 - **File, don't block** - Discovered issues become new beads
 - **Push before stop** - Work isn't done until it's pushed
 
-> **Tip: The Retro Epic Pattern**
+> **Tip: Parking Lot Epics**
 >
-> Create a "Retro" epic for minor findings: refactoring ideas, doc gaps, "maybe we should..." thoughts. File them as low-priority beads as you work. Review when you have breathing room. Captures feedback without derailing focus.
+> Create "Retrospective" or "Backlog" epics for deferred work. Tasks filed under these epics are automatically excluded from `/prep` and `/cook` auto-selection, keeping focus on active work. You can still work on them explicitly via `/line:cook <task-id>`.
 
 ## Hooks (Optional)
 
@@ -159,9 +164,12 @@ Built on ideas from:
 
 ```
 line-cook/
+├── .claude-plugin/     # Plugin manifest
 ├── commands/           # Slash commands
 ├── hooks/              # Claude Code hooks (Python)
 ├── line-cook-opencode/ # OpenCode plugin
+├── scripts/            # Installation helpers
+├── docs/internal/      # Development planning docs
 ├── HOOKS.md            # Hooks documentation
 └── TESTING.md          # Testing guide
 ```
@@ -174,4 +182,3 @@ MIT
 
 - [beads](https://github.com/steveyegge/beads) - Git-native issue tracking
 - [Gas Town](https://github.com/steveyegge/gastown) - Autonomous agent framework
-- [meta-claude](https://github.com/smileynet/meta-claude) - Claude Code skills and documentation
