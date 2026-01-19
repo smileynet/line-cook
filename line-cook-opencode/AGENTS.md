@@ -86,3 +86,36 @@ bd list --parent=<epic-id> --all  # List children of an epic
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - If push fails, resolve and retry until it succeeds
+
+## Plugin Events
+
+The line-cook OpenCode plugin hooks into these events:
+
+| Event | Purpose |
+|-------|---------|
+| `session.created` | Detect beads-enabled projects, suggest workflow |
+| `session.idle` | Remind about `/line-tidy` for uncommitted work |
+| `command.executed` | Track line-cook command usage |
+| `file.edited` | Track edits to workflow files (.beads/, AGENTS.md) |
+
+### Planned Events (Future Enhancement)
+
+These OpenCode events could enhance the workflow:
+
+| Event | Potential Use |
+|-------|---------------|
+| `session.compacting` | Inject beads context before summarization |
+| `tool.execute.before` | Block dangerous commands (similar to Claude Code's PreToolUse) |
+| `tool.execute.after` | Auto-format edited files (similar to Claude Code's PostToolUse) |
+| `session.error` | Suggest workflow recovery steps |
+
+### Event Reference
+
+OpenCode provides events across these categories:
+
+- **Session**: `session.created`, `session.idle`, `session.compacted`, `session.compacting` (experimental), `session.error`
+- **Tool**: `tool.execute.before`, `tool.execute.after`
+- **File**: `file.edited`, `file.watcher.updated`
+- **Command**: `command.executed`
+
+See [OpenCode Plugin Docs](https://opencode.ai/docs/plugins/) for the complete event reference.
