@@ -258,6 +258,10 @@ export const LineCookPlugin: Plugin = async ({ client, directory, $ }: PluginInp
         case "file.edited":
           await handleFileEdited(client, event.properties.file)
           break
+
+        case "session.compacted":
+          await handleSessionCompacted(client, directory, event.properties.sessionID)
+          break
       }
     },
 
@@ -548,6 +552,63 @@ async function handleFileEdited(
         level: "error",
         message: "Failed to log file edit",
         extra: { error: String(error), filePath },
+      },
+    })
+  }
+}
+
+/**
+ * Handle session.compacted event
+ * Notifies user about context preservation and suggests refreshing state
+ *
+ * Note: The beads workflow context is preserved during compaction via the
+ * experimental.session.compacting hook. This event handler just notifies
+ * the user that compaction completed and suggests next steps.
+ */
+async function handleSessionCompacted(
+  client: PluginInput["client"],
+  directory: string,
+  sessionID: string
+): Promise<void> {
+  try {
+    const hasBeads = await hasBeadsEnabled(directory)
+
+    if (hasBeads) {
+      // Show toast notification to user about context preservation
+      await client.tui.showToast({
+        body: {
+          title: "Session Compacted",
+          message: "Beads workflow context preserved. Run /line-prep to refresh task state.",
+          variant: "info",
+          duration: 8000,
+        },
+      })
+
+      await client.app.log({
+        body: {
+          service: "line-cook",
+          level: "info",
+          message: "Session compacted - beads workflow context preserved",
+          extra: {
+            sessionID,
+            directory,
+            preservedContext: [
+              "SESSION CLOSE PROTOCOL",
+              "Core beads rules",
+              "Essential commands reference",
+            ],
+            suggestion: "Run /line-prep to refresh task state",
+          },
+        },
+      })
+    }
+  } catch (error) {
+    await client.app.log({
+      body: {
+        service: "line-cook",
+        level: "error",
+        message: "Failed to handle session compaction",
+        extra: { error: String(error), sessionID },
       },
     })
   }
