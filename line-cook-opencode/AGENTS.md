@@ -45,6 +45,27 @@ bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
 
+## Epic Philosophy
+
+Epics organize related work into coherent groups using a **child-based** model:
+
+1. **Epics contain children** - Use `--parent=<epic-id>` when creating tasks
+2. **Dependencies order children** - Use `bd dep add` to establish order within an epic
+3. **Dependencies order epics** - Epics can depend on other epics for sequencing
+4. **Cross-epic dependencies (rare)** - A child of one epic may block another epic
+
+```bash
+# Create epic structure
+bd create --title="Feature X" --type=epic --priority=1
+bd create --title="Design X" --type=task --parent=lc-abc
+bd create --title="Implement X" --type=task --parent=lc-abc
+bd dep add lc-def lc-ghi  # Implement depends on Design
+
+# Query progress
+bd epic status                    # Show all epics with child completion
+bd list --parent=<epic-id> --all  # List children of an epic
+```
+
 ## Session Completion (Landing the Plane)
 
 **When ending a work session**, complete ALL steps below. Work is NOT complete until `git push` succeeds.

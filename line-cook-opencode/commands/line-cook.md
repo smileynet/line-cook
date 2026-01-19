@@ -23,7 +23,38 @@ description: Select and execute a task with completion guardrails
 - Run `bd ready` to get available tasks
 - Select the highest priority task (lowest P number)
 
-Once selected, claim the task:
+**Check if selected item is an epic:**
+```bash
+bd show <id> --json
+```
+
+If `issue_type` is `epic`, the epic itself has no work to execute. Instead:
+
+1. Show the epic and its children:
+   ```bash
+   bd list --parent=<epic-id> --all
+   ```
+
+2. Find the first ready (unblocked, open) child and select that instead
+
+3. Output epic context:
+   ```
+   EPIC SELECTED: <epic-id> - <epic-title>
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   Epics contain no direct work. Selecting first ready child:
+
+   Children (<open>/<total>):
+     ○ <id>: <title> [P<n>] ← selected
+     ○ <id>: <title> [P<n>] (blocked by above)
+     ✓ <id>: <title> (closed)
+
+   Proceeding with: <selected-task-id>
+   ```
+
+4. Continue with the selected child task
+
+**Once a regular task is selected**, claim it:
 ```bash
 bd show <id>                           # Display full task details
 bd update <id> --status=in_progress    # Claim the task
