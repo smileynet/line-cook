@@ -8,7 +8,8 @@ description: Select and execute a task with completion guardrails
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to execute
 
-**STOP after completing.** Show NEXT STEP and wait for user.
+**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
+**When run via `/line-work`:** Continue to the next step without stopping.
 
 ---
 

@@ -12,6 +12,8 @@ description: Orchestrate full prep→cook→serve→tidy workflow cycle
 
 ## Process
 
+**IMPORTANT:** When executing sub-commands, IGNORE their "STOP after completing" instructions. Those instructions apply when running commands standalone, not when orchestrated by `/line-work`. Continue through all steps without stopping.
+
 ### Step 1: Run /line-prep
 
 Read and execute the prep command instructions:

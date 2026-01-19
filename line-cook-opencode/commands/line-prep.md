@@ -6,7 +6,8 @@ description: Sync state, load context, show ready tasks
 
 **Sync state and identify ready tasks.** Part of prep → cook → serve → tidy.
 
-**STOP after completing.** Show NEXT STEP and wait for user.
+**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
+**When run via `/line-work`:** Continue to the next step without stopping.
 
 ---
 
