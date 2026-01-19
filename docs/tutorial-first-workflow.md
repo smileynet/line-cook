@@ -16,34 +16,86 @@ Before any code is written, you need a plan. Line Cook works best when tasks are
 
 ### Example: Building a Reading List CLI
 
-Let's say you want to build a simple CLI tool to track books you're reading.
+Let's say you want to build a simple CLI tool to track books you're reading. Here's how the conversation might unfold over several turns.
 
-**Start the conversation:**
+**Turn 1 - Start broad:**
 
 ```
-You: I want to build a CLI tool that tracks my reading list. Help me
-     break this down into manageable tasks.
+You: I want to build a CLI tool that tracks my reading list.
 
-Claude: Let's identify the core capabilities you need:
+Claude: Good project! Before we dive in, a few questions to scope this:
 
-        1. **Data storage** - Where do books live? (JSON file is simplest)
-        2. **Core commands** - What can users do?
-           - Add a book
-           - List all books
-           - Mark a book as read
-           - Remove a book
-        3. **Nice-to-haves** - What could come later?
-           - Search/filter
-           - Reading stats
-           - Export to other formats
-
-        I'd group these into:
-        - An epic for "Core CLI Commands"
-        - A task for "JSON file storage" (needed first)
-        - Individual tasks for each command
-
-        The command tasks depend on storage existing first.
+        1. What info do you want to track per book? (title, author, pages, etc.)
+        2. Where should data live? (local file, database, cloud?)
+        3. Is this just for you, or will others use it?
 ```
+
+**Turn 2 - Narrow the scope:**
+
+```
+You: Just for me. I want title, author, and whether I've finished it.
+     Local file is fine - keep it simple.
+
+Claude: Perfect. A JSON file will work well for that. Now, what operations
+        do you need?
+
+        - Add a book
+        - List all books
+        - Mark a book as finished
+        - Remove a book
+
+        Anything else? Search? Stats? Export?
+```
+
+**Turn 3 - Decide what's MVP vs later:**
+
+```
+You: Those four are the core. Search would be nice but not essential.
+     Let's keep the first version minimal.
+
+Claude: Smart. We can add search later. So for MVP:
+
+        **Storage** (build first - everything depends on this):
+        - JSON file with load/save operations
+        - Simple schema: [{title, author, finished}]
+
+        **Commands** (build after storage):
+        - `add` - title and author required
+        - `list` - show all books, maybe indicate finished ones
+        - `done` - mark a book finished
+        - `remove` - delete by title or ID
+
+        Should I structure this as beads? One epic for "Core CLI",
+        with storage as the first task, then the commands?
+```
+
+**Turn 4 - Confirm the structure:**
+
+```
+You: Yes, that makes sense. The commands can't work without storage,
+     so that dependency is real.
+
+Claude: Exactly. Here's the structure:
+
+        Epic: "Core CLI Commands"
+        ├── Task: "Implement JSON storage" (no blockers)
+        ├── Task: "Add command" (blocked by storage)
+        ├── Task: "List command" (blocked by storage)
+        ├── Task: "Done command" (blocked by storage)
+        └── Task: "Remove command" (blocked by storage)
+
+        Ready to create these beads?
+```
+
+### Why Multiple Turns Matter
+
+Notice what happened:
+- **Turn 1**: Broad idea, Claude asks clarifying questions
+- **Turn 2**: Scope narrows based on your answers
+- **Turn 3**: MVP vs nice-to-have distinction emerges
+- **Turn 4**: Structure confirmed, ready to execute
+
+Rushing to create tasks from a vague idea leads to rework. Taking a few turns to clarify scope saves time later.
 
 ### What You're Building
 
