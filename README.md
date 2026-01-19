@@ -68,17 +68,35 @@ Once comfortable with each step, use `/line:work` to run them all together.
 
 ### Claude Code
 
+**Remote (recommended):**
 ```bash
 /plugin marketplace add smileynet/line-cook
 /plugin install line@line-cook
 ```
+Update: `/plugin update line`
+
+**Local (for development):**
+```bash
+git clone https://github.com/smileynet/line-cook.git ~/line-cook
+cd ~/line-cook && ./scripts/install-claude-code.sh
+```
+Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
+
+> **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
 Commands: `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`
 
 ### OpenCode
 
+**Remote:**
 ```bash
 opencode plugin install https://github.com/smileynet/line-cook
+```
+
+**Local:**
+```bash
+git clone https://github.com/smileynet/line-cook.git ~/line-cook
+cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
 Commands: `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`
