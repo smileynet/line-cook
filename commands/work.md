@@ -67,20 +67,20 @@ After all steps complete, output summary derived from /tidy:
 WORK CYCLE: Complete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Steps:
-  [1/4] PREP    ✓ synced
-  [2/4] COOK    ✓ executed
-  [3/4] SERVE   ✓ reviewed (<verdict>)
-  [4/4] TIDY    ✓ committed, pushed
+[1/4] PREP    ✓ synced
+[2/4] COOK    ✓ executed
+[3/4] SERVE   ✓ reviewed (<verdict>)
+[4/4] TIDY    ✓ committed, pushed
 
 Files: <count> changed
 Commit: <hash>
 Issues filed: <count>
 
-Task: <id> - <title>
-Summary: <what was accomplished>
+───────────────────────────────────────────
 
-Ready for next cycle.
+TASK: <id> - <title>
+
+SUMMARY: <what was accomplished>
 ```
 
 ## Error Handling
@@ -96,16 +96,17 @@ If any step fails:
 WORK CYCLE: Incomplete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Steps:
-  [1/4] PREP    ✓
-  [2/4] COOK    ✓
-  [3/4] SERVE   ✗ (error: <reason>)
-  [4/4] TIDY    pending
+[1/4] PREP    ✓
+[2/4] COOK    ✓
+[3/4] SERVE   ✗ (error: <reason>)
+[4/4] TIDY    pending
 
 Failed at: <step>
 Error: <description>
 
-Task: <id> - <title>
+───────────────────────────────────────────
+
+TASK: <id> - <title>
 
 Run /line:tidy to save progress, or investigate the error.
 ```
