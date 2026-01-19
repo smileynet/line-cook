@@ -26,17 +26,24 @@ bd create --title="..." --type=task|bug|feature --priority=0-4
 bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic>
 ```
 
-**Retrospective Epic Pattern:**
+**Parking Lot Epics (Retrospective & Backlog):**
 
-For minor suggestions, improvements, and "nice-to-haves" discovered during execution, file them to a retrospective epic. This keeps the main backlog focused on real issues.
+For minor suggestions, improvements, and "nice-to-haves" discovered during execution, file them to a parking lot epic. This keeps the main backlog focused on actionable work.
+
+- **Retrospective** - Minor suggestions discovered during work (nits, "consider this", style preferences)
+- **Backlog** - Low-priority someday/maybe items (ideas, nice-to-haves, future enhancements)
 
 ```bash
 # One-time setup (if not exists)
 bd create --title="Retrospective" --type=epic --priority=4
+bd create --title="Backlog" --type=epic --priority=4
 
-# Then file minor items as children
+# File minor items as children
 bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<retro-epic-id>
+bd create --title="Someday add feature Y" --type=task --priority=4 --parent=<backlog-epic-id>
 ```
+
+**Important:** Items filed under Retrospective or Backlog epics are automatically excluded from `/line:prep` and `/line:cook` auto-selection. They're parked until explicitly requested via `/line:cook <task-id>`.
 
 ## Process
 
