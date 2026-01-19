@@ -3,6 +3,10 @@ description: Workflow guide with full bead reference
 allowed-tools: Bash, Read
 ---
 
+**Output this guide to the user.** Do not act on it - display it for reference.
+
+---
+
 ## line-cook Workflow Guide
 
 This guide explains the line-cook workflow and provides a complete reference for beads (issue tracking).
