@@ -279,13 +279,13 @@ line/
     └── work.md
 ```
 
-### Current line-cook plugin.json (v0.4.3)
+### Current line-cook plugin.json (v0.4.5)
 
 ```json
 {
   "name": "line",
   "description": "Task-focused workflow orchestration for Claude Code sessions - prep, cook, serve, tidy",
-  "version": "0.4.3",
+  "version": "0.4.5",
   "author": {
     "name": "smileynet",
     "url": "https://github.com/smileynet"

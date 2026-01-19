@@ -2,6 +2,8 @@
 
 Hooks automate workflow stages in Claude Code and OpenCode. This document covers installation and configuration.
 
+> **Note for OpenCode users:** OpenCode uses built-in TypeScript hooks (in `line-cook-opencode/src/`), not the Python hooks described here. See the OpenCode plugin source for details.
+
 ## Quick Start
 
 Run the setup command in your Claude Code or OpenCode session:
