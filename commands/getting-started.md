@@ -139,6 +139,14 @@ bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<re
 
 This keeps the main backlog focused on real tasks while preserving good ideas for later review.
 
+**Auto-selection exclusion:** Tasks parented to "Retrospective" or "Backlog" epics are automatically excluded from `/line:prep` and `/line:cook` task selection. To work on parked items:
+
+```bash
+/line:cook lc-xxx                  # Explicitly select any task, including parked ones
+bd list --parent=<epic-id>         # View parked items in an epic
+bd list --type=epic                # Find epic IDs
+```
+
 ---
 
 ## Quick Start

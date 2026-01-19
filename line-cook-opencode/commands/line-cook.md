@@ -18,11 +18,31 @@ description: Select and execute a task with completion guardrails
 ### Step 1: Select Task
 
 **If `$ARGUMENTS` provided:**
-- Use that task ID directly
+- Use that task ID directly (explicit selection bypasses filtering)
 
-**Otherwise:**
-- Run `bd ready` to get available tasks
-- Select the highest priority task (lowest P number)
+**Otherwise (auto-selection with filtering):**
+
+Exclude children of parking-lot epics ("Retrospective", "Backlog") from auto-selection:
+
+```bash
+# Find parking-lot epic IDs
+EXCLUDE_EPICS=$(bd list --type=epic --json | jq '[.[] | select(.title == "Retrospective" or .title == "Backlog") | .id]')
+
+# Get next task from filtered ready list
+NEXT_TASK=$(bd ready --json | jq -r --argjson exclude "$EXCLUDE_EPICS" \
+  'map(select(.parent == null or (.parent | IN($exclude[]) | not))) | .[0].id')
+```
+
+**Important:** This exclusion ONLY applies to auto-selection. If `$ARGUMENTS` is provided, execute that task regardless of parent epic. This allows explicit work on parked items.
+
+**If no tasks after filtering:**
+```
+No actionable tasks ready.
+All ready tasks are in Retrospective or Backlog epics.
+
+To work on parked items: /line-cook <specific-task-id>
+To see parked work: bd list --parent=<epic-id>
+```
 
 **Check if selected item is an epic:**
 ```bash
