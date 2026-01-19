@@ -41,10 +41,27 @@ bd list --status=in_progress  # Active tasks
 bd blocked                    # Blocked tasks (for awareness)
 ```
 
-### Step 3: Output Session Summary
+### Step 3: Identify Next Task
+
+Before outputting the summary, determine the recommended next task:
+
+1. Get the highest priority ready item from `bd ready`
+2. Check if it's an epic: `bd show <id> --json` and check `issue_type`
+
+**If the top item is an epic:**
+- Epics themselves don't contain work - their children do
+- Find the first ready child task: `bd list --parent=<epic-id>` filtered by ready (open + unblocked)
+- Recommend that child task instead, noting it's part of the epic
+
+**If no ready tasks but epics have unstarted children:**
+- Check epic children that are open but not blocked
+- Recommend starting with those
+
+### Step 4: Output Session Summary
 
 Output a focused, scannable summary:
 
+**Standard output (task is ready):**
 ```
 SESSION: <project-name> @ <branch>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -62,6 +79,30 @@ NEXT TASK:
 New to line-cook? Run /line-getting-started for workflow guide.
 
 NEXT STEP: /line-cook (or /line-cook <id> for specific task)
+```
+
+**Epic-aware output (when top priority is an epic):**
+```
+SESSION: <project-name> @ <branch>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sync: ✓ up to date | ⚠️ <issue>
+
+Ready: <count> tasks
+In progress: <count>
+Blocked: <count>
+
+EPIC IN FOCUS:
+  <epic-id> [P<n>] <epic-title>
+  Progress: <closed>/<total> children complete
+
+NEXT TASK (part of epic):
+  <task-id> [P<n>] <task-title>
+  <first line of description if available>
+
+New to line-cook? Run /line-getting-started for workflow guide.
+
+NEXT STEP: /line-cook <task-id>
 ```
 
 **Important:** Do NOT include bead command reference here. That information is available via `/line-getting-started` and `/line-tidy` (where it's actually needed).
@@ -82,6 +123,7 @@ Options:
 
 ## Example Output
 
+**Standard task:**
 ```
 SESSION: line-cook @ main
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -99,6 +141,30 @@ NEXT TASK:
 New to line-cook? Run /line-getting-started for workflow guide.
 
 NEXT STEP: /line-cook (or /line-cook lc-042 for this task)
+```
+
+**Epic with child tasks:**
+```
+SESSION: line-cook @ main
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sync: ✓ up to date
+
+Ready: 5 tasks
+In progress: 0
+Blocked: 2
+
+EPIC IN FOCUS:
+  lc-45k [P1] Reimagine line-cook as Go CLI tool
+  Progress: 0/5 children complete
+
+NEXT TASK (part of epic):
+  lc-cvo [P2] Research beads Go CLI architecture
+  Study how beads implements its Go CLI tool
+
+New to line-cook? Run /line-getting-started for workflow guide.
+
+NEXT STEP: /line-cook lc-cvo
 ```
 
 ## Example Usage

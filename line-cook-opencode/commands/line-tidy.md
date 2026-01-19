@@ -67,7 +67,28 @@ For each **in-progress** issue:
 
 **Do NOT ask the user** - make a reasonable judgment or file a bead.
 
-### Step 3: Commit Changes
+### Step 3: Check for Epic Closures
+
+After closing issues, check if any epics are now eligible for closure (all children complete):
+
+```bash
+bd epic close-eligible --dry-run
+```
+
+If epics are eligible:
+1. Close them: `bd epic close-eligible`
+2. For each closed epic, get its children for the summary:
+   ```bash
+   bd list --parent=<epic-id> --all --json
+   ```
+
+**Note:** Epic closures are significant milestones. They will be highlighted prominently in the session summary.
+
+> **Epic Philosophy:** Epics use children (`--parent`) for grouping, not blocking dependencies.
+> Dependencies between children establish order within an epic.
+> See AGENTS.md for the full epic philosophy.
+
+### Step 4: Commit Changes
 
 Show pending changes:
 ```bash
@@ -79,7 +100,7 @@ If changes exist:
 2. Create a commit with a descriptive message summarizing the session
 3. Use conventional commit format (feat:, fix:, docs:, etc.)
 
-### Step 4: Sync and Push
+### Step 5: Sync and Push
 
 ```bash
 bd sync                        # Commit beads changes
@@ -93,7 +114,7 @@ If push fails:
 bd create --title="Resolve git push failure: <error>" --type=bug --priority=2
 ```
 
-### Step 5: Record Session Summary
+### Step 6: Record Session Summary
 
 **Add final comment to the task:**
 ```bash
@@ -115,7 +136,29 @@ Commit: <hash>
 Push: <success|failed>"
 ```
 
-### Step 6: Output Summary
+### Step 7: Output Summary
+
+**If an epic was closed**, output the epic completion banner first:
+
+```
+════════════════════════════════════════════
+  EPIC COMPLETE: <epic-id> - <epic-title>
+════════════════════════════════════════════
+
+Children completed (<count>):
+  ✓ <id>: <title>
+  ✓ <id>: <title>
+  ✓ <id>: <title>
+  ...
+
+Impact:
+  <1-2 sentence description of what capability/improvement is now complete,
+   derived from the epic description>
+
+════════════════════════════════════════════
+```
+
+**Then output the standard session summary:**
 
 ```
 TIDY: Session cleanup
@@ -139,6 +182,9 @@ Problems encountered:
 
 Issues closed: <count>
   ✓ <id>: <title>
+
+Epics completed: <count>
+  ★ <epic-id>: <title> (<N> children)
 
 Issues filed: <count>
   + <new-id>: <title> [P<n>]

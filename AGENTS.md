@@ -62,6 +62,70 @@ bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
 
+## Epic Philosophy
+
+Epics organize related work into coherent groups. Line-cook uses a **child-based** model:
+
+### Structure
+
+```
+Epic (parent)
+├── Child task 1
+├── Child task 2 (depends on Child 1)
+├── Child task 3 (depends on Child 1)
+└── Child task 4 (depends on Child 2, 3)
+```
+
+### Rules
+
+1. **Epics contain children** - Use `--parent=<epic-id>` when creating tasks that belong to an epic
+2. **Dependencies order children** - Use `bd dep add` to establish order within an epic
+3. **Dependencies order epics** - Epics can depend on other epics for sequencing
+4. **Cross-epic dependencies (rare)** - A child of one epic may block another epic when there's a genuine prerequisite
+
+### Creating Epic Structure
+
+```bash
+# Create the epic
+bd create --title="Implement auth system" --type=epic --priority=1
+
+# Create children with --parent
+bd create --title="Design auth flow" --type=task --parent=lc-abc
+bd create --title="Implement login" --type=task --parent=lc-abc
+bd create --title="Implement logout" --type=task --parent=lc-abc
+bd create --title="Add session management" --type=task --parent=lc-abc
+
+# Add dependencies between children for ordering
+bd dep add lc-def lc-ghi   # "Implement login" depends on "Design auth flow"
+bd dep add lc-jkl lc-ghi   # "Implement logout" depends on "Design auth flow"
+bd dep add lc-mno lc-def   # "Session mgmt" depends on "Implement login"
+bd dep add lc-mno lc-jkl   # "Session mgmt" depends on "Implement logout"
+```
+
+### Querying Epic Progress
+
+```bash
+bd epic status                    # Show all epics with child completion
+bd epic status --eligible-only    # Show epics ready to close
+bd list --parent=<epic-id>        # List children of an epic
+bd list --parent=<epic-id> --all  # Include closed children
+```
+
+### When to Use Each Relationship
+
+| Relationship | When to use |
+|--------------|-------------|
+| `--parent` | Task belongs to an epic (grouping) |
+| `bd dep add` | Task must complete before another (ordering) |
+| Epic depends on epic | One feature requires another feature first |
+| Child blocks epic (rare) | Specific prerequisite from another group |
+
+### Anti-patterns
+
+- **Don't use dependencies instead of children** - If tasks belong together, use `--parent`
+- **Don't create flat task lists** - Group related work into epics
+- **Don't over-nest** - Epics should be shallow (1 level of children)
+
 ## Session Completion (Landing the Plane)
 
 **When ending a work session**, complete ALL steps below. Work is NOT complete until `git push` succeeds.
