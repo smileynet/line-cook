@@ -42,12 +42,27 @@ bd list --status=in_progress  # Active tasks
 bd blocked                    # Blocked tasks (for awareness)
 ```
 
-### Step 3: Identify Next Task
+### Step 3: Identify Next Task (Filtered)
 
-Before outputting the summary, determine the recommended next task:
+Before outputting the summary, determine the recommended next task.
 
-1. Get the highest priority ready item from `bd ready`
-2. Check if it's an epic: `bd show <id> --json` and check `issue_type`
+**Exclude parking-lot epics from auto-selection:**
+
+Certain epics ("Retrospective", "Backlog") are parking lots for deferred work. Their children should NOT be auto-selected.
+
+1. Find parking-lot epic IDs:
+```bash
+EXCLUDE_EPICS=$(bd list --type=epic --json | jq '[.[] | select(.title == "Retrospective" or .title == "Backlog") | .id]')
+```
+
+2. Get filtered ready list (excluding children of parking-lot epics):
+```bash
+bd ready --json | jq --argjson exclude "$EXCLUDE_EPICS" \
+  'map(select(.parent == null or (.parent | IN($exclude[]) | not)))'
+```
+
+3. Get the highest priority item from the filtered list
+4. Check if it's an epic: `bd show <id> --json` and check `issue_type`
 
 **If the top item is an epic:**
 - Epics themselves don't contain work - their children do
@@ -57,6 +72,15 @@ Before outputting the summary, determine the recommended next task:
 **If no ready tasks but epics have unstarted children:**
 - Check epic children that are open but not blocked
 - Recommend starting with those
+
+**If no actionable tasks remain after filtering:**
+```
+No actionable tasks ready.
+All ready tasks are in Retrospective or Backlog epics.
+
+To work on parked items: /line-cook <specific-task-id>
+To see parked work: bd list --parent=<epic-id>
+```
 
 ### Step 4: Output Session Summary
 
