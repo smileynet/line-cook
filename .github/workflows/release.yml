@@ -32,11 +32,66 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate changelog
+        if: steps.check.outputs.exists == 'false'
+        id: changelog
+        run: |
+          # Get previous release tag
+          PREV_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            # Get commits since last release, excluding bd sync commits
+            CHANGES=$(git log --pretty=format:"* %h %s" ${PREV_TAG}..HEAD --no-merges | grep -v "bd sync" || echo "* Minor updates")
+          else
+            CHANGES="* Initial release"
+          fi
+
+          # Output using heredoc for multiline
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGES"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create release
         if: steps.check.outputs.exists == 'false'
         run: |
+          cat > /tmp/release-notes.md << EOF
+          ## line-cook ${{ steps.version.outputs.tag }}
+
+          ### What's Changed
+          ${{ steps.changelog.outputs.changelog }}
+
+          ## Installation
+
+          **First-time install:**
+          \`\`\`bash
+          /plugin marketplace add smileynet/line-cook
+          /plugin install line@line-cook
+          \`\`\`
+
+          **Update existing:**
+          \`\`\`bash
+          /plugin update line
+          \`\`\`
+
+          ## Commands
+          - \`/line:work\` - Full prep→cook→serve→tidy cycle (recommended)
+          - \`/line:prep\` - Sync state, show ready tasks
+          - \`/line:cook\` - Execute a task with guardrails
+          - \`/line:serve\` - AI peer review via headless Claude
+          - \`/line:tidy\` - File issues, commit, sync, push
+          - \`/line:compact\` - Compact context preserving workflow state
+          - \`/line:setup\` - Configure hooks interactively
+          - \`/line:getting-started\` - Workflow guide and reference
+          EOF
+          # Strip leading spaces from heredoc (YAML indentation artifact)
+          sed -i 's/^          //' /tmp/release-notes.md
+
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "${{ steps.version.outputs.tag }}" \
-            --notes-file .github/release.md
+            --notes-file /tmp/release-notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
