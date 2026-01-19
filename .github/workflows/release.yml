@@ -32,60 +32,49 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate changelog
+      - name: Extract changelog
         if: steps.check.outputs.exists == 'false'
         id: changelog
         run: |
-          # Get previous release tag
-          PREV_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
+          VERSION="${{ steps.version.outputs.version }}"
+          # Extract section for this version from CHANGELOG.md
+          CHANGES=$(awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
 
-          if [ -n "$PREV_TAG" ]; then
-            # Get commits since last release, excluding bd sync commits
-            CHANGES=$(git log --pretty=format:"* %h %s" ${PREV_TAG}..HEAD --no-merges | grep -v "bd sync" || echo "* Minor updates")
-          else
-            CHANGES="* Initial release"
+          if [ -z "$CHANGES" ]; then
+            CHANGES="See [CHANGELOG.md](https://github.com/smileynet/line-cook/blob/main/CHANGELOG.md) for details."
           fi
 
-          # Output using heredoc for multiline
           {
             echo "changelog<<EOF"
             echo "$CHANGES"
             echo "EOF"
           } >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create release
         if: steps.check.outputs.exists == 'false'
         run: |
-          cat > /tmp/release-notes.md << EOF
+          cat > /tmp/release-notes.md << 'EOF'
           ## line-cook ${{ steps.version.outputs.tag }}
 
-          ### What's Changed
           ${{ steps.changelog.outputs.changelog }}
 
           ## Installation
 
           **First-time install:**
-          \`\`\`bash
+          ```bash
           /plugin marketplace add smileynet/line-cook
           /plugin install line@line-cook
-          \`\`\`
+          ```
 
           **Update existing:**
-          \`\`\`bash
+          ```bash
           /plugin update line
-          \`\`\`
+          ```
 
-          ## Commands
-          - \`/line:work\` - Full prep→cook→serve→tidy cycle (recommended)
-          - \`/line:prep\` - Sync state, show ready tasks
-          - \`/line:cook\` - Execute a task with guardrails
-          - \`/line:serve\` - AI peer review via headless Claude
-          - \`/line:tidy\` - File issues, commit, sync, push
-          - \`/line:compact\` - Compact context preserving workflow state
-          - \`/line:setup\` - Configure hooks interactively
-          - \`/line:getting-started\` - Workflow guide and reference
+          ## Documentation
+
+          - **[README](https://github.com/smileynet/line-cook#readme)** - Full documentation and commands
+          - **New to Line Cook?** Run `/line:getting-started` for an interactive tutorial
           EOF
           # Strip leading spaces from heredoc (YAML indentation artifact)
           sed -i 's/^          //' /tmp/release-notes.md
