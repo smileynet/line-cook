@@ -119,66 +119,97 @@ Now let's turn that brainstorm into tracked issues. Beads are git-native issues 
 
 ### Initialize Beads (if needed)
 
+If this is a new project, initialize beads first:
+
 ```bash
 bd init
 ```
 
 This creates a `.beads/` directory in your project.
 
-### Create the Epic
+### Ask Claude to Create the Beads
 
-```bash
-bd create --title="Core CLI commands" --type=epic --priority=2
+Rather than typing commands yourself, ask Claude to propose them:
+
+```
+You: Go ahead and create those beads. Show me what you'll run first.
+
+Claude: I'll create the epic and tasks with dependencies. Here's my plan:
+
+        # 1. Create the epic (container for related work)
+        bd create --title="Core CLI commands" --type=epic --priority=2
+
+        # 2. Create tasks as children of the epic
+        bd create --title="Implement JSON file storage" --type=task --priority=2 --parent=<epic-id>
+        bd create --title="Add 'add book' command" --type=task --priority=2 --parent=<epic-id>
+        bd create --title="Add 'list books' command" --type=task --priority=2 --parent=<epic-id>
+        bd create --title="Add 'done' command" --type=task --priority=2 --parent=<epic-id>
+        bd create --title="Add 'remove' command" --type=task --priority=2 --parent=<epic-id>
+
+        # 3. Add dependencies (commands depend on storage)
+        bd dep add <add-id> <storage-id>
+        bd dep add <list-id> <storage-id>
+        bd dep add <done-id> <storage-id>
+        bd dep add <remove-id> <storage-id>
+
+        Should I proceed?
 ```
 
-Output:
-```
-Created issue: lc-001
-  Title: Core CLI commands
-  Type: epic
-  Priority: P2
-```
+### Review Before Approving
 
-### Create the Storage Task
+Take a moment to review. This is your chance to catch issues:
 
-```bash
-bd create --title="Implement JSON file storage" --type=task --priority=2 --parent=lc-001
 ```
+You: Wait - we said 4 commands in MVP, not 5. Let's skip "remove" for now
+     and add it later. Also, make storage P1 since everything depends on it.
 
-Output:
-```
-Created issue: lc-002
-  Title: Implement JSON file storage
-  Type: task
-  Priority: P2
-  Parent: lc-001 (Core CLI commands)
-```
+Claude: Good catch. Updated plan:
 
-### Create Command Tasks
+        # 1. Create epic
+        bd create --title="Core CLI commands" --type=epic --priority=2
 
-```bash
-bd create --title="Add 'add book' command" --type=task --priority=2 --parent=lc-001
-bd create --title="Add 'list books' command" --type=task --priority=2 --parent=lc-001
-bd create --title="Add 'mark read' command" --type=task --priority=2 --parent=lc-001
+        # 2. Create storage first (P1 - critical path)
+        bd create --title="Implement JSON file storage" --type=task --priority=1 --parent=<epic-id>
+
+        # 3. Create command tasks (P2 - after storage)
+        bd create --title="Add 'add book' command" --type=task --priority=2 --parent=<epic-id>
+        bd create --title="Add 'list books' command" --type=task --priority=2 --parent=<epic-id>
+        bd create --title="Add 'done' command" --type=task --priority=2 --parent=<epic-id>
+
+        # 4. Dependencies
+        bd dep add <add-id> <storage-id>
+        bd dep add <list-id> <storage-id>
+        bd dep add <done-id> <storage-id>
+
+        Proceed?
 ```
 
-### Add Dependencies
+### Approve and Execute
 
-Commands need storage to exist first:
+```
+You: Looks good. Go ahead.
 
-```bash
-bd dep add lc-003 lc-002  # 'add book' depends on storage
-bd dep add lc-004 lc-002  # 'list books' depends on storage
-bd dep add lc-005 lc-002  # 'mark read' depends on storage
+Claude: Creating beads...
+
+        ✓ Created lc-001: Core CLI commands (epic)
+        ✓ Created lc-002: Implement JSON file storage (P1, parent: lc-001)
+        ✓ Created lc-003: Add 'add book' command (P2, parent: lc-001)
+        ✓ Created lc-004: Add 'list books' command (P2, parent: lc-001)
+        ✓ Created lc-005: Add 'done' command (P2, parent: lc-001)
+
+        Adding dependencies...
+
+        ✓ lc-003 now depends on lc-002
+        ✓ lc-004 now depends on lc-002
+        ✓ lc-005 now depends on lc-002
+
+        Done. Here's the structure:
 ```
 
-### Verify Your Structure
+### Verify the Structure
 
-```bash
-bd show lc-001
-```
+Claude shows you the result:
 
-Output:
 ```
 lc-001: Core CLI commands
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -187,31 +218,25 @@ Priority: P2
 Status: open
 
 Children:
-  ○ lc-002: Implement JSON file storage
-  ○ lc-003: Add 'add book' command (blocked by lc-002)
-  ○ lc-004: Add 'list books' command (blocked by lc-002)
-  ○ lc-005: Add 'mark read' command (blocked by lc-002)
+  ○ lc-002: Implement JSON file storage [P1]
+  ○ lc-003: Add 'add book' command [P2] (blocked by lc-002)
+  ○ lc-004: Add 'list books' command [P2] (blocked by lc-002)
+  ○ lc-005: Add 'done' command [P2] (blocked by lc-002)
+
+Project stats:
+  Open: 5 | In Progress: 0 | Blocked: 3 | Ready: 1
 ```
 
-Check project stats:
+### Why Review Matters
 
-```bash
-bd stats
-```
+Notice what happened:
+- Claude proposed 5 tasks, but you caught the scope creep (remove command)
+- You upgraded storage priority since it's the critical path
+- The review took 30 seconds but prevented creating work you didn't want
 
-Output:
-```
-Project Statistics
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Open:        5
-In Progress: 0
-Closed:      0
-Blocked:     3
+The pattern: **Propose → Review → Approve → Execute**
 
-Ready to work: 1
-```
-
-Notice: Only 1 task is ready (storage). The others are blocked until storage is done.
+This keeps you in control while letting Claude do the typing.
 
 ---
 
