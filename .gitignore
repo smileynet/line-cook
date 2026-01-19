@@ -23,9 +23,12 @@ node_modules/
 __pycache__/
 *.pyc
 *.pyo
+.ruff_cache/
 .claude/hooks.log
 
-# Go
-/lc
-*.exe
+# Environment
+.env
+
+# Build artifacts
 dist/
+*.exe
