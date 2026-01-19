@@ -30,7 +30,7 @@ Read and execute the cook command instructions:
 Read(~/.config/opencode/commands/line-cook.md)
 ```
 
-**If `$ARGUMENTS` provided:** Pass `<task-id>` as the task to work on.
+**If `$ARGUMENTS` provided:** Pass `$ARGUMENTS` as the task to work on.
 
 **Otherwise:** Let cook select the highest priority ready task.
 
@@ -65,21 +65,19 @@ WORK CYCLE: Complete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [1/4] PREP    ✓ synced
-[2/4] COOK    ✓ executed, <N> files changed
+[2/4] COOK    ✓ executed
 [3/4] SERVE   ✓ reviewed (<verdict>)
 [4/4] TIDY    ✓ committed, pushed
-
-CYCLE COMPLETE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Task: <id> - <title>
-Summary: <what was accomplished>
 
 Files: <count> changed
 Commit: <hash>
 Issues filed: <count>
 
-Ready for next cycle.
+───────────────────────────────────────────
+
+TASK: <id> - <title>
+
+SUMMARY: <what was accomplished>
 ```
 
 ## Error Handling
@@ -95,13 +93,17 @@ If any step fails:
 WORK CYCLE: Incomplete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Failed at: <step>
-Error: <description>
-
 [1/4] PREP    ✓
 [2/4] COOK    ✓
 [3/4] SERVE   ✗ (error: <reason>)
 [4/4] TIDY    pending
+
+Failed at: <step>
+Error: <description>
+
+───────────────────────────────────────────
+
+TASK: <id> - <title>
 
 Run /line-tidy to save progress, or investigate the error.
 ```
