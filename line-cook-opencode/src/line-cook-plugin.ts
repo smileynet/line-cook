@@ -231,7 +231,7 @@ export const LineCookPlugin: Plugin = async ({ client, directory, $ }: PluginInp
       level: "info",
       message: "Plugin initialized",
       extra: {
-        pluginVersion: "0.4.3",
+        pluginVersion: "0.6.5",
         directory,
       },
     },
@@ -261,6 +261,15 @@ export const LineCookPlugin: Plugin = async ({ client, directory, $ }: PluginInp
 
         case "session.compacted":
           await handleSessionCompacted(client, directory, event.properties.sessionID)
+          break
+
+        case "session.error":
+          await handleSessionError(
+            client,
+            directory,
+            event.properties.sessionID,
+            event.properties.error as SessionError | undefined
+          )
           break
       }
     },
@@ -552,6 +561,186 @@ async function handleFileEdited(
         level: "error",
         message: "Failed to log file edit",
         extra: { error: String(error), filePath },
+      },
+    })
+  }
+}
+
+/**
+ * Session error types from OpenCode SDK
+ */
+type SessionError =
+  | { name: "ProviderAuthError"; data: { providerID: string; message: string } }
+  | { name: "UnknownError"; data: { message: string } }
+  | { name: "MessageOutputLengthError"; data: { [key: string]: unknown } }
+  | { name: "MessageAbortedError"; data: { message: string } }
+  | {
+      name: "APIError"
+      data: {
+        message: string
+        statusCode?: number
+        isRetryable: boolean
+        responseHeaders?: { [key: string]: string }
+        responseBody?: string
+      }
+    }
+
+/**
+ * Error pattern definitions for common error types
+ * Each pattern includes detection criteria and recovery suggestions
+ */
+const ERROR_PATTERNS: {
+  name: string
+  match: (error: SessionError) => boolean
+  getSuggestion: (error: SessionError) => string
+}[] = [
+  {
+    name: "Authentication Error",
+    match: (error) => error.name === "ProviderAuthError",
+    getSuggestion: (error) => {
+      const providerID = error.name === "ProviderAuthError" ? error.data.providerID : "unknown"
+      return `Check API key configuration for provider "${providerID}". Run: opencode config`
+    },
+  },
+  {
+    name: "Rate Limit",
+    match: (error) =>
+      error.name === "APIError" &&
+      (error.data.statusCode === 429 ||
+        error.data.message.toLowerCase().includes("rate limit") ||
+        error.data.message.toLowerCase().includes("too many requests")),
+    getSuggestion: () => "Wait before retrying. Consider switching to a different model or provider.",
+  },
+  {
+    name: "Context Length Exceeded",
+    match: (error) =>
+      error.name === "MessageOutputLengthError" ||
+      (error.name === "APIError" &&
+        (error.data.message.toLowerCase().includes("context length") ||
+          error.data.message.toLowerCase().includes("max tokens") ||
+          error.data.message.toLowerCase().includes("too long"))),
+    getSuggestion: () =>
+      "Context limit reached. Run /compact to summarize conversation, or start a new session with /line-prep.",
+  },
+  {
+    name: "Message Aborted",
+    match: (error) => error.name === "MessageAbortedError",
+    getSuggestion: () => "Message was interrupted. Re-run your last command or continue where you left off.",
+  },
+  {
+    name: "Server Error",
+    match: (error) =>
+      error.name === "APIError" && error.data.statusCode !== undefined && error.data.statusCode >= 500,
+    getSuggestion: (error) => {
+      const isRetryable = error.name === "APIError" ? error.data.isRetryable : false
+      return isRetryable
+        ? "Server error occurred. The request can be retried automatically."
+        : "Server error occurred. Try again later or switch to a different provider."
+    },
+  },
+  {
+    name: "Network/Connection Error",
+    match: (error) =>
+      error.name === "APIError" &&
+      (error.data.message.toLowerCase().includes("network") ||
+        error.data.message.toLowerCase().includes("connection") ||
+        error.data.message.toLowerCase().includes("timeout") ||
+        error.data.message.toLowerCase().includes("econnrefused")),
+    getSuggestion: () => "Network error occurred. Check your internet connection and try again.",
+  },
+]
+
+/**
+ * Detect error pattern and return recovery suggestion
+ */
+function detectErrorPattern(error: SessionError): { patternName: string; suggestion: string } | null {
+  for (const pattern of ERROR_PATTERNS) {
+    if (pattern.match(error)) {
+      return {
+        patternName: pattern.name,
+        suggestion: pattern.getSuggestion(error),
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Handle session.error event
+ * Detects common error patterns and provides recovery suggestions
+ */
+async function handleSessionError(
+  client: PluginInput["client"],
+  directory: string,
+  sessionID: string | undefined,
+  error: SessionError | undefined
+): Promise<void> {
+  try {
+    const hasBeads = await hasBeadsEnabled(directory)
+
+    // If no error object, just log the event
+    if (!error) {
+      await client.app.log({
+        body: {
+          service: "line-cook",
+          level: "warn",
+          message: "Session error event received without error details",
+          extra: { sessionID, directory },
+        },
+      })
+      return
+    }
+
+    // Detect error pattern
+    const pattern = detectErrorPattern(error)
+    const errorMessage = "message" in error.data ? (error.data as { message: string }).message : error.name
+
+    // Show toast notification with recovery suggestion
+    await client.tui.showToast({
+      body: {
+        title: pattern ? `Error: ${pattern.patternName}` : `Error: ${error.name}`,
+        message: pattern ? pattern.suggestion : `An error occurred: ${errorMessage}`,
+        variant: "error",
+        duration: 10000,
+      },
+    })
+
+    // Log detailed error information
+    await client.app.log({
+      body: {
+        service: "line-cook",
+        level: "error",
+        message: pattern ? `Session error: ${pattern.patternName}` : `Session error: ${error.name}`,
+        extra: {
+          sessionID,
+          directory,
+          errorName: error.name,
+          errorData: error.data,
+          patternDetected: pattern?.patternName,
+          suggestion: pattern?.suggestion,
+          hasBeads,
+        },
+      },
+    })
+
+    // If beads is enabled and this is a significant error, suggest filing it
+    if (hasBeads && (error.name === "APIError" || error.name === "UnknownError")) {
+      await client.app.log({
+        body: {
+          service: "line-cook",
+          level: "info",
+          message: "Consider filing error as bead for tracking: bd create --title='Error: ...' --type=bug",
+          extra: { sessionID },
+        },
+      })
+    }
+  } catch (err) {
+    await client.app.log({
+      body: {
+        service: "line-cook",
+        level: "error",
+        message: "Failed to handle session error",
+        extra: { error: String(err), sessionID },
       },
     })
   }
