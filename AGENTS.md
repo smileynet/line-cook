@@ -231,12 +231,22 @@ cd ~/line-cook/line-cook-opencode && ./install.sh
 
 Commands: `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-setup`
 
-## Hooks (Optional)
+## Hooks
 
-Claude Code hooks can automate workflow stages. Run `/line:setup` to configure interactively, or see [HOOKS.md](HOOKS.md) for manual setup.
+### Plugin Hooks (Automatic)
 
-Available hooks:
-- SessionStart: Auto-prime beads workflow context
+The plugin.json includes hooks that run automatically when the plugin is installed:
+
+- **SessionStart**: Primes beads workflow context when a session starts
+- **PreCompact**: Preserves workflow context before conversation compaction
+
+These hooks are defined in `.claude-plugin/plugin.json` and require no configuration.
+
+### Project Hooks (Optional)
+
+Additional hooks can be configured per-project. Run `/line:setup` to configure interactively, or see [HOOKS.md](HOOKS.md) for manual setup.
+
+Optional project hooks:
 - PreToolUse: Block dangerous commands
 - PostToolUse: Auto-format edited files
 - Stop: Verify work is committed/pushed
