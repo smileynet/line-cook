@@ -1,7 +1,7 @@
 {
   "name": "line",
   "description": "Task-focused workflow orchestration for Claude Code sessions - prep, cook, serve, tidy",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "author": {
     "name": "smileynet",
     "url": "https://github.com/smileynet"
