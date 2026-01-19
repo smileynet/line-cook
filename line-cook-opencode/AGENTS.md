@@ -98,13 +98,20 @@ The line-cook OpenCode plugin hooks into these events:
 | `command.executed` | Track line-cook command usage |
 | `file.edited` | Track edits to workflow files (.beads/, AGENTS.md) |
 
+### Experimental Hooks
+
+These hooks use OpenCode's experimental plugin API:
+
+| Hook | Purpose |
+|------|---------|
+| `experimental.session.compacting` | Inject beads context before session summarization to preserve workflow state |
+
 ### Planned Events (Future Enhancement)
 
 These OpenCode events could enhance the workflow:
 
 | Event | Potential Use |
 |-------|---------------|
-| `session.compacting` | Inject beads context before summarization |
 | `tool.execute.before` | Block dangerous commands (similar to Claude Code's PreToolUse) |
 | `tool.execute.after` | Auto-format edited files (similar to Claude Code's PostToolUse) |
 | `session.error` | Suggest workflow recovery steps |
