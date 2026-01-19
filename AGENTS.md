@@ -191,23 +191,25 @@ line-cook/
 
 ### Claude Code
 
-**Online (from GitHub):**
+**Remote (from GitHub) - recommended for auto-updates:**
 ```bash
 /plugin marketplace add smileynet/line-cook
 /plugin install line@line-cook
 ```
 
-**Offline (local clone):**
+Update: `/plugin update line`
+
+**Local (from clone) - for development or offline use:**
 ```bash
 git clone https://github.com/smileynet/line-cook.git ~/line-cook
-/plugin marketplace add line-cook --source directory --path ~/line-cook
-/plugin install line@line-cook
+cd ~/line-cook && ./scripts/install-claude-code.sh
 ```
 
-**Updating:**
-```bash
-/plugin update line
-```
+Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
+
+> **Note:** Local and remote installations are tracked separately.
+> Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
+> To switch from local to remote, uninstall first: `/plugin uninstall line`
 
 Commands: `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:setup`
 
