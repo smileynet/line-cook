@@ -53,6 +53,40 @@ bd create --title="<issue>" --type=bug|task --priority=1-3
 bd create --title="<suggestion>" --type=task --priority=4 --parent=<retro-epic>
 ```
 
+### Step 1b: Capture Research Findings
+
+**When the task involved research** (architecture analysis, spike, investigation, or discovery work), capture findings as beads:
+
+**New beads for major discoveries:**
+```bash
+# Actionable insight that warrants future work
+bd create --title="Implement <finding>" --type=task --priority=2-3
+
+# Architectural decision or pattern discovered
+bd create --title="Document <pattern> for <use-case>" --type=task --priority=3
+```
+
+**Update existing beads with findings:**
+```bash
+# Add research findings as comments to the parent task or related beads
+bd comments add <id> "RESEARCH FINDINGS:
+- <key insight 1>
+- <key insight 2>
+- Recommendation: <action>"
+```
+
+**Research output patterns:**
+
+| Finding Type | Action |
+|--------------|--------|
+| Actionable improvement | Create task bead with clear scope |
+| Architectural insight | Add comment to epic or create doc task |
+| Blocker discovered | Create bug/task, add as dependency |
+| Option evaluated | Add comment to research task |
+| Decision made | Update task description or add comment |
+
+**Tip:** Research tasks often yield multiple follow-up beads. This is expected - research that produces no beads may indicate incomplete investigation.
+
 ### Step 2: Review In-Progress Issues
 
 Check current task state:
