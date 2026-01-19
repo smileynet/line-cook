@@ -24,6 +24,7 @@ Or use `/work` to run the full cycle.
 | `/tidy` | Commit and push changes |
 | `/work` | Orchestrate full prep→cook→serve→tidy cycle |
 | `/setup` | Configure hooks for your project (interactive) |
+| `/compact` | Compact context with workflow state preserved |
 
 ## Platform Command Naming
 
@@ -158,7 +159,8 @@ line-cook/
 │   ├── serve.md           # → /line:serve
 │   ├── tidy.md            # → /line:tidy
 │   ├── work.md            # → /line:work
-│   └── setup.md           # → /line:setup
+│   ├── setup.md           # → /line:setup
+│   └── compact.md         # → /line:compact
 ├── scripts/               # Installation scripts
 │   └── install-claude-code.sh
 ├── line-cook-opencode/    # OpenCode plugin
@@ -171,7 +173,8 @@ line-cook/
 │       ├── line-serve.md  # → /line-serve
 │       ├── line-tidy.md   # → /line-tidy
 │       ├── line-work.md   # → /line-work
-│       └── line-setup.md  # → /line-setup
+│       ├── line-setup.md  # → /line-setup
+│       └── line-compact.md # → /line-compact
 ├── hooks/                 # Claude Code hooks
 │   ├── setup.sh           # Onboarding: detect project, generate hooks
 │   ├── session-start.sh   # SessionStart: prime workflow context
