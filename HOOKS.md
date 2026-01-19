@@ -560,3 +560,62 @@ echo $?  # Should be 2
 - Use absolute paths for user-level hooks
 - Validate inputs in custom hooks
 - Never commit secrets to hook files
+
+---
+
+## Git Hooks
+
+Line Cook also provides git hooks for enforcing session discipline at the git level.
+
+### Pre-Push Hook
+
+The pre-push hook enforces "landing the plane" discipline before pushing:
+
+- **Warns** if issues are still in `in_progress` status
+- **Warns** if there are uncommitted `.beads/` changes
+- **Runs** `bd sync --flush-only` to ensure database changes are flushed
+
+**Installation:**
+
+Copy the pre-push hook to your project:
+
+```bash
+# From the line-cook repository
+cp hooks/git/pre-push /path/to/your/project/.git/hooks/pre-push
+chmod +x /path/to/your/project/.git/hooks/pre-push
+```
+
+Or manually create `.git/hooks/pre-push` with the script content.
+
+**Behavior:**
+
+| Check | Action |
+|-------|--------|
+| Issues in_progress | Warning (allows push) |
+| Uncommitted .beads/ | Warning (allows push) |
+| bd sync fails | Warning (allows push) |
+
+The hook issues warnings but does not block pushes by default. This encourages good habits without forcing strict enforcement.
+
+**Bypass:**
+
+```bash
+SKIP_SESSION_CHECK=1 git push   # Skip session check only
+git push --no-verify            # Skip all git hooks
+```
+
+**Strict Mode:**
+
+To block pushes when issues are in_progress, edit the hook and change the final `exit 0` in the in_progress check block to `exit 1`.
+
+### Existing Hooks
+
+Line Cook projects typically have these hooks installed (via beads):
+
+| Hook | Purpose |
+|------|---------|
+| `pre-commit` | Version check, `bd sync --flush-only` |
+| `post-merge` | Import updated issues after pull |
+| `pre-push` | Session completion warnings |
+
+Run `bd doctor` to see which hooks are installed and which are missing.
