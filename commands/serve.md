@@ -104,7 +104,11 @@ Apply auto-fixes directly using Edit tool.
 - Missing functionality
 - Architectural suggestions
 
-Note these for filing in `/line:tidy`, categorized by priority.
+Note these for filing in `/line:tidy`, categorized by priority:
+- **P1-P3**: Blocking issues → filed as standalone beads
+- **P4/nits**: Minor suggestions → filed under Retrospective or Backlog epic
+
+**Important:** Items filed under Retrospective or Backlog epics are automatically excluded from `/line:prep` and `/line:cook` auto-selection. They're parked for explicit review later.
 
 ### Step 5: Record and Report Results
 
