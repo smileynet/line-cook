@@ -285,3 +285,23 @@ git push
 - CI/CD configuration
 - .beads/ changes
 - Test files only
+
+### Pre-commit Version Check
+
+A git pre-commit hook enforces version bumps for core files. When you stage core files without version files, the commit is blocked with options to proceed:
+
+```
+WARNING: Core file(s) changed without version bump
+  commands/prep.md
+
+To proceed:
+  1. Bump version in both files, re-stage, commit
+  2. Skip (WIP): SKIP_VERSION_CHECK=1 git commit ...
+  3. Skip all: git commit --no-verify
+```
+
+**Bypass options:**
+- `SKIP_VERSION_CHECK=1 git commit -m "..."` - Skip version check only (beads flush still runs)
+- `git commit --no-verify` - Skip all pre-commit hooks
+
+**Hard block (no bypass):** If version files are staged but have mismatched versions, the commit is blocked until fixed.
