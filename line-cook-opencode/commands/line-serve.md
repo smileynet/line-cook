@@ -10,7 +10,8 @@ After cooking (executing a task), you "serve" it for review before tidying up.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific bead ID to review
 
-**STOP after completing.** Show NEXT STEP and wait for user.
+**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
+**When run via `/line-work`:** Continue to the next step without stopping.
 
 ---
 
