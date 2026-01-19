@@ -235,6 +235,7 @@ describe("SDK Integration", () => {
       expect(state.toolCallCount).toBe(3)
       expect(state.completedToolCalls).toBe(2)
       expect(state.pendingToolCalls).toBe(1)
+      expect(state.hasErrors).toBe(false)
     })
 
     test("detects error states in tool calls", async () => {
