@@ -38,7 +38,8 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           # Extract section for this version from CHANGELOG.md
-          CHANGES=$(awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
+          # Uses awk variable to avoid regex injection issues with version string
+          CHANGES=$(awk -v ver="$VERSION" 'BEGIN{pat="^## \\[" ver "\\] -"} $0 ~ pat {flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md)
 
           if [ -z "$CHANGES" ]; then
             CHANGES="See [CHANGELOG.md](https://github.com/smileynet/line-cook/blob/main/CHANGELOG.md) for details."
