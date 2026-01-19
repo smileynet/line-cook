@@ -270,6 +270,9 @@ git add .claude-plugin/plugin.json line-cook-opencode/package.json
 git commit -m "chore: bump version to X.Y.Z"
 bd sync
 git push
+
+# 4. Create GitHub release
+gh release create vX.Y.Z --title "vX.Y.Z" --notes-file .github/release.md
 ```
 
 ### When to Bump Version
@@ -305,3 +308,20 @@ To proceed:
 - `git commit --no-verify` - Skip all pre-commit hooks
 
 **Hard block (no bypass):** If version files are staged but have mismatched versions, the commit is blocked until fixed.
+
+### Post-Release: User Instructions
+
+After pushing a version bump, create a GitHub release with these instructions for users:
+
+**Installation (new users):**
+```bash
+/plugin marketplace add smileynet/line-cook
+/plugin install line@line-cook
+```
+
+**Update (existing users):**
+```bash
+/plugin update line
+```
+
+See [.github/release.md](.github/release.md) for the release notes template.
