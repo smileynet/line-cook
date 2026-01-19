@@ -1,0 +1,85 @@
+---
+description: Clear context and restart with current task only
+allowed-tools: Bash, Read
+---
+
+## Summary
+
+**Clear cluttered context and restart fresh with the current task.** Use when context is polluted but you want to continue the same work.
+
+**STOP after completing.** User must manually run /clear, then /line:cook to resume.
+
+---
+
+## Process
+
+### Step 1: Identify Current Task
+
+Check for an in-progress task:
+
+```bash
+bd list --status=in_progress --json | jq -r '.[0].id // empty'
+```
+
+**If no in-progress task:**
+```
+NO ACTIVE TASK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+No task is currently in_progress.
+
+To start fresh with a specific task:
+  1. Run /clear
+  2. Run /line:cook <task-id>
+```
+
+**If task found, continue.**
+
+### Step 2: Capture Task Context
+
+Get full task details for re-priming:
+
+```bash
+bd show <task-id>
+```
+
+Store the task ID and title for the output.
+
+### Step 3: Output Restart Instructions
+
+```
+FRESH START: <task-id> - <title>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current task captured. To restart fresh:
+
+  1. Run /clear
+  2. Run /line:cook <task-id>
+
+This will:
+  - Clear all accumulated context
+  - Reload project instructions (CLAUDE.md)
+  - Resume work on the same task
+
+Your task remains in_progress and will be waiting.
+```
+
+## Design Notes
+
+This command is intentionally minimal. It:
+
+1. **Identifies** the current task (so you don't lose track)
+2. **Instructs** the user on the manual steps needed
+
+The actual context clearing must be done manually because:
+- `/clear` is a built-in command that clears the conversation
+- We cannot execute it programmatically from within a command
+- The user needs to run it, then return to continue
+
+## Example Usage
+
+```
+/line:fresh
+```
+
+This command takes no arguments. It operates on the current in-progress task.
