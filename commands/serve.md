@@ -56,6 +56,8 @@ This gives the reviewer awareness of project patterns and conventions.
 
 Spawn a separate Claude instance to review:
 
+**IMPORTANT:** Use a 10-minute timeout (600000ms) for this Bash command - headless reviews often exceed the default 2-minute timeout.
+
 ```bash
 git diff | claude -p "Review these changes for the task: <bead title>
 
