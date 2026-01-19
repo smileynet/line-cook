@@ -265,15 +265,14 @@ See [TESTING.md](TESTING.md) for validation and testing methods.
 #    - .claude-plugin/plugin.json: "version"
 #    - line-cook-opencode/package.json: "version" AND "opencode.version"
 
-# 3. Commit and push
+# 3. Commit and push (release is created automatically)
 git add .claude-plugin/plugin.json line-cook-opencode/package.json
 git commit -m "chore: bump version to X.Y.Z"
 bd sync
 git push
-
-# 4. Create GitHub release
-gh release create vX.Y.Z --title "vX.Y.Z" --notes-file .github/release.md
 ```
+
+> **Note:** GitHub Actions automatically creates a release when `plugin.json` is updated on `main`. See `.github/workflows/release.yml`.
 
 ### When to Bump Version
 
