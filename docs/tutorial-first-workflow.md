@@ -537,6 +537,12 @@ SUMMARY: Implemented 'add' command with title and author arguments.
          Validates input and writes to JSON storage.
 ```
 
+### The Session Boundary
+
+Notice that `/line:work` ends with a push. This is a **session boundary**—the natural point to clear context and start fresh.
+
+For the next task, start a new conversation or run `/compact`. Each work cycle is designed to complete independently, preventing context bloat and keeping execution focused.
+
 ### When to Use Individual Commands
 
 | Situation | Command |

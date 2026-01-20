@@ -50,6 +50,7 @@ Or use `/line:work` to run the full cycle.
 3. **Note, then file** - Discovered issues are noted in /cook, filed in /tidy
 4. **Guardrails on completion** - Verify before marking done
 5. **Push before stop** - Session isn't done until pushed
+6. **Clear between cycles** - Each prep→cook→serve→tidy cycle completes a session. Clear context before the next task.
 
 ---
 
