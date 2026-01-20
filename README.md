@@ -28,7 +28,7 @@ graph LR
         A[Brainstorm] --> B[Create beads]
     end
     subgraph "Line Cook"
-        C[/prep] --> D[/cook] --> E[/serve] --> F[/tidy]
+        C["/prep"] --> D["/cook"] --> E["/serve"] --> F["/tidy"]
     end
     B --> C
     F --> |next task| C
