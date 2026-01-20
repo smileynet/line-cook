@@ -267,17 +267,6 @@ async function hasBeadsEnabled(directory) {
   return issuesFile.exists();
 }
 var LineCookPlugin = async ({ client, directory, $ }) => {
-  await client.app.log({
-    body: {
-      service: "line-cook",
-      level: "info",
-      message: "Plugin initialized",
-      extra: {
-        pluginVersion: "0.6.5",
-        directory
-      }
-    }
-  });
   return {
     event: async ({ event }) => {
       switch (event.type) {
