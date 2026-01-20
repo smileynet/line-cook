@@ -63,44 +63,75 @@ bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
 
-## Epic Philosophy
+## Bead Hierarchy
 
-Epics organize related work into coherent groups. Line-cook uses a **child-based** model:
+Line-cook uses a **3-tier hierarchy** for organizing work:
+
+1. **Epics** - High-level capability areas (3+ sessions of work)
+2. **User-Observable Features** - Acceptance-testable outcomes (first-level children of epics)
+3. **Implementation Tasks** - Single-session work items (children of features)
 
 ### Structure
 
 ```
-Epic (parent)
-├── Child task 1
-├── Child task 2 (depends on Child 1)
-├── Child task 3 (depends on Child 1)
-└── Child task 4 (depends on Child 2, 3)
+Epic (capability area)
+├── Feature 1 (user-verifiable outcome)
+│   ├── Task 1a (implementation step)
+│   └── Task 1b (implementation step)
+├── Feature 2 (user-verifiable outcome)
+│   └── Task 2a (implementation step)
+└── Feature 3 (user-verifiable outcome)
+    ├── Task 3a (implementation step)
+    └── Task 3b (depends on Task 3a)
 ```
 
-### Rules
+**Exception: Research & Parking Lot epics** - These have tasks as direct children (no feature layer) since research tasks don't have user-observable outcomes.
 
-1. **Epics contain children** - Use `--parent=<epic-id>` when creating tasks that belong to an epic
-2. **Dependencies order children** - Use `bd dep add` to establish order within an epic
-3. **Dependencies order epics** - Epics can depend on other epics for sequencing
-4. **Cross-epic dependencies (rare)** - A child of one epic may block another epic when there's a genuine prerequisite
+### What Makes a User-Observable Feature
 
-### Creating Epic Structure
+**A feature is user-observable when a human can verify it works.**
+
+| Criterion | Feature | Task |
+|-----------|---------|------|
+| **Value** | Delivers visible benefit to user | Supports features, no standalone value |
+| **Testable** | User can verify "it works" | Only devs can verify |
+| **Perspective** | Human user's viewpoint | System/developer viewpoint |
+| **Scope** | End-to-end (vertical slice) | Single layer/component |
+
+**The "Who" Test:** If the beneficiary is "the system" or "developers," it's a task, not a feature.
+
+### Naming Conventions
+
+| Tier | Style | Examples |
+|------|-------|----------|
+| **Epic** | Noun phrase (capability area) | "Hook System Hardening", "AI Discoverability" |
+| **Feature** | User-verifiable outcome | "Hooks work in all git configurations", "Scripts work on Windows" |
+| **Task** | Action-oriented implementation | "Harden worktree detection", "Add Python fallback" |
+
+### When to Create Each Tier
+
+| Tier | When to Create |
+|------|----------------|
+| **Epic** | Work spans 3+ sessions OR multiple user-observable features |
+| **Feature** | User could test/demonstrate it working; has acceptance criteria |
+| **Task** | Implementation step completable in one session |
+
+### Creating Hierarchy
 
 ```bash
 # Create the epic
-bd create --title="Implement auth system" --type=epic --priority=1
+bd create --title="Hook System Hardening" --type=epic --priority=2
 
-# Create children with --parent
-bd create --title="Design auth flow" --type=task --parent=lc-abc
-bd create --title="Implement login" --type=task --parent=lc-abc
-bd create --title="Implement logout" --type=task --parent=lc-abc
-bd create --title="Add session management" --type=task --parent=lc-abc
+# Create features under epic
+bd create --title="Hooks work in all git configurations" --type=feature --parent=lc-abc --priority=3
+bd create --title="Scripts work across all platforms" --type=feature --parent=lc-abc --priority=3
 
-# Add dependencies between children for ordering
-bd dep add lc-def lc-ghi   # "Implement login" depends on "Design auth flow"
-bd dep add lc-jkl lc-ghi   # "Implement logout" depends on "Design auth flow"
-bd dep add lc-mno lc-def   # "Session mgmt" depends on "Implement login"
-bd dep add lc-mno lc-jkl   # "Session mgmt" depends on "Implement logout"
+# Create tasks under features
+bd create --title="Harden worktree detection in pre-push" --type=task --parent=lc-abc.1
+bd create --title="Add fallback for bare repos" --type=task --parent=lc-abc.1
+
+# Add dependencies between tasks for ordering
+bd dep add lc-xyz lc-def   # Task xyz depends on task def
 ```
 
 ### Querying Epic Progress
@@ -116,16 +147,19 @@ bd list --parent=<epic-id> --all  # Include closed children
 
 | Relationship | When to use |
 |--------------|-------------|
-| `--parent` | Task belongs to an epic (grouping) |
+| `--parent` (epic) | Feature belongs to an epic |
+| `--parent` (feature) | Task implements a feature |
 | `bd dep add` | Task must complete before another (ordering) |
-| Epic depends on epic | One feature requires another feature first |
-| Child blocks epic (rare) | Specific prerequisite from another group |
+| Epic depends on epic | One capability requires another first |
 
 ### Anti-patterns
 
-- **Don't use dependencies instead of children** - If tasks belong together, use `--parent`
-- **Don't create flat task lists** - Group related work into epics
-- **Don't over-nest** - Epics should be shallow (1 level of children)
+- **System-as-User** - "As a system, I want to upgrade the database" → This is a task, not a feature
+- **Prescribing Solutions** - "Add dropdown with autocomplete" → Better: "Users can quickly find products"
+- **Layer-by-Layer Splitting** - "Build UI" → "Build API" → "Build DB" → Better: vertical slice that delivers value
+- **Technical Tasks as Features** - "Refactor hook detection" → Should be a task under a feature
+- **Flat task lists** - Group related work into epics with features
+- **Over-nesting** - Max 3 levels: epic → feature → task
 
 ## Session Completion (Landing the Plane)
 
