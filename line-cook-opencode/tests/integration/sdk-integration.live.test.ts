@@ -1,14 +1,15 @@
 /**
  * Live integration tests for SDK integration
  *
- * These tests run against a live OpenCode server at localhost:4096.
- * Tests auto-skip if the server is unavailable.
+ * By default, tests start a managed OpenCode server automatically.
+ * Tests auto-skip if the server cannot be started.
  *
- * Prerequisites:
- * - Start OpenCode server: opencode serve
- * - Set OPENCODE_SERVER_URL env var to override default
+ * Modes:
+ * - Managed (default): Server started/stopped by test lifecycle
+ * - External: Set OPENCODE_SERVER_URL to use existing server
  */
-import { describe, test, expect, beforeAll, afterEach } from "bun:test"
+import { describe, test, expect, beforeAll, afterAll, afterEach } from "bun:test"
+import { createOpencodeServer } from "@opencode-ai/sdk/server"
 import {
   createSession,
   getSession,
@@ -23,10 +24,14 @@ import {
   type ClientOptions,
 } from "../../src/sdk-integration"
 
+const USE_EXTERNAL_SERVER = !!process.env.OPENCODE_SERVER_URL
 const SERVER_URL = process.env.OPENCODE_SERVER_URL ?? "http://localhost:4096"
 
+// Server management
+let server: { url: string; close(): void } | null = null
+
 /**
- * Check if OpenCode server is available
+ * Check if external OpenCode server is available
  */
 async function isServerAvailable(): Promise<boolean> {
   try {
@@ -42,18 +47,37 @@ async function isServerAvailable(): Promise<boolean> {
 // Track sessions created during tests for cleanup
 const testSessions: string[] = []
 
-// Client options for all tests
-const clientOptions: ClientOptions = { baseUrl: SERVER_URL }
+// Client options for all tests - dynamically set after server starts
+let clientOptions: ClientOptions = { baseUrl: SERVER_URL }
 
 // Check server availability once before all tests
 let serverAvailable = false
 
 beforeAll(async () => {
-  serverAvailable = await isServerAvailable()
-  if (!serverAvailable) {
-    console.log(
-      `[SKIP] OpenCode server not available at ${SERVER_URL} - integration tests will be skipped`
-    )
+  if (USE_EXTERNAL_SERVER) {
+    // Use external server - check if available
+    serverAvailable = await isServerAvailable()
+    if (!serverAvailable) {
+      console.log(`[SKIP] External server not available at ${SERVER_URL}`)
+    }
+  } else {
+    // Start managed server
+    try {
+      server = await createOpencodeServer({ port: 4096, timeout: 10000 })
+      clientOptions = { baseUrl: server.url }
+      serverAvailable = true
+      console.log(`[INFO] Started OpenCode server at ${server.url}`)
+    } catch (error) {
+      console.log(`[SKIP] Failed to start OpenCode server: ${error}`)
+      serverAvailable = false
+    }
+  }
+})
+
+afterAll(async () => {
+  if (server) {
+    server.close()
+    console.log(`[INFO] Stopped OpenCode server`)
   }
 })
 
