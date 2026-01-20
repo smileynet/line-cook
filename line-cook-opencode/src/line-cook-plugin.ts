@@ -1,27 +1,6 @@
 import type { Plugin, Hooks, PluginInput } from "@opencode-ai/plugin"
-import type { Event } from "@opencode-ai/sdk"
-
-/**
- * Dangerous command patterns to block in tool.execute.before
- * These patterns match destructive operations that should never be run automatically
- */
-const DANGEROUS_PATTERNS: RegExp[] = [
-  /git\s+push.*--force/i,
-  /git\s+reset.*--hard/i,
-  /rm\s+-rf\s+\/\s*$/i,         // rm -rf / (root, end of command)
-  /rm\s+-rf\s+\/\*/i,           // rm -rf /* (root wildcard)
-  /rm\s+-rf\s+\/[a-z]/i,        // rm -rf /home, /etc, etc. (root subdirs)
-  /rm\s+-rf\s+~/i,              // rm -rf ~ (home)
-  /rm\s+-rf\s+\$HOME/i,         // rm -rf $HOME
-  /rm\s+-rf\s+%USERPROFILE%/i,  // Windows home
-  /rmdir\s+\/s\s+\/q\s+C:\\/i,  // Windows root delete
-  /del\s+\/f\s+\/s\s+\/q\s+C:\\/i, // Windows recursive delete
-  /format\s+[A-Z]:/i,           // Windows format drive
-  /:\(\)\{\s*:\|:&\s*\};:/,     // Fork bomb
-  />\s*\/dev\/sda/,             // Write to disk device
-  /dd\s+if=.*of=\/dev\/sd/i,    // dd to disk
-  /mkfs\./i,                    // Format filesystem
-]
+import type { Event, Permission } from "@opencode-ai/sdk"
+import { isDangerousCommand, shouldAutoApprove } from "./permission-utils"
 
 /**
  * Formatter configurations: extension -> list of [formatter, args]
@@ -65,18 +44,6 @@ const SENSITIVE_PATTERNS = [
   "secrets",
   ".key",
 ]
-
-/**
- * Check if a command matches any dangerous pattern
- */
-function isDangerousCommand(command: string): { dangerous: boolean; pattern?: string } {
-  for (const pattern of DANGEROUS_PATTERNS) {
-    if (pattern.test(command)) {
-      return { dangerous: true, pattern: pattern.source }
-    }
-  }
-  return { dangerous: false }
-}
 
 /**
  * Check if a path is safe to format (not sensitive)
@@ -231,7 +198,7 @@ export const LineCookPlugin: Plugin = async ({ client, directory, $ }: PluginInp
       level: "info",
       message: "Plugin initialized",
       extra: {
-        pluginVersion: "0.6.5",
+        pluginVersion: "0.6.6",
         directory,
       },
     },
@@ -312,6 +279,51 @@ export const LineCookPlugin: Plugin = async ({ client, directory, $ }: PluginInp
             `Command: ${command.slice(0, 100)}${command.length > 100 ? "..." : ""}`
         )
       }
+    },
+
+    /**
+     * Permission ask hook
+     * Auto-approves read-only operations and beads commands,
+     * while keeping manual approval for destructive operations
+     */
+    "permission.ask": async (
+      input: Permission,
+      output: { status: "ask" | "deny" | "allow" }
+    ): Promise<void> => {
+      const decision = shouldAutoApprove(input)
+
+      if (decision === "allow") {
+        output.status = "allow"
+        await client.app.log({
+          body: {
+            service: "line-cook",
+            level: "debug",
+            message: "Auto-approved permission",
+            extra: {
+              permissionId: input.id,
+              type: input.type,
+              pattern: input.pattern,
+              sessionID: input.sessionID,
+            },
+          },
+        })
+      } else if (decision === "deny") {
+        output.status = "deny"
+        await client.app.log({
+          body: {
+            service: "line-cook",
+            level: "warn",
+            message: "Auto-denied permission (dangerous operation)",
+            extra: {
+              permissionId: input.id,
+              type: input.type,
+              pattern: input.pattern,
+              sessionID: input.sessionID,
+            },
+          },
+        })
+      }
+      // If decision is "ask", leave output.status unchanged (defaults to "ask")
     },
 
     /**
