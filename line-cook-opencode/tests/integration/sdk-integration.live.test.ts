@@ -9,6 +9,8 @@
  * - External: Set OPENCODE_SERVER_URL to use existing server
  */
 import { describe, test, expect, beforeAll, afterAll, afterEach } from "bun:test"
+import { rmSync, mkdirSync, copyFileSync, existsSync } from "fs"
+import { homedir } from "os"
 import { createOpencodeServer } from "@opencode-ai/sdk/server"
 import {
   createSession,
@@ -62,8 +64,20 @@ if (USE_EXTERNAL_SERVER) {
   }
 } else {
   // Start managed server
-  // Use isolated config dir to avoid user's config file (may have unknown keys)
-  process.env.XDG_CONFIG_HOME = "/tmp/opencode-test-config"
+  // Use isolated config dir to avoid user's plugins directory
+  // (plugins like line-cook-plugin.js cause server request hangs)
+  const isolatedConfigDir = "/tmp/opencode-test-config"
+  rmSync(isolatedConfigDir, { recursive: true, force: true })
+  mkdirSync(`${isolatedConfigDir}/opencode`, { recursive: true })
+
+  // Copy user's opencode.json if exists (provides model configuration)
+  const userConfig = `${homedir()}/.config/opencode/opencode.json`
+  if (existsSync(userConfig)) {
+    copyFileSync(userConfig, `${isolatedConfigDir}/opencode/opencode.json`)
+    console.log(`[INFO] Copied user config from ${userConfig}`)
+  }
+
+  process.env.XDG_CONFIG_HOME = isolatedConfigDir
   try {
     server = await createOpencodeServer({ port: 4096, timeout: 10000, config: {} })
     clientOptions = { baseUrl: server.url }
