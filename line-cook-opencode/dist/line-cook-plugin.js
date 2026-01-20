@@ -1,5 +1,80 @@
 // @bun
-// src/line-cook-plugin.ts
+// src/permission-utils.ts
+var SAFE_BASH_PATTERNS = [
+  /^cat\s+/i,
+  /^head\s+/i,
+  /^tail\s+/i,
+  /^less\s+/i,
+  /^more\s+/i,
+  /^file\s+/i,
+  /^wc\s+/i,
+  /^stat\s+/i,
+  /^ls(\s|$)/i,
+  /^dir(\s|$)/i,
+  /^tree(\s|$)/i,
+  /^pwd(\s|$)/i,
+  /^grep\s+/i,
+  /^rg\s+/i,
+  /^find\s+.*-type\s+[fd]/i,
+  /^find\s+.*-name\s+/i,
+  /^which\s+/i,
+  /^whereis\s+/i,
+  /^locate\s+/i,
+  /^fd\s+/i,
+  /^git\s+status(\s|$)/i,
+  /^git\s+log(\s|$)/i,
+  /^git\s+diff(\s|$)/i,
+  /^git\s+show(\s|$)/i,
+  /^git\s+branch(\s|$)/i,
+  /^git\s+remote\s+-v(\s|$)/i,
+  /^git\s+tag(\s|$)/i,
+  /^git\s+describe(\s|$)/i,
+  /^git\s+rev-parse(\s|$)/i,
+  /^git\s+ls-files(\s|$)/i,
+  /^git\s+blame(\s|$)/i,
+  /^bd\s+list(\s|$)/i,
+  /^bd\s+show(\s|$)/i,
+  /^bd\s+ready(\s|$)/i,
+  /^bd\s+blocked(\s|$)/i,
+  /^bd\s+stats(\s|$)/i,
+  /^bd\s+search(\s|$)/i,
+  /^bd\s+sync\s+--status(\s|$)/i,
+  /^bd\s+doctor(\s|$)/i,
+  /^date(\s|$)/i,
+  /^whoami(\s|$)/i,
+  /^hostname(\s|$)/i,
+  /^uname(\s|$)/i,
+  /^env(\s|$)/i,
+  /^printenv(\s|$)/i,
+  /^echo\s+\$/i,
+  /^npm\s+list(\s|$)/i,
+  /^npm\s+ls(\s|$)/i,
+  /^npm\s+view(\s|$)/i,
+  /^npm\s+info(\s|$)/i,
+  /^npm\s+outdated(\s|$)/i,
+  /^bun\s+pm\s+ls(\s|$)/i,
+  /^pip\s+list(\s|$)/i,
+  /^pip\s+show(\s|$)/i,
+  /^cargo\s+tree(\s|$)/i,
+  /^go\s+list(\s|$)/i
+];
+var SAFE_BASH_EXCLUSIONS = [
+  /^find\s+.*-exec/i,
+  /^find\s+.*-delete/i,
+  /^find\s+.*-ok/i,
+  /\|\s*rm\s/i,
+  /\|\s*xargs\s+rm/i,
+  /\|\s*tee\s/i,
+  /\s>\s/,
+  /\s>>\s/
+];
+var SAFE_TOOL_TYPES = new Set([
+  "read",
+  "glob",
+  "grep",
+  "list",
+  "search"
+]);
 var DANGEROUS_PATTERNS = [
   /git\s+push.*--force/i,
   /git\s+reset.*--hard/i,
@@ -17,6 +92,51 @@ var DANGEROUS_PATTERNS = [
   /dd\s+if=.*of=\/dev\/sd/i,
   /mkfs\./i
 ];
+function isDangerousCommand(command) {
+  for (const pattern of DANGEROUS_PATTERNS) {
+    if (pattern.test(command)) {
+      return { dangerous: true, pattern: pattern.source };
+    }
+  }
+  return { dangerous: false };
+}
+function isSafeBashCommand(command) {
+  const trimmed = command.trim();
+  for (const exclusion of SAFE_BASH_EXCLUSIONS) {
+    if (exclusion.test(trimmed)) {
+      return false;
+    }
+  }
+  for (const pattern of SAFE_BASH_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return true;
+    }
+  }
+  return false;
+}
+function shouldAutoApprove(permission) {
+  const { type, pattern, metadata } = permission;
+  const toolType = type.toLowerCase();
+  if (SAFE_TOOL_TYPES.has(toolType)) {
+    return "allow";
+  }
+  if (toolType === "bash" || toolType === "shell") {
+    const command = (typeof pattern === "string" ? pattern : pattern?.[0]) || metadata?.command || metadata?.cmd || "";
+    if (!command) {
+      return "ask";
+    }
+    const { dangerous } = isDangerousCommand(command);
+    if (dangerous) {
+      return "deny";
+    }
+    if (isSafeBashCommand(command)) {
+      return "allow";
+    }
+  }
+  return "ask";
+}
+
+// src/line-cook-plugin.ts
 var FORMATTERS = {
   ".py": [
     ["ruff", ["format", "{file}"]],
@@ -51,14 +171,6 @@ var SENSITIVE_PATTERNS = [
   "secrets",
   ".key"
 ];
-function isDangerousCommand(command) {
-  for (const pattern of DANGEROUS_PATTERNS) {
-    if (pattern.test(command)) {
-      return { dangerous: true, pattern: pattern.source };
-    }
-  }
-  return { dangerous: false };
-}
 function isPathSafe(filePath) {
   const pathLower = filePath.toLowerCase();
   for (const pattern of SENSITIVE_PATTERNS) {
@@ -161,7 +273,7 @@ var LineCookPlugin = async ({ client, directory, $ }) => {
       level: "info",
       message: "Plugin initialized",
       extra: {
-        pluginVersion: "0.4.3",
+        pluginVersion: "0.6.5",
         directory
       }
     }
@@ -183,6 +295,9 @@ var LineCookPlugin = async ({ client, directory, $ }) => {
           break;
         case "session.compacted":
           await handleSessionCompacted(client, directory, event.properties.sessionID);
+          break;
+        case "session.error":
+          await handleSessionError(client, directory, event.properties.sessionID, event.properties.error);
           break;
       }
     },
@@ -209,6 +324,40 @@ var LineCookPlugin = async ({ client, directory, $ }) => {
           }
         });
         throw new Error(`Command blocked by line-cook safety hook: matches dangerous pattern "${pattern}". ` + `Command: ${command.slice(0, 100)}${command.length > 100 ? "..." : ""}`);
+      }
+    },
+    "permission.ask": async (input, output) => {
+      const decision = shouldAutoApprove(input);
+      if (decision === "allow") {
+        output.status = "allow";
+        await client.app.log({
+          body: {
+            service: "line-cook",
+            level: "debug",
+            message: "Auto-approved permission",
+            extra: {
+              permissionId: input.id,
+              type: input.type,
+              pattern: input.pattern,
+              sessionID: input.sessionID
+            }
+          }
+        });
+      } else if (decision === "deny") {
+        output.status = "deny";
+        await client.app.log({
+          body: {
+            service: "line-cook",
+            level: "warn",
+            message: "Auto-denied permission (dangerous operation)",
+            extra: {
+              permissionId: input.id,
+              type: input.type,
+              pattern: input.pattern,
+              sessionID: input.sessionID
+            }
+          }
+        });
       }
     },
     "tool.execute.after": async (input, output) => {
@@ -394,6 +543,116 @@ async function handleFileEdited(client, filePath) {
         level: "error",
         message: "Failed to log file edit",
         extra: { error: String(error), filePath }
+      }
+    });
+  }
+}
+var ERROR_PATTERNS = [
+  {
+    name: "Authentication Error",
+    match: (error) => error.name === "ProviderAuthError",
+    getSuggestion: (error) => {
+      const providerID = error.name === "ProviderAuthError" ? error.data.providerID : "unknown";
+      return `Check API key configuration for provider "${providerID}". Run: opencode config`;
+    }
+  },
+  {
+    name: "Rate Limit",
+    match: (error) => error.name === "APIError" && (error.data.statusCode === 429 || error.data.message.toLowerCase().includes("rate limit") || error.data.message.toLowerCase().includes("too many requests")),
+    getSuggestion: () => "Wait before retrying. Consider switching to a different model or provider."
+  },
+  {
+    name: "Context Length Exceeded",
+    match: (error) => error.name === "MessageOutputLengthError" || error.name === "APIError" && (error.data.message.toLowerCase().includes("context length") || error.data.message.toLowerCase().includes("max tokens") || error.data.message.toLowerCase().includes("too long")),
+    getSuggestion: () => "Context limit reached. Run /compact to summarize conversation, or start a new session with /line-prep."
+  },
+  {
+    name: "Message Aborted",
+    match: (error) => error.name === "MessageAbortedError",
+    getSuggestion: () => "Message was interrupted. Re-run your last command or continue where you left off."
+  },
+  {
+    name: "Server Error",
+    match: (error) => error.name === "APIError" && error.data.statusCode !== undefined && error.data.statusCode >= 500,
+    getSuggestion: (error) => {
+      const isRetryable = error.name === "APIError" ? error.data.isRetryable : false;
+      return isRetryable ? "Server error occurred. The request can be retried automatically." : "Server error occurred. Try again later or switch to a different provider.";
+    }
+  },
+  {
+    name: "Network/Connection Error",
+    match: (error) => error.name === "APIError" && (error.data.message.toLowerCase().includes("network") || error.data.message.toLowerCase().includes("connection") || error.data.message.toLowerCase().includes("timeout") || error.data.message.toLowerCase().includes("econnrefused")),
+    getSuggestion: () => "Network error occurred. Check your internet connection and try again."
+  }
+];
+function detectErrorPattern(error) {
+  for (const pattern of ERROR_PATTERNS) {
+    if (pattern.match(error)) {
+      return {
+        patternName: pattern.name,
+        suggestion: pattern.getSuggestion(error)
+      };
+    }
+  }
+  return null;
+}
+async function handleSessionError(client, directory, sessionID, error) {
+  try {
+    const hasBeads = await hasBeadsEnabled(directory);
+    if (!error) {
+      await client.app.log({
+        body: {
+          service: "line-cook",
+          level: "warn",
+          message: "Session error event received without error details",
+          extra: { sessionID, directory }
+        }
+      });
+      return;
+    }
+    const pattern = detectErrorPattern(error);
+    const errorMessage = "message" in error.data ? error.data.message : error.name;
+    await client.tui.showToast({
+      body: {
+        title: pattern ? `Error: ${pattern.patternName}` : `Error: ${error.name}`,
+        message: pattern ? pattern.suggestion : `An error occurred: ${errorMessage}`,
+        variant: "error",
+        duration: 1e4
+      }
+    });
+    await client.app.log({
+      body: {
+        service: "line-cook",
+        level: "error",
+        message: pattern ? `Session error: ${pattern.patternName}` : `Session error: ${error.name}`,
+        extra: {
+          sessionID,
+          directory,
+          errorName: error.name,
+          errorData: error.data,
+          patternDetected: pattern?.patternName,
+          suggestion: pattern?.suggestion,
+          hasBeads
+        }
+      }
+    });
+    if (hasBeads && (error.name === "APIError" || error.name === "UnknownError")) {
+      await client.app.log({
+        body: {
+          service: "line-cook",
+          level: "info",
+          message: "Consider filing error as bead for tracking: bd create --title='Error: ...' --type=bug",
+          extra: { sessionID }
+        }
+      });
+    }
+  } catch (err) {
+    await client.app.log({
+      body: {
+        service: "line-cook",
+        level: "error",
+        message: "Failed to handle session error",
+        extra: { error: String(err), sessionID }
       }
     });
   }
