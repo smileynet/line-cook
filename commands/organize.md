@@ -7,6 +7,8 @@ allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion, TodoWrite
 
 **Validate beads follow consistent hierarchy, fix violations, or restructure interactively.**
 
+**STOP after completing.** Show NEXT STEP and wait for user.
+
 **Arguments:** `$ARGUMENTS` (optional)
 - `audit` (default) - Report hierarchy issues
 - `fix` - Fix validation errors interactively
@@ -48,9 +50,9 @@ Determine hierarchy mode based on what exists:
 Certain epics use relaxed hierarchy rules (direct tasks allowed):
 
 ```bash
-# Find parking-lot epics by title keywords
+# Find parking-lot epics by title keywords (case-insensitive)
 PARKING_LOT_EPICS=$(bd list --type=epic --json | jq '[.[] | select(
-  .title | test("Retrospective|Backlog|Research|Exploration"; "i")
+  .title | ascii_downcase | test("retrospective|backlog|research|exploration")
 ) | .id]')
 ```
 
@@ -91,15 +93,8 @@ bd show <parent-id> --json | jq '.issue_type'
 
 **Orphan task detection:**
 ```bash
-# Get all tasks
-ALL_TASKS=$(bd list --type=task --status=open --json | jq -r '.[].id')
-
-# For each task, check if it appears as child of any feature or epic
-# A task is orphan if no --parent query returns it
-for task in $ALL_TASKS; do
-  # Check if task is child of any issue
-  # Orphan if not found in any parent's children list
-done
+# Tasks with no parent are orphans (parent field is null or empty)
+bd list --type=task --status=open --json | jq '[.[] | select(.parent == null or .parent == "")]'
 ```
 
 **Deep nesting detection:**
@@ -112,8 +107,8 @@ done
 **Verb-name feature detection:**
 ```bash
 # Check if feature title starts with common verbs
-VERB_PATTERN="^(Add|Fix|Implement|Create|Build|Update|Refactor|Remove|Delete) "
-bd list --type=feature --json | jq '[.[] | select(.title | test($VERB_PATTERN))]'
+bd list --type=feature --json | jq --arg pattern "^(Add|Fix|Implement|Create|Build|Update|Refactor|Remove|Delete|Enable|Disable|Configure|Setup|Initialize|Move|Migrate) " \
+  '[.[] | select(.title | test($pattern))]'
 ```
 
 #### 2-Tier Mode Validations
@@ -265,7 +260,9 @@ Use AskUserQuestion for guided restructuring:
 ```
 AskUserQuestion:
   question: "What capability or goal are you building toward?"
-  (free text - this becomes the epic name)
+  options:
+    - (suggest common patterns based on existing work)
+    - Other (user provides custom epic name via "Other" option)
 ```
 
 ```
@@ -344,7 +341,7 @@ Created: 1 epic, 3 features
 Moved: 5 tasks
 
 New structure:
-  bd show <epic-id> --tree
+  bd list --parent=<epic-id>
 
 Next steps:
   - Review with: bd list --parent=<epic-id>
