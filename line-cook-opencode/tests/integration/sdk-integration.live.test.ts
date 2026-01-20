@@ -50,29 +50,30 @@ const testSessions: string[] = []
 // Client options for all tests - dynamically set after server starts
 let clientOptions: ClientOptions = { baseUrl: SERVER_URL }
 
-// Check server availability once before all tests
+// Check server availability BEFORE test registration (top-level await)
+// This must happen before describe.skipIf evaluates its condition
 let serverAvailable = false
 
-beforeAll(async () => {
-  if (USE_EXTERNAL_SERVER) {
-    // Use external server - check if available
-    serverAvailable = await isServerAvailable()
-    if (!serverAvailable) {
-      console.log(`[SKIP] External server not available at ${SERVER_URL}`)
-    }
-  } else {
-    // Start managed server
-    try {
-      server = await createOpencodeServer({ port: 4096, timeout: 10000 })
-      clientOptions = { baseUrl: server.url }
-      serverAvailable = true
-      console.log(`[INFO] Started OpenCode server at ${server.url}`)
-    } catch (error) {
-      console.log(`[SKIP] Failed to start OpenCode server: ${error}`)
-      serverAvailable = false
-    }
+if (USE_EXTERNAL_SERVER) {
+  // Use external server - check if available
+  serverAvailable = await isServerAvailable()
+  if (!serverAvailable) {
+    console.log(`[SKIP] External server not available at ${SERVER_URL}`)
   }
-})
+} else {
+  // Start managed server
+  // Use isolated config dir to avoid user's config file (may have unknown keys)
+  process.env.XDG_CONFIG_HOME = "/tmp/opencode-test-config"
+  try {
+    server = await createOpencodeServer({ port: 4096, timeout: 10000, config: {} })
+    clientOptions = { baseUrl: server.url }
+    serverAvailable = true
+    console.log(`[INFO] Started OpenCode server at ${server.url}`)
+  } catch (error) {
+    console.log(`[SKIP] Failed to start OpenCode server: ${error}`)
+    serverAvailable = false
+  }
+}
 
 afterAll(async () => {
   if (server) {
@@ -96,7 +97,8 @@ afterEach(async () => {
   testSessions.length = 0
 })
 
-describe.skipIf(() => !serverAvailable)("SDK Integration - Live Server", () => {
+const describeServer = serverAvailable ? describe : describe.skip
+describeServer("SDK Integration - Live Server", () => {
   describe("Session Lifecycle", () => {
     test("create session, verify exists, delete, verify gone", async () => {
       // Create
