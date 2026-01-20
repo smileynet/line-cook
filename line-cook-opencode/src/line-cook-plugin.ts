@@ -191,18 +191,11 @@ async function hasBeadsEnabled(directory: string): Promise<boolean> {
  * - Command execution tracking
  */
 export const LineCookPlugin: Plugin = async ({ client, directory, $ }: PluginInput): Promise<Hooks> => {
-  // Log plugin initialization
-  await client.app.log({
-    body: {
-      service: "line-cook",
-      level: "info",
-      message: "Plugin initialized",
-      extra: {
-        pluginVersion: "0.6.6",
-        directory,
-      },
-    },
-  })
+  // NOTE: Do not await any API calls here - it causes a deadlock because:
+  // 1. OpenCode loads plugins synchronously at server startup
+  // 2. Plugin waits for API call to complete
+  // 3. Server waits for plugin to finish before processing API requests
+  // See: https://github.com/anthropics/claude-code/issues/XXX
 
   return {
     /**
