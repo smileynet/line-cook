@@ -24,14 +24,17 @@ That's it. Line Cook syncs your repo, picks a ready task, executes it with guard
 
 ```mermaid
 graph LR
-    subgraph "You + AI"
+    subgraph user ["You + AI"]
         A[Brainstorm] --> B[Create beads]
     end
-    subgraph "Line Cook"
+    subgraph auto ["Line Cook"]
         C["/prep"] --> D["/cook"] --> E["/serve"] --> F["/tidy"]
     end
     B --> C
     F --> |next task| C
+
+    style user fill:#4a1d6e,stroke:#9333ea,color:#e9d5ff
+    style auto fill:#134e4a,stroke:#14b8a6,color:#99f6e4
 ```
 
 | Command | What happens |
