@@ -107,6 +107,12 @@ These hooks provide safety guardrails and automation:
 | `tool.execute.before` | Block dangerous bash commands (git push --force, rm -rf /, etc.) |
 | `tool.execute.after` | Auto-format edited files based on extension (prettier, ruff, gofmt, etc.) |
 
+### Permission Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `permission.ask` | Auto-approve read-only operations and beads commands, deny dangerous operations |
+
 ### Experimental Hooks
 
 These hooks use OpenCode's experimental plugin API:
@@ -115,20 +121,22 @@ These hooks use OpenCode's experimental plugin API:
 |------|---------|
 | `experimental.session.compacting` | Inject beads context before session summarization to preserve workflow state |
 
-### Planned Events (Future Enhancement)
+### Error Handling
 
-| Event | Potential Use |
-|-------|---------------|
-| `session.error` | Suggest workflow recovery steps |
+| Event | Purpose |
+|-------|---------|
+| `session.error` | Detect common error patterns (auth, rate limit, context length) and suggest recovery steps |
 
 ### Event Reference
 
 OpenCode provides events across these categories:
 
-- **Session**: `session.created`, `session.idle`, `session.compacted`, `session.compacting` (experimental), `session.error`
+- **Session**: `session.created`, `session.idle`, `session.compacted`, `session.error`
 - **Tool**: `tool.execute.before`, `tool.execute.after`
 - **File**: `file.edited`, `file.watcher.updated`
 - **Command**: `command.executed`
+- **Permission**: `permission.ask`
+- **Experimental**: `experimental.session.compacting`
 
 See [OpenCode Plugin Docs](https://opencode.ai/docs/plugins/) for the complete event reference.
 
