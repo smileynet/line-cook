@@ -45,6 +45,8 @@ graph LR
 | `/tidy` | Commit, sync beads, push |
 | `/work` | Run the full cycle |
 
+> **Session boundary:** After `/tidy` pushes your work, clear context and start fresh with `/prep` for the next task. Each work cycle is designed to complete in a single session.
+
 ## Getting Started
 
 Run each command individually first to understand what happens at each step:
