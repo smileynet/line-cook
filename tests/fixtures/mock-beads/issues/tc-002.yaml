@@ -1,0 +1,15 @@
+# Ready task - lower priority
+# For testing explicit task selection
+id: tc-002
+title: Update README with new API endpoints
+type: task
+status: open
+priority: 2
+created: 2026-01-20T11:00:00Z
+labels:
+  - documentation
+description: |
+  Document the following new API endpoints in README.md:
+  - POST /api/users - Create user
+  - GET /api/users/:id - Get user by ID
+  - PUT /api/users/:id - Update user
