@@ -113,11 +113,14 @@ func (c *Client) Blocked() ([]Task, error) {
 
 // Show returns details for a specific task
 func (c *Client) Show(id string) (*Task, error) {
-	var task Task
-	if err := c.runJSON(&task, "show", id); err != nil {
+	var tasks []Task
+	if err := c.runJSON(&tasks, "show", id); err != nil {
 		return nil, err
 	}
-	return &task, nil
+	if len(tasks) == 0 {
+		return nil, fmt.Errorf("task not found: %s", id)
+	}
+	return &tasks[0], nil
 }
 
 // Update updates a task's fields
