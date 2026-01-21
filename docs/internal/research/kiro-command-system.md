@@ -8,7 +8,7 @@ Kiro CLI provides a comprehensive agent customization system through:
 - **Custom agents** (JSON configuration files)
 - **Steering files** (markdown instructions)
 - **Skills** (lazy-loaded documentation via `skill://` URIs)
-- **Hooks** (lifecycle event handlers)
+- **Hooks** (lifecycle event handlers, defined inline in agent JSON)
 
 The architecture closely mirrors Claude Code's plugin system, making adaptation straightforward. The recommended strategy is to create a `line-cook-kiro/` directory with custom agent configuration, steering files, and SKILL.md for discoverability.
 
@@ -21,7 +21,7 @@ The architecture closely mirrors Claude Code's plugin system, making adaptation 
 | Custom Agents | `.kiro/agents/` (local) or `~/.kiro/agents/` (global) | Define agent behavior, tools, resources |
 | Steering Files | `.kiro/steering/` (local) or `~/.kiro/steering/` (global) | Persistent project context |
 | Skills | `.kiro/skills/**/SKILL.md` | Lazy-loaded documentation |
-| Hooks | `.kiro/hooks/` | Lifecycle event automation |
+| Hook Scripts | `.kiro/scripts/` | Shell scripts referenced from agent JSON |
 | AGENTS.md | Project root or `~/.kiro/steering/` | Always-loaded steering (standard format) |
 
 ### Agent Configuration Reference
@@ -41,9 +41,16 @@ Custom agents use JSON files with this structure:
     "skill://.kiro/skills/**/SKILL.md"
   ],
   "hooks": {
-    "stop": ".kiro/hooks/session-end.sh"
+    "AgentSpawn": {
+      "command": "bash .kiro/scripts/session-start.sh",
+      "timeout_ms": 30000
+    },
+    "Stop": {
+      "command": "bash .kiro/scripts/stop-check.sh",
+      "timeout_ms": 30000
+    }
   },
-  "model": "claude-sonnet-4"  // Note: Verify exact model ID format in Kiro docs
+  "model": "claude-sonnet-4"
 }
 ```
 
@@ -52,7 +59,7 @@ Key fields:
 - **tools**: Available tools (built-in or MCP)
 - **allowedTools**: Pre-approved tools (no permission prompts)
 - **resources**: Files and skills to load (`file://` or `skill://`)
-- **hooks**: Lifecycle event handlers
+- **hooks**: Lifecycle event handlers (defined inline, referencing scripts)
 
 ### Resource URI Schemes
 
@@ -63,13 +70,33 @@ Key fields:
 
 Skills require YAML frontmatter with `name` and `description` for indexing.
 
-## Slash Commands in Kiro CLI
+## Workflow Commands in Kiro CLI
 
-Kiro CLI has built-in slash commands but **does not support custom slash commands** in the same way as Claude Code. Instead:
+Kiro CLI has built-in slash commands but **does not support custom slash commands** in the same way as Claude Code.
 
-1. **Hooks with manual triggers** appear in the slash command menu
-2. **Steering files configured with manual inclusion** appear in the menu
-3. The `/agent generate` command creates new agent configurations
+### How Workflow Commands Work
+
+Kiro CLI only has 5 hook types: `AgentSpawn`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`.
+
+**There is no "manual" hook type** for custom slash commands.
+
+Workflow invocation relies on **agent steering + natural language recognition**:
+
+```markdown
+## Workflow Commands (in steering/line-cook.md)
+
+When the user says any of these, execute the corresponding workflow:
+
+| User Input | Execute |
+|-----------|---------|
+| "prep", "/prep", "sync state" | Run prep workflow |
+| "cook", "/cook", "start task" | Run cook workflow |
+| "serve", "/serve", "review" | Run serve workflow |
+| "tidy", "/tidy", "commit" | Run tidy workflow |
+| "work", "/work", "full cycle" | Run prep→cook→serve→tidy sequentially |
+```
+
+The steering file is the critical artifact—it trains the agent to recognize and execute workflow phases.
 
 ### Built-in Commands Relevant to Line Cook
 
@@ -86,11 +113,9 @@ Kiro CLI has built-in slash commands but **does not support custom slash command
 
 Since Kiro lacks custom slash commands, line-cook commands must be implemented as:
 
-1. **Manual-trigger hooks** - Appear in `/` menu for quick access
-2. **Agent prompts** - System prompt instructs agent to recognize workflow commands
-3. **Natural language** - Users invoke via "run prep", "start cooking", etc.
-
-**Recommended approach**: Create manual hooks for `/prep`, `/cook`, `/serve`, `/tidy`, `/work` that trigger agent prompts.
+1. **Agent steering** - Steering file teaches agent to recognize workflow commands
+2. **Natural language** - Users invoke via "run prep", "start cooking", etc.
+3. **Slash-like syntax** - Steering recognizes "/prep", "/cook", etc. as commands
 
 ## Steering Files
 
@@ -154,27 +179,47 @@ Create `SKILL.md` following OpenCode pattern:
 
 ### Hook Types
 
+Kiro CLI supports exactly 5 hook types:
+
 | Type | Trigger | Use Case |
 |------|---------|----------|
-| `agentSpawn` | Agent activates | Load initial context |
-| `userPromptSubmit` | User sends message | Inject context, validate |
-| `preToolUse` | Before tool runs | Block dangerous operations |
-| `postToolUse` | After tool runs | Auto-format, validate |
-| `stop` | Agent completes response | Run tests, commit checks |
-| `manual` | User invokes from menu | On-demand operations |
+| `AgentSpawn` | Agent activates | Load initial context |
+| `UserPromptSubmit` | User sends message | Inject context, validate |
+| `PreToolUse` | Before tool runs | Block dangerous operations |
+| `PostToolUse` | After tool runs | Auto-format, validate |
+| `Stop` | Agent completes response | Run tests, commit checks |
+
+**Note**: There is no "manual" hook type for custom commands.
 
 ### Hook Configuration
 
-Hooks are JSON files in `.kiro/hooks/`:
+Hooks are defined **inline in the agent JSON configuration**, not as separate files:
 
 ```json
 {
-  "name": "session-end",
-  "trigger": "stop",
-  "command": "bash .kiro/hooks/session-end.sh",
-  "timeout_ms": 30000
+  "name": "line-cook",
+  "hooks": {
+    "AgentSpawn": {
+      "command": "bash .kiro/scripts/session-start.sh",
+      "timeout_ms": 30000
+    },
+    "PreToolUse": {
+      "command": "bash .kiro/scripts/pre-tool-use.sh",
+      "timeout_ms": 10000
+    },
+    "PostToolUse": {
+      "command": "bash .kiro/scripts/post-tool-use.sh",
+      "timeout_ms": 10000
+    },
+    "Stop": {
+      "command": "bash .kiro/scripts/stop-check.sh",
+      "timeout_ms": 30000
+    }
+  }
 }
 ```
+
+Hook scripts can live anywhere—they're referenced by path from the agent JSON. The `scripts/` directory is the recommended location.
 
 ### Line Cook Hook Strategy
 
@@ -182,10 +227,10 @@ Port existing Python hooks to shell scripts:
 
 | Current Hook | Kiro Equivalent |
 |--------------|-----------------|
-| `session_start.py` | `agentSpawn` hook |
-| `pre_tool_use.py` | `preToolUse` hook |
-| `post_tool_use.py` | `postToolUse` hook |
-| `stop_check.py` | `stop` hook |
+| `session_start.py` | `AgentSpawn` hook |
+| `pre_tool_use.py` | `PreToolUse` hook |
+| `post_tool_use.py` | `PostToolUse` hook |
+| `stop_check.py` | `Stop` hook |
 
 ## Adapter Strategy: Final Recommendation
 
@@ -194,7 +239,7 @@ Port existing Python hooks to shell scripts:
 ```
 line-cook-kiro/
 ├── agents/
-│   └── line-cook.json       # Main agent configuration
+│   └── line-cook.json       # Main agent configuration (hooks defined inline)
 ├── steering/
 │   ├── line-cook.md         # Core workflow instructions (AGENTS.md content)
 │   ├── beads.md             # Beads quick reference
@@ -202,16 +247,11 @@ line-cook-kiro/
 ├── skills/
 │   └── line-cook/
 │       └── SKILL.md         # Lazy-loaded documentation
-├── hooks/
-│   ├── session-start.sh     # agentSpawn hook
-│   ├── pre-tool-use.sh      # preToolUse hook
-│   ├── post-tool-use.sh     # postToolUse hook
-│   ├── stop-check.sh        # stop hook
-│   └── workflows/
-│       ├── prep.sh          # manual hook for /prep
-│       ├── cook.sh          # manual hook for /cook
-│       ├── serve.sh         # manual hook for /serve
-│       └── tidy.sh          # manual hook for /tidy
+├── scripts/                  # Hook scripts (referenced from agent JSON)
+│   ├── session-start.sh     # AgentSpawn hook
+│   ├── pre-tool-use.sh      # PreToolUse hook
+│   ├── post-tool-use.sh     # PostToolUse hook
+│   └── stop-check.sh        # Stop hook
 └── install.sh               # Installation script
 ```
 
@@ -219,17 +259,17 @@ line-cook-kiro/
 
 | Claude Code | OpenCode | Kiro |
 |-------------|----------|------|
-| `/line:prep` | `/line-prep` | Hook: "prep" (manual) OR agent recognizes "run prep" |
-| `/line:cook` | `/line-cook` | Hook: "cook" (manual) OR agent recognizes "cook task" |
-| `/line:serve` | `/line-serve` | Hook: "serve" (manual) OR agent recognizes "review changes" |
-| `/line:tidy` | `/line-tidy` | Hook: "tidy" (manual) OR agent recognizes "commit and push" |
-| `/line:work` | `/line-work` | Hook: "work" (manual) OR agent recognizes "start work cycle" |
-| `/line:getting-started` | `/line-getting-started` | Steering file (manual include) for workflow guide |
-| `/line:compact` | `/line-compact` | Hook: "compact" (manual) for context management |
+| `/line:prep` | `/line-prep` | Agent recognizes "prep", "/prep", "run prep" |
+| `/line:cook` | `/line-cook` | Agent recognizes "cook", "/cook", "start cooking" |
+| `/line:serve` | `/line-serve` | Agent recognizes "serve", "/serve", "review changes" |
+| `/line:tidy` | `/line-tidy` | Agent recognizes "tidy", "/tidy", "commit and push" |
+| `/line:work` | `/line-work` | Agent recognizes "work", "/work", "start work cycle" |
+| `/line:getting-started` | `/line-getting-started` | Steering file for workflow guide |
+| `/line:compact` | `/line-compact` | Agent recognizes "compact", "/compact" |
 
 ### Agent Prompt Strategy
 
-The agent prompt should include workflow command recognition:
+The steering file should include workflow command recognition:
 
 ```markdown
 ## Workflow Commands
@@ -258,14 +298,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "${KIRO_DIR}/agents"
 mkdir -p "${KIRO_DIR}/steering"
 mkdir -p "${KIRO_DIR}/skills/line-cook"
-mkdir -p "${KIRO_DIR}/hooks/workflows"
+mkdir -p "${KIRO_DIR}/scripts"
 
 # Copy files
 cp "${SCRIPT_DIR}/agents/line-cook.json" "${KIRO_DIR}/agents/"
 cp "${SCRIPT_DIR}/steering/"*.md "${KIRO_DIR}/steering/"
 cp "${SCRIPT_DIR}/skills/line-cook/SKILL.md" "${KIRO_DIR}/skills/line-cook/"
-cp "${SCRIPT_DIR}/hooks/"*.sh "${KIRO_DIR}/hooks/"
-cp "${SCRIPT_DIR}/hooks/workflows/"*.sh "${KIRO_DIR}/hooks/workflows/"
+cp "${SCRIPT_DIR}/scripts/"*.sh "${KIRO_DIR}/scripts/"
 
 echo "Line Cook installed for Kiro CLI"
 echo "Start a session with: kiro-cli --agent line-cook"
@@ -275,10 +314,10 @@ echo "Start a session with: kiro-cli --agent line-cook"
 
 | Feature | Claude Code | OpenCode | Kiro CLI |
 |---------|-------------|----------|----------|
-| Slash commands | Native (commands/) | Native (commands/) | Hooks with manual triggers |
+| Slash commands | Native (commands/) | Native (commands/) | Natural language via steering |
 | Skills | SKILL.md | SKILL.md | SKILL.md (same format) |
 | Steering | CLAUDE.md, AGENTS.md | AGENTS.md | steering/*.md, AGENTS.md |
-| Hooks | hooks/*.py | Plugin events | hooks/*.json + scripts |
+| Hooks | hooks/*.py | Plugin events | Inline in agent JSON + scripts/ |
 | Agent config | settings.json | plugin.json | agents/*.json |
 | Tool permissions | settings.json | plugin.json | agents/*.json (allowedTools) |
 
@@ -286,12 +325,11 @@ echo "Start a session with: kiro-cli --agent line-cook"
 
 1. **Create directory structure** - Mirror OpenCode plugin layout
 2. **Port AGENTS.md to steering** - Convert to Kiro steering format
-3. **Create agent configuration** - Define tools, resources, permissions
+3. **Create agent configuration** - Define tools, resources, permissions, hooks
 4. **Create SKILL.md** - Ensure proper frontmatter for lazy loading
-5. **Implement hooks** - Start with session-start and stop-check
-6. **Create manual hooks** - For workflow commands
-7. **Write installation script** - Single command setup
-8. **Test workflow** - Verify prep→cook→serve→tidy cycle works
+5. **Implement hook scripts** - Start with session-start and stop-check
+6. **Write installation script** - Single command setup
+7. **Test workflow** - Verify prep→cook→serve→tidy cycle works
 
 ## Open Questions
 

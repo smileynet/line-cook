@@ -15,18 +15,49 @@ line-cook-kiro/
 ├── skills/           # Lazy-loaded documentation
 │   └── line-cook/
 │       └── SKILL.md
-├── hooks/            # Lifecycle event handlers
+├── scripts/          # Hook scripts (referenced from agent JSON)
 │   ├── session-start.sh
 │   ├── pre-tool-use.sh
 │   ├── post-tool-use.sh
-│   ├── stop-check.sh
-│   └── workflows/    # Manual-trigger workflow hooks
-│       ├── prep.sh
-│       ├── cook.sh
-│       ├── serve.sh
-│       └── tidy.sh
+│   └── stop-check.sh
 └── install.sh        # Installation script
 ```
+
+## Hook Architecture
+
+**Important**: Kiro CLI hooks are defined **inline in agent JSON**, not as separate configuration files. The `scripts/` directory contains shell scripts that are referenced by path from the agent configuration:
+
+```json
+{
+  "name": "line-cook",
+  "hooks": {
+    "AgentSpawn": {
+      "command": "bash scripts/session-start.sh",
+      "timeout_ms": 30000
+    },
+    "Stop": {
+      "command": "bash scripts/stop-check.sh",
+      "timeout_ms": 30000
+    }
+  }
+}
+```
+
+Kiro CLI has 5 hook types: `AgentSpawn`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`.
+
+## Workflow Commands
+
+Kiro CLI does **not** support custom slash commands. Workflow invocation uses **natural language recognition** via the steering file:
+
+| User Input | Workflow |
+|------------|----------|
+| "prep", "/prep", "sync state" | Run prep workflow |
+| "cook", "/cook", "start task" | Run cook workflow |
+| "serve", "/serve", "review" | Run serve workflow |
+| "tidy", "/tidy", "commit" | Run tidy workflow |
+| "work", "/work", "full cycle" | Run prep→cook→serve→tidy sequentially |
+
+The steering file (`steering/line-cook.md`) teaches the agent to recognize these phrases and execute the corresponding workflow.
 
 ## Installation
 
