@@ -269,7 +269,19 @@ Commands: `prep`, `cook`, `serve`, `tidy`, `work`
 
 ## Release Process
 
-**When making changes to core functionality** (commands, hooks, plugin manifests, workflow logic), you MUST bump the version and push updates.
+**Releases are targeted events triggered by human decision, not automatic enforcement.** Track changes in CHANGELOG.md, then release when ready.
+
+### Changelog-Based Workflow
+
+```bash
+# During development: Add entries to CHANGELOG.md [Unreleased] section
+vim CHANGELOG.md  # Add your changes under [Unreleased]
+
+# When ready to release:
+# 1. Update CHANGELOG.md: Create new version section from [Unreleased]
+# 2. Bump versions in plugin.json files (must be identical)
+# 3. Commit, sync beads, push (release created automatically)
+```
 
 ### Files Requiring Version Update
 
@@ -277,65 +289,86 @@ Commands: `prep`, `cook`, `serve`, `tidy`, `work`
 |------|----------|
 | `.claude-plugin/plugin.json` | `version` |
 | `line-cook-opencode/package.json` | `version` AND `opencode.version` |
+| `CHANGELOG.md` | New version section from [Unreleased] |
 
-### Version Bump Procedure
+### Release Procedure
 
 ```bash
-# 1. Determine version (semantic versioning)
+# 1. Update CHANGELOG.md
+#    - Create new section: ## [X.Y.Z] - YYYY-MM-DD
+#    - Move entries from [Unreleased] to new section
+#    - Update version comparison links at bottom
+
+# 2. Determine version (semantic versioning)
 #    Patch: bug fixes → 0.4.5 → 0.4.6
 #    Minor: new features → 0.4.5 → 0.5.0
 #    Major: breaking changes → 0.4.5 → 1.0.0
 
-# 2. Update all version locations (must be identical)
+# 3. Update all version locations (must be identical)
 #    - .claude-plugin/plugin.json: "version"
 #    - line-cook-opencode/package.json: "version" AND "opencode.version"
 
-# 3. Commit and push (release is created automatically)
-git add .claude-plugin/plugin.json line-cook-opencode/package.json
-git commit -m "chore: bump version to X.Y.Z"
+# 4. Commit and push (release is created automatically)
+git add CHANGELOG.md .claude-plugin/plugin.json line-cook-opencode/package.json
+git commit -m "chore: release X.Y.Z"
 bd sync
 git push
 ```
 
 > **Note:** GitHub Actions automatically creates a release when `plugin.json` is updated on `main`. See `.github/workflows/release.yml`.
 
-### When to Bump Version
+### What to Track in CHANGELOG.md
 
-**DO bump for:**
+**Track in [Unreleased]:**
 - Command changes (commands/*.md)
 - Hook changes (hooks/*.py, src/*.ts)
 - Plugin manifest changes
 - Core workflow logic
+- Significant user-facing features or fixes
 
-**DON'T bump for:**
+**Don't track:**
 - Documentation-only (README, AGENTS.md, docs/)
 - CI/CD configuration
 - .beads/ changes
 - Test files only
 
-### Pre-commit Version Check
+### When to Release
 
-A git pre-commit hook enforces version bumps for core files. When you stage core files without version files, the commit is blocked with options to proceed:
+**Release when:**
+- [Unreleased] section has substantial changes worth shipping
+- You've completed a feature or fix users need
+- Ready to deploy to production
 
+**You can commit without releasing:**
+- Iterative development (track in CHANGELOG [Unreleased])
+- Work-in-progress commits (no version bump needed)
+- Small refactorings that don't affect users
+
+### Changelog Format
+
+The changelog uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format:
+
+```markdown
+## [Unreleased]
+
+### Added
+- New feature description
+
+### Changed
+- Behavior change description
+
+### Fixed
+- Bug fix description
+
+## [0.6.3] - 2026-01-19
+
+### Added
+- Released feature
 ```
-WARNING: Core file(s) changed without version bump
-  commands/prep.md
-
-To proceed:
-  1. Bump version in both files, re-stage, commit
-  2. Skip (WIP): SKIP_VERSION_CHECK=1 git commit ...
-  3. Skip all: git commit --no-verify
-```
-
-**Bypass options:**
-- `SKIP_VERSION_CHECK=1 git commit -m "..."` - Skip version check only (beads flush still runs)
-- `git commit --no-verify` - Skip all pre-commit hooks
-
-**Hard block (no bypass):** If version files are staged but have mismatched versions, the commit is blocked until fixed.
 
 ### Post-Release: User Instructions
 
-After pushing a version bump, create a GitHub release with these instructions for users:
+After pushing a release, create a GitHub release with these instructions for users:
 
 **Installation (new users):**
 ```bash
