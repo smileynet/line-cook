@@ -1,0 +1,15 @@
+# In-progress task
+# For testing status filtering
+id: tc-004
+title: Refactor database connection pooling
+type: task
+status: in_progress
+priority: 2
+created: 2026-01-19T09:00:00Z
+assignee: testuser
+labels:
+  - backend
+  - performance
+description: |
+  Current database connections are created per-request.
+  Implement connection pooling for better performance.

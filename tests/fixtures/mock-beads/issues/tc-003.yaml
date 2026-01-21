@@ -1,0 +1,18 @@
+# Blocked task - depends on tc-001
+# Should NOT appear in ready list
+id: tc-003
+title: Add form submission API integration
+type: task
+status: open
+priority: 1
+created: 2026-01-20T12:00:00Z
+labels:
+  - frontend
+  - backend
+depends_on:
+  - tc-001
+description: |
+  After form validation is complete (tc-001), integrate with the backend API.
+  - Submit form data to POST /api/users
+  - Handle success/error responses
+  - Display appropriate messages
