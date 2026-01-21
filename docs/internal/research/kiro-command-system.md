@@ -364,7 +364,7 @@ mkdir -p "${KIRO_DIR}/scripts"
 cp "${SCRIPT_DIR}/agents/line-cook.json" "${KIRO_DIR}/agents/"
 cp "${SCRIPT_DIR}/steering/"*.md "${KIRO_DIR}/steering/"
 cp "${SCRIPT_DIR}/skills/line-cook/SKILL.md" "${KIRO_DIR}/skills/line-cook/"
-cp "${SCRIPT_DIR}/scripts/"*.sh "${KIRO_DIR}/scripts/"
+cp "${SCRIPT_DIR}/scripts/"*.py "${KIRO_DIR}/scripts/"
 
 echo "Line Cook installed for Kiro CLI"
 echo "Start a session with: kiro-cli --agent line-cook"
