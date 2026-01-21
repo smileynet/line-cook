@@ -12,7 +12,7 @@
   ],
   "hooks": {
     "AgentSpawn": {
-      "command": "bash .kiro/scripts/session-start.sh",
+      "command": "python3 .kiro/scripts/session-start.py",
       "timeout_ms": 30000
     },
     "Stop": {
