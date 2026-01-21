@@ -1,0 +1,24 @@
+{
+  "name": "line-cook",
+  "description": "Task-focused workflow orchestration for AI-assisted development. Provides prep/cook/serve/tidy workflow cycle with beads issue tracking integration.",
+  "prompt": "file://.kiro/steering/line-cook.md",
+  "tools": ["read", "write", "shell", "@builtin"],
+  "allowedTools": ["read", "write", "shell"],
+  "resources": [
+    "file://README.md",
+    "file://AGENTS.md",
+    "file://.kiro/steering/**/*.md",
+    "skill://.kiro/skills/**/SKILL.md"
+  ],
+  "hooks": {
+    "AgentSpawn": {
+      "command": "bash .kiro/scripts/session-start.sh",
+      "timeout_ms": 30000
+    },
+    "Stop": {
+      "command": "bash .kiro/scripts/stop-check.sh",
+      "timeout_ms": 30000
+    }
+  },
+  "model": "claude-sonnet-4"
+}
