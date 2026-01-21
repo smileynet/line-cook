@@ -18,7 +18,7 @@ line-cook-kiro/
 ├── scripts/          # Hook scripts (stubs - referenced from agent JSON)
 │   ├── session-start.sh  # AgentSpawn hook (stub - TODO: context priming)
 │   └── stop-check.sh     # Stop hook (stub - TODO: work verification)
-└── install.sh        # Installation script
+└── install.py        # Installation script
 ```
 
 ## Hook Architecture
@@ -67,7 +67,8 @@ The steering file (`steering/line-cook.md`) teaches the agent to recognize these
 ## Installation
 
 ```bash
-./install.sh
+./install.py
+# or: python3 install.py
 ```
 
 ## Usage
