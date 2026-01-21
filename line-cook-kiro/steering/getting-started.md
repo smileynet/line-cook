@@ -1,10 +1,10 @@
----
-description: Workflow guide with full bead reference
----
+# Getting Started
+
+When the user says "getting started", "tutorial", "help with line cook", or similar:
 
 **Read and display the full Line Cook tutorial to the user.**
 
-Use the Read tool to read the tutorial file at `docs/tutorial-opencode.md` (in the line-cook repository root).
+Use the Read tool to read the tutorial file at `docs/tutorial-kiro.md` (in the line-cook repository root).
 
 After reading, output the entire contents to the user so they can follow along. Do not summarize or act on it - display it for reference.
 
@@ -17,22 +17,22 @@ If the file cannot be found, display this fallback quick reference:
 ### The Workflow Loop
 
 ```
-/line-prep  →  /line-cook  →  /line-serve  →  /line-tidy
-    ↓              ↓              ↓              ↓
-  sync          execute        review         commit
+prep  →  cook  →  serve  →  tidy
+  ↓        ↓        ↓        ↓
+sync    execute  review   commit
 ```
 
-Or use `/line-work` to run the full cycle.
+Or say `work` to run the full cycle.
 
 ### Commands
 
-| Command | Purpose |
-|---------|---------|
-| `/line-prep` | Sync and show ready work |
-| `/line-cook` | Execute a task with guardrails |
-| `/line-serve` | AI peer review |
-| `/line-tidy` | Commit, file findings, push |
-| `/line-work` | Full cycle (all four) |
+| Say | What happens |
+|-----|--------------|
+| `prep` | Sync and show ready work |
+| `cook` | Execute a task with guardrails |
+| `serve` | AI peer review |
+| `tidy` | Commit, file findings, push |
+| `work` | Full cycle (all four) |
 
 ### Beads Commands
 
@@ -55,4 +55,4 @@ bd sync                                            # Sync with remote
 
 ---
 
-For the full tutorial, see `docs/tutorial-opencode.md` in the line-cook repository.
+For the full tutorial, see `docs/tutorial-kiro.md` in the line-cook repository.

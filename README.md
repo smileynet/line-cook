@@ -52,6 +52,11 @@ graph LR
 
 ## Getting Started
 
+**Tutorials:** Step-by-step guides from brainstorming to your first work cycle:
+- [Claude Code Tutorial](docs/tutorial-claude-code.md)
+- [OpenCode Tutorial](docs/tutorial-opencode.md)
+- [Kiro Tutorial](docs/tutorial-kiro.md)
+
 Run each command individually first to understand what happens at each step:
 
 ```bash
