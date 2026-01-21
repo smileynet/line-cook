@@ -15,11 +15,9 @@ line-cook-kiro/
 ├── skills/           # Lazy-loaded documentation
 │   └── line-cook/
 │       └── SKILL.md
-├── scripts/          # Hook scripts (referenced from agent JSON)
-│   ├── session-start.sh
-│   ├── pre-tool-use.sh
-│   ├── post-tool-use.sh
-│   └── stop-check.sh
+├── scripts/          # Hook scripts (stubs - referenced from agent JSON)
+│   ├── session-start.sh  # AgentSpawn hook (stub - TODO: context priming)
+│   └── stop-check.sh     # Stop hook (stub - TODO: work verification)
 └── install.sh        # Installation script
 ```
 
