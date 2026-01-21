@@ -27,6 +27,7 @@ Or use `/line-work` to run the full cycle.
 | Command | Purpose |
 |---------|---------|
 | `/line-work` | Orchestrate full prep→cook→serve→tidy cycle |
+| `/line-mise` | Prime planning session with bead hierarchy guidance |
 | `/line-season` | Apply research findings to beads |
 | `/line-setup` | Configure hooks for your project |
 | `/line-compact` | Clear context while preserving workflow state |
