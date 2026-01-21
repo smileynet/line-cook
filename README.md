@@ -52,6 +52,7 @@ graph LR
 | Command | What happens |
 |---------|--------------|
 | `/work` | Run the full prep→cook→serve→tidy cycle |
+| `/mise` | Prime planning session with bead hierarchy guidance |
 | `/season` | Apply research findings to beads |
 | `/setup` | Configure optional hooks |
 | `/compact` | Clear context while preserving workflow state |
@@ -103,7 +104,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:season`
+Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:mise`, `/line:season`
 
 ### OpenCode
 
@@ -120,7 +121,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-season`
+Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-mise`, `/line-season`
 
 ## The Guardrails
 

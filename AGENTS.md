@@ -29,6 +29,7 @@ Or use `/work` to run the full cycle.
 | Command | Purpose |
 |---------|---------|
 | `/work` | Orchestrate full prep→cook→serve→tidy cycle |
+| `/mise` | Prime planning session with bead hierarchy guidance |
 | `/season` | Apply research findings to beads |
 | `/setup` | Configure hooks for your project |
 | `/compact` | Compact context with workflow state preserved |
@@ -202,6 +203,7 @@ line-cook/
 │   ├── work.md            # → /line:work
 │   ├── setup.md           # → /line:setup
 │   ├── compact.md         # → /line:compact
+│   ├── mise.md            # → /line:mise
 │   └── season.md          # → /line:season
 ├── scripts/               # Installation scripts
 │   └── install-claude-code.sh
@@ -217,6 +219,7 @@ line-cook/
 │       ├── line-work.md   # → /line-work
 │       ├── line-setup.md  # → /line-setup
 │       ├── line-compact.md # → /line-compact
+│       ├── line-mise.md    # → /line-mise
 │       └── line-season.md  # → /line-season
 ├── hooks/                 # Claude Code hooks
 │   ├── setup.sh           # Onboarding: detect project, generate hooks
@@ -257,7 +260,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 > Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
 > To switch from local to remote, uninstall first: `/plugin uninstall line`
 
-Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:season`, `/line:setup`, `/line:compact`
+Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:mise`, `/line:season`, `/line:setup`, `/line:compact`
 
 ### OpenCode
 
@@ -272,7 +275,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-season`, `/line-setup`, `/line-compact`
+Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-mise`, `/line-season`, `/line-setup`, `/line-compact`
 
 ## Hooks
 

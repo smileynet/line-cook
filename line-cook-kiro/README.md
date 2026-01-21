@@ -60,6 +60,7 @@ Kiro CLI does **not** support custom slash commands. Workflow invocation uses **
 | "tidy", "/tidy", "commit" | Run tidy workflow |
 | "work", "/work", "full cycle" | Run prep→cook→serve→tidy sequentially |
 | "season", "/season", "apply findings" | Apply research findings to beads |
+| "mise", "/mise", "plan", "prepare", "planning" | Prime planning session with hierarchy guidance |
 | "setup", "/setup", "configure hooks" | Configure optional hooks |
 | "compact", "/compact", "clear context" | Clear context, preserve workflow state |
 
