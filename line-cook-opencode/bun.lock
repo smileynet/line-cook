@@ -9,7 +9,6 @@
       },
       "devDependencies": {
         "@opencode-ai/plugin": "^1.0.0",
-        "@opencode-ai/sdk": "^1.1.0",
         "bun-types": "latest",
         "typescript": "^5.0.0",
       },
