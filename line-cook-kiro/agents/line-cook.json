@@ -1,6 +1,6 @@
 {
   "name": "line-cook",
-  "description": "Task-focused workflow orchestration for AI-assisted development. Provides prep/cook/serve/tidy workflow cycle with beads issue tracking integration.",
+  "description": "Simple workflow orchestration for AI-assisted development. Provides prep/cook/serve/tidy workflow cycle with beads issue tracking integration.",
   "prompt": "file://.kiro/steering/line-cook.md",
   "tools": ["read", "write", "shell", "@builtin"],
   "allowedTools": ["read", "write", "shell"],
@@ -10,23 +10,5 @@
     "file://.kiro/steering/**/*.md",
     "skill://.kiro/skills/**/SKILL.md"
   ],
-  "hooks": {
-    "AgentSpawn": {
-      "command": "python3 .kiro/scripts/session-start.py",
-      "timeout_ms": 30000
-    },
-    "PreToolUse": {
-      "command": "python3 .kiro/scripts/pre-tool-use.py",
-      "timeout_ms": 10000
-    },
-    "PostToolUse": {
-      "command": "python3 .kiro/scripts/post-tool-use.py",
-      "timeout_ms": 30000
-    },
-    "Stop": {
-      "command": "python3 .kiro/scripts/stop-check.py",
-      "timeout_ms": 30000
-    }
-  },
   "model": "claude-sonnet-4"
 }
