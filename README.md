@@ -44,6 +44,7 @@ graph LR
 | `/serve` | Review completed work (AI peer review) |
 | `/tidy` | Commit, sync beads, push |
 | `/work` | Run the full cycle |
+| `/season` | Apply research findings to beads |
 
 > **Session boundary:** After `/tidy` pushes your work, clear context and start fresh with `/prep` for the next task. Each work cycle is designed to complete in a single session.
 
@@ -92,7 +93,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`
+Commands: `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:season`
 
 ### OpenCode
 
@@ -109,7 +110,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`
+Commands: `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-season`
 
 ## The Guardrails
 

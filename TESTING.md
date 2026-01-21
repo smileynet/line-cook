@@ -14,7 +14,7 @@ claude --plugin-dir ~/line-cook
 
 # Verify plugin loaded
 # In Claude Code REPL, commands should be available as:
-# /line:prep, /line:cook, /line:serve, /line:tidy
+# /line:prep, /line:cook, /line:serve, /line:tidy, /line:season
 ```
 
 ### Test Individual Commands

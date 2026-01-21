@@ -637,6 +637,7 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 | `/line:serve` | AI peer review |
 | `/line:tidy` | Commit, file findings, push |
 | `/line:work` | Full cycle (all four) |
+| `/line:season` | Apply research findings to beads |
 
 | Beads Command | Purpose |
 |---------------|---------|
