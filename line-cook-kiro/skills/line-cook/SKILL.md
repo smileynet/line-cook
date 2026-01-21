@@ -23,8 +23,6 @@ Structured AI workflow execution: prep → cook → serve → tidy.
 | "cook" | Claim and execute a task |
 | "serve" | AI peer review of completed work |
 | "tidy" | Commit, sync beads, push |
-| "mise" or "plan" | Prime planning session with hierarchy guidance |
-| "season" | Apply research findings to beads |
 
 ## Core Workflow
 

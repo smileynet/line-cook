@@ -23,16 +23,7 @@ Or use `/work` to run the full cycle.
 | `/cook` | Select and execute a task with guardrails |
 | `/serve` | Review completed work via headless Claude |
 | `/tidy` | Commit and push changes |
-
-### Advanced Commands
-
-| Command | Purpose |
-|---------|---------|
 | `/work` | Orchestrate full prep→cook→serve→tidy cycle |
-| `/mise` | Prime planning session with bead hierarchy guidance |
-| `/season` | Apply research findings to beads |
-| `/setup` | Configure hooks for your project |
-| `/compact` | Compact context with workflow state preserved |
 
 ## Platform Command Naming
 
@@ -200,11 +191,7 @@ line-cook/
 │   ├── cook.md            # → /line:cook
 │   ├── serve.md           # → /line:serve
 │   ├── tidy.md            # → /line:tidy
-│   ├── work.md            # → /line:work
-│   ├── setup.md           # → /line:setup
-│   ├── compact.md         # → /line:compact
-│   ├── mise.md            # → /line:mise
-│   └── season.md          # → /line:season
+│   └── work.md            # → /line:work
 ├── scripts/               # Installation scripts
 │   └── install-claude-code.sh
 ├── line-cook-opencode/    # OpenCode plugin
@@ -217,23 +204,15 @@ line-cook/
 │       ├── line-serve.md  # → /line-serve
 │       ├── line-tidy.md   # → /line-tidy
 │       ├── line-work.md   # → /line-work
-│       ├── line-setup.md  # → /line-setup
-│       ├── line-compact.md # → /line-compact
-│       ├── line-mise.md    # → /line-mise
-│       └── line-season.md  # → /line-season
-├── hooks/                 # Claude Code hooks
-│   ├── setup.sh           # Onboarding: detect project, generate hooks
-│   ├── session-start.sh   # SessionStart: prime workflow context
-│   ├── pre-tool-use-bash.sh # PreToolUse: block dangerous commands
-│   ├── post-tool-use-edit.sh # PostToolUse: auto-format (template)
-│   ├── stop-workflow-check.sh # Stop: verify work is saved
-│   └── settings.json      # Hook configuration (template)
+│       └── line-getting-started.md # → /line-getting-started
+├── line-cook-kiro/        # Kiro agent
+│   ├── agents/line-cook.json # Agent definition
+│   ├── steering/          # Workflow steering docs
+│   └── skills/            # Skill definitions
 ├── .claude-plugin/
-│   ├── plugin.json        # Claude Code plugin manifest
-│   └── marketplace.json   # Marketplace definition for GitHub install
+│   └── plugin.json        # Claude Code plugin manifest
 ├── AGENTS.md              # Agent workflow instructions (this file)
-├── HOOKS.md               # Hooks documentation
-└── TESTING.md             # Testing guide for both platforms
+└── README.md              # User documentation
 ```
 
 ## Installation
@@ -260,7 +239,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 > Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
 > To switch from local to remote, uninstall first: `/plugin uninstall line`
 
-Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:mise`, `/line:season`, `/line:setup`, `/line:compact`
+Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`
 
 ### OpenCode
 
@@ -275,31 +254,18 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-mise`, `/line-season`, `/line-setup`, `/line-compact`
+Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`
 
-## Hooks
+### Kiro
 
-### Plugin Hooks (Automatic)
+Copy the `line-cook-kiro/` directory to your `.kiro/` folder:
 
-The plugin.json includes hooks that run automatically when the plugin is installed:
+```bash
+git clone https://github.com/smileynet/line-cook.git ~/line-cook
+cp -r ~/line-cook/line-cook-kiro/* ~/.kiro/
+```
 
-- **SessionStart**: Primes beads workflow context when a session starts
-- **PreCompact**: Preserves workflow context before conversation compaction
-
-These hooks are defined in `.claude-plugin/plugin.json` and require no configuration.
-
-### Project Hooks (Optional)
-
-Additional hooks can be configured per-project. Run `/line:setup` to configure interactively, or see [HOOKS.md](HOOKS.md) for manual setup.
-
-Optional project hooks:
-- PreToolUse: Block dangerous commands
-- PostToolUse: Auto-format edited files
-- Stop: Verify work is committed/pushed
-
-## Testing
-
-See [TESTING.md](TESTING.md) for validation and testing methods.
+Commands: `prep`, `cook`, `serve`, `tidy`, `work`
 
 ## Release Process
 

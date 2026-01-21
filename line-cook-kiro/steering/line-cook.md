@@ -13,7 +13,6 @@ When the user says any of these phrases, execute the corresponding workflow:
 | "serve", "/serve", "review", "review changes" | Run serve workflow |
 | "tidy", "/tidy", "commit", "push changes" | Run tidy workflow |
 | "work", "/work", "full cycle", "start work" | Run prep, cook, serve, tidy sequentially |
-| "season", "/season", "apply findings", "enrich beads" | Run season workflow |
 
 ## The Workflow Loop
 

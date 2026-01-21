@@ -1,7 +1,7 @@
 {
   "name": "line",
-  "description": "Task-focused workflow orchestration for Claude Code sessions - prep, cook, serve, tidy",
-  "version": "0.7.5",
+  "description": "Simple workflow orchestration for Claude Code sessions - prep, cook, serve, tidy, work",
+  "version": "1.0.0",
   "author": {
     "name": "smileynet",
     "url": "https://github.com/smileynet"
@@ -15,31 +15,5 @@
     "task-management",
     "beads",
     "productivity"
-  ],
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py\"",
-            "timeout": 30
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py\"",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  }
+  ]
 }

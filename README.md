@@ -20,7 +20,7 @@ bd create --title="Add login form" --type=task
 
 That's it. Line Cook syncs your repo, picks a ready task, executes it with guardrails, reviews the work, and commits when done.
 
-> **New to Line Cook?** Run `/line:getting-started` for a quick workflow guide, or follow the [step-by-step tutorial](docs/tutorial-first-workflow.md) to learn from brainstorming to your first completed task.
+> **New to Line Cook?** Run `/line:getting-started` for a quick workflow guide.
 
 ## What It Does
 
@@ -46,18 +46,9 @@ graph LR
 | `/cook` | Claim a task, execute with guardrails |
 | `/serve` | Review completed work (AI peer review) |
 | `/tidy` | Commit, sync beads, push |
-
-### Advanced Commands
-
-| Command | What happens |
-|---------|--------------|
 | `/work` | Run the full prep→cook→serve→tidy cycle |
-| `/mise` | Prime planning session with bead hierarchy guidance |
-| `/season` | Apply research findings to beads |
-| `/setup` | Configure optional hooks |
-| `/compact` | Clear context while preserving workflow state |
 
-> **Session boundary:** After `/tidy` pushes your work, clear context (`/compact` or new session) and start fresh with `/prep` for the next task. Also clear context after planning/brainstorming sessions before starting execution.
+> **Session boundary:** After `/tidy` pushes your work, start a new session or clear context (`/compact`) before starting `/prep` for the next task.
 
 ## Getting Started
 
@@ -104,7 +95,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:mise`, `/line:season`
+Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`
 
 ### OpenCode
 
@@ -121,7 +112,18 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-mise`, `/line-season`
+Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`
+
+### Kiro
+
+Copy the `line-cook-kiro/` directory to your `.kiro/` folder:
+
+```bash
+git clone https://github.com/smileynet/line-cook.git ~/line-cook
+cp -r ~/line-cook/line-cook-kiro/* ~/.kiro/
+```
+
+Commands: `prep`, `cook`, `serve`, `tidy`, `work`
 
 ## The Guardrails
 
@@ -136,18 +138,6 @@ Line Cook enforces discipline so you don't have to:
 > **Tip: Parking Lot Epics**
 >
 > Create "Retrospective" or "Backlog" epics for deferred work. Tasks filed under these epics are automatically excluded from `/prep` and `/cook` auto-selection, keeping focus on active work. You can still work on them explicitly via `/line:cook <task-id>`.
-
-## Hooks (Optional)
-
-Auto-format code, block dangerous commands, warn about uncommitted work:
-
-```bash
-/line:setup  # Interactive configuration
-```
-
-See [HOOKS.md](HOOKS.md) for details.
-
----
 
 ## Why Line Cook?
 
@@ -182,13 +172,12 @@ Built on ideas from:
 ```
 line-cook/
 ├── .claude-plugin/     # Plugin manifest
-├── commands/           # Slash commands
-├── hooks/              # Claude Code hooks (Python)
+├── commands/           # Claude Code slash commands
 ├── line-cook-opencode/ # OpenCode plugin
+├── line-cook-kiro/     # Kiro agent and steering
 ├── scripts/            # Installation helpers
-├── docs/internal/      # Development planning docs
-├── HOOKS.md            # Hooks documentation
-└── TESTING.md          # Testing guide
+├── README.md           # This file
+└── AGENTS.md           # Technical reference
 ```
 
 ## License
