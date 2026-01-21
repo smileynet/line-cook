@@ -25,6 +25,7 @@ This mirrors a restaurant service: gather ingredients, execute orders, plate and
 | cook | Execute the order | ✓ Used |
 | serve | Plate and present | ✓ Used |
 | tidy | Clean station, close out | ✓ Used |
+| season | Add depth and flavor to work with findings | ✓ Used |
 
 ### Available Kitchen Terms
 
