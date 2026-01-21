@@ -246,9 +246,16 @@ The `command` field is shell-executed, meaning any language supported by the she
 4. **Environment Inherited**: Hooks inherit the shell's PATH and environment, so Python must be on PATH
 5. **JSON I/O Compatible**: Python's json module handles stdin/stdout like shell scripts do
 
-**Recommendation**: Use Python for complex hooks (session-start, stop-check) and shell for simple ones (pre/post-tool-use). This avoids porting complex logic unnecessarily.
+**Recommendation**: Use Python for all line-cook hooks. After reviewing the actual hook implementations:
 
-Example Python hook invocations:
+- **session_start.py** (127 lines) - Complex: workflow context, directory detection, environment handling
+- **stop_check.py** (87 lines) - Moderate: git subprocess calls, status parsing
+- **pre_tool_use.py** (82 lines) - Moderate: regex pattern matching, structured JSON output for blocking
+- **post_tool_use.py** (200 lines) - Complex: multiple formatters, subprocess handling, file extension mapping
+
+Shell was initially considered for pre/post-tool-use but their structured JSON output and subprocess handling make Python the cleaner choice. Consistency also benefits maintenance.
+
+Example hook configuration:
 
 ```json
 {
@@ -258,12 +265,12 @@ Example Python hook invocations:
       "timeout_ms": 30000
     },
     "PreToolUse": {
-      "command": "bash .kiro/scripts/pre-tool-use.sh",
+      "command": "python3 .kiro/scripts/pre-tool-use.py",
       "timeout_ms": 10000
     },
     "PostToolUse": {
-      "command": "bash .kiro/scripts/post-tool-use.sh",
-      "timeout_ms": 10000
+      "command": "python3 .kiro/scripts/post-tool-use.py",
+      "timeout_ms": 30000
     },
     "Stop": {
       "command": "python3 .kiro/scripts/stop-check.py",
@@ -275,14 +282,14 @@ Example Python hook invocations:
 
 ### Line Cook Hook Strategy
 
-Retain Python for complex hooks, use shell for simple ones:
+Retain Python for all hooks (consistency + complexity warrants it):
 
-| Current Hook | Kiro Equivalent | Language |
-|--------------|-----------------|----------|
-| `session_start.py` | `AgentSpawn` hook | Python (complex logic) |
-| `pre_tool_use.py` | `PreToolUse` hook | Shell (simple blocking) |
-| `post_tool_use.py` | `PostToolUse` hook | Shell (simple formatting) |
-| `stop_check.py` | `Stop` hook | Python (complex validation) |
+| Current Hook | Kiro Equivalent | Complexity | Rationale |
+|--------------|-----------------|------------|-----------|
+| `session_start.py` | `AgentSpawn` hook | High (127 LOC) | Workflow context, env handling |
+| `pre_tool_use.py` | `PreToolUse` hook | Moderate (82 LOC) | Regex patterns, JSON blocking output |
+| `post_tool_use.py` | `PostToolUse` hook | High (200 LOC) | Multi-formatter, subprocess handling |
+| `stop_check.py` | `Stop` hook | Moderate (87 LOC) | Git status parsing |
 
 ## Adapter Strategy: Final Recommendation
 
@@ -300,10 +307,11 @@ line-cook-kiro/
 │   └── line-cook/
 │       └── SKILL.md         # Lazy-loaded documentation
 ├── scripts/                  # Hook scripts (referenced from agent JSON)
-│   ├── session-start.py     # AgentSpawn hook (Python - complex logic)
-│   ├── pre-tool-use.sh      # PreToolUse hook (Shell - simple blocking)
-│   ├── post-tool-use.sh     # PostToolUse hook (Shell - simple formatting)
-│   └── stop-check.py        # Stop hook (Python - complex validation)
+│   ├── session-start.py     # AgentSpawn hook (workflow context priming)
+│   ├── pre-tool-use.py      # PreToolUse hook (dangerous command blocking)
+│   ├── post-tool-use.py     # PostToolUse hook (auto-formatting)
+│   ├── stop-check.py        # Stop hook (work verification)
+│   └── hook_utils.py        # Shared utilities (logging, common functions)
 └── install.sh               # Installation script
 ```
 
