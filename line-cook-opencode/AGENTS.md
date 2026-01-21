@@ -22,6 +22,7 @@ Or use `/line-work` to run the full cycle.
 | `/line-tidy` | Commit and push changes |
 | `/line-work` | Orchestrate full prep→cook→serve→tidy cycle |
 | `/line-setup` | Configure hooks for your project (interactive) |
+| `/line-season` | Apply research findings to beads - add context, create work |
 
 ## Dependencies
 

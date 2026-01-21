@@ -22,7 +22,8 @@
       "line-work",
       "line-setup",
       "line-getting-started",
-      "line-compact"
+      "line-compact",
+      "line-season"
     ]
   },
   "peerDependencies": {
