@@ -15,8 +15,16 @@
       "command": "python3 .kiro/scripts/session-start.py",
       "timeout_ms": 30000
     },
+    "PreToolUse": {
+      "command": "python3 .kiro/scripts/pre-tool-use.py",
+      "timeout_ms": 10000
+    },
+    "PostToolUse": {
+      "command": "python3 .kiro/scripts/post-tool-use.py",
+      "timeout_ms": 30000
+    },
     "Stop": {
-      "command": "bash .kiro/scripts/stop-check.sh",
+      "command": "python3 .kiro/scripts/stop-check.py",
       "timeout_ms": 30000
     }
   },
