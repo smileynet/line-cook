@@ -20,6 +20,8 @@ bd create --title="Add login form" --type=task
 
 That's it. Line Cook syncs your repo, picks a ready task, executes it with guardrails, reviews the work, and commits when done.
 
+> **New to Line Cook?** Run `/line:getting-started` for a quick workflow guide, or follow the [step-by-step tutorial](docs/tutorial-first-workflow.md) to learn from brainstorming to your first completed task.
+
 ## What It Does
 
 ```mermaid
@@ -39,14 +41,22 @@ graph LR
 
 | Command | What happens |
 |---------|--------------|
+| `/getting-started` | Quick workflow guide for beginners |
 | `/prep` | Sync git, load context, show ready work |
 | `/cook` | Claim a task, execute with guardrails |
 | `/serve` | Review completed work (AI peer review) |
 | `/tidy` | Commit, sync beads, push |
-| `/work` | Run the full cycle |
-| `/season` | Apply research findings to beads |
 
-> **Session boundary:** After `/tidy` pushes your work, clear context and start fresh with `/prep` for the next task. Each work cycle is designed to complete in a single session.
+### Advanced Commands
+
+| Command | What happens |
+|---------|--------------|
+| `/work` | Run the full prep→cook→serve→tidy cycle |
+| `/season` | Apply research findings to beads |
+| `/setup` | Configure optional hooks |
+| `/compact` | Clear context while preserving workflow state |
+
+> **Session boundary:** After `/tidy` pushes your work, clear context (`/compact` or new session) and start fresh with `/prep` for the next task. Also clear context after planning/brainstorming sessions before starting execution.
 
 ## Getting Started
 
@@ -93,7 +103,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:season`
+Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`, `/line:season`
 
 ### OpenCode
 
@@ -110,7 +120,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-season`
+Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`, `/line-season`
 
 ## The Guardrails
 
