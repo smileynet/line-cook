@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Install line-cook for Kiro CLI")
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -54,8 +54,13 @@ def main():
     agent_dst = kiro_dir / "agents" / "line-cook.json"
 
     # Load, transform paths if global, and save
-    with open(agent_src) as f:
-        agent_config = json.load(f)
+    try:
+        with open(agent_src) as f:
+            agent_config = json.load(f)
+    except FileNotFoundError:
+        sys.exit(f"Error: {agent_src} not found")
+    except json.JSONDecodeError as e:
+        sys.exit(f"Error: Invalid JSON in {agent_src}: {e}")
 
     if args.global_install:
         # Transform .kiro/ paths to ~/.kiro/ for global install
@@ -77,7 +82,10 @@ def main():
     # Copy steering files
     print("Installing steering files...")
     steering_src = script_dir / "steering"
-    for md_file in steering_src.glob("*.md"):
+    md_files = list(steering_src.glob("*.md"))
+    if not md_files:
+        print("  Warning: No steering files found")
+    for md_file in md_files:
         shutil.copy(md_file, kiro_dir / "steering" / md_file.name)
 
     # Copy skills
@@ -85,8 +93,10 @@ def main():
     skill_src = script_dir / "skills" / "line-cook" / "SKILL.md"
     if skill_src.exists():
         shutil.copy(skill_src, kiro_dir / "skills" / "line-cook" / "SKILL.md")
+    else:
+        print("  Warning: SKILL.md not found")
 
-    # Copy hook scripts
+    # Copy hook scripts (supports both .sh and .py scripts)
     scripts_src = script_dir / "scripts"
     if scripts_src.exists():
         scripts = list(scripts_src.glob("*.sh")) + list(scripts_src.glob("*.py"))
@@ -95,7 +105,7 @@ def main():
             for script in scripts:
                 dst = kiro_dir / "scripts" / script.name
                 shutil.copy(script, dst)
-                dst.chmod(dst.stat().st_mode | 0o111)  # Make executable
+                dst.chmod(dst.stat().st_mode | 0o100)  # Make executable (user only)
 
     print()
     print("Installation complete!")
