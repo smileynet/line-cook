@@ -32,16 +32,18 @@ line-cook-kiro/
   "name": "line-cook",
   "hooks": {
     "AgentSpawn": {
-      "command": "bash scripts/session-start.sh",
+      "command": "bash ~/.kiro/scripts/session-start.sh",
       "timeout_ms": 30000
     },
     "Stop": {
-      "command": "bash scripts/stop-check.sh",
+      "command": "bash ~/.kiro/scripts/stop-check.sh",
       "timeout_ms": 30000
     }
   }
 }
 ```
+
+**Note**: Paths shown assume global installation to `~/.kiro/`. For project-local installation, use `.kiro/scripts/` relative paths.
 
 Kiro CLI has 5 hook types: `AgentSpawn`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`.
 
