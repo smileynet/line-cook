@@ -653,6 +653,8 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 |---------|---------|
 | `/line:work` | Full cycle (all four) |
 | `/line:season` | Apply research findings to beads |
+| `/line:setup` | Configure optional hooks |
+| `/line:compact` | Clear context, preserve workflow state |
 
 | Beads Command | Purpose |
 |---------------|---------|
