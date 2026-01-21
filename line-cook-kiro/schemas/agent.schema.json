@@ -1,0 +1,238 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/smileynet/line-cook/schemas/kiro-agent.schema.json",
+  "title": "Kiro CLI Agent Configuration",
+  "description": "Schema for validating Kiro CLI agent configuration files",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Agent identifier. Optional; derives from filename if omitted."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable summary of agent purpose."
+    },
+    "prompt": {
+      "type": "string",
+      "description": "High-level context for the agent. Supports inline text or file:// URIs."
+    },
+    "mcpServers": {
+      "type": "object",
+      "description": "MCP servers the agent can access.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "Command to execute the MCP server."
+          },
+          "args": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": [],
+            "description": "Arguments for the MCP server command."
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Environment variables for the MCP server."
+          },
+          "timeout": {
+            "type": "number",
+            "default": 120000,
+            "description": "Request timeout in milliseconds."
+          }
+        },
+        "required": ["command"]
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Built-in tools, MCP tools (@server), or wildcard patterns. Use @builtin for all built-in tools."
+    },
+    "toolAliases": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Remap tool names for collision resolution or intuitive naming."
+    },
+    "allowedTools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Tools usable without user prompting. Supports glob patterns with * and ? wildcards."
+    },
+    "toolsSettings": {
+      "type": "object",
+      "additionalProperties": { "type": "object" },
+      "description": "Tool-specific configuration options."
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Resource URI: file://, skill://, or knowledge base reference."
+          },
+          {
+            "type": "object",
+            "description": "Knowledge base resource configuration.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["knowledgeBase"],
+                "description": "Resource type."
+              },
+              "source": {
+                "type": "string",
+                "description": "Path or URI to the knowledge base source."
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name for the knowledge base."
+              },
+              "description": {
+                "type": "string",
+                "description": "Description of the knowledge base contents."
+              },
+              "indexType": {
+                "type": "string",
+                "enum": ["best", "fast"],
+                "default": "best",
+                "description": "Indexing strategy: best (higher quality) or fast (quicker indexing)."
+              },
+              "autoUpdate": {
+                "type": "boolean",
+                "default": false,
+                "description": "Automatically reindex when source changes."
+              }
+            },
+            "required": ["type", "source", "name"]
+          }
+        ]
+      },
+      "description": "Local files (file://), skills (skill://), or knowledge bases to load into context."
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Commands triggered at specific lifecycle events.",
+      "properties": {
+        "AgentSpawn": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Triggered when the agent is spawned or initialized."
+        },
+        "UserPromptSubmit": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Triggered when the user submits a prompt."
+        },
+        "PreToolUse": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Triggered before a tool is executed."
+        },
+        "PostToolUse": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Triggered after a tool completes execution."
+        },
+        "Stop": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Triggered when the agent is about to stop."
+        }
+      },
+      "additionalProperties": false
+    },
+    "includeMcpJson": {
+      "type": "boolean",
+      "description": "Include MCP servers from mcp.json configuration files."
+    },
+    "model": {
+      "type": "string",
+      "description": "Model ID for this agent. Falls back to default if unavailable.",
+      "examples": ["claude-sonnet-4", "claude-opus-4-5"]
+    },
+    "keyboardShortcut": {
+      "type": "string",
+      "pattern": "^(ctrl\\+|shift\\+)?[a-z0-9]$",
+      "description": "Quick-switch keyboard shortcut (e.g., ctrl+a, shift+b)."
+    },
+    "welcomeMessage": {
+      "type": "string",
+      "description": "Message shown when switching to this agent."
+    }
+  },
+  "definitions": {
+    "hookConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Single hook configuration.",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Shell command to execute."
+            },
+            "matcher": {
+              "type": "string",
+              "description": "Tool name pattern (for PreToolUse/PostToolUse). Uses internal tool names like execute_bash, fs_write."
+            },
+            "timeout_ms": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Timeout in milliseconds for hook execution."
+            }
+          },
+          "required": ["command"]
+        },
+        {
+          "type": "array",
+          "description": "Array of hook configurations.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "Shell command to execute."
+              },
+              "matcher": {
+                "type": "string",
+                "description": "Tool name pattern (for PreToolUse/PostToolUse)."
+              },
+              "timeout_ms": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Timeout in milliseconds for hook execution."
+              }
+            },
+            "required": ["command"]
+          }
+        }
+      ]
+    }
+  },
+  "examples": [
+    {
+      "name": "line-cook",
+      "description": "Task-focused workflow orchestration for AI-assisted development.",
+      "prompt": "file://.kiro/steering/line-cook.md",
+      "tools": ["read", "write", "shell", "@builtin"],
+      "allowedTools": ["read", "write", "shell"],
+      "resources": [
+        "file://README.md",
+        "file://AGENTS.md",
+        "file://.kiro/steering/**/*.md",
+        "skill://.kiro/skills/**/SKILL.md"
+      ],
+      "hooks": {
+        "AgentSpawn": {
+          "command": "bash .kiro/scripts/session-start.sh",
+          "timeout_ms": 30000
+        },
+        "Stop": {
+          "command": "bash .kiro/scripts/stop-check.sh",
+          "timeout_ms": 30000
+        }
+      },
+      "model": "claude-sonnet-4"
+    }
+  ]
+}
