@@ -12,47 +12,48 @@ If the file cannot be found, display this fallback quick reference:
 
 ---
 
-## Line Cook Quick Reference
+## Line Cook - Quick Start
 
-### The Workflow Loop
+Line Cook provides structured workflow cycles for AI-assisted development. Sync → Execute → Review → Commit.
+
+### The Workflow
 
 ```
-prep  →  cook  →  serve  →  tidy
-  ↓        ↓        ↓        ↓
-sync    execute  review   commit
+prep → cook → serve → tidy
+  ↓      ↓      ↓      ↓
+sync  execute review commit
 ```
 
-Or say `work` to run the full cycle.
+Or run the full cycle: `work`
 
-### Commands
+### Get Started in 3 Steps
 
-| Say | What happens |
-|-----|--------------|
-| `prep` | Sync and show ready work |
-| `cook` | Execute a task with guardrails |
-| `serve` | AI peer review |
-| `tidy` | Commit, file findings, push |
-| `work` | Full cycle (all four) |
+1. **Sync and see what's ready**
+   ```
+   prep
+   ```
+   Shows available tasks and next step.
 
-### Beads Commands
+2. **Execute a task**
+   ```
+   cook
+   ```
+   Works through a task with verification.
 
-```bash
-bd create --title="..." --type=task --priority=2  # Create a task
-bd dep add <task> <depends-on>                     # Add dependency
-bd ready                                           # Show unblocked tasks
-bd blocked                                         # Show blocked tasks
-bd stats                                           # Project overview
-bd sync                                            # Sync with remote
-```
+3. **Complete and push**
+   ```
+   tidy
+   ```
+   Commits, files issues, and pushes to remote.
 
-### Guardrails
+### Learn More
 
-1. **Sync before work** - Always start current
-2. **One task at a time** - Focus prevents scope creep
-3. **Verify before done** - Tests pass, code compiles
-4. **File, don't block** - Discoveries become beads
-5. **Push before stop** - Work isn't done until pushed
+- **Full tutorial**: `docs/tutorial-kiro.md` in line-cook repository
+- **User documentation**: [README.md](https://github.com/smileynet/line-cook/blob/main/README.md)
+- **Technical details**: [AGENTS.md](https://github.com/smileynet/line-cook/blob/main/AGENTS.md)
+- **Task tracking**: Line Cook uses [beads](https://github.com/steveyegge/beads) for git-native issue tracking
 
----
+### Need Help?
 
-For the full tutorial, see `docs/tutorial-kiro.md` in the line-cook repository.
+Run `prep` at any time to see what's ready to work on.
+
