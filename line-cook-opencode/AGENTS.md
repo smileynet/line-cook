@@ -21,16 +21,7 @@ Or use `/line-work` to run the full cycle.
 | `/line-cook` | Select and execute a task with guardrails |
 | `/line-serve` | Review completed work via headless Claude |
 | `/line-tidy` | Commit and push changes |
-
-### Advanced Commands
-
-| Command | Purpose |
-|---------|---------|
 | `/line-work` | Orchestrate full prep→cook→serve→tidy cycle |
-| `/line-mise` | Prime planning session with bead hierarchy guidance |
-| `/line-season` | Apply research findings to beads |
-| `/line-setup` | Configure hooks for your project |
-| `/line-compact` | Clear context while preserving workflow state |
 
 ## Dependencies
 
@@ -95,67 +86,3 @@ bd list --parent=<epic-id> --all  # List children of an epic
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - If push fails, resolve and retry until it succeeds
-
-## Plugin Events
-
-The line-cook OpenCode plugin hooks into these events:
-
-| Event | Purpose |
-|-------|---------|
-| `session.created` | Detect beads-enabled projects, suggest workflow |
-| `session.idle` | Remind about `/line-tidy` for uncommitted work |
-| `command.executed` | Track line-cook command usage |
-| `file.edited` | Track edits to workflow files (.beads/, AGENTS.md) |
-
-### Tool Execution Hooks
-
-These hooks provide safety guardrails and automation:
-
-| Hook | Purpose |
-|------|---------|
-| `tool.execute.before` | Block dangerous bash commands (git push --force, rm -rf /, etc.) |
-| `tool.execute.after` | Auto-format edited files based on extension (prettier, ruff, gofmt, etc.) |
-
-### Permission Hooks
-
-| Hook | Purpose |
-|------|---------|
-| `permission.ask` | Auto-approve read-only operations and beads commands, deny dangerous operations |
-
-### Experimental Hooks
-
-These hooks use OpenCode's experimental plugin API:
-
-| Hook | Purpose |
-|------|---------|
-| `experimental.session.compacting` | Inject beads context before session summarization to preserve workflow state |
-
-### Error Handling
-
-| Event | Purpose |
-|-------|---------|
-| `session.error` | Detect common error patterns (auth, rate limit, context length) and suggest recovery steps |
-
-### Event Reference
-
-OpenCode provides events across these categories:
-
-- **Session**: `session.created`, `session.idle`, `session.compacted`, `session.error`
-- **Tool**: `tool.execute.before`, `tool.execute.after`
-- **File**: `file.edited`, `file.watcher.updated`
-- **Command**: `command.executed`
-- **Permission**: `permission.ask`
-- **Experimental**: `experimental.session.compacting`
-
-See [OpenCode Plugin Docs](https://opencode.ai/docs/plugins/) for the complete event reference.
-
-## Release Process
-
-**When making changes to core functionality** (commands, hooks, plugin logic), bump the version in:
-
-| File | Field(s) |
-|------|----------|
-| `.claude-plugin/plugin.json` | `version` |
-| `line-cook-opencode/package.json` | `version` AND `opencode.version` |
-
-All three version values MUST be identical. See the main [AGENTS.md](../AGENTS.md) for full release checklist.
