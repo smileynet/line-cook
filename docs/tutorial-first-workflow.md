@@ -239,6 +239,15 @@ The pattern: **Propose → Review → Approve → Execute**
 
 This keeps you in control while letting Claude do the typing.
 
+### Clear Context Before Execution
+
+Planning is done. Before starting execution, **clear your context** (new conversation or `/compact`). This ensures:
+- Fresh context for focused execution
+- No confusion between planning discussion and task work
+- Clean session boundaries
+
+Then start fresh with `/line:prep`.
+
 ---
 
 ## Part 3: Starting Your First Session
@@ -632,10 +641,16 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 
 | Command | Purpose |
 |---------|---------|
+| `/line:getting-started` | Quick workflow guide |
 | `/line:prep` | Sync and show ready work |
 | `/line:cook` | Execute a task with guardrails |
 | `/line:serve` | AI peer review |
 | `/line:tidy` | Commit, file findings, push |
+
+**Advanced:**
+
+| Command | Purpose |
+|---------|---------|
 | `/line:work` | Full cycle (all four) |
 | `/line:season` | Apply research findings to beads |
 

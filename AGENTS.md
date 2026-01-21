@@ -18,14 +18,20 @@ Or use `/work` to run the full cycle.
 
 | Command | Purpose |
 |---------|---------|
+| `/getting-started` | Quick workflow guide for beginners |
 | `/prep` | Sync git, load context, show available work |
 | `/cook` | Select and execute a task with guardrails |
 | `/serve` | Review completed work via headless Claude |
 | `/tidy` | Commit and push changes |
+
+### Advanced Commands
+
+| Command | Purpose |
+|---------|---------|
 | `/work` | Orchestrate full prep→cook→serve→tidy cycle |
-| `/setup` | Configure hooks for your project (interactive) |
+| `/season` | Apply research findings to beads |
+| `/setup` | Configure hooks for your project |
 | `/compact` | Compact context with workflow state preserved |
-| `/season` | Apply research findings to beads - add context, create work |
 
 ## Platform Command Naming
 

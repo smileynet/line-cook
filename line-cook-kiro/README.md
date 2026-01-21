@@ -53,6 +53,7 @@ Kiro CLI does **not** support custom slash commands. Workflow invocation uses **
 
 | User Input | Workflow |
 |------------|----------|
+| "getting started", "help", "guide" | Show workflow guide |
 | "prep", "/prep", "sync state" | Run prep workflow |
 | "cook", "/cook", "start task" | Run cook workflow |
 | "serve", "/serve", "review" | Run serve workflow |

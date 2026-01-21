@@ -16,13 +16,20 @@ Or use `/line-work` to run the full cycle.
 
 | Command | Purpose |
 |---------|---------|
+| `/line-getting-started` | Quick workflow guide for beginners |
 | `/line-prep` | Sync git, load context, show available work |
 | `/line-cook` | Select and execute a task with guardrails |
 | `/line-serve` | Review completed work via headless Claude |
 | `/line-tidy` | Commit and push changes |
+
+### Advanced Commands
+
+| Command | Purpose |
+|---------|---------|
 | `/line-work` | Orchestrate full prep→cook→serve→tidy cycle |
-| `/line-setup` | Configure hooks for your project (interactive) |
-| `/line-season` | Apply research findings to beads - add context, create work |
+| `/line-season` | Apply research findings to beads |
+| `/line-setup` | Configure hooks for your project |
+| `/line-compact` | Clear context while preserving workflow state |
 
 ## Dependencies
 
