@@ -35,9 +35,6 @@ cp "$SCRIPT_DIR/package.json" "$OPENCODE_PLUGINS/line-cook-package.json"
 echo "Installing commands..."
 cp "$SCRIPT_DIR/commands/"*.md "$OPENCODE_COMMANDS/"
 
-# Copy AGENTS.md for reference
-cp "$SCRIPT_DIR/AGENTS.md" "${HOME}/.config/opencode/line-cook-AGENTS.md"
-
 echo ""
 echo "Installation complete!"
 echo ""
@@ -47,7 +44,5 @@ echo "Commands installed:"
 ls -1 "$OPENCODE_COMMANDS/line-"*.md 2>/dev/null | xargs -I{} basename {} | sed 's/.md$//' | sed 's/^/  \//'
 echo ""
 echo "Next steps:"
-echo "  1. Add plugin to your opencode.json:"
-echo '     "plugins": ["~/.config/opencode/plugins/line-cook-plugin.js"]'
-echo "  2. Restart OpenCode"
-echo "  3. Run /line-getting-started for workflow guide"
+echo "  1. Restart OpenCode"
+echo "  2. Run /line-getting-started for workflow guide"
