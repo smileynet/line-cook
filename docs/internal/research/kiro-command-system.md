@@ -221,16 +221,68 @@ Hooks are defined **inline in the agent JSON configuration**, not as separate fi
 
 Hook scripts can live anywhere—they're referenced by path from the agent JSON. The `scripts/` directory is the recommended location.
 
+### Python Hook Support
+
+**Research Conclusion (2026-01-20):**
+
+The `command` field is shell-executed, meaning any language supported by the shell can be used. Python scripts CAN be used via explicit invocation:
+
+```json
+{
+  "hooks": {
+    "AgentSpawn": {
+      "command": "python3 .kiro/scripts/session-start.py",
+      "timeout_ms": 30000
+    }
+  }
+}
+```
+
+**Key findings:**
+
+1. **Shell Execution**: The command field runs through the shell, not direct execution
+2. **Python Works**: `python3 script.py` or `python script.py` will execute Python scripts
+3. **Shebang Not Required**: Since we invoke Python explicitly, shebang is optional (but still recommended for direct script execution)
+4. **Environment Inherited**: Hooks inherit the shell's PATH and environment, so Python must be on PATH
+5. **JSON I/O Compatible**: Python's json module handles stdin/stdout like shell scripts do
+
+**Recommendation**: Use Python for complex hooks (session-start, stop-check) and shell for simple ones (pre/post-tool-use). This avoids porting complex logic unnecessarily.
+
+Example Python hook invocations:
+
+```json
+{
+  "hooks": {
+    "AgentSpawn": {
+      "command": "python3 .kiro/scripts/session-start.py",
+      "timeout_ms": 30000
+    },
+    "PreToolUse": {
+      "command": "bash .kiro/scripts/pre-tool-use.sh",
+      "timeout_ms": 10000
+    },
+    "PostToolUse": {
+      "command": "bash .kiro/scripts/post-tool-use.sh",
+      "timeout_ms": 10000
+    },
+    "Stop": {
+      "command": "python3 .kiro/scripts/stop-check.py",
+      "timeout_ms": 30000
+    }
+  }
+}
+```
+
 ### Line Cook Hook Strategy
 
-Port existing Python hooks to shell scripts:
+Retain Python for complex hooks, use shell for simple ones:
 
-| Current Hook | Kiro Equivalent |
-|--------------|-----------------|
-| `session_start.py` | `AgentSpawn` hook |
-| `pre_tool_use.py` | `PreToolUse` hook |
-| `post_tool_use.py` | `PostToolUse` hook |
-| `stop_check.py` | `Stop` hook |
+| Current Hook | Kiro Equivalent | Language |
+|--------------|-----------------|----------|
+| `session_start.py` | `AgentSpawn` hook | Python (complex logic) |
+| `pre_tool_use.py` | `PreToolUse` hook | Shell (simple blocking) |
+| `post_tool_use.py` | `PostToolUse` hook | Shell (simple formatting) |
+| `stop_check.py` | `Stop` hook | Python (complex validation) |
 
 ## Adapter Strategy: Final Recommendation
 
@@ -248,10 +300,10 @@ line-cook-kiro/
 │   └── line-cook/
 │       └── SKILL.md         # Lazy-loaded documentation
 ├── scripts/                  # Hook scripts (referenced from agent JSON)
-│   ├── session-start.sh     # AgentSpawn hook
-│   ├── pre-tool-use.sh      # PreToolUse hook
-│   ├── post-tool-use.sh     # PostToolUse hook
-│   └── stop-check.sh        # Stop hook
+│   ├── session-start.py     # AgentSpawn hook (Python - complex logic)
+│   ├── pre-tool-use.sh      # PreToolUse hook (Shell - simple blocking)
+│   ├── post-tool-use.sh     # PostToolUse hook (Shell - simple formatting)
+│   └── stop-check.py        # Stop hook (Python - complex validation)
 └── install.sh               # Installation script
 ```
 
