@@ -14,6 +14,10 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+# Ensure hooks directory is in path for direct imports
+sys.path.insert(0, str(Path(__file__).parent))
 
 
 def run_hook(hook_script: str, input_data: dict) -> tuple[int, str, str]:
@@ -173,8 +177,6 @@ def test_hook_utils():
     """Test hook_utils.py module."""
     print("Testing hook_utils.py...")
 
-    # Import and test functions
-    sys.path.insert(0, str(Path(__file__).parent))
     from hook_utils import get_log_path, setup_logging
 
     # Test log path
@@ -525,13 +527,8 @@ def test_json_output_format():
 # without depending on external tools like ruff, black, prettier, or git.
 
 
-# Ensure hooks directory is in path for direct imports
-sys.path.insert(0, str(Path(__file__).parent))
-
-
 def test_unit_path_safety():
     """Unit test: path safety validation (no external deps)."""
-    from unittest.mock import patch
 
     print("Testing path safety validation (unit test)...")
 
@@ -570,7 +567,6 @@ def test_unit_path_safety():
 
 def test_unit_formatter_lookup():
     """Unit test: formatter lookup logic with mocked shutil.which."""
-    from unittest.mock import MagicMock, patch
 
     print("Testing formatter lookup (unit test)...")
 
@@ -616,7 +612,6 @@ def test_unit_formatter_lookup():
 
 def test_unit_git_parsing():
     """Unit test: git output parsing with mocked subprocess."""
-    from unittest.mock import MagicMock, patch
 
     print("Testing git output parsing (unit test)...")
 
@@ -731,7 +726,6 @@ def test_unit_dangerous_patterns():
 
 def test_unit_format_file():
     """Unit test: format_file orchestration logic."""
-    from unittest.mock import patch
 
     print("Testing format_file orchestration (unit test)...")
 
