@@ -3,15 +3,19 @@ description: Workflow guide with full bead reference
 allowed-tools: Bash, Read
 ---
 
-**Output this guide to the user.** Do not act on it - display it for reference.
+**Read and display the full Line Cook tutorial to the user.**
+
+Use the Read tool to read the tutorial file at `docs/tutorial-claude-code.md` (relative to the line-cook plugin directory, which is the parent of this commands directory).
+
+After reading, output the entire contents to the user so they can follow along. Do not summarize or act on it - display it for reference.
+
+If the file cannot be found, display this fallback quick reference:
 
 ---
 
-## line-cook Workflow Guide
+## Line Cook Quick Reference
 
-This guide explains the line-cook workflow and provides a complete reference for beads (issue tracking).
-
-## The Workflow Loop
+### The Workflow Loop
 
 ```
 /line:prep  →  /line:cook  →  /line:serve  →  /line:tidy
@@ -21,154 +25,35 @@ This guide explains the line-cook workflow and provides a complete reference for
 
 Or use `/line:work` to run the full cycle.
 
-### /line:prep - "What's ready?"
-- Syncs git and beads
-- Shows available tasks
-- Identifies the next recommended task
+### Commands
 
-### /line:cook - "Execute the task"
-- Claims a task
-- Plans and executes the task
-- Notes discovered issues for later (doesn't file beads yet)
-- Closes the task when done
+| Command | Purpose |
+|---------|---------|
+| `/line:prep` | Sync and show ready work |
+| `/line:cook` | Execute a task with guardrails |
+| `/line:serve` | AI peer review |
+| `/line:tidy` | Commit, file findings, push |
+| `/line:work` | Full cycle (all four) |
 
-### /line:serve - "Review changes"
-- Invokes headless Claude for peer review
-- Auto-fixes minor issues
-- Categorizes findings for /tidy
+### Beads Commands
 
-### /line:tidy - "Commit and capture"
-- Files discovered issues as beads
-- Commits changes
-- Pushes to remote
-- Records session summary
+```bash
+bd create --title="..." --type=task --priority=2  # Create a task
+bd dep add <task> <depends-on>                     # Add dependency
+bd ready                                           # Show unblocked tasks
+bd blocked                                         # Show blocked tasks
+bd stats                                           # Project overview
+bd sync                                            # Sync with remote
+```
 
-## Workflow Principles
+### Guardrails
 
-1. **Sync before starting** - Always start with current state
-2. **Track with beads** - Strategic tasks live in issue tracker
-3. **Note, then file** - Discovered issues are noted in /cook, filed in /tidy
-4. **Guardrails on completion** - Verify before marking done
-5. **Push before stop** - Session isn't done until pushed
-6. **Clear between cycles** - Each prep→cook→serve→tidy cycle completes a session. Clear context before the next task.
+1. **Sync before work** - Always start current
+2. **One task at a time** - Focus prevents scope creep
+3. **Verify before done** - Tests pass, code compiles
+4. **File, don't block** - Discoveries become beads
+5. **Push before stop** - Work isn't done until pushed
 
 ---
 
-## Bead Reference
-
-Beads is the git-native issue tracker. Here's the complete reference.
-
-### Creating Issues
-
-```bash
-bd create --title="..." --type=task|bug|feature --priority=0-4
-
-# Priority levels:
-#   0 = P0 = critical (production down)
-#   1 = P1 = high (blocking)
-#   2 = P2 = medium (normal priority)
-#   3 = P3 = low (when time permits)
-#   4 = P4 = backlog (someday/maybe)
-
-# Types:
-#   task    = work item
-#   bug     = broken behavior
-#   feature = new capability
-#   epic    = container for related tasks
-```
-
-### Epics and Children
-
-```bash
-# Create an epic
-bd create --title="Parent epic" --type=epic --priority=2
-
-# Create child tasks
-bd create --title="Child task" --type=task --parent=<epic-id>
-```
-
-### Dependencies
-
-Dependencies express "A depends on B" (B blocks A):
-
-```bash
-bd dep add <issue-a> <depends-on-b>
-
-# Example: Tests depend on implementation
-bd dep add beads-002 beads-001  # 002 waits for 001 to complete
-```
-
-### Key Fields
-
-```bash
---assignee=<user>     # Who owns this
---description="..."   # Detailed context
---labels=a,b,c        # Categorization tags
-```
-
-### Workflow Commands
-
-```bash
-# Finding tasks
-bd ready                      # Tasks with no blockers
-bd list --status=open         # All open issues
-bd list --status=in_progress  # Active tasks
-bd blocked                    # Tasks with unmet dependencies
-
-# Managing issues
-bd show <id>                           # View details
-bd update <id> --status=in_progress    # Claim task
-bd comments add <id> "progress note"   # Add context
-bd close <id>                          # Mark done
-
-# Sync and collaboration
-bd sync                # Push/pull with remote
-bd stats               # Project statistics
-```
-
-### Retrospective Pattern
-
-For minor suggestions and improvements, use a retrospective epic:
-
-```bash
-# One-time setup
-bd create --title="Retrospective" --type=epic --priority=4
-
-# File minor items as children
-bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<retro-epic-id>
-```
-
-This keeps the main backlog focused on real tasks while preserving good ideas for later review.
-
-**Auto-selection exclusion:** Tasks parented to "Retrospective" or "Backlog" epics are automatically excluded from `/line:prep` and `/line:cook` task selection. To work on parked items:
-
-```bash
-/line:cook lc-xxx                  # Explicitly select any task
-bd list --parent=<epic-id>         # View parked items
-bd list --type=epic                # Find epic IDs
-```
-
----
-
-## Advanced Usage
-
-### Seasoning with Research
-
-After exploring or researching, use `/line:season` to apply findings:
-- Enrich existing beads with discovered context
-- Create new tasks based on findings
-- Update priorities and dependencies
-
-```bash
-/line:season docs/research/api-findings.md
-```
-
----
-
-## Quick Start
-
-1. Run `/line:prep` to see ready tasks
-2. Run `/line:cook` to execute the top task
-3. Run `/line:tidy` when done to commit and push
-
-Or just run `/line:work` for the full cycle.
+For the full tutorial, see `docs/tutorial-claude-code.md` in the line-cook repository.
