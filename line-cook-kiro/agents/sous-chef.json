@@ -3,6 +3,5 @@
   "description": "Code review specialist - ensures code quality before commit in Line Cook workflow",
   "prompt": "file://.kiro/steering/sous-chef.md",
   "tools": ["read", "write", "shell"],
-  "allowedTools": ["read", "write", "shell"],
-  "_comment_tools": "read=review code files, write=fix auto-fixable issues, shell=run git commands (diff, show, bd)"
+  "allowedTools": ["read", "write", "shell"]
 }
