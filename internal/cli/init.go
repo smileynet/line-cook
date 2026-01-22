@@ -36,70 +36,6 @@ Similar to 'bd prime', this command helps agents recover context.`,
 	RunE: runInit,
 }
 
-func detectPlatform() string {
-	_, err := os.Stat("/home/sam/.opencode/bin/opencode")
-	if err == nil {
-		return "opencode"
-	}
-	_, err = os.Stat("/usr/local/bin/claude")
-	if err == nil {
-		return "claude-code"
-	}
-	_, err = os.Stat(os.ExpandEnv("$HOME/.kiro/bin/kiro"))
-	if err == nil {
-		return "kiro"
-	}
-	return "cli-only"
-}
-
-func getCommandTable(platform string) string {
-	switch platform {
-	case "opencode":
-		return "| Command | Purpose |\n|---------|---------|\n| /line-prep | Sync git/beads, show ready tasks |\n| /line-cook | Execute task with guardrails |\n| /line-serve | AI peer review |\n| /line-tidy | Commit, file findings, push |\n| /line-work | Full cycle orchestration |"
-	case "claude-code":
-		return "| Command | Purpose |\n|---------|---------|\n| /line:prep | Sync git/beads, show ready tasks |\n| /line:cook | Execute task with guardrails |\n| /line:serve | AI peer review |\n| /line:tidy | Commit, file findings, push |\n| /line:work | Full cycle orchestration |"
-	case "kiro":
-		return "| Command | Purpose |\n|---------|---------|\n| prep | Sync git/beads, show ready tasks |\n| cook | Execute task with guardrails |\n| serve | AI peer review |\n| tidy | Commit, file findings, push |\n| work | Full cycle orchestration |"
-	default:
-		return "| Command | Purpose |\n|---------|---------|\n| lc prep | Sync git/beads, show ready tasks |\n| lc cook | Execute task with guardrails |\n| lc serve | AI peer review |\n| lc tidy | Commit, file findings, push |\n| lc work | Full cycle orchestration |"
-	}
-}
-
-func getCLITable(platform string) string {
-	// Note: Cannot use backticks in Go string literals with raw strings due to escaping
-	// Using plain text representation instead
-	switch platform {
-	case "opencode":
-		return "OpenCode Commands\n" +
-			"  /line-prep\n" +
-			"  /line-cook [id]\n" +
-			"  /line-serve [id]\n" +
-			"  /line-tidy\n" +
-			"  /line-work\n"
-	case "claude-code":
-		return "Claude Code Commands\n" +
-			"  /line:prep\n" +
-			"  /line:cook [id]\n" +
-			"  /line:serve [id]\n" +
-			"  /line:tidy\n" +
-			"  /line:work\n"
-	case "kiro":
-		return "Kiro Commands\n" +
-			"  prep\n" +
-			"  cook [id]\n" +
-			"  serve [id]\n" +
-			"  tidy\n" +
-			"  work\n"
-	default:
-		return "CLI Commands\n" +
-			"  lc prep\n" +
-			"  lc cook [id]\n" +
-			"  lc serve [id]\n" +
-			"  lc tidy\n" +
-			"  lc work\n"
-	}
-}
-
 const sectionMarker = "## Line Cook Workflow"
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -130,19 +66,16 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Detect platform
-	platform := detectPlatform()
-	out.Text("Detected platform: %s", platform)
-
-	// Build section content
-	commandsTable := getCommandTable(platform)
-	cliTable := getCLITable(platform)
+	// Build CLI-only section content
 	lineCookSection := "## Line Cook Workflow\n\n"
-	lineCookSection += "> **Context Recovery**: Run lc work or individual commands after compaction\n\n"
-	lineCookSection += "### Commands\n"
-	lineCookSection += commandsTable + "\n\n"
-	lineCookSection += "### CLI\n"
-	lineCookSection += cliTable + "\n\n"
+	lineCookSection += "> **Context Recovery**: Run `lc work` or individual commands after compaction\n\n"
+	lineCookSection += "### Core Commands\n"
+	lineCookSection += "| Command | Purpose |\n|---------|---------|\n"
+	lineCookSection += "| `lc prep` | Sync git/beads, show ready tasks |\n"
+	lineCookSection += "| `lc cook [id]` | Execute task with guardrails |\n"
+	lineCookSection += "| `lc serve` | AI peer review |\n"
+	lineCookSection += "| `lc tidy` | Commit, file findings, push |\n"
+	lineCookSection += "| `lc work` | Full cycle orchestration |\n\n"
 	lineCookSection += "### Core Guardrails\n"
 	lineCookSection += "1. **Sync before work** - Always start with current state\n"
 	lineCookSection += "2. **One task at a time** - Focus prevents scope creep\n"

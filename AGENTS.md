@@ -241,3 +241,23 @@ Available hooks:
 ## Testing
 
 See [TESTING.md](TESTING.md) for validation and testing methods.
+
+## Line Cook Workflow
+
+> **Context Recovery**: Run `lc work` or individual commands after compaction
+
+### Core Commands
+| Command | Purpose |
+|---------|---------|
+| `lc prep` | Sync git/beads, show ready tasks |
+| `lc cook [id]` | Execute task with guardrails |
+| `lc serve` | AI peer review |
+| `lc tidy` | Commit, file findings, push |
+| `lc work` | Full cycle orchestration |
+
+### Core Guardrails
+1. **Sync before work** - Always start with current state
+2. **One task at a time** - Focus prevents scope creep
+3. **Verify before done** - Tests pass, code compiles
+4. **File, don't block** - Discoveries become beads
+5. **Push before stop** - Work isn't done until pushed
