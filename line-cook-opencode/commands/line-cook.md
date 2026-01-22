@@ -8,36 +8,102 @@ description: Select and execute a task with completion guardrails
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to execute
 
-**STOP after completing.** Show NEXT STEP and wait for user.
+**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
+**When run via `/line-work`:** Continue to the next step without stopping.
 
 ---
 
 ## Process
 
-### Step 1: Invoke CLI
+### Step 1: Select Task
 
+**If `$ARGUMENTS` provided:**
+- Use that task ID directly
+
+**Otherwise:**
+- Run `bd ready` to get available tasks
+- Select the highest priority task (lowest P number)
+
+**Check if selected item is an epic:**
 ```bash
-lc cook $ARGUMENTS
+bd show <id> --json
 ```
 
-The CLI:
-- Selects task (from arg or auto-selects highest priority, filtering parking-lot epics)
-- Handles epic traversal (finds first ready child if epic selected)
-- Claims task (sets status to in_progress)
-- Outputs task details and AI prompt
+If `issue_type` is `epic`, the epic itself has no work to execute. Instead:
 
-### Step 2: Execute the Task
+1. Show the epic and its children:
+   ```bash
+   bd list --parent=<epic-id> --all
+   ```
 
-**You must execute the task.** The CLI provides context and an AI prompt; follow its guidelines while executing.
+2. Find the first ready (unblocked, open) child and select that instead
 
-1. **Plan with TodoWrite** - Break task into steps before starting
-2. **Execute systematically** - Mark items `in_progress` when starting, `completed` when done
-3. **Only one item `in_progress`** at a time
-4. **Note discoveries** - Do NOT file beads during cooking; note them for `/line-tidy`
+3. Output epic context:
+   ```
+   EPIC SELECTED: <epic-id> - <epic-title>
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### Step 3: Verify Completion
+   Epics contain no direct work. Selecting first ready child:
 
-Before marking done, verify ALL guardrails pass:
+   Children (<open>/<total>):
+     ○ <id>: <title> [P<n>] ← selected
+     ○ <id>: <title> [P<n>] (blocked by above)
+     ✓ <id>: <title> (closed)
+
+   Proceeding with: <selected-task-id>
+   ```
+
+4. Continue with the selected child task
+
+**Once a regular task is selected**, claim it:
+```bash
+bd show <id>                           # Display full task details
+bd update <id> --status=in_progress    # Claim the task
+bd comments add <id> "PHASE: COOK
+Status: started"
+```
+
+### Step 2: Plan the Task
+
+Break the task into steps using TodoWrite:
+
+1. Read the task description carefully
+2. Identify all deliverables
+3. Add steps to TodoWrite before starting
+4. Include verification steps (test, compile, etc.)
+
+For complex tasks, use explore-plan-code workflow or ask clarifying questions.
+
+### Step 3: Execute Task
+
+Process TodoWrite items systematically:
+
+- Mark items `in_progress` when starting
+- Mark items `completed` immediately when done
+- Only one item should be `in_progress` at a time
+
+**Output format during execution:**
+```
+COOKING: <id> - <title>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1/N] <todo item> ... ✓
+[2/N] <todo item> ... ✓
+[3/N] <todo item> ... in progress
+
+Progress: 2/N complete
+```
+
+**Collecting findings:** As you execute, note (but do NOT file yet):
+- New tasks discovered
+- Potential issues or bugs
+- Areas for improvement
+
+These will be filed as beads in `/line-tidy`.
+
+### Step 4: Verify Completion
+
+Before marking the task done, verify ALL guardrails pass:
 
 - [ ] All TodoWrite items completed
 - [ ] Code compiles/runs without errors
@@ -50,15 +116,20 @@ Before marking done, verify ALL guardrails pass:
 - Keep task as `in_progress`
 - Ask user how to proceed
 
-### Step 4: Complete and Report
+### Step 5: Complete Task
 
 Only after all guardrails pass:
 
 ```bash
-bd close <task-id>
+bd close <id>
+bd comments add <id> "PHASE: COOK
+Status: completed
+Summary: <what was done>
+Files: <count> changed
+Findings: <issues/improvements noted for tidy>"
 ```
 
-Output completion summary:
+**Completion output format:**
 ```
 DONE: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -76,8 +147,12 @@ Verification:
   [✓] Tests pass
 
 Findings (to file in /tidy):
-  - <new tasks discovered>
-  - <potential issues noted>
+  New tasks:
+    - "Add support for edge case X"
+  Potential issues:
+    - "Error handling in Y could be improved"
+  Improvements:
+    - "Consider refactoring Z for clarity"
 
 NEXT STEP: /line-serve (review) or /line-tidy (commit)
 ```
@@ -88,6 +163,23 @@ NEXT STEP: /line-serve (review) or /line-tidy (commit)
 2. **No premature completion** - Task stays open until verification passes
 3. **No scope creep** - Stay focused on the specific task
 4. **Note, don't file** - Discovered issues are noted for `/line-tidy`, not filed during cook
+
+## Error Handling
+
+If execution is blocked:
+```
+⚠️ BLOCKED: <description>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Reason: <why it failed>
+Progress: <what was completed>
+
+Options:
+  1. <recovery option>
+  2. <alternative>
+
+Task remains in_progress. Run /line-tidy to save partial progress.
+```
 
 ## Example Usage
 
