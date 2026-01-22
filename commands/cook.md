@@ -74,24 +74,62 @@ Break the task into steps using TodoWrite:
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
-### Step 3: Execute Task
+### Step 3: Execute TDD Cycle
 
-Process TodoWrite items systematically:
+Process TodoWrite items systematically with TDD guardrails:
 
 - Mark items `in_progress` when starting
 - Mark items `completed` immediately when done
 - Only one item should be `in_progress` at a time
 
+**For code changes, follow TDD cycle:**
+
+1. **RED**: Write failing test
+   ```bash
+   <test command>  # e.g., pytest, go test, npm test
+   # Should FAIL
+   ```
+   
+   **Automatic test quality review** (use Task tool):
+   ```
+   Task tool: Review test code for quality
+   Subagent type: quality-control
+   ```
+
+   Test quality checks:
+   - Tests are isolated, fast, repeatable
+   - Clear test names and error messages
+   - Proper structure (Setup-Execute-Validate-Cleanup)
+   - No anti-patterns
+   
+   **Address critical issues before GREEN phase.**
+
+2. **GREEN**: Implement minimal code
+   ```bash
+   <implementation>
+   <test command>
+   # Should PASS
+   ```
+
+3. **REFACTOR**: Clean up code
+   ```bash
+   <refactoring>
+   <test command>
+   # All tests should PASS
+   ```
+
 **Output format during execution:**
 ```
 COOKING: <id> - <title>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [1/N] <todo item> ... ✓
 [2/N] <todo item> ... ✓
 [3/N] <todo item> ... in progress
 
 Progress: 2/N complete
+
+TDD Phase: RED/GREEN/REFACTOR
 ```
 
 **Collecting findings:** As you execute, note (but do NOT file yet):
@@ -101,7 +139,7 @@ Progress: 2/N complete
 
 These will be filed as beads in `/line:tidy`.
 
-### Step 4: Verify Completion
+### Step 4: Verify Kitchen Equipment
 
 Before marking the task done, verify ALL guardrails pass:
 
@@ -109,6 +147,14 @@ Before marking the task done, verify ALL guardrails pass:
 - [ ] Code compiles/runs without errors
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
+
+**Kitchen equipment checklist** (MANDATORY):
+
+- [ ] All tests pass: `<test command>` (e.g., `go test ./...`, `pytest`, `npm test`)
+- [ ] Code builds: `<build command>` (e.g., `go build ./...`, `npm run build`)
+- [ ] Lint passes: `<lint command>` (if applicable, e.g., `npm run lint`)
+- [ ] Task deliverable complete
+- [ ] Code follows kitchen manual conventions
 
 **If any guardrail fails:**
 - Do NOT close the task
@@ -131,8 +177,15 @@ Findings: <issues/improvements noted for tidy>"
 
 **Completion output format:**
 ```
-DONE: <id> - <title>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+╔══════════════════════════════════════════════════════════════╗
+║  KITCHEN COMPLETE                                             ║
+╚══════════════════════════════════════════════════════════════╝
+
+Task: <id> - <title>
+Tests: ✓ All passing
+Build: ✓ Successful
+
+Signal: KITCHEN_COMPLETE
 
 Summary:
   <1-2 sentence description of what was accomplished>
@@ -168,8 +221,8 @@ NEXT STEP: /line:serve (review) or /line:tidy (commit)
 
 If execution is blocked:
 ```
-⚠️ BLOCKED: <description>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ KITCHEN BLOCKED: <description>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Reason: <why it failed>
 Progress: <what was completed>
