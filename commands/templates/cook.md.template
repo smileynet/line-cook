@@ -9,8 +9,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to execute
 
-**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
-**When run via `/line-work`:** Continue to the next step without stopping.
+**STOP after completing.** Show NEXT STEP and wait for user.
 
 ---
 
@@ -138,7 +137,7 @@ TDD Phase: RED/GREEN/REFACTOR
 - Potential issues or bugs
 - Areas for improvement
 
-These will be filed as beads in `/line-tidy`.
+These will be filed as beads in `/@NAMESPACE@tidy`.
 
 ### Step 4: Verify Kitchen Equipment
 
@@ -208,7 +207,7 @@ Findings (to file in /tidy):
   Improvements:
     - "Consider refactoring Z for clarity"
 
-NEXT STEP: /line-serve (review) or /line-tidy (commit)
+NEXT STEP: /@NAMESPACE@serve (review) or /@NAMESPACE@tidy (commit)
 ```
 
 ## Guardrails (Critical)
@@ -216,7 +215,7 @@ NEXT STEP: /line-serve (review) or /line-tidy (commit)
 1. **No silent failures** - If something breaks, report it clearly
 2. **No premature completion** - Task stays open until verification passes
 3. **No scope creep** - Stay focused on the specific task
-4. **Note, don't file** - Discovered issues are noted for `/line-tidy`, not filed during cook
+4. **Note, don't file** - Discovered issues are noted for `/@NAMESPACE@tidy`, not filed during cook
 
 ## Error Handling
 
@@ -232,12 +231,12 @@ Options:
   1. <recovery option>
   2. <alternative>
 
-Task remains in_progress. Run /line-tidy to save partial progress.
+Task remains in_progress. Run /@NAMESPACE@tidy to save partial progress.
 ```
 
 ## Example Usage
 
 ```
-/line-cook              # Pick highest priority ready task
-/line-cook lc-042       # Execute specific task
+/@NAMESPACE@cook              # Pick highest priority ready task
+/@NAMESPACE@cook lc-042       # Execute specific task
 ```

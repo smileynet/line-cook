@@ -286,6 +286,29 @@ line-cook/
 └── README.md              # User documentation
 ```
 
+## Command Synchronization
+
+Line Cook maintains commands for both Claude Code (`commands/`) and OpenCode (`line-cook-opencode/commands/`). To ensure consistency across platforms:
+
+**Template system:**
+- Source templates live in `commands/templates/`
+- Use `@NAMESPACE@` placeholder for command prefixes
+- Run sync script to generate both versions:
+
+```bash
+./scripts/sync-commands.sh
+```
+
+**Platform differences handled automatically:**
+- Claude Code: `/line:cook` (colon separator)
+- OpenCode: `/line-cook` (hyphen separator)
+- OpenCode includes additional "When run via /line-work" instruction
+
+**When to sync:**
+- After editing any command template
+- Before committing command changes
+- As part of release process
+
 ## Installation
 
 ### Claude Code
