@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -12,13 +13,15 @@ import (
 )
 
 var (
-	initForce  bool
-	initDryRun bool
+	initForce       bool
+	initDryRun      bool
+	initWithContext bool
 )
 
 func init() {
 	initCmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing Line Cook section")
 	initCmd.Flags().BoolVar(&initDryRun, "dry-run", false, "Show what would be appended without making changes")
+	initCmd.Flags().BoolVar(&initWithContext, "with-context", false, "Append beads context from 'bd prime --export'")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -37,6 +40,18 @@ Similar to 'bd prime', this command helps agents recover context.`,
 }
 
 const sectionMarker = "## Line Cook Workflow"
+
+func getBeadsContext(workDir string) (string, error) {
+	cmd := exec.Command("bd", "prime", "--export")
+	cmd.Dir = workDir
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+
+	return string(output), nil
+}
 
 func runInit(cmd *cobra.Command, args []string) error {
 	workDir, _ := os.Getwd()
@@ -82,6 +97,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 	lineCookSection += "3. **Verify before done** - Tests pass, code compiles\n"
 	lineCookSection += "4. **File, don't block** - Discoveries become beads\n"
 	lineCookSection += "5. **Push before stop** - Work isn't done until pushed"
+
+	// Append beads context if requested
+	if initWithContext {
+		beadsContext, err := getBeadsContext(workDir)
+		if err != nil {
+			out.Error("Failed to get beads context: %v", err)
+			out.Text("Continuing without beads context...")
+		} else {
+			lineCookSection += "\n\n### Beads Context\n\n"
+			lineCookSection += beadsContext
+		}
+	}
 
 	// Prepare new content
 	var newContent string
