@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/smileynet/line-cook/internal/beads"
+	"github.com/smileynet/line-cook/internal/environment"
 )
 
 // Formatter handles output formatting
@@ -134,22 +135,24 @@ func (f *Formatter) Output(data interface{}, textFn func()) error {
 
 // PrepResult represents the output of lc prep
 type PrepResult struct {
-	Project    string       `json:"project"`
-	Branch     string       `json:"branch"`
-	SyncStatus string       `json:"sync_status"`
-	ReadyTasks []beads.Task `json:"ready_tasks"`
-	InProgress []beads.Task `json:"in_progress"`
-	Blocked    []beads.Task `json:"blocked"`
-	NextTask   *beads.Task  `json:"next_task,omitempty"`
-	Epic       *beads.Task  `json:"epic,omitempty"`
+	Project      string                          `json:"project"`
+	Branch       string                          `json:"branch"`
+	SyncStatus   string                          `json:"sync_status"`
+	ReadyTasks   []beads.Task                    `json:"ready_tasks"`
+	InProgress   []beads.Task                    `json:"in_progress"`
+	Blocked      []beads.Task                    `json:"blocked"`
+	NextTask     *beads.Task                     `json:"next_task,omitempty"`
+	Epic         *beads.Task                     `json:"epic,omitempty"`
+	Capabilities *environment.CapabilitiesResult `json:"capabilities,omitempty"`
 }
 
 // CookContext represents the output of lc cook
 type CookContext struct {
-	Task           beads.Task  `json:"task"`
-	Epic           *beads.Task `json:"epic,omitempty"`
-	ProjectContext string      `json:"project_context"`
-	AIPrompt       string      `json:"ai_prompt"`
+	Task           beads.Task                      `json:"task"`
+	Epic           *beads.Task                     `json:"epic,omitempty"`
+	ProjectContext string                          `json:"project_context"`
+	AIPrompt       string                          `json:"ai_prompt"`
+	Capabilities   *environment.CapabilitiesResult `json:"capabilities,omitempty"`
 }
 
 // ServeContext represents the output of lc serve

@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/smileynet/line-cook/internal/beads"
+	"github.com/smileynet/line-cook/internal/environment"
 	"github.com/smileynet/line-cook/internal/git"
 	"github.com/smileynet/line-cook/internal/output"
 	"github.com/smileynet/line-cook/internal/session"
@@ -34,6 +35,10 @@ func runPrep(cmd *cobra.Command, args []string) error {
 	beadsClient := beads.NewClient(workDir)
 	out := output.NewFormatter(jsonOutput, verbose, quiet)
 
+	// Detect environment and capabilities
+	envDetector := environment.NewDetector(workDir)
+	capabilities := envDetector.GetCapabilities()
+
 	// Check if we're in a git repo
 	if !gitClient.IsRepo() {
 		out.Error("Not a git repository")
@@ -41,7 +46,8 @@ func runPrep(cmd *cobra.Command, args []string) error {
 	}
 
 	result := &output.PrepResult{
-		Project: gitClient.ProjectName(),
+		Project:      gitClient.ProjectName(),
+		Capabilities: capabilities,
 	}
 
 	// Get branch

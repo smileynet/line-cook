@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/smileynet/line-cook/internal/beads"
+	"github.com/smileynet/line-cook/internal/environment"
 	"github.com/smileynet/line-cook/internal/output"
 	"github.com/smileynet/line-cook/internal/session"
 )
@@ -34,6 +35,10 @@ func runCook(cmd *cobra.Command, args []string) error {
 	workDir, _ := os.Getwd()
 	beadsClient := beads.NewClient(workDir)
 	out := output.NewFormatter(jsonOutput, verbose, quiet)
+
+	// Detect environment and capabilities
+	envDetector := environment.NewDetector(workDir)
+	capabilities := envDetector.GetCapabilities()
 
 	if !beadsClient.HasBeads() {
 		out.Error("No .beads/ directory found. Run 'bd init' first.")
@@ -156,13 +161,14 @@ func runCook(cmd *cobra.Command, args []string) error {
 	projectContext := loadProjectContext(workDir)
 
 	// Generate AI prompt
-	aiPrompt := generateCookPrompt(task, epic)
+	aiPrompt := generateCookPrompt(task, epic, capabilities)
 
 	result := &output.CookContext{
 		Task:           *task,
 		Epic:           epic,
 		ProjectContext: projectContext,
 		AIPrompt:       aiPrompt,
+		Capabilities:   capabilities,
 	}
 
 	return out.Output(result, func() {
@@ -214,13 +220,13 @@ func loadProjectContext(workDir string) string {
 	return ""
 }
 
-func generateCookPrompt(task *beads.Task, epic *beads.Task) string {
+func generateCookPrompt(task *beads.Task, epic *beads.Task, capabilities *environment.CapabilitiesResult) string {
 	prompt := fmt.Sprintf(`Execute the following task:
 
 **Task:** %s
 **ID:** %s
 **Priority:** %s
-`, task.Title, task.ID, task.PriorityString())
+ `, task.Title, task.ID, task.PriorityString())
 
 	if task.Description != "" {
 		prompt += fmt.Sprintf("\n**Description:**\n%s\n", task.Description)
@@ -230,9 +236,19 @@ func generateCookPrompt(task *beads.Task, epic *beads.Task) string {
 		prompt += fmt.Sprintf("\n**Context:** This task is part of epic '%s' (%s)\n", epic.Title, epic.ID)
 	}
 
+	// Adapt prompt based on capabilities
+	if capabilities != nil {
+		if capabilities.HasCapability(environment.CapabilityMCP) {
+			prompt += "\n**Note:** MCP tools are available for enhanced functionality.\n"
+		}
+		if capabilities.HasCapability(environment.CapabilityHeadless) {
+			prompt += "\n**Note:** Running in headless mode. Avoid interactive prompts.\n"
+		}
+	}
+
 	prompt += `
 **Guidelines:**
-1. Break the task into steps before starting
+1. Break task into steps before starting
 2. Verify each step completes successfully
 3. Note any discovered issues for later (don't create beads during cooking)
 4. Ensure code compiles and tests pass before completing
