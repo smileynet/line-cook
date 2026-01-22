@@ -7,23 +7,25 @@ Technical details for working on Line Cook itself.
 ## Overview
 
 ```
-/prep  →  /cook  →  /serve  →  /tidy
-  ↓         ↓         ↓         ↓
- sync    execute    review    commit
+/plan → /prep → /cook → /serve → /tidy → /dessert
+  ↓       ↓       ↓       ↓        ↓        ↓
+ plan    sync   execute  review   commit  validate
 ```
 
-Or use `/work` to run the full cycle.
+Or use `/work` to run the full service cycle.
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/prep` | Sync git, load context, show available work |
-| `/cook` | Select and execute a task with guardrails |
-| `/serve` | Review completed work via headless Claude |
-| `/tidy` | Commit and push changes |
-| `/work` | Orchestrate full prep→cook→serve→tidy cycle |
+| `/plan` | Create task graph with tracer bullet methodology |
+| `/prep` | Sync git, load kitchen manual, show available work |
+| `/cook` | Execute task with TDD cycle and automatic quality gates |
+| `/serve` | Review work via sous-chef (code reviewer) |
+| `/tidy` | Commit with kitchen log, file findings, push |
+| `/dessert` | Feature validation and documentation |
+| `/work` | Full service orchestration (prep→cook→serve→tidy→dessert) |
 
 ## Platform Command Naming
 
@@ -43,6 +45,75 @@ This is a fundamental platform difference, not a design choice. Each platform di
 
 - **beads** (`bd`) - Git-native issue tracking for multi-session work
 - **Claude Code** or **OpenCode** - AI coding assistant
+
+## Agent Definitions
+
+Line Cook uses kitchen-themed agents for specialized roles in the workflow:
+
+| Agent | Role | Purpose |
+|-------|------|---------|
+| **chef** | Task execution | Execute the task with TDD cycle and quality gates |
+| **sous-chef** | Code review | Review changes for correctness, security, style, completeness |
+| **quality-control** | Test quality review | Review tests for isolation, clarity, structure, anti-patterns |
+| **sommelier** | Feature test quality | Review BDD tests for acceptance criteria coverage and quality |
+| **kitchen-manager** | Full orchestration | Orchestrate complete service cycle with automatic error handling |
+
+### chef
+
+- **Purpose**: Execute tasks with TDD cycle (Red-Green-Refactor)
+- **Responsibilities**:
+  - Break task into implementation steps
+  - Write failing tests (RED)
+  - Implement minimal code (GREEN)
+  - Refactor while tests pass
+  - Verify tests pass and code builds
+- **Output**: `KITCHEN_COMPLETE` signal when task is ready for review
+
+### sous-chef
+
+- **Purpose**: Review code changes before committing
+- **Responsibilities**:
+  - Check correctness (logic, edge cases, error handling)
+  - Check security (input validation, secrets, injection risks)
+  - Verify style (naming, consistency with codebase patterns)
+  - Assess completeness (fully addresses the task?)
+- **Critical issues**: Block tidy phase (require fixes)
+- **Output**: `ready_for_tidy`, `needs_changes`, or `blocked` assessment
+
+### quality-control
+
+- **Purpose**: Review test quality before implementation
+- **Responsibilities**:
+  - Check tests are isolated, fast, repeatable
+  - Verify clear test names and error messages
+  - Ensure proper structure (Setup-Execute-Validate-Cleanup)
+  - Identify anti-patterns
+- **Trigger**: Automatically after RED phase (write failing test)
+- **Output**: Test quality assessment with critical issue blocking if needed
+
+### sommelier
+
+- **Purpose**: Review feature (BDD) test quality before dessert service
+- **Responsibilities**:
+  - Verify all acceptance criteria have tests
+  - Check Given-When-Then structure
+  - Ensure tests map to acceptance criteria
+  - Verify user perspective documented
+  - Check error scenarios included
+- **Trigger**: Automatically before dessert service (feature completion)
+- **Output**: BDD quality assessment with critical issue blocking if needed
+
+### kitchen-manager
+
+- **Purpose**: Orchestrate complete service cycle
+- **Responsibilities**:
+  - Run prep checks and present kitchen roster
+  - Delegate cooking to chef subagent
+  - Coordinate serving with sous-chef review
+  - Manage tidy phase (commit, push)
+  - Trigger dessert service for feature completion
+  - Handle failure conditions and coordinate recovery
+- **Output**: Kitchen report after successful service
 
 ## Workflow Principles
 
@@ -390,19 +461,23 @@ See [.github/release.md](.github/release.md) for the release notes template.
 ### Commands
 | Command | Purpose |
 |---------|---------|
+| `/line:plan` | Create task graph with tracer bullet methodology |
 | `/line:prep` | Sync git/beads, show ready tasks |
-| `/line:cook` | Execute task with guardrails |
-| `/line:serve` | AI peer review |
+| `/line:cook` | Execute task with TDD cycle and automatic quality gates |
+| `/line:serve` | Review via sous-chef subagent |
 | `/line:tidy` | Commit, file findings, push |
+| `/line:dessert` | Feature validation and BDD test review |
 | `/line:work` | Full cycle orchestration |
 
 ### CLI
 ```bash
+lc plan              # Create task graph
 lc prep              # Sync and show ready tasks
 lc cook [id]         # Claim task, output AI context
 lc serve [id]        # Output diff and review context
 lc tidy              # Commit and push
-lc init              # Add this section to AGENTS.md
+lc dessert [id]      # Feature validation
+lc work              # Full service cycle
 ```
 
 ### Core Guardrails
@@ -411,3 +486,64 @@ lc init              # Add this section to AGENTS.md
 3. **Verify before done** - Tests pass, code compiles
 4. **File, don't block** - Discoveries become beads
 5. **Push before stop** - Work isn't done until pushed
+
+### TDD Cycle with Quality Gates
+
+Line Cook follows the Red-Green-Refactor cycle with automatic quality checks:
+
+**RED**: Write failing test
+- Write test for the feature you're implementing
+- Verify the test fails
+- Trigger quality-control agent for test quality review
+- Address critical issues before proceeding
+
+**GREEN**: Implement minimal code
+- Write the simplest code to make the test pass
+- Verify tests pass
+- No refactoring yet
+
+**REFACTOR**: Clean up code
+- Improve code structure while tests pass
+- Ensure tests still pass after refactoring
+- Verify all tests pass and code builds
+
+**QUALITY GATES**:
+- Tests pass: `go test ./...` (or project-specific test command)
+- Code builds: `go build ./...` (or project-specific build command)
+- Test quality approved by quality-control agent
+- Code quality approved by sous-chef agent (in serve phase)
+
+## Kitchen Terminology
+
+Line Cook uses restaurant/kitchen terminology throughout its workflow:
+
+| Term | Meaning | Context |
+|------|---------|---------|
+| **Prep** | Sync git/beads, load kitchen manual, show ready orders | `/prep` phase |
+| **Cook** | Execute task with TDD cycle and quality gates | `/cook` phase |
+| **Serve** | Review work via sous-chef (code reviewer) | `/serve` phase |
+| **Tidy** | Commit with kitchen log, file findings, push | `/tidy` phase |
+| **Dessert** | Feature validation and BDD test review | `/dessert` phase |
+| **Full Service** | Complete orchestration through all phases | `/work` phase |
+| **Kitchen Manual** | AGENTS.md or .claude/CLAUDE.md - work structure documentation | Loaded during prep |
+| **Kitchen Order System** | beads issue tracker - manages work orders | Synced during prep |
+| **Kitchen Roster** | List of ready orders (tasks) | Displayed in prep |
+| **Order** | Task or feature to execute | bead issue |
+| **Recipe** | Task description and implementation plan | Task details |
+| **Ingredients** | Required context files and documentation | Loaded before cooking |
+| **Dish** | Completed work output | Results of cook phase |
+| **Kitchen Equipment** | Build systems, test frameworks, linters | Verified before completion |
+| **Quality Gates** | Automatic quality checks (test, code review, BDD) | Enforced in cook/serve/dessert |
+| **Chef** | Subagent that executes tasks with TDD cycle | `/cook` phase |
+| **Sous-Chef** | Subagent that reviews code changes | `/serve` phase |
+| **Quality-Control** | Subagent that reviews test quality | After RED phase |
+| **Sommelier** | Subagent that reviews BDD test quality | `/dessert` phase |
+| **Kitchen-Manager** | Subagent that orchestrates full service | `/work` phase |
+| **KITCHEN_COMPLETE** | Signal emitted when task is ready for review | End of cook phase |
+| **READY_FOR_TIDY** | Assessment from sous-chef indicating code is ready to commit | After serve phase |
+| **Kitchen Log** | Detailed commit message with implementation details | Commit format in tidy |
+| **Kitchen Ledger** | Git remote repository - records all completed work | Push destination |
+| **Service** | Complete workflow cycle (prep→cook→serve→tidy→dessert) | Full workflow |
+| **Tracer** | Task that proves one aspect of a feature through all layers | Planning methodology |
+| **Feature Complete** | All tasks for a feature closed, ready for dessert service | `/dessert` phase trigger |
+| **Acceptance Report** | Document validating feature against acceptance criteria | Created in dessert |
