@@ -276,3 +276,173 @@ func (c *Client) FilterReadyTasks() ([]Task, error) {
 	}
 	return filtered, nil
 }
+
+// PrimeForTool returns tool-specific prompt content from bd prime
+// Attempts to use --for-tool flag, falls back to full output if flag not supported
+func (c *Client) PrimeForTool(tool string) (string, error) {
+	args := []string{"prime"}
+
+	// Try with --for-tool flag (if supported)
+	output, err := c.run(append(args, "--for-tool="+tool)...)
+	if err == nil {
+		return string(output), nil
+	}
+
+	// Flag not supported, fall back to full output
+	output, err = c.run(args...)
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
+
+// GetPromptForTool returns a tool-specific execution prompt
+// Combines beads workflow context (from bd prime) with tool-specific instructions
+func (c *Client) GetPromptForTool(tool string, task *Task, epic *Task, extraData map[string]interface{}) (string, error) {
+	// Get beads workflow context
+	beadsContext, err := c.PrimeForTool(tool)
+	if err != nil {
+		beadsContext = ""
+	}
+
+	// Get tool-specific prompt
+	toolPrompt, err := c.getToolPrompt(tool, task, epic, extraData)
+	if err != nil {
+		return "", err
+	}
+
+	// Combine: workflow context + tool-specific prompt
+	if beadsContext != "" {
+		return beadsContext + "\n\n" + toolPrompt, nil
+	}
+	return toolPrompt, nil
+}
+
+// getToolPrompt returns the prompt template for a specific tool
+func (c *Client) getToolPrompt(tool string, task *Task, epic *Task, extraData map[string]interface{}) (string, error) {
+	switch tool {
+	case "cook":
+		return c.getCookPrompt(task, epic, extraData)
+	case "serve":
+		return c.getServePrompt(task, extraData)
+	case "tidy":
+		return c.getTidyPrompt(extraData)
+	default:
+		return "", nil
+	}
+}
+
+// getCookPrompt generates the cook-specific execution prompt
+func (c *Client) getCookPrompt(task *Task, epic *Task, extraData map[string]interface{}) (string, error) {
+	var prompt string
+
+	if task != nil {
+		prompt = fmt.Sprintf(`Execute the following task:
+
+**Task:** %s
+**ID:** %s
+**Priority:** %s
+`, task.Title, task.ID, task.PriorityString())
+
+		if task.Description != "" {
+			prompt += fmt.Sprintf("\n**Description:**\n%s\n", task.Description)
+		}
+
+		if epic != nil {
+			prompt += fmt.Sprintf("\n**Context:** This task is part of epic '%s' (%s)\n", epic.Title, epic.ID)
+		}
+	}
+
+	// Add capabilities note if available (checking for interface to avoid import cycles)
+	if caps, ok := extraData["capabilities"]; ok {
+		if capsInterface, ok := caps.(interface{ HasCapability(string) bool }); ok {
+			if capsInterface.HasCapability("mcp") {
+				prompt += "\n**Note:** MCP tools are available for enhanced functionality.\n"
+			}
+			if capsInterface.HasCapability("headless") {
+				prompt += "\n**Note:** Running in headless mode. Avoid interactive prompts.\n"
+			}
+		}
+	}
+
+	prompt += `
+**Guidelines:**
+1. Break task into steps before starting
+2. Verify each step completes successfully
+3. Note any discovered issues for later (don't create beads during cooking)
+4. Ensure code compiles and tests pass before completing
+
+**When done:**
+- Summarize what was accomplished
+- List any findings (new tasks, bugs, improvements discovered)
+- Run: lc serve (for AI review) or lc tidy (to commit)
+`
+
+	return prompt, nil
+}
+
+// getServePrompt generates the serve-specific review prompt
+func (c *Client) getServePrompt(task *Task, extraData map[string]interface{}) (string, error) {
+	prompt := `Review the following changes:
+
+**Review Checklist:**
+- [ ] Code follows project conventions
+- [ ] No obvious bugs or logic errors
+- [ ] Error handling is appropriate
+- [ ] No security vulnerabilities introduced
+- [ ] Tests cover the changes (if applicable)
+- [ ] No unnecessary code or debug statements
+`
+
+	if task != nil {
+		prompt += fmt.Sprintf(`
+**Task Context:**
+- Task: %s
+- ID: %s
+- Priority: %s
+`, task.Title, task.ID, task.PriorityString())
+
+		if task.Description != "" {
+			prompt += fmt.Sprintf("- Description: %s\n", task.Description)
+		}
+
+		prompt += `
+**Verify task completion:**
+- [ ] Changes match the task description
+- [ ] All acceptance criteria met
+`
+	}
+
+	// Add files changed if available
+	if files, ok := extraData["files"].([]string); ok && len(files) > 0 {
+		prompt += "\n**Files changed:**\n"
+		for _, f := range files {
+			prompt += fmt.Sprintf("- %s\n", f)
+		}
+	}
+
+	prompt += `
+**Output:**
+Provide a brief review summary noting:
+1. Any issues found (critical/minor)
+2. Suggestions for improvement
+3. Whether the changes are ready to commit
+`
+
+	return prompt, nil
+}
+
+// getTidyPrompt generates the tidy-specific completion prompt
+func (c *Client) getTidyPrompt(extraData map[string]interface{}) (string, error) {
+	return `Complete the workflow:
+
+**Final Checklist:**
+- [ ] All changes are committed
+- [ ] Findings are filed as beads (if any)
+- [ ] Current task is closed (if in progress)
+- [ ] Beads are synced with remote
+- [ ] Changes are pushed to remote
+
+Work is not complete until pushed. If push fails, resolve and retry.
+`, nil
+}

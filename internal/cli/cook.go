@@ -160,8 +160,14 @@ func runCook(cmd *cobra.Command, args []string) error {
 	// Load project context (CLAUDE.md)
 	projectContext := loadProjectContext(workDir)
 
-	// Generate AI prompt
-	aiPrompt := generateCookPrompt(task, epic, capabilities)
+	// Generate AI prompt using beads client
+	extraData := make(map[string]interface{})
+	extraData["capabilities"] = capabilities
+	aiPrompt, err := beadsClient.GetPromptForTool("cook", task, epic, extraData)
+	if err != nil {
+		out.Warning("Failed to get AI prompt from beads: %v", err)
+		aiPrompt = generateCookPrompt(task, epic, capabilities)
+	}
 
 	result := &output.CookContext{
 		Task:           *task,

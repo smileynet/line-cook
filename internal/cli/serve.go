@@ -102,8 +102,14 @@ func runServe(cmd *cobra.Command, args []string) error {
 		allFiles = append(allFiles, f)
 	}
 
-	// Generate review prompt
-	reviewPrompt := generateReviewPrompt(task, allFiles)
+	// Generate review prompt using beads client
+	extraData := make(map[string]interface{})
+	extraData["files"] = allFiles
+	reviewPrompt, err := beadsClient.GetPromptForTool("serve", task, nil, extraData)
+	if err != nil {
+		out.Warning("Failed to get review prompt from beads: %v", err)
+		reviewPrompt = generateReviewPrompt(task, allFiles)
+	}
 
 	result := &output.ServeContext{
 		Diff:         diff,
