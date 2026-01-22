@@ -25,7 +25,7 @@ func init() {
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Add Line Cook workflow context to AGENTS.md",
-	Long: `Init appends Line Cook workflow context to the project's AGENTS.md file.
+	Long: `Init appends Line Cook workflow context to project's AGENTS.md file.
 
 This command:
 1. Checks for .beads/ (requires beads to be initialized)
@@ -36,35 +36,69 @@ Similar to 'bd prime', this command helps agents recover context.`,
 	RunE: runInit,
 }
 
-const lineCookSection = `## Line Cook Workflow
+func detectPlatform() string {
+	_, err := os.Stat("/home/sam/.opencode/bin/opencode")
+	if err == nil {
+		return "opencode"
+	}
+	_, err = os.Stat("/usr/local/bin/claude")
+	if err == nil {
+		return "claude-code"
+	}
+	_, err = os.Stat(os.ExpandEnv("$HOME/.kiro/bin/kiro"))
+	if err == nil {
+		return "kiro"
+	}
+	return "cli-only"
+}
 
-> **Context Recovery**: Run ` + "`lc work`" + ` or individual commands after compaction
+func getCommandTable(platform string) string {
+	switch platform {
+	case "opencode":
+		return "| Command | Purpose |\n|---------|---------|\n| /line-prep | Sync git/beads, show ready tasks |\n| /line-cook | Execute task with guardrails |\n| /line-serve | AI peer review |\n| /line-tidy | Commit, file findings, push |\n| /line-work | Full cycle orchestration |"
+	case "claude-code":
+		return "| Command | Purpose |\n|---------|---------|\n| /line:prep | Sync git/beads, show ready tasks |\n| /line:cook | Execute task with guardrails |\n| /line:serve | AI peer review |\n| /line:tidy | Commit, file findings, push |\n| /line:work | Full cycle orchestration |"
+	case "kiro":
+		return "| Command | Purpose |\n|---------|---------|\n| prep | Sync git/beads, show ready tasks |\n| cook | Execute task with guardrails |\n| serve | AI peer review |\n| tidy | Commit, file findings, push |\n| work | Full cycle orchestration |"
+	default:
+		return "| Command | Purpose |\n|---------|---------|\n| lc prep | Sync git/beads, show ready tasks |\n| lc cook | Execute task with guardrails |\n| lc serve | AI peer review |\n| lc tidy | Commit, file findings, push |\n| lc work | Full cycle orchestration |"
+	}
+}
 
-### Commands
-| Command | Purpose |
-|---------|---------|
-| ` + "`/line:prep`" + ` | Sync git/beads, show ready tasks |
-| ` + "`/line:cook`" + ` | Execute task with guardrails |
-| ` + "`/line:serve`" + ` | AI peer review |
-| ` + "`/line:tidy`" + ` | Commit, file findings, push |
-| ` + "`/line:work`" + ` | Full cycle orchestration |
-
-### CLI
-` + "```bash" + `
-lc prep              # Sync and show ready tasks
-lc cook [id]         # Claim task, output AI context
-lc serve [id]        # Output diff and review context
-lc tidy              # Commit and push
-lc init              # Add this section to AGENTS.md
-` + "```" + `
-
-### Core Guardrails
-1. **Sync before work** - Always start with current state
-2. **One task at a time** - Focus prevents scope creep
-3. **Verify before done** - Tests pass, code compiles
-4. **File, don't block** - Discoveries become beads
-5. **Push before stop** - Work isn't done until pushed
-`
+func getCLITable(platform string) string {
+	// Note: Cannot use backticks in Go string literals with raw strings due to escaping
+	// Using plain text representation instead
+	switch platform {
+	case "opencode":
+		return "OpenCode Commands\n" +
+			"  /line-prep\n" +
+			"  /line-cook [id]\n" +
+			"  /line-serve [id]\n" +
+			"  /line-tidy\n" +
+			"  /line-work\n"
+	case "claude-code":
+		return "Claude Code Commands\n" +
+			"  /line:prep\n" +
+			"  /line:cook [id]\n" +
+			"  /line:serve [id]\n" +
+			"  /line:tidy\n" +
+			"  /line:work\n"
+	case "kiro":
+		return "Kiro Commands\n" +
+			"  prep\n" +
+			"  cook [id]\n" +
+			"  serve [id]\n" +
+			"  tidy\n" +
+			"  work\n"
+	default:
+		return "CLI Commands\n" +
+			"  lc prep\n" +
+			"  lc cook [id]\n" +
+			"  lc serve [id]\n" +
+			"  lc tidy\n" +
+			"  lc work\n"
+	}
+}
 
 const sectionMarker = "## Line Cook Workflow"
 
@@ -95,6 +129,26 @@ func runInit(cmd *cobra.Command, args []string) error {
 		out.Text("Use --force to overwrite")
 		return nil
 	}
+
+	// Detect platform
+	platform := detectPlatform()
+	out.Text("Detected platform: %s", platform)
+
+	// Build section content
+	commandsTable := getCommandTable(platform)
+	cliTable := getCLITable(platform)
+	lineCookSection := "## Line Cook Workflow\n\n"
+	lineCookSection += "> **Context Recovery**: Run lc work or individual commands after compaction\n\n"
+	lineCookSection += "### Commands\n"
+	lineCookSection += commandsTable + "\n\n"
+	lineCookSection += "### CLI\n"
+	lineCookSection += cliTable + "\n\n"
+	lineCookSection += "### Core Guardrails\n"
+	lineCookSection += "1. **Sync before work** - Always start with current state\n"
+	lineCookSection += "2. **One task at a time** - Focus prevents scope creep\n"
+	lineCookSection += "3. **Verify before done** - Tests pass, code compiles\n"
+	lineCookSection += "4. **File, don't block** - Discoveries become beads\n"
+	lineCookSection += "5. **Push before stop** - Work isn't done until pushed"
 
 	// Prepare new content
 	var newContent string
@@ -133,7 +187,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Write the file
+	// Write to file
 	if err := os.WriteFile(agentsMD, []byte(newContent), 0644); err != nil {
 		out.Error("Failed to write AGENTS.md: %v", err)
 		return nil
