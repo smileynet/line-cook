@@ -7,11 +7,13 @@ Kiro CLI adapter for the line-cook workflow orchestration system.
 ```
 line-cook-kiro/
 ├── agents/           # Custom agent configurations
-│   └── line-cook.json
+│   ├── line-cook.json
+│   └── quality-control.json
 ├── steering/         # Steering files (always-loaded context)
 │   ├── line-cook.md
 │   ├── beads.md
-│   └── session.md
+│   ├── session.md
+│   └── quality-control.md
 ├── skills/           # Lazy-loaded documentation
 │   └── line-cook/
 │       └── SKILL.md

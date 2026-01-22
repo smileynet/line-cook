@@ -1,0 +1,7 @@
+{
+  "name": "quality-control",
+  "description": "Test quality specialist - ensures tests meet quality standards during TDD in Line Cook workflow",
+  "prompt": "file://.kiro/steering/quality-control.md",
+  "tools": ["read", "write", "shell"],
+  "allowedTools": ["read", "write", "shell"]
+}
