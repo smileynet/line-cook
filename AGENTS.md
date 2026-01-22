@@ -275,9 +275,12 @@ line-cook/
 │       ├── line-serve.md  # → /line-serve
 │       ├── line-tidy.md   # → /line-tidy
 │       ├── line-work.md   # → /line-work
-│       └── line-getting-started.md # → /line-getting-started
+│   └── line-getting-started.md # → /line-getting-started
 ├── line-cook-kiro/        # Kiro agent
-│   ├── agents/line-cook.json # Agent definition
+│   ├── agents/            # Agent definitions
+│   │   ├── line-cook.json # Main agent
+│   │   ├── quality-control.json # Test quality review agent
+│   │   └── sous-chef.json # Code review agent
 │   ├── steering/          # Workflow steering docs
 │   └── skills/            # Skill definitions
 ├── .claude-plugin/
@@ -292,7 +295,10 @@ Line Cook maintains commands for both Claude Code (`commands/`) and OpenCode (`l
 
 **Template system:**
 - Source templates live in `commands/templates/`
-- Use `@NAMESPACE@` placeholder for command prefixes
+- Use placeholders for platform-specific differences:
+  - `@NAMESPACE@` - Command prefix (`line:` for Claude, `line-` for OpenCode)
+  - `@HEADLESSCLI@` - Headless CLI name (`claude` for Claude, `opencode` for OpenCode)
+  - `@NAMESPACE@CLI` - CLI name reference in documentation
 - Run sync script to generate both versions:
 
 ```bash
@@ -300,9 +306,13 @@ Line Cook maintains commands for both Claude Code (`commands/`) and OpenCode (`l
 ```
 
 **Platform differences handled automatically:**
-- Claude Code: `/line:cook` (colon separator)
-- OpenCode: `/line-cook` (hyphen separator)
+- Claude Code: `/line:cook` (colon separator), uses `claude` CLI
+- OpenCode: `/line-cook` (hyphen separator), uses `opencode` CLI
 - OpenCode includes additional "When run via /line-work" instruction
+
+**Synced commands:**
+- cook.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`
+- serve.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`
 
 **When to sync:**
 - After editing any command template
