@@ -11,11 +11,46 @@
 - Tools and permissions can be restricted
 - Hidden agents (hidden: true) excluded from @autocomplete
 
-## Claude Code - Unknown
-- Plugin system exists but subagent support unclear from docs
-- Public docs returning 404 for subagent information
-- No Task tool or explicit subagent delegation found
-- Current plugin.json shows minimal configuration (name, description, version, author, repository, license, homepage, keywords)
+## Claude Code - Limited Agent System
+
+**Built-in Agents:**
+Claude Code has 2 built-in agents:
+- **build** - Default agent with full tool access for development work
+- **plan** - Read-only agent for analysis and planning
+  - Denies file edits by default
+  - Asks permission before running bash commands
+  - Ideal for exploring unfamiliar codebases
+
+**Subagent Support:**
+- **"general" subagent** - Used internally for complex searches and multi-step tasks
+  - Can be invoked via `@general` mention
+  - Not explicitly documented as a subagent system
+
+**Key Differences from OpenCode:**
+- ❌ No explicit subagent mode (`mode: "subagent"`)
+- ❌ No Task tool for automatic subagent delegation
+- ❌ No `permission.task` system for controlling subagent access
+- ❌ No agent configuration in `~/.config/claude/` or `.claude/agents/`
+- ❌ No documented automatic subagent invocation by primary agents
+- ✅ Has @mention syntax (`@general`) for manual subagent invocation
+- ✅ Plugin system with slash commands in `.claude-plugin/commands/`
+
+**Plugin System:**
+- Plugin manifest: `.claude-plugin/plugin.json`
+- Contains basic metadata (name, description, version, author, repository, license, homepage, keywords)
+- No explicit agent definitions in plugin.json
+- No subagent configuration schema
+
+**Slash Commands:**
+- Commands live in `.claude-plugin/commands/` directory
+- Each command is a markdown file with frontmatter metadata
+- No documented subagent delegation mechanism
+
+**Limitations:**
+- Subagents cannot be defined in configuration files
+- No automatic delegation system like OpenCode's Task tool
+- Quality gates (quality-control, sous-chef) would require manual @general mentions
+- No clear documentation on creating custom agents or subagents
 
 ## Key Differences
 - OpenCode: Built-in agent system with subagent mode, Task tool, permission.task
