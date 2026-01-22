@@ -1,5 +1,5 @@
 # Subagent Research: Claude Code vs OpenCode
-## OpenCode (Kiro) - Documented
+## OpenCode - Documented Subagent System
 - Has explicit subagent system with mode: 'subagent'
 - Built-in subagents: General, Explore
 - Invocation methods:
@@ -26,7 +26,7 @@ Claude Code has 2 built-in agents:
   - Can be invoked via `@general` mention
   - Not explicitly documented as a subagent system
 
-**Key Differences from OpenCode:**
+**Key Differences:**
 - ❌ No explicit subagent mode (`mode: "subagent"`)
 - ❌ No Task tool for automatic subagent delegation
 - ❌ No `permission.task` system for controlling subagent access
@@ -137,7 +137,7 @@ Claude Code has 2 built-in agents:
 
 **Status**: ❌ **Blocked** - Feature doesn't exist yet
 
-### Option 5: Kiro CLI as Middleware (Alternative)
+### Option 5: Kiro CLI as Middleware (Alternative Approach)
 
 **Approach:**
 - Use Kiro CLI for subagent delegation from Claude Code

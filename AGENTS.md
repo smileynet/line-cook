@@ -36,10 +36,22 @@ Claude Code and OpenCode use different command naming conventions:
 | Claude Code | `namespace:command` | `/line:prep` |
 | OpenCode | `namespace-command` | `/line-prep` |
 
-This is a fundamental platform difference, not a design choice. Each platform discovers and registers commands differently:
-
 - **Claude Code**: Uses `plugin.json` namespace + flat filename → `line:prep`
 - **OpenCode**: Uses file path as command name → `line-prep`
+
+## Platform Architecture
+
+| Platform | Type | CLI Tool | Relationship |
+|----------|------|----------|--------------|
+| Claude Code | Plugin system only | claude CLI | Standalone |
+| OpenCode | TUI application | opencode CLI | Built-in |
+| Kiro CLI | Agent definitions | kiro CLI | Separate component |
+
+**Key Points:**
+- OpenCode is a TUI application with **kiro CLI** as its command-line interface
+- Kiro CLI agents work **through OpenCode's interface**
+- They are NOT separate products - Kiro CLI is the CLI tool for OpenCode
+- Line Cook's `line-cook-kiro/agents/` are Kiro CLI agent definitions that run via OpenCode
 
 ## Dependencies
 
@@ -300,6 +312,20 @@ Line Cook maintains commands for both Claude Code (`commands/`) and OpenCode (`l
   - `@HEADLESSCLI@` - Headless CLI name (`claude` for Claude, `opencode` for OpenCode)
   - `@NAMESPACE@CLI` - CLI name reference in documentation
 - Run sync script to generate both versions:
+
+**Platform differences handled automatically:**
+- Claude Code: `/line:cook` (colon separator), uses `claude` CLI
+- OpenCode: `/line-cook` (hyphen separator), uses `opencode` CLI
+- OpenCode includes additional "When run via /line-work" instruction
+
+**Synced commands:**
+- cook.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`
+- serve.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`
+
+**When to sync:**
+- After editing any command template
+- Before committing command changes
+- As part of release process
 
 ```bash
 ./scripts/sync-commands.sh
