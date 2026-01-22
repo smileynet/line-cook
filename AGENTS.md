@@ -382,3 +382,32 @@ After pushing a release, create a GitHub release with these instructions for use
 ```
 
 See [.github/release.md](.github/release.md) for the release notes template.
+
+## Line Cook Workflow
+
+> **Context Recovery**: Run `lc work` or individual commands after compaction
+
+### Commands
+| Command | Purpose |
+|---------|---------|
+| `/line:prep` | Sync git/beads, show ready tasks |
+| `/line:cook` | Execute task with guardrails |
+| `/line:serve` | AI peer review |
+| `/line:tidy` | Commit, file findings, push |
+| `/line:work` | Full cycle orchestration |
+
+### CLI
+```bash
+lc prep              # Sync and show ready tasks
+lc cook [id]         # Claim task, output AI context
+lc serve [id]        # Output diff and review context
+lc tidy              # Commit and push
+lc init              # Add this section to AGENTS.md
+```
+
+### Core Guardrails
+1. **Sync before work** - Always start with current state
+2. **One task at a time** - Focus prevents scope creep
+3. **Verify before done** - Tests pass, code compiles
+4. **File, don't block** - Discoveries become beads
+5. **Push before stop** - Work isn't done until pushed
