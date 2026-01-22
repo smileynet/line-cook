@@ -41,17 +41,21 @@ Claude Code and OpenCode use different command naming conventions:
 
 ## Platform Architecture
 
-| Platform | Type | CLI Tool | Relationship |
-|----------|------|----------|--------------|
-| Claude Code | Plugin system only | claude CLI | Standalone |
-| OpenCode | TUI application | opencode CLI | Built-in |
-| Kiro CLI | Agent definitions | kiro CLI | Separate component |
+**Line Cook supports THREE separate AI coding platforms:**
+
+| Platform | Type | CLI Tool | Product |
+|----------|------|----------|----------|
+| Claude Code | Plugin system | claude CLI | Anthropic product |
+| OpenCode | TUI application | opencode CLI | anomalyco/opencode |
+| Kiro CLI | CLI application | kiro-cli | kiro.dev |
 
 **Key Points:**
-- OpenCode is a TUI application with **kiro CLI** as its command-line interface
-- Kiro CLI agents work **through OpenCode's interface**
-- They are NOT separate products - Kiro CLI is the CLI tool for OpenCode
-- Line Cook's `line-cook-kiro/agents/` are Kiro CLI agent definitions that run via OpenCode
+- **Claude Code**, **OpenCode**, and **Kiro CLI** are COMPLETELY UNRELATED PRODUCTS
+- Each has its own CLI: `claude`, `opencode`, and `kiro` respectively
+- Line Cook provides separate implementations for each:
+  - `commands/` + `.claude-plugin/` = Claude Code plugin
+  - `line-cook-opencode/` = OpenCode plugin  
+  - `line-cook-kiro/` = Kiro CLI agents
 
 ## Dependencies
 
@@ -60,15 +64,36 @@ Claude Code and OpenCode use different command naming conventions:
 
 ## Agent Definitions
 
-Line Cook uses kitchen-themed agents for specialized roles in the workflow:
+Line Cook provides agents for each platform:
+
+### Kiro CLI Agents (line-cook-kiro/agents/)
 
 | Agent | Role | Purpose |
 |-------|------|---------|
-| **chef** | Task execution | Execute the task with TDD cycle and quality gates |
+| **line-cook** | Main agent | Execute workflow commands (prep, cook, serve, tidy, work) |
+| **quality-control** | Test quality | Review tests for isolation, clarity, structure, anti-patterns |
 | **sous-chef** | Code review | Review changes for correctness, security, style, completeness |
-| **quality-control** | Test quality review | Review tests for isolation, clarity, structure, anti-patterns |
-| **sommelier** | Feature test quality | Review BDD tests for acceptance criteria coverage and quality |
-| **kitchen-manager** | Full orchestration | Orchestrate complete service cycle with automatic error handling |
+
+### Claude Code Commands (commands/)
+
+Claude Code uses slash commands instead of agents:
+
+| Command | Role | Purpose |
+|---------|------|---------|
+| **/line:prep** | Prep phase | Sync git/beads, show ready tasks |
+| **/line:cook** | Cook phase | Execute task with TDD cycle and quality gates |
+| **/line:serve** | Serve phase | Review changes (manual quality gates) |
+| **/line:tidy** | Tidy phase | Commit changes, push to remote |
+| **/line:work** | Full cycle | Prep→cook→serve→tidy orchestration |
+
+### OpenCode Plugin (line-cook-opencode/)
+
+OpenCode plugin uses OpenCode's built-in agent system:
+
+| Component | Type | Purpose |
+|----------|------|---------|
+| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work` |
+| **Kiro Agents** | OpenCode agents | quality-control, sous-chef (via OpenCode's agent system) |
 
 ### chef
 
