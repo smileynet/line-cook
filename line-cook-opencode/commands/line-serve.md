@@ -6,62 +6,118 @@ description: Review changes via headless Claude and file issues
 
 **Review changes via headless Claude.** Part of prep → cook → serve → tidy.
 
+After cooking (executing a task), you "serve" it for review before tidying up.
+
 **Arguments:** `$ARGUMENTS` (optional) - Specific bead ID to review
 
-**STOP after completing.** Show NEXT STEP and wait for user.
+**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
+**When run via `/line-work`:** Continue to the next step without stopping.
 
 ---
 
 ## Process
 
-### Step 1: Invoke CLI
+### Step 1: Identify Changes to Review
 
+**If `$ARGUMENTS` provided:**
+- Use that bead ID directly
+
+**Otherwise:**
+- Find most recently closed bead: `bd list --status=closed --limit=1`
+- Or find current in-progress bead if cook didn't close it yet
+
+Show the bead being reviewed:
 ```bash
-lc serve $ARGUMENTS
+bd show <id>
 ```
 
-The CLI:
-- Gets the task (from arg, session state, or most recently closed)
-- Generates git diff of changes
-- Outputs task details, diff, and review prompt
+### Step 2: Gather Review Context
 
-### Step 2: Run Headless Review
-
-**You must invoke headless Claude for peer review.**
-
-Use a 10-minute timeout (600000ms) - reviews often exceed 2-minute default:
-
+Collect changes and project context:
 ```bash
-git diff | claude -p "<review_prompt> + Output JSON: {summary, approval: approved|needs_changes|blocked, issues: [{severity, file, line, issue, suggestion, auto_fixable}], positive: []}" --output-format text --allowedTools "Read,Glob,Grep"
+# Get changes
+git diff                    # Unstaged changes
+git diff --cached           # Or staged changes
+git status --porcelain      # File list
+
+# If already committed
+git diff HEAD~1
 ```
 
-Use the review prompt from CLI output, adding the JSON output format specification shown above.
+**Load project context for context-aware review:**
+```bash
+# Check for CLAUDE.md
+cat CLAUDE.md 2>/dev/null | head -50
+```
 
-If headless invocation fails:
-- Note review was skipped
-- Continue to `/line-tidy` (non-blocking)
+This gives the reviewer awareness of project patterns and conventions.
 
-### Step 3: Process Results
+### Step 3: Invoke Headless Claude for Review
 
-**Auto-fixable issues** (apply immediately):
+Spawn a separate Claude instance to review:
+
+```bash
+git diff | claude -p "Review these changes for the task: <bead title>
+
+Project context:
+<summary of CLAUDE.md patterns if available>
+
+Focus on:
+- Correctness: Logic errors, edge cases, error handling
+- Security: Input validation, secrets exposure, injection risks
+- Style: Naming, consistency with codebase patterns
+- Completeness: Does it fully address the task?
+
+Output format (JSON):
+{
+  \"summary\": \"brief overall assessment\",
+  \"approval\": \"approved|needs_changes|blocked\",
+  \"issues\": [
+    {
+      \"severity\": \"critical|major|minor|nit\",
+      \"file\": \"path/to/file\",
+      \"line\": 42,
+      \"issue\": \"description\",
+      \"suggestion\": \"how to fix\",
+      \"auto_fixable\": true|false
+    }
+  ],
+  \"positive\": [\"things done well\"]
+}" --output-format text --allowedTools "Read,Glob,Grep"
+```
+
+### Step 4: Process Review Results
+
+Categorize issues:
+
+**Auto-fixable** (apply immediately):
 - Typos in comments/strings
 - Missing trailing newlines
 - Simple formatting issues
+- Obvious one-line fixes
 
-Use Edit tool to apply auto-fixes directly.
+Apply auto-fixes directly using Edit tool.
 
-**Non-auto-fixable issues** (note for `/line-tidy`):
+**Non-auto-fixable** (note for `/line-tidy`):
 - Logic errors requiring design decisions
 - Security concerns needing investigation
 - Missing functionality
+- Architectural suggestions
 
-Categorize by priority:
-- **P1-P3**: Blocking issues → filed as standalone beads in tidy
-- **P4/nits**: Minor suggestions → filed under Retrospective epic in tidy
+Note these for filing in `/line-tidy`, categorized by priority.
 
-### Step 4: Report Results
+### Step 5: Record and Report Results
 
-Output review summary:
+**Record via comment:**
+```bash
+bd comments add <bead-id> "PHASE: SERVE
+Status: completed
+Verdict: <approved|needs_changes|blocked>
+Issues: <count> found (<auto-fixed>, <to-file>)
+Summary: <brief assessment>"
+```
+
+**Output format:**
 ```
 REVIEW: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -69,24 +125,26 @@ REVIEW: <id> - <title>
 Verdict: APPROVED | NEEDS_CHANGES | BLOCKED
 
 Summary:
-  <brief overall assessment>
+  <brief overall assessment of the changes>
 
 Auto-fixed:
   - <file>:<line> - <fix applied>
 
 Issues to file in /tidy:
   - [P1] "<title>" - <description>
+  - [P3] "<title>" - <description>
   - [P4/retro] "<title>" - <minor suggestion>
 
 Positive notes:
-  - <good things noted>
+  - <good thing>
+  - <good thing>
 
 NEXT STEP: /line-tidy
 ```
 
 ## Error Handling
 
-If headless Claude fails:
+If the headless Claude invocation fails:
 ```
 ⚠️ REVIEW SKIPPED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -100,6 +158,6 @@ Workflow can continue - this is non-blocking.
 ## Example Usage
 
 ```
-/line-serve              # Review most recent task
+/line-serve              # Review most recent closed bead
 /line-serve lc-042       # Review specific bead
 ```
