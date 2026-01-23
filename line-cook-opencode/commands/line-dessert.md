@@ -80,85 +80,26 @@ Report any critical issues before proceeding with dessert service.", subagent_ty
 
 ### Step 4: Create Feature Acceptance Documentation
 
-Create a comprehensive acceptance report documenting feature completion:
+Create acceptance documentation using the multi-course meal template:
 
-Create `docs/features/<feature-id>-acceptance.md`:
+1. Copy the template to `docs/features/<feature-id>-acceptance.md`:
+   ```bash
+   mkdir -p docs/features
+   cp docs/templates/feature-acceptance.md docs/features/<feature-id>-acceptance.md
+   ```
 
-```markdown
-# Feature Acceptance Report
+2. Fill in the template sections:
+   - **Chef's Selection** - User story from feature definition
+   - **Tasting Notes** - Map each acceptance criterion to verification evidence
+   - **Quality Checks** - Document BDD and smoke test results
+   - **Kitchen Staff Sign-Off** - Record agent approvals
+   - **Guest Experience** - Show users how to use the feature
+   - **Kitchen Notes** - Capture limitations, ideas, deployment info
+   - **Related Orders** - Link to completed tasks and related features
 
-**Feature:** <feature-title>
-**ID:** <feature-id>
-**Completed:** YYYY-MM-DD
-**Parent Epic:** <epic-id> - <epic-title>
+3. Remove the "Usage Instructions" section from the filled template
 
-## Acceptance Criteria
-
-- [x] <Criterion 1>
-  - **Verification:** <how verified>
-  - **Evidence:** <test or demonstration>
-
-- [x] <Criterion 2>
-  - **Verification:** <how verified>
-  - **Evidence:** <test or demonstration>
-
-- [x] <Criterion 3>
-  - **Verification:** <how verified>
-  - **Evidence:** <test or demonstration>
-
-## BDD Tests
-
-### Test: <TestName>
-
-**Purpose:** Validate <aspect>
-
-**Scenarios:**
-- ✅ <Scenario 1> - <description>
-- ✅ <Scenario 2> - <description>
-- ✅ <Scenario 3> - <description>
-
-**Results:** All scenarios passing
-
-### Smoke Tests
-
-- ✅ <Smoke test 1>
-- ✅ <Smoke test 2>
-
-**Results:** All smoke tests passing
-
-## User Experience
-
-**User Story:** As a <user>, I want <capability> so that <benefit>
-
-**Verification:** <how user can verify feature works>
-
-## Quality Assurance
-
-**Code Review:** Approved by sous-chef
-**Test Quality:** Approved by quality-control
-**BDD Quality:** Approved by sommelier
-
-## Known Limitations
-
-- <Any known limitations or future work>
-
-## Migration Notes
-
-- <Any migration or deployment notes>
-
-## Related Work
-
-- **Tasks Completed:**
-  - <task-id> - <task-title>
-  - <task-id> - <task-title>
-
-- **Related Features:**
-  - <feature-id> - <feature-title>
-
----
-
-**Status:** ✅ Feature Complete and Validated
-```
+See [`docs/templates/feature-acceptance.md`](../docs/templates/feature-acceptance.md) for the full template.
 
 ### Step 5: Update CHANGELOG.md
 
