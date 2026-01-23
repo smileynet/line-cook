@@ -4,7 +4,15 @@ description: Orchestrate full prep→cook→serve→tidy workflow cycle
 
 ## Summary
 
-**Run the full prep → cook → serve → tidy cycle.** Primary entry point for focused work sessions.
+**Kitchen Manager orchestrates full service: prep → cook → serve → tidy → dessert.** Primary entry point for focused work sessions.
+
+**Kitchen Manager responsibilities:**
+- Run prep checks and present kitchen roster
+- Delegate cooking to chef subagent
+- Coordinate serving with sous-chef review
+- Manage tidy phase (commit, push)
+- Trigger dessert service for feature completion
+- Handle failure conditions and coordinate recovery
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to work on (passed to cook)
 
@@ -16,49 +24,81 @@ description: Orchestrate full prep→cook→serve→tidy workflow cycle
 
 ### Step 1: Run /line-prep
 
-Read and execute the prep command instructions:
+Execute the prep command to sync state and show available tasks.
 
-```
-Read(~/.config/opencode/commands/line-prep.md)
-```
-
-Execute all steps from that command. Wait for prep to complete before proceeding.
+Wait for prep to complete before proceeding.
 
 ### Step 2: Run /line-cook
 
-Read and execute the cook command instructions:
-
-```
-Read(~/.config/opencode/commands/line-cook.md)
-```
+Execute the cook command to select and execute a task with TDD guardrails.
 
 **If `$ARGUMENTS` provided:** Pass `$ARGUMENTS` as the task to work on.
 
 **Otherwise:** Let cook select the highest priority ready task.
 
-Execute all steps from that command. Wait for cook to complete before proceeding.
+Wait for cook to complete before proceeding.
 
 ### Step 3: Run /line-serve
 
-Read and execute the serve command instructions:
+Execute the serve command to review changes via sous-chef agent.
 
-```
-Read(~/.config/opencode/commands/line-serve.md)
-```
-
-Execute all steps from that command. Wait for review to complete before proceeding.
+Wait for review to complete before proceeding. Serve will invoke sous-chef subagent for code review and categorize any issues found.
 
 ### Step 4: Run /line-tidy
 
-Read and execute the tidy command instructions:
+Execute the tidy command to file discovered issues, commit changes, and push to remote.
 
+Tidy will file beads for discovered work, commit all changes, sync beads, and push to remote.
+
+### Step 5: Check for Dessert Service (Feature Completion)
+
+After tidying, check if the task completed a feature:
+
+```bash
+# Get task details to check parent
+bd show <task-id>
 ```
-Read(~/.config/opencode/commands/line-tidy.md)
-```
 
-Execute all steps from that command. Tidy will file beads for discovered work, commit all changes, sync beads, and push to remote.
+**If task has a parent feature AND all sibling tasks are closed:**
 
-### Step 5: Cycle Summary
+1. Run feature validation:
+   ```bash
+   go test ./...
+   go test ./internal/<package> -run TestFeature -v
+   ```
+
+2. Delegate to sommelier (BDD quality) subagent:
+   ```
+   Use Task tool to invoke sommelier subagent:
+   Task(description="Review feature test quality", prompt="Review BDD tests for feature <feature-id>
+
+   Feature: <feature-title>
+   Acceptance criteria:
+   - <criteria 1>
+   - <criteria 2>
+   - <criteria 3>
+
+   Verify:
+   - All acceptance criteria have tests
+   - Given-When-Then structure used
+   - Tests map to acceptance criteria
+   - User perspective documented
+   - Error scenarios included
+
+   Report any critical issues before proceeding with dessert service.", subagent_type="sommelier")
+   ```
+
+3. Wait for BDD quality assessment. Address any critical issues.
+
+4. If BDD tests pass quality bar, proceed with dessert service:
+   - Create feature acceptance documentation
+   - Update CHANGELOG.md
+   - Close feature bead
+   - Commit and push feature report
+
+**If no feature completed, skip dessert service and proceed to Step 6.**
+
+### Step 6: Cycle Summary
 
 After all steps complete, output summary derived from /line-tidy:
 
@@ -66,16 +106,22 @@ After all steps complete, output summary derived from /line-tidy:
 WORK CYCLE: Complete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1/4] PREP    ✓ synced
-[2/4] COOK    ✓ executed
-[3/4] SERVE   ✓ reviewed (<verdict>)
-[4/4] TIDY    ✓ committed, pushed
+[1/5] PREP    ✓ synced
+[2/5] COOK    ✓ executed
+[3/5] SERVE   ✓ reviewed (<verdict>)
+[4/5] TIDY    ✓ committed, pushed
+[5/5] DESSERT ✓ (feature complete) | (not applicable)
+
+Quality Gates:
+  [✓] Test quality approved (quality-control)
+  [✓] Code quality approved (sous-chef)
+  [✓] BDD tests approved (sommelier, if applicable)
 
 Files: <count> changed
 Commit: <hash>
 Issues filed: <count>
 
-───────────────────────────────────────────
+──────────────────────────────────────────
 
 TASK: <id> - <title>
 

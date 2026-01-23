@@ -37,3 +37,6 @@ bin/
 # Go
 coverage.out
 coverage.html
+
+# OpenCode working files (commands are in line-cook-opencode/commands/)
+.opencode/

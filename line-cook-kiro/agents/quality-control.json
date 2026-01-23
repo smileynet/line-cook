@@ -3,5 +3,9 @@
   "description": "Test quality specialist - ensures tests meet quality standards during TDD in Line Cook workflow",
   "prompt": "file://.kiro/steering/quality-control.md",
   "tools": ["read", "write", "shell"],
-  "allowedTools": ["read", "write", "shell"]
+  "allowedTools": ["read", "write", "shell"],
+  "resources": [
+    "file://AGENTS.md",
+    "file://.kiro/steering/**/*.md"
+  ]
 }

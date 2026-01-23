@@ -27,7 +27,17 @@ If `.beads/` directory exists:
 bd sync
 ```
 
-### Step 2: Gather Task Queue
+### Step 2: Load Kitchen Manual
+
+Load work structure documentation:
+
+```bash
+cat AGENTS.md | head -100
+```
+
+This loads kitchen terminology, agent definitions, and workflow principles.
+
+### Step 3: Gather Kitchen Roster
 
 Get project and branch info:
 ```bash
@@ -37,12 +47,27 @@ git branch --show-current     # Current branch
 
 Display current task state:
 ```bash
-bd ready                      # Available tasks (no blockers)
-bd list --status=in_progress  # Active tasks
-bd blocked                    # Blocked tasks (for awareness)
+bd ready                      # Available orders (no blockers)
+bd list --status=in_progress  # Active orders
+bd blocked                    # Blocked orders (for awareness)
 ```
 
-### Step 3: Identify Next Task
+### Step 4: Branching Strategy
+
+Before selecting a task, check branching context:
+
+| Task Type | Branching | Rationale |
+|-----------|-----------|-----------|
+| **Feature** | Create branch: `git checkout -b feature/<feature-id>` | Multi-task work, isolation |
+| **Task** | Stay on main | Small, atomic changes |
+
+If preparing to work on a feature (has `--type=feature`), create a feature branch first:
+```bash
+bd show <feature-id>  # Confirm it's a feature
+git checkout -b feature/<feature-id>
+```
+
+### Step 5: Identify Next Order
 
 Before outputting the summary, determine the recommended next task:
 
@@ -58,46 +83,56 @@ Before outputting the summary, determine the recommended next task:
 - Check epic children that are open but not blocked
 - Recommend starting with those
 
-### Step 4: Output Session Summary
+### Step 6: Output Kitchen Roster
 
 Output a focused, scannable summary:
 
 **Standard output (task is ready):**
 ```
+╔══════════════════════════════════════════════════════════════╗
+║  PREP: Kitchen Ready                                          ║
+╚══════════════════════════════════════════════════════════════╝
+
 SESSION: <project-name> @ <branch>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Sync: ✓ up to date | ⚠️ <issue>
 
-Ready: <count> tasks
-In progress: <count>
-Blocked: <count>
+Kitchen Roster:
+  Ready: <count> orders
+  In progress: <count> orders
+  Blocked: <count> orders
 
-NEXT TASK:
+NEXT ORDER:
   <id> [P<n>] <title>
   <first line of description if available>
 
 New to line-cook? Run /line-getting-started for workflow guide.
 
-NEXT STEP: /line-cook (or /line-cook <id> for specific task)
+NEXT STEP: /line-cook (or /line-cook <id> for specific order)
 ```
 
 **Epic-aware output (when top priority is an epic):**
 ```
+╔══════════════════════════════════════════════════════════════╗
+║  PREP: Kitchen Ready                                          ║
+╚══════════════════════════════════════════════════════════════╝
+
 SESSION: <project-name> @ <branch>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Sync: ✓ up to date | ⚠️ <issue>
 
-Ready: <count> tasks
-In progress: <count>
-Blocked: <count>
+Kitchen Roster:
+  Ready: <count> orders
+  In progress: <count> orders
+  Blocked: <count> orders
 
 EPIC IN FOCUS:
   <epic-id> [P<n>] <epic-title>
   Progress: <closed>/<total> children complete
 
-NEXT TASK (part of epic):
+NEXT ORDER (part of epic):
   <task-id> [P<n>] <task-title>
   <first line of description if available>
 

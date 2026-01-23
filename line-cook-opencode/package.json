@@ -20,7 +20,9 @@
       "line-serve",
       "line-tidy",
       "line-work",
-      "line-getting-started"
+      "line-getting-started",
+      "line-dessert",
+      "line-plan"
     ]
   },
   "peerDependencies": {
