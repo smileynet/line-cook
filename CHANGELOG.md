@@ -8,7 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `/line:plan` command for menu planning with tracer dish methodology
 - `/line:season` command to apply research findings to beads
+- Claude Code subagent system with specialized review agents:
+  - `quality-control` agent for test quality review during TDD RED phase
+  - `sous-chef` agent for code review during serve phase
+  - `sommelier` agent for BDD test quality review during dessert phase
+
+### Changed
+- Updated documentation with consistent kitchen theming throughout
+- Enhanced workflow descriptions to use kitchen metaphor (orders, recipes, dishes)
 
 ## [0.6.3] - 2026-01-19
 

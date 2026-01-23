@@ -19,13 +19,13 @@ Or use `/work` to run the full service cycle.
 | Command | Purpose |
 |---------|---------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/plan` | Create task graph with tracer bullet methodology |
+| `/plan` | Create menu plan with tracer dish methodology |
 | `/prep` | Sync git, load kitchen manual, show available work |
-| `/cook` | Execute task with TDD cycle and automatic quality gates |
+| `/cook` | Execute order with TDD cycle and quality gates |
 | `/serve` | Review work via sous-chef (code reviewer) |
 | `/tidy` | Commit with kitchen log, file findings, push |
-| `/dessert` | Feature validation and documentation |
-| `/work` | Full service orchestration (prep→cook→serve→tidy→dessert) |
+| `/dessert` | Feature validation via sommelier (BDD test reviewer) |
+| `/work` | Full service orchestration (prep→cook→serve→tidy) |
 
 ## Platform Command Naming
 
@@ -80,11 +80,24 @@ Claude Code uses slash commands instead of agents:
 
 | Command | Role | Purpose |
 |---------|------|---------|
-| **/line:prep** | Prep phase | Sync git/beads, show ready tasks |
-| **/line:cook** | Cook phase | Execute task with TDD cycle and quality gates |
-| **/line:serve** | Serve phase | Review changes (manual quality gates) |
+| **/line:getting-started** | Tutorial | Quick workflow guide for beginners |
+| **/line:plan** | Planning phase | Create menu plan with tracer dish methodology |
+| **/line:prep** | Prep phase | Sync git/beads, show ready orders |
+| **/line:cook** | Cook phase | Execute order with TDD cycle and quality gates |
+| **/line:serve** | Serve phase | Review via sous-chef subagent |
 | **/line:tidy** | Tidy phase | Commit changes, push to remote |
+| **/line:dessert** | Dessert phase | Feature validation via sommelier subagent |
 | **/line:work** | Full cycle | Prep→cook→serve→tidy orchestration |
+
+### Claude Code Subagents (agents/)
+
+Claude Code subagents are specialized review agents invoked during workflow phases:
+
+| Agent | Phase | Purpose |
+|-------|-------|---------|
+| **quality-control** | Cook (RED) | Review test quality before implementation |
+| **sous-chef** | Serve | Review code changes before commit |
+| **sommelier** | Dessert | Review BDD test coverage before feature completion |
 
 ### OpenCode Plugin (line-cook-opencode/)
 
@@ -294,20 +307,21 @@ bd list --parent=<epic-id> --all  # Include closed children
 ```
 line-cook/
 ├── agents/                # Claude Code subagent definitions
-│   ├── quality-control.md # Test quality review agent
-│   ├── sous-chef.md       # Code review agent
-│   └── sommelier.md       # BDD test quality agent
+│   ├── quality-control.md # Test quality review (cook RED phase)
+│   ├── sous-chef.md       # Code review (serve phase)
+│   └── sommelier.md       # BDD test review (dessert phase)
 ├── commands/              # Claude Code command definitions
 │   ├── getting-started.md # → /line:getting-started
-│   ├── plan.md            # → /line:plan
+│   ├── plan.md            # → /line:plan (menu planning)
 │   ├── prep.md            # → /line:prep
 │   ├── cook.md            # → /line:cook
 │   ├── serve.md           # → /line:serve
 │   ├── tidy.md            # → /line:tidy
 │   ├── dessert.md         # → /line:dessert
 │   └── work.md            # → /line:work
-├── scripts/               # Installation scripts
-│   └── install-claude-code.sh
+├── scripts/               # Installation and utility scripts
+│   ├── install-claude-code.sh
+│   └── sync-commands.sh   # Sync commands across platforms
 ├── line-cook-opencode/    # OpenCode plugin
 │   ├── package.json       # Plugin manifest
 │   ├── install.sh         # Installation script
@@ -364,20 +378,6 @@ Line Cook maintains commands for both Claude Code (`commands/`) and OpenCode (`l
 ```bash
 ./scripts/sync-commands.sh
 ```
-
-**Platform differences handled automatically:**
-- Claude Code: `/line:cook` (colon separator), uses `claude` CLI
-- OpenCode: `/line-cook` (hyphen separator), uses `opencode` CLI
-- OpenCode includes additional "When run via /line-work" instruction
-
-**Synced commands:**
-- cook.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`
-- serve.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`
-
-**When to sync:**
-- After editing any command template
-- Before committing command changes
-- As part of release process
 
 ## Installation
 
@@ -554,17 +554,17 @@ See [.github/release.md](.github/release.md) for the release notes template.
 ### Commands
 | Command | Purpose |
 |---------|---------|
-| `/line:plan` | Create task graph with tracer bullet methodology |
-| `/line:prep` | Sync git/beads, show ready tasks |
-| `/line:cook` | Execute task with TDD cycle and automatic quality gates |
+| `/line:plan` | Create menu plan with tracer dish methodology |
+| `/line:prep` | Sync git/beads, show ready orders |
+| `/line:cook` | Execute order with TDD cycle and quality gates |
 | `/line:serve` | Review via sous-chef subagent |
 | `/line:tidy` | Commit, file findings, push |
-| `/line:dessert` | Feature validation and BDD test review |
+| `/line:dessert` | Feature validation via sommelier subagent |
 | `/line:work` | Full cycle orchestration |
 
 ### CLI
 ```bash
-lc plan              # Create task graph
+lc plan              # Create menu plan
 lc prep              # Sync and show ready tasks
 lc cook [id]         # Claim task, output AI context
 lc serve [id]        # Output diff and review context
@@ -613,10 +613,10 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | Term | Meaning | Context |
 |------|---------|---------|
 | **Prep** | Sync git/beads, load kitchen manual, show ready orders | `/prep` phase |
-| **Cook** | Execute task with TDD cycle and quality gates | `/cook` phase |
+| **Cook** | Execute order with TDD cycle and quality gates | `/cook` phase |
 | **Serve** | Review work via sous-chef (code reviewer) | `/serve` phase |
 | **Tidy** | Commit with kitchen log, file findings, push | `/tidy` phase |
-| **Dessert** | Feature validation and BDD test review | `/dessert` phase |
+| **Dessert** | Feature validation via sommelier (BDD test reviewer) | `/dessert` phase |
 | **Full Service** | Complete orchestration through all phases | `/work` phase |
 | **Kitchen Manual** | AGENTS.md or .claude/CLAUDE.md - work structure documentation | Loaded during prep |
 | **Kitchen Order System** | beads issue tracker - manages work orders | Synced during prep |

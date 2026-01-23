@@ -42,12 +42,12 @@ graph LR
 | Command | What happens |
 |---------|--------------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/plan` | Create task graph with tracer bullet methodology |
-| `/prep` | Sync git, load context, show ready work |
-| `/cook` | Claim a task, execute with guardrails |
-| `/serve` | Review completed work (AI peer review) |
-| `/tidy` | Commit, sync beads, push |
-| `/dessert` | Feature validation and BDD test review |
+| `/plan` | Create menu plan with tracer dish methodology |
+| `/prep` | Sync git, load kitchen manual, show ready orders |
+| `/cook` | Claim an order, execute with quality gates |
+| `/serve` | Review via sous-chef (code reviewer) |
+| `/tidy` | Commit with kitchen log, sync beads, push |
+| `/dessert` | Feature validation via sommelier (BDD reviewer) |
 | `/work` | Run the full prep→cook→serve→tidy cycle |
 
 > **Session boundary:** After `/tidy` pushes your work, start a new session or clear context (`/compact`) before starting `/prep` for the next task.
@@ -62,22 +62,22 @@ graph LR
 Run each command individually first to understand what happens at each step:
 
 ```bash
-# 1. Plan: Create task graph with tracer bullet methodology
+# 1. Plan: Create menu plan with tracer dish methodology
 /line:plan
 
-# 2. Prep: See what syncs and what tasks are available
+# 2. Prep: See what syncs and what orders are available
 /line:prep
 
-# 3. Cook: Watch task selection and execution with guardrails
+# 3. Cook: Watch order selection and execution with quality gates
 /line:cook
 
-# 4. Serve: See the AI peer review process
+# 4. Serve: See the sous-chef code review
 /line:serve
 
 # 5. Tidy: Watch commit, sync, and push
 /line:tidy
 
-# 6. Dessert: Validate completed features
+# 6. Dessert: Validate completed features via sommelier
 /line:dessert <feature-id>
 ```
 
@@ -185,6 +185,7 @@ Built on ideas from:
 ```
 line-cook/
 ├── .claude-plugin/     # Plugin manifest
+├── agents/             # Claude Code subagents (quality-control, sous-chef, sommelier)
 ├── commands/           # Claude Code slash commands
 ├── line-cook-opencode/ # OpenCode plugin
 ├── line-cook-kiro/     # Kiro agent and steering
