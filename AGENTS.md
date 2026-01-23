@@ -293,12 +293,18 @@ bd list --parent=<epic-id> --all  # Include closed children
 
 ```
 line-cook/
+├── agents/                # Claude Code subagent definitions
+│   ├── quality-control.md # Test quality review agent
+│   ├── sous-chef.md       # Code review agent
+│   └── sommelier.md       # BDD test quality agent
 ├── commands/              # Claude Code command definitions
 │   ├── getting-started.md # → /line:getting-started
+│   ├── plan.md            # → /line:plan
 │   ├── prep.md            # → /line:prep
 │   ├── cook.md            # → /line:cook
 │   ├── serve.md           # → /line:serve
 │   ├── tidy.md            # → /line:tidy
+│   ├── dessert.md         # → /line:dessert
 │   └── work.md            # → /line:work
 ├── scripts/               # Installation scripts
 │   └── install-claude-code.sh
@@ -312,12 +318,15 @@ line-cook/
 │       ├── line-serve.md  # → /line-serve
 │       ├── line-tidy.md   # → /line-tidy
 │       ├── line-work.md   # → /line-work
+│       ├── line-plan.md   # → /line-plan
+│       └── line-dessert.md # → /line-dessert
 │   └── line-getting-started.md # → /line-getting-started
 ├── line-cook-kiro/        # Kiro agent
 │   ├── agents/            # Agent definitions
 │   │   ├── line-cook.json # Main agent
 │   │   ├── quality-control.json # Test quality review agent
-│   │   └── sous-chef.json # Code review agent
+│   │   ├── sous-chef.json # Code review agent
+│   │   └── sommelier.json # BDD test quality agent
 │   ├── steering/          # Workflow steering docs
 │   └── skills/            # Skill definitions
 ├── .claude-plugin/
