@@ -4,28 +4,60 @@
 
 Technical details for working on Line Cook itself.
 
+## Kitchen Theme
+
+**Goal**: Low cognitive load with light theming for disambiguation.
+
+### Why Kitchen Terms?
+
+Command names use creative kitchen terms to help users distinguish Line Cook commands from other plugins. `/line:mise` won't be confused with another tool's `/plan` command.
+
+### When to Use Theme vs. Direct Terms
+
+| Context | Use | Example |
+|---------|-----|---------|
+| **Command names** | Themed (disambiguation) | `/line:mise`, `/line:plate` |
+| **Command descriptions** | Direct (clarity) | "Create work breakdown before starting" |
+| **Tutorials & casual docs** | Light flavor text OK | "Check the ticket rail (ready tasks)" |
+| **Technical docs** | Direct terms only | "ready tasks", not just "ticket rail" |
+
+The theme is a **recognition aid**, not a **learning barrier**. Always include the actual meaning.
+
+### Terminology Glossary
+
+| Theme Term | Actual Meaning | Use in... |
+|------------|----------------|-----------|
+| Ticket Rail | Ready task list | Flavor text only |
+| House Rules | Project config (CLAUDE.md) | Flavor text only |
+| Plate Check | Quality verification | Flavor text only |
+| Shift Notes | Commit message | Flavor text only |
+| House Book | Git remote | Flavor text only |
+| Tasting Dish | Minimal e2e proof | Flavor text only |
+| ORDER_UP | Task ready for review | Internal signal |
+| GOOD_TO_GO | Review passed | Internal signal |
+
 ## Overview
 
 ```
-/plan → /prep → /cook → /serve → /tidy → /dessert
-  ↓       ↓       ↓       ↓        ↓        ↓
+/mise → /prep → /cook → /serve → /tidy → /plate
+   ↓       ↓       ↓       ↓        ↓        ↓
  plan    sync   execute  review   commit  validate
 ```
 
-Or use `/work` to run the full service cycle.
+Or use `/service` to run the full workflow cycle.
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/plan` | Create menu plan with tracer dish methodology |
-| `/prep` | Sync git, load kitchen manual, show available work |
-| `/cook` | Execute order with TDD cycle and quality gates |
-| `/serve` | Review work via sous-chef (code reviewer) |
-| `/tidy` | Commit with kitchen log, file findings, push |
-| `/dessert` | Feature validation via sommelier (BDD test reviewer) |
-| `/work` | Full service orchestration (prep→cook→serve→tidy) |
+| `/mise` | Create work breakdown before starting |
+| `/prep` | Sync git, show ready tasks |
+| `/cook` | Execute task with TDD cycle |
+| `/serve` | Review code changes |
+| `/tidy` | Commit and push changes |
+| `/plate` | Validate completed feature |
+| `/service` | Run full workflow cycle |
 
 ## Platform Command Naming
 
@@ -70,8 +102,8 @@ Line Cook provides agents for each platform:
 
 | Agent | Role | Purpose |
 |-------|------|---------|
-| **line-cook** | Main agent | Execute workflow commands (prep, cook, serve, tidy, work) |
-| **quality-control** | Test quality | Review tests for isolation, clarity, structure, anti-patterns |
+| **line-cook** | Main agent | Execute workflow commands (prep, cook, serve, tidy, service) |
+| **taster** | Test quality | Review tests for isolation, clarity, structure, anti-patterns |
 | **sous-chef** | Code review | Review changes for correctness, security, style, completeness |
 
 ### Claude Code Commands (commands/)
@@ -81,13 +113,13 @@ Claude Code uses slash commands instead of agents:
 | Command | Role | Purpose |
 |---------|------|---------|
 | **/line:getting-started** | Tutorial | Quick workflow guide for beginners |
-| **/line:plan** | Planning phase | Create menu plan with tracer dish methodology |
-| **/line:prep** | Prep phase | Sync git/beads, show ready orders |
-| **/line:cook** | Cook phase | Execute order with TDD cycle and quality gates |
-| **/line:serve** | Serve phase | Review via sous-chef subagent |
-| **/line:tidy** | Tidy phase | Commit changes, push to remote |
-| **/line:dessert** | Dessert phase | Feature validation via sommelier subagent |
-| **/line:work** | Full cycle | Prep→cook→serve→tidy orchestration |
+| **/line:mise** | Planning phase | Create work breakdown before starting |
+| **/line:prep** | Prep phase | Sync git, show ready tasks |
+| **/line:cook** | Cook phase | Execute task with TDD cycle |
+| **/line:serve** | Serve phase | Review code changes |
+| **/line:tidy** | Tidy phase | Commit and push changes |
+| **/line:plate** | Plate phase | Validate completed feature |
+| **/line:service** | Full cycle | Prep→cook→serve→tidy orchestration |
 
 ### Claude Code Subagents (agents/)
 
@@ -95,9 +127,9 @@ Claude Code subagents are specialized review agents invoked during workflow phas
 
 | Agent | Phase | Purpose |
 |-------|-------|---------|
-| **quality-control** | Cook (RED) | Review test quality before implementation |
-| **sous-chef** | Serve | Review code changes before commit |
-| **sommelier** | Dessert | Review BDD test coverage before feature completion |
+| **taster** | Cook (RED) | Reviews test quality |
+| **sous-chef** | Serve | Reviews code changes |
+| **maître** | Plate | Reviews feature acceptance |
 
 ### OpenCode Plugin (line-cook-opencode/)
 
@@ -105,8 +137,8 @@ OpenCode plugin uses OpenCode's built-in agent system:
 
 | Component | Type | Purpose |
 |----------|------|---------|
-| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work` |
-| **Kiro Agents** | OpenCode agents | quality-control, sous-chef (via OpenCode's agent system) |
+| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-plate`, `/line-service` |
+| **Kiro Agents** | OpenCode agents | taster, sous-chef (via OpenCode's agent system) |
 
 ### chef
 
@@ -130,7 +162,7 @@ OpenCode plugin uses OpenCode's built-in agent system:
 - **Critical issues**: Block tidy phase (require fixes)
 - **Output**: `ready_for_tidy`, `needs_changes`, or `blocked` assessment
 
-### quality-control
+### taster
 
 - **Purpose**: Review test quality before implementation
 - **Responsibilities**:
@@ -141,29 +173,29 @@ OpenCode plugin uses OpenCode's built-in agent system:
 - **Trigger**: Automatically after RED phase (write failing test)
 - **Output**: Test quality assessment with critical issue blocking if needed
 
-### sommelier
+### maître
 
-- **Purpose**: Review feature (BDD) test quality before dessert service
+- **Purpose**: Review feature (BDD) test quality before plate phase
 - **Responsibilities**:
   - Verify all acceptance criteria have tests
   - Check Given-When-Then structure
   - Ensure tests map to acceptance criteria
   - Verify user perspective documented
   - Check error scenarios included
-- **Trigger**: Automatically before dessert service (feature completion)
+- **Trigger**: Automatically before plate phase (feature completion)
 - **Output**: BDD quality assessment with critical issue blocking if needed
 
-### kitchen-manager
+### expeditor
 
-- **Purpose**: Orchestrate complete service cycle
+- **Purpose**: Orchestrate complete workflow cycle
 - **Responsibilities**:
-  - Run prep checks and present kitchen roster
+  - Run prep checks and present ready tasks
   - Delegate cooking to chef subagent
   - Coordinate serving with sous-chef review
   - Manage tidy phase (commit, push)
-  - Trigger dessert service for feature completion
+  - Trigger plate phase for feature completion
   - Handle failure conditions and coordinate recovery
-- **Output**: Kitchen report after successful service
+- **Output**: Workflow report after successful service
 
 ## Workflow Principles
 
@@ -307,18 +339,18 @@ bd list --parent=<epic-id> --all  # Include closed children
 ```
 line-cook/
 ├── agents/                # Claude Code subagent definitions
-│   ├── quality-control.md # Test quality review (cook RED phase)
+│   ├── taster.md          # Test quality review (cook RED phase)
 │   ├── sous-chef.md       # Code review (serve phase)
-│   └── sommelier.md       # BDD test review (dessert phase)
+│   └── maitre.md          # BDD test review (plate phase)
 ├── commands/              # Claude Code command definitions
 │   ├── getting-started.md # → /line:getting-started
-│   ├── plan.md            # → /line:plan (menu planning)
+│   ├── mise.md            # → /line:mise (work breakdown)
 │   ├── prep.md            # → /line:prep
 │   ├── cook.md            # → /line:cook
 │   ├── serve.md           # → /line:serve
 │   ├── tidy.md            # → /line:tidy
-│   ├── dessert.md         # → /line:dessert
-│   └── work.md            # → /line:work
+│   ├── plate.md           # → /line:plate
+│   └── service.md         # → /line:service
 ├── scripts/               # Installation and utility scripts
 │   ├── install-claude-code.sh
 │   └── sync-commands.sh   # Sync commands across platforms
@@ -331,16 +363,16 @@ line-cook/
 │       ├── line-cook.md   # → /line-cook
 │       ├── line-serve.md  # → /line-serve
 │       ├── line-tidy.md   # → /line-tidy
-│       ├── line-work.md   # → /line-work
-│       ├── line-plan.md   # → /line-plan
-│       └── line-dessert.md # → /line-dessert
+│       ├── line-mise.md   # → /line-mise
+│       ├── line-plate.md  # → /line-plate
+│       └── line-service.md # → /line-service
 │   └── line-getting-started.md # → /line-getting-started
 ├── line-cook-kiro/        # Kiro agent
 │   ├── agents/            # Agent definitions
 │   │   ├── line-cook.json # Main agent
-│   │   ├── quality-control.json # Test quality review agent
+│   │   ├── taster.json    # Test quality review agent
 │   │   ├── sous-chef.json # Code review agent
-│   │   └── sommelier.json # BDD test quality agent
+│   │   └── maitre.json    # BDD test quality agent
 │   ├── steering/          # Workflow steering docs
 │   └── skills/            # Skill definitions
 ├── .claude-plugin/
@@ -403,7 +435,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 > Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
 > To switch from local to remote, uninstall first: `/plugin uninstall line`
 
-Commands: `/line:getting-started`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:work`
+Commands: `/line:getting-started`, `/line:mise`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:service`
 
 ### OpenCode
 
@@ -549,28 +581,28 @@ See [.github/release.md](.github/release.md) for the release notes template.
 
 ## Line Cook Workflow
 
-> **Context Recovery**: Run `lc work` or individual commands after compaction
+> **Context Recovery**: Run `lc service` or individual commands after compaction
 
 ### Commands
 | Command | Purpose |
 |---------|---------|
-| `/line:plan` | Create menu plan with tracer dish methodology |
-| `/line:prep` | Sync git/beads, show ready orders |
-| `/line:cook` | Execute order with TDD cycle and quality gates |
-| `/line:serve` | Review via sous-chef subagent |
-| `/line:tidy` | Commit, file findings, push |
-| `/line:dessert` | Feature validation via sommelier subagent |
-| `/line:work` | Full cycle orchestration |
+| `/line:mise` | Create work breakdown before starting |
+| `/line:prep` | Sync git, show ready tasks |
+| `/line:cook` | Execute task with TDD cycle |
+| `/line:serve` | Review code changes |
+| `/line:tidy` | Commit and push changes |
+| `/line:plate` | Validate completed feature |
+| `/line:service` | Run full workflow cycle |
 
 ### CLI
 ```bash
-lc plan              # Create menu plan
+lc mise              # Create work breakdown
 lc prep              # Sync and show ready tasks
 lc cook [id]         # Claim task, output AI context
 lc serve [id]        # Output diff and review context
 lc tidy              # Commit and push
-lc dessert [id]      # Feature validation
-lc work              # Full service cycle
+lc plate [id]        # Feature validation
+lc service           # Full workflow cycle
 ```
 
 ### Core Guardrails
@@ -587,7 +619,7 @@ Line Cook follows the Red-Green-Refactor cycle with automatic quality checks:
 **RED**: Write failing test
 - Write test for the feature you're implementing
 - Verify the test fails
-- Trigger quality-control agent for test quality review
+- Trigger taster agent for test quality review
 - Address critical issues before proceeding
 
 **GREEN**: Implement minimal code
@@ -603,7 +635,7 @@ Line Cook follows the Red-Green-Refactor cycle with automatic quality checks:
 **QUALITY GATES**:
 - Tests pass: `go test ./...` (or project-specific test command)
 - Code builds: `go build ./...` (or project-specific build command)
-- Test quality approved by quality-control agent
+- Test quality approved by taster agent
 - Code quality approved by sous-chef agent (in serve phase)
 
 ## Kitchen Terminology
@@ -612,31 +644,20 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 
 | Term | Meaning | Context |
 |------|---------|---------|
-| **Prep** | Sync git/beads, load kitchen manual, show ready orders | `/prep` phase |
-| **Cook** | Execute order with TDD cycle and quality gates | `/cook` phase |
-| **Serve** | Review work via sous-chef (code reviewer) | `/serve` phase |
-| **Tidy** | Commit with kitchen log, file findings, push | `/tidy` phase |
-| **Dessert** | Feature validation via sommelier (BDD test reviewer) | `/dessert` phase |
-| **Full Service** | Complete orchestration through all phases | `/work` phase |
-| **Kitchen Manual** | AGENTS.md or .claude/CLAUDE.md - work structure documentation | Loaded during prep |
-| **Kitchen Order System** | beads issue tracker - manages work orders | Synced during prep |
-| **Kitchen Roster** | List of ready orders (tasks) | Displayed in prep |
-| **Order** | Task or feature to execute | bead issue |
-| **Recipe** | Task description and implementation plan | Task details |
-| **Ingredients** | Required context files and documentation | Loaded before cooking |
-| **Dish** | Completed work output | Results of cook phase |
-| **Kitchen Equipment** | Build systems, test frameworks, linters | Verified before completion |
-| **Quality Gates** | Automatic quality checks (test, code review, BDD) | Enforced in cook/serve/dessert |
+| **Mise** | Create work breakdown before starting | `/mise` phase |
+| **Prep** | Sync git, show ready tasks | `/prep` phase |
+| **Cook** | Execute task with TDD cycle | `/cook` phase |
+| **Serve** | Review code changes | `/serve` phase |
+| **Tidy** | Commit and push changes | `/tidy` phase |
+| **Plate** | Validate completed feature | `/plate` phase |
+| **Service** | Run full workflow cycle | `/service` phase |
 | **Chef** | Subagent that executes tasks with TDD cycle | `/cook` phase |
 | **Sous-Chef** | Subagent that reviews code changes | `/serve` phase |
-| **Quality-Control** | Subagent that reviews test quality | After RED phase |
-| **Sommelier** | Subagent that reviews BDD test quality | `/dessert` phase |
-| **Kitchen-Manager** | Subagent that orchestrates full service | `/work` phase |
-| **KITCHEN_COMPLETE** | Signal emitted when task is ready for review | End of cook phase |
-| **READY_FOR_TIDY** | Assessment from sous-chef indicating code is ready to commit | After serve phase |
-| **Kitchen Log** | Detailed commit message with implementation details | Commit format in tidy |
-| **Kitchen Ledger** | Git remote repository - records all completed work | Push destination |
-| **Service** | Complete workflow cycle (prep→cook→serve→tidy→dessert) | Full workflow |
+| **Taster** | Subagent that reviews test quality | After RED phase |
+| **Maître** | Subagent that reviews feature acceptance | `/plate` phase |
+| **Expeditor** | Subagent that orchestrates full workflow | `/service` phase |
+| **ORDER_UP** | Signal emitted when task is ready for review | End of cook phase |
+| **GOOD_TO_GO** | Assessment from sous-chef indicating code is ready to commit | After serve phase |
 | **Tracer** | Task that proves one aspect of a feature through all layers | Planning methodology |
-| **Feature Complete** | All tasks for a feature closed, ready for dessert service | `/dessert` phase trigger |
-| **Acceptance Report** | Document validating feature against acceptance criteria | Created in dessert |
+| **Feature Complete** | All tasks for a feature closed, ready for plate phase | `/plate` phase trigger |
+| **Acceptance Report** | Document validating feature against acceptance criteria | Created in plate |

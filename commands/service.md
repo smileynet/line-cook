@@ -1,18 +1,18 @@
 ---
-description: Orchestrate full prep→cook→serve→tidy workflow cycle
+description: Run full workflow cycle (prep→cook→serve→tidy)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQuestion, Skill
 ---
 
 ## Summary
 
-**Kitchen Manager orchestrates full service: prep → cook → serve → tidy → dessert.** Primary entry point for focused work sessions.
+**Expeditor orchestrates full workflow: prep → cook → serve → tidy → plate.** Primary entry point for focused work sessions.
 
-**Kitchen Manager responsibilities:**
-- Run prep checks and present kitchen roster
+**Expeditor responsibilities:**
+- Run prep checks and present ready tasks
 - Delegate cooking to chef subagent
 - Coordinate serving with sous-chef review
 - Manage tidy phase (commit, push)
-- Trigger dessert service for feature completion
+- Trigger plate phase for feature completion
 - Handle failure conditions and coordinate recovery
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to work on (passed to cook)
@@ -67,7 +67,7 @@ Skill(skill="line:tidy")
 
 Tidy will file beads for discovered work, commit all changes, sync beads, and push to remote.
 
-### Step 5: Check for Dessert Service (Feature Completion)
+### Step 5: Check for Plate Phase (Feature Completion)
 
 After tidying, check if the task completed a feature:
 
@@ -84,9 +84,9 @@ bd show <task-id>
    go test ./internal/<package> -run TestFeature -v
    ```
 
-2. Delegate to sommelier (BDD quality) subagent:
+2. Delegate to maître (BDD quality) subagent:
    ```
-   Use Task tool to invoke sommelier subagent:
+   Use Task tool to invoke maître subagent:
    Task(description="Review feature test quality", prompt="Review BDD tests for feature <feature-id>
 
    Feature: <feature-title>
@@ -102,18 +102,18 @@ bd show <task-id>
    - User perspective documented
    - Error scenarios included
 
-   Report any critical issues before proceeding with dessert service.", subagent_type="sommelier")
+   Report any critical issues before proceeding with plate phase.", subagent_type="maître")
    ```
 
 3. Wait for BDD quality assessment. Address any critical issues.
 
-4. If BDD tests pass quality bar, proceed with dessert service:
+4. If BDD tests pass quality bar, proceed with plate phase:
    - Create feature acceptance documentation
    - Update CHANGELOG.md
    - Close feature bead
    - Commit and push feature report
 
-**If no feature completed, skip dessert service and proceed to Step 6.**
+**If no feature completed, skip plate phase and proceed to Step 6.**
 
 ### Step 6: Cycle Summary
 
@@ -131,12 +131,12 @@ WORK CYCLE: Complete
 [2/5] COOK    ✓ executed
 [3/5] SERVE   ✓ reviewed (<verdict>)
 [4/5] TIDY    ✓ committed, pushed
-[5/5] DESSERT ✓ (feature complete) | (not applicable)
+[5/5] PLATE ✓ (feature complete) | (not applicable)
 
 Quality Gates:
-  [✓] Test quality approved (quality-control)
+  [✓] Test quality approved (taster)
   [✓] Code quality approved (sous-chef)
-  [✓] BDD tests approved (sommelier, if applicable)
+  [✓] BDD tests approved (maître, if applicable)
 
 Files: <count> changed
 Commit: <hash>
@@ -167,7 +167,7 @@ WORK CYCLE: Incomplete
 [2/5] COOK    ✓
 [3/5] SERVE   ✗ (error: <reason>)
 [4/5] TIDY    pending
-[5/5] DESSERT pending
+[5/5] PLATE pending
 
 Failed at: <step>
 Error: <description>
@@ -178,12 +178,12 @@ TASK: <id> - <title>
 
 Run /line:tidy to save progress, or investigate the error.
 
-If dessert failed, feature bead will remain open for validation when issues are resolved.
+If plate failed, feature bead will remain open for validation when issues are resolved.
 ```
 
 ## Design Notes
 
-The `/line:work` command is the recommended entry point for focused work sessions. It:
+The `/line:service` command is the recommended entry point for focused work sessions. It:
 
 1. **Ensures proper setup** - Prep runs first to sync state
 2. **Maintains focus** - One task per cycle
@@ -195,6 +195,6 @@ For exploratory sessions or when you need more control, use the individual comma
 ## Example Usage
 
 ```
-/line:work              # Full cycle with auto-selected task
-/line:work lc-042       # Full cycle with specific task
+/line:service              # Full cycle with auto-selected task
+/line:service lc-042       # Full cycle with specific task
 ```

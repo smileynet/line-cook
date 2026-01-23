@@ -19,10 +19,10 @@
       "line-cook",
       "line-serve",
       "line-tidy",
-      "line-work",
+      "line-service",
       "line-getting-started",
-      "line-dessert",
-      "line-plan"
+      "line-plate",
+      "line-mise"
     ]
   },
   "peerDependencies": {

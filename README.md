@@ -15,7 +15,7 @@ bd create --title="Implement user auth" --type=feature --priority=1
 bd create --title="Add login form" --type=task
 
 # 3. Run the workflow
-/line:work
+/line:service
 ```
 
 That's it. Line Cook syncs your repo, picks a ready task, executes it with guardrails, reviews the work, and commits when done.
@@ -27,13 +27,14 @@ That's it. Line Cook syncs your repo, picks a ready task, executes it with guard
 ```mermaid
 graph LR
     subgraph user ["You + AI"]
-        A[Brainstorm] --> B[Create beads]
+        A[Brainstorm] --> B[/mise/]
+        B --> C[Create beads]
     end
     subgraph auto ["Line Cook"]
-        C["/prep"] --> D["/cook"] --> E["/serve"] --> F["/tidy"]
+        D["/prep"] --> E["/cook"] --> F["/serve"] --> G["/tidy"]
     end
-    B --> C
-    F --> |next task| C
+    C --> D
+    G --> |next task| D
 
     style user fill:#4a1d6e,stroke:#9333ea,color:#e9d5ff
     style auto fill:#134e4a,stroke:#14b8a6,color:#99f6e4
@@ -42,13 +43,13 @@ graph LR
 | Command | What happens |
 |---------|--------------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/plan` | Create menu plan with tracer dish methodology |
-| `/prep` | Sync git, load kitchen manual, show ready orders |
-| `/cook` | Claim an order, execute with quality gates |
-| `/serve` | Review via sous-chef (code reviewer) |
-| `/tidy` | Commit with kitchen log, sync beads, push |
-| `/dessert` | Feature validation via sommelier (BDD reviewer) |
-| `/work` | Run the full prep→cook→serve→tidy cycle |
+| `/mise` | Create work breakdown before starting |
+| `/prep` | Sync git, show ready tasks |
+| `/cook` | Execute task with TDD cycle |
+| `/serve` | Review code changes |
+| `/tidy` | Commit and push changes |
+| `/plate` | Validate completed feature |
+| `/service` | Run full workflow cycle |
 
 > **Session boundary:** After `/tidy` pushes your work, start a new session or clear context (`/compact`) before starting `/prep` for the next task.
 
@@ -62,26 +63,26 @@ graph LR
 Run each command individually first to understand what happens at each step:
 
 ```bash
-# 1. Plan: Create menu plan with tracer dish methodology
-/line:plan
+# 1. Mise: Create work breakdown before starting
+/line:mise
 
-# 2. Prep: See what syncs and what orders are available
+# 2. Prep: Sync git and see available tasks
 /line:prep
 
-# 3. Cook: Watch order selection and execution with quality gates
+# 3. Cook: Execute task with TDD cycle
 /line:cook
 
-# 4. Serve: See the sous-chef code review
+# 4. Serve: Review code changes
 /line:serve
 
-# 5. Tidy: Watch commit, sync, and push
+# 5. Tidy: Commit and push changes
 /line:tidy
 
-# 6. Dessert: Validate completed features via sommelier
-/line:dessert <feature-id>
+# 6. Plate: Validate completed feature
+/line:plate <feature-id>
 ```
 
-Once comfortable with each step, use `/line:work` to run them all together.
+Once comfortable with each step, use `/line:service` to run them all together.
 
 ## Installation
 
@@ -108,7 +109,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:getting-started`, `/line:plan`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:dessert`, `/line:work`
+Commands: `/line:getting-started`, `/line:mise`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:service`
 
 ### OpenCode
 
@@ -125,7 +126,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-plan`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-dessert`, `/line-work`
+Commands: `/line-getting-started`, `/line-mise`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-service`
 
 ### Kiro
 
@@ -185,7 +186,7 @@ Built on ideas from:
 ```
 line-cook/
 ├── .claude-plugin/     # Plugin manifest
-├── agents/             # Claude Code subagents (quality-control, sous-chef, sommelier)
+├── agents/             # Claude Code subagents (taster, sous-chef, maître)
 ├── commands/           # Claude Code slash commands
 ├── line-cook-opencode/ # OpenCode plugin
 ├── line-cook-kiro/     # Kiro agent and steering
