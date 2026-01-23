@@ -63,7 +63,28 @@ bd comments add <id> "PHASE: COOK
 Status: started"
 ```
 
-### Step 2: Plan the Task
+### Step 2: Load Recipe
+
+Load the task details (the recipe):
+
+```bash
+bd show <id>
+```
+
+Review the task description, acceptance criteria, and any dependencies. This is the recipe for what will be cooked.
+
+### Step 3: Load Ingredients
+
+Load relevant context files and documentation (the ingredients):
+
+1. **Project structure** - Understand codebase layout
+2. **Kitchen manual** - Review AGENTS.md for conventions
+3. **Related code** - Read files relevant to the task
+4. **Dependencies** - Check what this task builds on
+
+Use Read, Glob, and Grep tools to gather necessary context before starting implementation.
+
+### Step 4: Plan the Task
 
 Break the task into steps using TodoWrite:
 
@@ -74,7 +95,7 @@ Break the task into steps using TodoWrite:
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
-### Step 3: Execute TDD Cycle
+### Step 5: Execute TDD Cycle
 
 Process TodoWrite items systematically with TDD guardrails:
 
@@ -85,24 +106,29 @@ Process TodoWrite items systematically with TDD guardrails:
 **For code changes, follow TDD cycle:**
 
 1. **RED**: Write failing test
-   ```bash
-   <test command>  # e.g., pytest, go test, npm test
-   # Should FAIL
-   ```
-   
-   **Automatic test quality review** (use Task tool):
-   ```
-   Task tool: Review test code for quality
-   Subagent type: quality-control
-   ```
+    ```bash
+    <test command>  # e.g., pytest, go test, npm test
+    # Should FAIL
+    ```
 
-   Test quality checks:
-   - Tests are isolated, fast, repeatable
-   - Clear test names and error messages
-   - Proper structure (Setup-Execute-Validate-Cleanup)
-   - No anti-patterns
-   
-   **Address critical issues before GREEN phase.**
+    **Automatic test quality review (CRITICAL):**
+    ```
+    Use Task tool to invoke quality-control subagent:
+    Task(description="Review test code for quality", prompt="Review test code for <package> for quality, checking:
+    - Tests are isolated, fast, repeatable
+    - Clear test names and error messages
+    - Proper structure (Setup-Execute-Validate-Cleanup)
+    - No anti-patterns
+
+    Report any critical issues that must be addressed before proceeding.", subagent_type="quality-control")
+    ```
+
+    **Address critical issues before GREEN phase.** The quality-control agent will:
+    - Verify tests are isolated, fast, repeatable
+    - Check for clear test names and error messages
+    - Ensure proper structure (Setup-Execute-Validate-Cleanup)
+    - Identify anti-patterns
+    - Provide critical issue blocking if needed
 
 2. **GREEN**: Implement minimal code
    ```bash
@@ -139,7 +165,7 @@ TDD Phase: RED/GREEN/REFACTOR
 
 These will be filed as beads in `/line:tidy`.
 
-### Step 4: Verify Kitchen Equipment
+### Step 6: Verify Kitchen Equipment
 
 Before marking the task done, verify ALL guardrails pass:
 
@@ -162,7 +188,7 @@ Before marking the task done, verify ALL guardrails pass:
 - Keep task as `in_progress`
 - Ask user how to proceed
 
-### Step 5: Complete Task
+### Step 7: Complete Task
 
 Only after all guardrails pass:
 

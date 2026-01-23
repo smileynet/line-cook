@@ -116,7 +116,7 @@ If epics are eligible:
 > Dependencies between children establish order within an epic.
 > See AGENTS.md for the full epic philosophy.
 
-### Step 4: Commit Changes
+### Step 4: Commit Changes with Kitchen Log
 
 Show pending changes:
 ```bash
@@ -125,10 +125,55 @@ git status
 
 If changes exist:
 1. Stage all relevant files: `git add -A`
-2. Create a commit with a descriptive message summarizing the session
-3. Use conventional commit format (feat:, fix:, docs:, etc.)
+2. Create a commit with the kitchen log format
 
-### Step 5: Sync and Push
+**Kitchen log commit format:**
+```bash
+git commit -m "<task-id>: <Short objective>
+
+<Detailed description of changes>
+
+Implementation includes:
+- Key feature 1
+- Key feature 2
+- Error handling approach
+
+Deliverable: <What was created>
+Tests: <Test summary>
+Signal: KITCHEN_COMPLETE
+
+Review findings:
+- Sous-chef assessment: <verdict>
+- Test quality assessment: <result>
+- Issues addressed: <count>"
+```
+
+**Commit message structure:**
+- Subject: `<task-id>: <Short objective>` (50 chars, imperative mood)
+- Blank line
+- Body: What and why (wrap at 72 chars)
+- Implementation details (bullet points)
+- Deliverable and test info
+- Review and test quality feedback
+- Signal emitted
+
+### Step 5: Verify Closing Kitchen
+
+Before pushing, verify all quality gates pass:
+
+**Kitchen closing checklist (MANDATORY):**
+- [ ] All issues filed correctly
+- [ ] Commit message follows kitchen log format
+- [ ] Changes staged and committed
+- [ ] Beads synced with `bd sync`
+- [ ] Ready to push to remote
+
+**If any checklist item fails:**
+- Create P2 bead for follow-up
+- Note in commit body
+- Continue with push if non-blocking
+
+### Step 6: Sync and Push
 
 ```bash
 bd sync                        # Commit beads changes
@@ -142,7 +187,9 @@ If push fails:
 bd create --title="Resolve git push failure: <error>" --type=bug --priority=2
 ```
 
-### Step 6: Record Session Summary
+**CRITICAL:** Work is NOT complete until `git push` succeeds. If push fails, resolve and retry.
+
+### Step 7: Record Session Summary
 
 **Add final comment to the task:**
 ```bash
@@ -164,7 +211,7 @@ Commit: <hash>
 Push: <success|failed>"
 ```
 
-### Step 7: Output Summary
+### Step 8: Output Kitchen Report
 
 **If an epic was closed**, output the epic completion banner first:
 
@@ -186,11 +233,12 @@ Impact:
 ════════════════════════════════════════════
 ```
 
-**Then output the standard session summary:**
+**Then output the kitchen report:**
 
 ```
-TIDY: Session cleanup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+╔══════════════════════════════════════════════════════════════╗
+║  TIDY: Kitchen Closed                                         ║
+╚══════════════════════════════════════════════════════════════╝
 
 SESSION SUMMARY
 ━━━━━━━━━━━━━━━

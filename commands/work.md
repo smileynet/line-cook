@@ -5,7 +5,15 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 
 ## Summary
 
-**Run the full prep → cook → serve → tidy cycle.** Primary entry point for focused work sessions.
+**Kitchen Manager orchestrates full service: prep → cook → serve → tidy → dessert.** Primary entry point for focused work sessions.
+
+**Kitchen Manager responsibilities:**
+- Run prep checks and present kitchen roster
+- Delegate cooking to chef subagent
+- Coordinate serving with sous-chef review
+- Manage tidy phase (commit, push)
+- Trigger dessert service for feature completion
+- Handle failure conditions and coordinate recovery
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to work on (passed to cook)
 
@@ -47,7 +55,7 @@ Invoke the serve command for peer review:
 Skill(skill="line:serve")
 ```
 
-Wait for review to complete. Serve will invoke headless Claude and categorize any issues found.
+Wait for review to complete. Serve will invoke sous-chef subagent for code review and categorize any issues found.
 
 ### Step 4: Run /tidy
 
@@ -59,24 +67,82 @@ Skill(skill="line:tidy")
 
 Tidy will file beads for discovered work, commit all changes, sync beads, and push to remote.
 
-### Step 5: Cycle Summary
+### Step 5: Check for Dessert Service (Feature Completion)
+
+After tidying, check if the task completed a feature:
+
+```bash
+# Get task details to check parent
+bd show <task-id>
+```
+
+**If task has a parent feature AND all sibling tasks are closed:**
+
+1. Run feature validation:
+   ```bash
+   go test ./...
+   go test ./internal/<package> -run TestFeature -v
+   ```
+
+2. Delegate to sommelier (BDD quality) subagent:
+   ```
+   Use Task tool to invoke sommelier subagent:
+   Task(description="Review feature test quality", prompt="Review BDD tests for feature <feature-id>
+
+   Feature: <feature-title>
+   Acceptance criteria:
+   - <criteria 1>
+   - <criteria 2>
+   - <criteria 3>
+
+   Verify:
+   - All acceptance criteria have tests
+   - Given-When-Then structure used
+   - Tests map to acceptance criteria
+   - User perspective documented
+   - Error scenarios included
+
+   Report any critical issues before proceeding with dessert service.", subagent_type="sommelier")
+   ```
+
+3. Wait for BDD quality assessment. Address any critical issues.
+
+4. If BDD tests pass quality bar, proceed with dessert service:
+   - Create feature acceptance documentation
+   - Update CHANGELOG.md
+   - Close feature bead
+   - Commit and push feature report
+
+**If no feature completed, skip dessert service and proceed to Step 6.**
+
+### Step 6: Cycle Summary
 
 After all steps complete, output summary derived from /tidy:
 
 ```
-WORK CYCLE: Complete
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+╔══════════════════════════════════════════════════════════════╗
+║  FULL SERVICE COMPLETE                                         ║
+╚══════════════════════════════════════════════════════════════╝
 
-[1/4] PREP    ✓ synced
-[2/4] COOK    ✓ executed
-[3/4] SERVE   ✓ reviewed (<verdict>)
-[4/4] TIDY    ✓ committed, pushed
+WORK CYCLE: Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1/5] PREP    ✓ synced
+[2/5] COOK    ✓ executed
+[3/5] SERVE   ✓ reviewed (<verdict>)
+[4/5] TIDY    ✓ committed, pushed
+[5/5] DESSERT ✓ (feature complete) | (not applicable)
+
+Quality Gates:
+  [✓] Test quality approved (quality-control)
+  [✓] Code quality approved (sous-chef)
+  [✓] BDD tests approved (sommelier, if applicable)
 
 Files: <count> changed
 Commit: <hash>
 Issues filed: <count>
 
-───────────────────────────────────────────
+──────────────────────────────────────────
 
 TASK: <id> - <title>
 
@@ -91,24 +157,28 @@ If any step fails:
 2. **Cook fails** - Report what went wrong, offer to continue to tidy (to save progress)
 3. **Serve fails** - Note review was skipped, continue to tidy
 4. **Tidy fails** - Report push error, create bead for follow-up
+5. **Dessert fails** - Note feature validation incomplete, create bead for follow-up
 
 ```
 WORK CYCLE: Incomplete
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1/4] PREP    ✓
-[2/4] COOK    ✓
-[3/4] SERVE   ✗ (error: <reason>)
-[4/4] TIDY    pending
+[1/5] PREP    ✓
+[2/5] COOK    ✓
+[3/5] SERVE   ✗ (error: <reason>)
+[4/5] TIDY    pending
+[5/5] DESSERT pending
 
 Failed at: <step>
 Error: <description>
 
-───────────────────────────────────────────
+──────────────────────────────────────────
 
 TASK: <id> - <title>
 
 Run /line:tidy to save progress, or investigate the error.
+
+If dessert failed, feature bead will remain open for validation when issues are resolved.
 ```
 
 ## Design Notes
