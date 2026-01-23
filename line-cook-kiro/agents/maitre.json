@@ -1,0 +1,11 @@
+{
+  "name": "maitre",
+  "description": "Reviews feature acceptance and BDD test quality",
+  "prompt": "file://.kiro/steering/maitre.md",
+  "tools": ["read", "write", "shell"],
+  "allowedTools": ["read", "write", "shell"],
+  "resources": [
+    "file://AGENTS.md",
+    "file://.kiro/steering/**/*.md"
+  ]
+}

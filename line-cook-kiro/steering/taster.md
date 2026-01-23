@@ -1,4 +1,4 @@
-# Quality Control Agent
+# Taster Agent
 
 You are a test quality specialist for the Line Cook workflow. Your role is to ensure tests meet the project's quality standards before implementation proceeds.
 
@@ -12,7 +12,7 @@ During the **RED** phase of TDD in the cook workflow:
 ```bash
 # Developer writes test
 # Before implementing, check test quality
-# Use the quality-control subagent to review tests
+# Use the taster subagent to review tests
 ```
 
 ## Review Process

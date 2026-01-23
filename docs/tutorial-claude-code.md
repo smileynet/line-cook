@@ -1,6 +1,6 @@
 # Tutorial: From Brainstorm to First Work Cycle
 
-This tutorial walks you through the complete journey from initial brainstorming with an LLM to confident use of the full `/line:work` command. By the end, you'll understand each phase of the workflow and what to watch for as it runs.
+This tutorial walks you through the complete journey from initial brainstorming with an LLM to confident use of the full `/line:service` command. By the end, you'll understand each phase of the workflow and what to watch for as it runs.
 
 **Prerequisites:**
 - [beads](https://github.com/steveyegge/beads) installed (`bd` command available)
@@ -575,12 +575,12 @@ Ready Tasks (3):
 
 ## Part 8: Graduating to Full Automation
 
-Now that you understand each phase, you can use `/line:work` to run them all together.
+Now that you understand each phase, you can use `/line:service` to run them all together.
 
 ### The Full Cycle
 
 ```
-/line:work
+/line:service
 ```
 
 This runs: **prep → cook → serve → tidy**
@@ -610,7 +610,7 @@ SUMMARY: Implemented 'add' command with title and author arguments.
 
 ### The Session Boundary
 
-Notice that `/line:work` ends with a push. This is a **session boundary**—the natural point to clear context and start fresh.
+Notice that `/line:service` ends with a push. This is a **session boundary**—the natural point to clear context and start fresh.
 
 For the next task, start a new conversation or use the `/compact` command. Each work cycle is designed to complete independently, preventing context bloat and keeping execution focused.
 
@@ -624,7 +624,7 @@ For the next task, start a new conversation or use the `/compact` command. Each 
 | Understanding the review process | `/line:serve` alone |
 | Just committing and pushing | `/line:tidy` |
 
-### When to Use /line:work
+### When to Use /line:service
 
 - You're confident in the workflow
 - You want focused execution without interruption
@@ -646,7 +646,7 @@ See what's ready. Get oriented. Check if anything is blocked.
 
 **During work:**
 ```
-/line:work
+/line:service
 ```
 Run focused cycles. One task at a time. Trust the process.
 
@@ -691,7 +691,7 @@ Items filed under Retrospective are automatically excluded from prep/cook auto-s
 You now understand the complete Line Cook workflow. Here are your next steps:
 
 1. **Try it** - Run through this tutorial with a real project
-2. **Build trust** - Start with individual commands, graduate to `/line:work`
+2. **Build trust** - Start with individual commands, graduate to `/line:service`
 3. **Develop rhythm** - Use the daily pattern to build sustainable habits
 
 The goal is confident, focused execution. Line Cook handles the discipline so you can focus on the work.
@@ -707,7 +707,7 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 | `/line:cook` | Execute a task with guardrails |
 | `/line:serve` | AI peer review |
 | `/line:tidy` | Commit, file findings, push |
-| `/line:work` | Full cycle (all four) |
+| `/line:service` | Full cycle (all four) |
 
 | Beads Command | Purpose |
 |---------------|---------|

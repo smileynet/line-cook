@@ -1,5 +1,5 @@
 ---
-description: Feature validation and BDD test review
+description: Validate completed feature and create acceptance documentation
 ---
 
 ## Summary
@@ -7,7 +7,7 @@ description: Feature validation and BDD test review
 **Validate completed features and create acceptance documentation.** Final step before feature completion.
 
 **When run directly:** STOP after completing, show NEXT STEP, and wait for user.
-**When run via `/line-work`:** Continue to the next step without stopping.
+**When run via `/line-service`:** Continue to the next step without stopping.
 
 ---
 
@@ -19,13 +19,13 @@ Select the feature to validate:
 
 ```bash
 # Option 1: Use argument
-/line-dessert <feature-id>
+/line-plate <feature-id>
 
 # Option 2: Find recently completed features
 bd list --status=closed --type=feature --limit=5
 ```
 
-**Important:** Only run dessert service on fully completed features (all child tasks closed).
+**Important:** Only run plate phase on fully completed features (all child tasks closed).
 
 ### Step 2: Run Feature Validation
 
@@ -45,14 +45,14 @@ go test ./internal/<package> -run TestFeature -v
 **If tests fail:**
 - Investigate and fix issues
 - Re-run tests
-- Do NOT proceed with dessert service until tests pass
+- Do NOT proceed with plate phase until tests pass
 
 ### Step 3: Review BDD Test Quality with Sommelier
 
-Delegate BDD test quality review to sommelier subagent:
+Delegate BDD test quality review to maître subagent:
 
 ```
-Use Task tool to invoke sommelier subagent:
+Use Task tool to invoke maître subagent:
 Task(description="Review feature test quality", prompt="Review BDD tests for feature <feature-id>
 
 Feature: <feature-title>
@@ -68,7 +68,7 @@ Verify:
 - User perspective documented
 - Error scenarios included
 
-Report any critical issues before proceeding with dessert service.", subagent_type="sommelier")
+Report any critical issues before proceeding with plate phase.", subagent_type="maître")
 ```
 
 **Wait for BDD quality assessment.**
@@ -132,7 +132,7 @@ git commit -m "feat: complete <feature-title> (<feature-id>)
 
 Feature validation complete:
 - All acceptance criteria verified
-- BDD tests approved by sommelier
+- BDD tests approved by maître
 - Smoke tests passing
 
 Acceptance report: docs/features/<feature-id>-acceptance.md"
@@ -157,7 +157,7 @@ Acceptance Criteria:
 
 Quality Assurance:
   [✓] Tests passing
-  [✓] BDD tests approved (sommelier)
+  [✓] BDD tests approved (maître)
   [✓] Code review complete (sous-chef)
 
 Deliverables:
@@ -186,7 +186,7 @@ Issue: <description of test failure>
 Actions:
   1. Fix the failing tests
   2. Re-run: go test ./...
-  3. Retry /line-dessert <feature-id>
+  3. Retry /line-plate <feature-id>
 
 ───────────────────────────────────────────
 ```
@@ -205,18 +205,18 @@ Critical Issues:
 
 Actions:
   1. Address critical BDD issues
-  2. Re-run BDD review with sommelier
-  3. Retry /line-dessert <feature-id>
+  2. Re-run BDD review with maître
+  3. Retry /line-plate <feature-id>
 
 ───────────────────────────────────────────
 ```
 
 ## Design Notes
 
-The dessert service ensures features are production-ready before completion:
+The plate phase ensures features are production-ready before completion:
 
 1. **End-to-end validation** - All tests must pass
-2. **BDD quality** - Tests must meet quality bar (sommelier review)
+2. **BDD quality** - Tests must meet quality bar (maître review)
 3. **Documentation** - Acceptance report provides comprehensive record
 4. **Changelog** - Track feature delivery for users
 
@@ -233,7 +233,7 @@ The dessert service ensures features are production-ready before completion:
 ## Example Usage
 
 ```
-/line-dessert lc-abc.1  # Validate feature lc-abc.1
+/line-plate lc-abc.1  # Validate feature lc-abc.1
 ```
 
 This command takes a feature ID as argument. It will:

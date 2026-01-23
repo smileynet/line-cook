@@ -5,23 +5,25 @@ Task-focused workflow orchestration for AI-assisted development.
 ## Overview
 
 ```
-/prep  →  /cook  →  /serve  →  /tidy
-  ↓         ↓         ↓         ↓
- sync    execute    review    commit
+/mise → /prep → /cook → /serve → /tidy → /plate
+  ↓       ↓       ↓        ↓        ↓        ↓
+plan    sync   execute  review   commit  validate
 ```
 
-Or use `/line-work` to run the full cycle.
+Or use `/line-service` to run the full cycle.
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
 | `/line-getting-started` | Quick workflow guide for beginners |
-| `/line-prep` | Sync git, load context, show available work |
-| `/line-cook` | Select and execute a task with guardrails |
-| `/line-serve` | Review completed work via headless Claude |
+| `/line-mise` | Create work breakdown before starting |
+| `/line-prep` | Sync git, show ready tasks |
+| `/line-cook` | Execute task with TDD cycle |
+| `/line-serve` | Review code changes |
 | `/line-tidy` | Commit and push changes |
-| `/line-work` | Orchestrate full prep→cook→serve→tidy cycle |
+| `/line-plate` | Validate completed feature |
+| `/line-service` | Run full workflow cycle |
 
 ## Dependencies
 
