@@ -5,7 +5,7 @@ description: AI-supervised development workflow. Use when running prep, cook, se
 
 # Line Cook
 
-Structured AI workflow execution with CLI tool support.
+Structured AI workflow execution for disciplined development.
 
 ## When to Use
 
@@ -13,18 +13,6 @@ Structured AI workflow execution with CLI tool support.
 - Running individual workflow steps: "mise", "prep", "cook", "serve", "tidy", "plate"
 - Managing beads issues during execution
 - Understanding workflow guardrails
-
-## CLI Tool
-
-Line Cook provides a CLI (`lc`) for mechanical operations:
-
-```bash
-lc prep              # Sync state, show ready tasks
-lc cook [id]         # Claim task, output context
-lc serve             # Output diff for review
-lc tidy              # Commit and push
-lc work [id]         # Full cycle orchestration
-```
 
 ## Quick Reference
 
@@ -40,11 +28,6 @@ lc work [id]         # Full cycle orchestration
 | "work" | Quick cycle (prep→cook→serve→tidy) |
 
 ## Core Workflow
-
-```bash
-lc work              # Quick cycle with auto-selected task
-lc work <task-id>    # Quick cycle with specific task
-```
 
 **Quick cycle (most common):**
 ```
@@ -77,12 +60,14 @@ Line Cook enforces these disciplines:
 
 ## Beads Integration
 
-Line Cook uses beads for task management. The CLI handles most operations:
+Line Cook uses beads for task management:
 
 ```bash
-bd ready              # Find unblocked tasks
-bd close <id>         # Complete task
-bd sync               # Sync with git
+bd ready                              # Find unblocked tasks
+bd update <id> --status in_progress   # Claim task
+bd show <id>                          # Get task context
+bd close <id>                         # Complete task
+bd sync                               # Sync with git
 ```
 
 ## Parking Lot Pattern
@@ -90,7 +75,7 @@ bd sync               # Sync with git
 Tasks under "Retrospective" or "Backlog" epics are excluded from auto-selection. Explicit selection still works:
 
 ```bash
-lc cook <parked-task-id>
+bd update <parked-task-id> --status in_progress
 ```
 
 ## Error Handling
