@@ -49,6 +49,7 @@ Or use `/line-work` to run the full cycle.
 3. **Note, then file** - Discovered issues are noted in /cook, filed in /tidy
 4. **Guardrails on completion** - Verify before marking done
 5. **Push before stop** - Session isn't done until pushed
+6. **Clear between cycles** - Each prep→cook→serve→tidy cycle completes a session. Clear context before the next task.
 
 ---
 
@@ -124,19 +125,44 @@ bd sync                # Push/pull with remote
 bd stats               # Project statistics
 ```
 
-### Retrospective Pattern
+### Parking Lot Pattern
 
-For minor suggestions and improvements, use a retrospective epic:
+For minor suggestions and improvements, use parking lot epics:
 
 ```bash
 # One-time setup
 bd create --title="Retrospective" --type=epic --priority=4
+bd create --title="Backlog" --type=epic --priority=4
 
 # File minor items as children
 bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<retro-epic-id>
+bd create --title="Someday add feature Y" --type=task --priority=4 --parent=<backlog-epic-id>
 ```
 
 This keeps the main backlog focused on real tasks while preserving good ideas for later review.
+
+**Auto-selection exclusion:** Tasks parented to "Retrospective" or "Backlog" epics are automatically excluded from `/line-prep` and `/line-cook` task selection. To work on parked items:
+
+```bash
+/line-cook lc-xxx                  # Explicitly select any task
+bd list --parent=<epic-id>         # View parked items
+bd list --type=epic                # Find epic IDs
+```
+
+---
+
+## Advanced Usage
+
+### Seasoning with Research
+
+After exploring or researching, use `/line-season` to apply findings:
+- Enrich existing beads with discovered context
+- Create new tasks based on findings
+- Update priorities and dependencies
+
+```bash
+/line-season docs/research/api-findings.md
+```
 
 ---
 

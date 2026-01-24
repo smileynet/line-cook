@@ -1,404 +1,194 @@
 ---
-description: Create work breakdown before starting implementation
+description: Prime planning session with bead hierarchy guidance
 ---
 
-## Summary
-
-**Create human-readable work breakdown using tracer methodology.** Prep step before creating beads.
-
-**When run directly:** STOP after creating plan and wait for user approval before converting to beads.
-**When run via `/line-service`:** Continue to the next step without stopping.
+**Output this guidance to help structure planning.** Do not act - display for reference.
 
 ---
 
-## Process
+## Mise en Place: Planning Session Primer
 
-### Step 1: Understand the Order
+*"Mise en place" (French: everything in its place) - the kitchen discipline of preparing and organizing ingredients before cooking begins.*
 
-Ask clarifying questions:
+This guide helps structure work properly before execution. Use it when:
+- Starting a new project or major feature
+- Breaking down a large piece of work
+- Onboarding to an existing project's issue structure
 
-**What are we building?**
-- What problem are we solving?
-- What does success look like?
-- Who is the user?
+---
 
-**What are the constraints?**
-- Are there technical constraints?
-- Time constraints (MVP vs full feature)?
-- Dependencies on other work?
-
-**What's the scope?**
-- MVP (minimum viable product)
-- Full feature
-- Multi-session epic
-
-**Ask questions if unclear.** Don't assume.
-
-### Step 2: Create Menu Plan (Task Graph)
-
-Build a structured breakdown in YAML format for easy conversion to beads.
-
-**Why YAML?**
-- Human-readable and easy to edit
-- Machine-parseable for automated bead creation
-- Version controlled and reviewable
-- Can iterate quickly before creating beads
-
-**Create `docs/planning/menu-plan.yaml`:**
-
-```yaml
-phases:
-  - id: phase-1
-    title: "Phase 1: Foundation"
-    description: "Core infrastructure for tmux integration and worktrees"
-    duration: "Week 1 (4-6 sessions)"
-
-    features:
-      - id: feature-1.1
-        title: "Feature 1.1: Execute commands in tmux sessions"
-        priority: 2
-        user_story: "As a capsule orchestrator, I want to execute commands in tmux sessions so that I can programmatic control OpenCode TUI"
-        acceptance_criteria:
-          - "Can create/destroy tmux sessions"
-          - "Can send commands with proper debouncing"
-          - "Can capture session output"
-        tracer_strategy:
-          minimal_flow: "Create session -> Send command -> Capture output -> Destroy"
-          layers: "Tmux wrapper -> Command execution -> Output capture"
-          expansion: "Window management, pane splitting (deferred)"
-
-        tasks:
-          - title: "Port tmux wrapper from gastown"
-            priority: 1
-            tracer: "Foundation layer - proves tmux integration works"
-            description: |
-              - Copy internal/tmux/tmux.go structure
-              - Adapt for Capsule needs
-            deliverable: "internal/tmux/tmux.go skeleton"
-            reference: "~/code/gastown/internal/tmux/tmux.go"
-            tdd: true
-
-          - title: "Implement session creation/destruction"
-            priority: 1
-            depends_on: ["Port tmux wrapper from gastown"]
-            tracer: "Session lifecycle - proves basic management works"
-            description: |
-              - NewSession(name, workDir) function
-              - KillSession(name) function
-              - SessionExists(name) check
-            deliverable: "Session management with tests"
-            tdd: true
-
-          - title: "Implement command execution"
-            priority: 1
-            depends_on: ["Implement session creation/destruction"]
-            tracer: "Command execution - proves sending commands works"
-            description: |
-              - SendCommand(session, command) function
-              - Wait for completion with timeout
-              - Capture stdout/stderr
-            deliverable: "Command execution with tests"
-            tdd: true
-```
-
-**See `docs/planning/menu-plan-format.md` for complete format reference.**
-
-### Step 3: Add Feature Dependencies (Sequential Features)
-
-Add `blocks` field to enforce sequential feature completion:
-
-```yaml
-features:
-  - id: feature-2.1
-    title: "Feature 2.1: Run missions in isolated worktrees"
-    blocks: ["feature-1.2"]  # This feature blocks Feature 1.2
-    # ...
-
-  - id: feature-1.2
-    title: "Feature 1.2: Basic CLI structure"
-    blocks: ["feature-3.1"]  # This feature blocks Feature 3.1
-    # ...
-```
-
-**Why sequential?**
-- Maintains focus on one feature at a time
-- Prevents context switching
-- Ensures features are fully complete before moving on
-
-### Step 4: Plan BDD Tests for Features
-
-**Every feature must include BDD tests** that validate acceptance criteria from the user's perspective.
-
-**Define BDD test plan:**
-
-```yaml
-features:
-  - id: feature-2.1
-    title: "Feature 2.1: Run missions in isolated worktrees"
-    user_story: "As a capsule orchestrator, I want to run missions in isolated git worktrees so that I can execute multiple missions in parallel without workspace conflicts"
-    acceptance_criteria:
-      - "Can create worktree with unique name"
-      - "Worktree on new branch"
-      - "Changes don't affect main workspace"
-      - "Clean removal of worktrees"
-    bdd_tests:
-      - test: "TestFeature_RunMissionsInIsolatedWorktrees"
-        scenarios:
-          - "Acceptance_Criterion_1_Create_worktree_with_unique_name"
-          - "Acceptance_Criterion_2_Worktree_on_new_branch"
-          - "Acceptance_Criterion_3_Changes_dont_affect_main_workspace"
-          - "Acceptance_Criterion_4_Clean_removal_of_worktrees"
-      - test: "TestFeature_ParallelMissionIsolation"
-        scenarios:
-          - "Multiple missions run independently"
-    smoke_tests:  # CLI validation - REQUIRED for user-facing features
-      - "capsule launch creates worktree"
-      - "capsule dock removes worktree cleanly"
-```
-
-**BDD Test Structure:**
-- File: `internal/<package>/integration_test.go`
-- Format: Given-When-Then comments
-- Naming: `TestFeature_<FeatureName>`
-- Subtests: Map to acceptance criteria
-- Real operations: Use actual git/tmux/system calls
-
-**Smoke Test Structure:**
-- File: `scripts/smoke-test-<feature>.sh` or `cmd/smoke-test/`
-- Tests: Real CLI commands with expected outputs
-- **Every feature must have smoke tests** (features are user-facing by definition)
-- Validates: End-to-end user experience
-
-**If you can't write smoke tests, it's not a feature** - it's infrastructure that should be tasks under a user-facing feature.
-
-### Step 5: Output Menu Plan Summary
-
-After creating the menu plan, output:
+## The 3-Tier Hierarchy
 
 ```
-MENU PLAN CREATED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-File: docs/planning/menu-plan.yaml
-
-Phases: <N>
-Features: <M>
-Courses (tasks): <L>
-
-Breakdown:
-  Phase 1: <title> (<X> sessions)
-    - Feature 1.1: <title>
-      - <N> courses
-    - Feature 1.2: <title>
-      - <N> courses
-  ...
-
-Tracer Strategy:
-  Feature 1.1:
-    Minimal flow: <flow description>
-    Layers: <layers>
-    Expansion: <deferred items>
-
-REVIEW THE PLAN:
-  1. Check hierarchy makes sense
-  2. Verify each feature has:
-     [x] User story
-     [x] Acceptance criteria (3-5)
-     [x] BDD test plan
-     [x] Smoke test plan (CLI)
-  3. Verify each course has:
-     [x] Tracer explanation
-     [x] Clear deliverable
-     [x] Dependencies listed
-
-NEXT STEP: Run /line-cook to convert menu plan to beads
-  (Review plan first, modify if needed, then convert)
+Epic (capability area)
+├── Feature (user-verifiable outcome)
+│   └── Task (implementation step)
+└── Feature
+    ├── Task
+    └── Task
 ```
 
-### Step 6: Convert Menu Plan to Beads
+| Tier | When to Use | Scope | Naming Style |
+|------|-------------|-------|--------------|
+| Epic | 3+ sessions, multiple features | Capability area | Noun phrase ("Authentication System") |
+| Feature | User can verify "it works" | Deliverable outcome | Outcome statement ("User can reset password") |
+| Task | Single session implementation | Code change | Action phrase ("Add email validation to reset form") |
 
-**ONLY convert after user approves the menu plan.**
+**Key insight:** Epics are containers, Features are promises, Tasks are work.
 
-Run the conversion script:
+---
+
+## Naming Conventions
+
+| Tier | Pattern | Good Example | Bad Example |
+|------|---------|--------------|-------------|
+| Epic | `<Noun> <System/Area>` | "User Authentication" | "Implement login stuff" |
+| Feature | `<Actor> can <outcome>` | "User can export data as CSV" | "CSV export feature" |
+| Task | `<Verb> <specific thing>` | "Add date picker to filter form" | "Work on filtering" |
+
+**Feature naming test:** Can you demo this to a stakeholder? If yes, it's a feature.
+
+---
+
+## The "Who" Test
+
+When deciding Feature vs Task, ask: **Who benefits directly?**
+
+| Beneficiary | Classification | Example |
+|-------------|----------------|---------|
+| End user | Feature | "User sees loading indicator" |
+| Developer/system | Task | "Add loading state to API hook" |
+| Both equally | Usually Feature | "App shows helpful error messages" |
+
+**Guideline:** If you'd mention it in release notes → Feature. If not → Task.
+
+---
+
+## Priority Levels
+
+| Level | Meaning | When to Use |
+|-------|---------|-------------|
+| P0 | Critical | Production down, data loss, security breach |
+| P1 | High | Blocking other work, major functionality broken |
+| P2 | Medium | Normal priority (default for new features) |
+| P3 | Low | Nice to have, when time permits |
+| P4 | Backlog | Someday/maybe, parking lot items |
+
+**Tips:**
+- Most new work starts at P2
+- P0/P1 should be rare - if everything is urgent, nothing is
+- Use P4 for retrospective items and ideas
+
+---
+
+## The Parking Lot Pattern
+
+For ideas, suggestions, and "nice to haves", use parking lot epics:
 
 ```bash
-./scripts/menu-plan-to-beads.sh docs/planning/menu-plan.yaml
+# Create parking lot epics (one-time setup)
+bd create --title="Retrospective" --type=epic --priority=4
+bd create --title="Backlog" --type=epic --priority=4
 ```
 
-**Script will:**
-- Create epics (phases)
-- Create features with acceptance criteria
-- Create tasks with descriptions and deliverables
-- Add task dependencies (depends_on)
-- Add feature dependencies (blocks)
+**Usage:**
+- "Retrospective" = Items noticed during code review or work
+- "Backlog" = Ideas for future consideration
 
-**Or create beads manually:**
-```bash
-bd create --title="Phase 1: Foundation" --type=epic --priority=2
-bd create --title="Feature 1.1: Execute commands in tmux sessions" --type=feature --parent=lc-abc --priority=3
-bd create --title="Port tmux wrapper from gastown" --parent=lc-abc.1 --priority=1
-bd dep add <new-task-id> <dependency-task-id>
-```
+**Auto-exclusion:** Tasks under these epics are automatically excluded from `/line-prep` and `/line-cook` selection. They're preserved for later review but won't interrupt current work.
 
-### Step 7: Verify Beads and Dependencies
-
-Check that beads were created correctly and dependencies are enforced:
-
-```bash
-bd list              # See all beads
-bd list -t epic      # See only epics
-bd list -t feature   # See only features
-bd ready             # See available work (should be focused on one feature)
-bd blocked           # See blocked features
-bd show <epic-id>    # View epic with child features
-bd show <feature-id> # View feature with child tasks
-```
-
-**Verify hierarchy:**
-```bash
-# Check epic structure
-bd show <epic-id>
-# Should show:
-#   Epic: Phase 1: Foundation
-#   Children:
-#     - Feature 1.1: Execute commands in tmux sessions
-#     - Feature 1.2: Manage git worktrees
-
-# Check feature structure
-bd show <feature-id>
-# Should show:
-#   Feature: 1.1: Execute commands in tmux sessions
-#   Parent: Phase 1: Foundation
-#   Children:
-#     - Course: Port tmux wrapper from gastown
-#     - Course: Implement session creation/destruction
-```
-
-**Verify dependencies:**
-```bash
-bd ready
-# Should only show courses from the current feature (not blocked)
-
-bd blocked
-# Should show features blocked by dependencies
-```
-
-### Step 8: Sync and Commit
-
-```bash
-bd sync
-git add docs/planning/menu-plan.yaml .beads/
-git commit -m "plan: Create menu plan for <phase>
-
-- <N> phases planned
-- <M> features with acceptance criteria
-- <L> courses (tasks) with tracer strategy
-
-Key features:
-- Feature 1.1: <title>
-- Feature 1.2: <title>
-
-Tracer approach:
-- Each course builds foundation for next
-- Vertical slices through all layers
-- Production quality from start"
-git push
-```
+**Direct tasks allowed:** Parking lot epics can have tasks directly (no feature layer needed).
 
 ---
 
-## Hierarchy Structure
+## Planning Checklist
 
-**Three-tier hierarchy:**
+When breaking down work:
 
+1. **Identify the capability area** → Epic (if large enough)
+2. **List user-facing outcomes** → Features
+3. **Break features into implementation steps** → Tasks
+4. **Add dependencies** → `bd dep add <blocked> <blocker>`
+5. **Set priorities** → P2 default, adjust as needed
+6. **Park tangential ideas** → Under Retrospective/Backlog
+
+**Rule of thumb:**
+- 1-2 sessions of work? Skip the epic, just use features/tasks
+- Single session? Just tasks, maybe no feature
+- Large initiative? Full hierarchy
+
+---
+
+## Anti-Patterns to Avoid
+
+| Anti-Pattern | Problem | Better Approach |
+|--------------|---------|-----------------|
+| Giant monolithic tasks | Can't track progress | Break into smaller tasks |
+| Every task is an epic | Hierarchy loses meaning | Reserve epics for multi-feature work |
+| Vague task names | Unclear when "done" | Use specific action + target |
+| All P1 priorities | Nothing is prioritized | Use P2 as default, reserve P1 |
+| Tasks with no parent | Orphan work, hard to navigate | Group under features or epics |
+| Creating beads during planning | Mixes planning with execution | Plan first, create beads after |
+
+---
+
+## Example Breakdown
+
+**Goal:** "Add dark mode to the application"
+
+### Step 1: Identify Scope
+- Multiple features (toggle, persistence, styling)
+- Multi-session work
+- → Create an Epic
+
+### Step 2: Break into Features
 ```
-Epic (Phase)
-├── Feature 1 (User-observable outcome)
-│   ├── Course 1.1 (Implementation step)
-│   ├── Course 1.2 (Implementation step)
-│   └── Course 1.3 (Implementation step)
-└── Feature 2 (User-observable outcome)
-    ├── Course 2.1 (Implementation step)
-    └── Course 2.2 (Implementation step)
-```
-
-**Mapping:**
-- **Epic** = Phase (3+ sessions, multiple features)
-- **Feature** = User-observable capability (1-3 sessions, multiple courses)
-- **Course (Task)** = Single implementation unit (< 2 hours, one tracer)
-
----
-
-## CRITICAL: Features Must Be User-Facing
-
-A feature MUST have a user interface (CLI, API, or UI) that allows users to exercise the capability. If there's no way for users to interact with it, it's not a feature - it's infrastructure that belongs as courses under a real feature.
-
-**Test for valid feature:**
-- Can a user invoke this via CLI/API/UI?
-- Can you write smoke tests that exercise it?
-- Would a user understand what this does?
-- Is this just infrastructure for another feature? (If yes, not a feature)
-
----
-
-## Tracer Dish Approach
-
-**Build vertical slices through all system layers, then expand incrementally.**
-
-**Key principle**: Each course is a mini-tracer that:
-- Implements one focused capability end-to-end
-- Touches relevant architectural layers
-- Provides foundation for next course
-- Is production-quality (not throwaway)
-
----
-
-## Course Sizing Guidelines
-
-**Use tracer bullet thinking** - each course should be a vertical slice through relevant layers.
-
-**Too Small** (combine into one tracer):
-- "Add import statement"
-- "Create empty file"
-- "Update comment"
-
-**Just Right** (single tracer, one session):
-- "Define mission struct and state machine" (data layer)
-- "Implement bead integration" (external interface layer)
-- "Implement launch command" (orchestration layer)
-
-**Too Large** (break into multiple tracers):
-- "Implement entire mission lifecycle" -> Break into: state machine, launch, monitor, dock
-- "Add all monitoring features" -> Break into: capture, detect, log, report
-- "Complete Phase 1" -> Break into individual features
-
----
-
-## Common Mistakes to Avoid
-
-- **Creating beads directly**: Hard to review, edit, and discuss. Menu plan first.
-- **Too vague**: "Implement monitoring" -> Use specific tracer: "Implement output capture loop with 5s interval"
-- **Too large**: "Complete Phase 1" -> Sized right: "Define mission struct and state machine"
-- **No deliverable**: "Research tmux" -> Clear outcome: "Document tmux patterns in RESEARCH.md"
-- **Horizontal slicing**: "Build entire UI layer" -> Vertical slicing: "Implement launch command (CLI -> Mission -> Tmux)"
-- **"Internal features" with no CLI**: "Feature: Manage worktrees" -> User-facing: "Feature: Launch missions in isolated worktrees"
-- **Features without smoke tests**: If you can't smoke test it, it's not a feature
-
----
-
-## Example Usage
-
-```
-/line-plan
+Epic: Dark Mode Support
+├── Feature: User can toggle between light/dark mode
+├── Feature: Theme preference persists across sessions
+└── Feature: App respects system theme preference
 ```
 
-This command takes no arguments. It will:
-1. Ask clarifying questions about what you're building
-2. Create a YAML menu plan in `docs/planning/menu-plan.yaml`
-3. Output summary for review
-4. Wait for user to convert to beads
+### Step 3: Break Features into Tasks
+```
+Feature: User can toggle between light/dark mode
+├── Task: Add theme toggle component to settings
+├── Task: Create dark theme CSS variables
+├── Task: Apply theme class to root element
+└── Task: Add transition animation for theme switch
+```
 
-To convert plan to beads:
+### Step 4: Add Dependencies
 ```bash
-./scripts/menu-plan-to-beads.sh docs/planning/menu-plan.yaml
+# Theme toggle depends on CSS variables existing
+bd dep add <toggle-task> <css-vars-task>
 ```
+
+### Step 5: Set Priorities
+- P2 for core functionality
+- P3 for animation polish
+- P4 for "nice to have" enhancements
+
+---
+
+## Session Boundary Reminder
+
+**Planning is NOT execution.**
+
+This session should result in:
+- A clear hierarchy sketched out
+- Agreement on scope and priorities
+- Understanding of dependencies
+
+After planning is complete:
+
+1. **Create the beads** - `bd create` for each item
+2. **Sync** - `bd sync`
+3. **Clear context** - New session or `/line-compact`
+4. **Begin execution** - `/line-prep` in fresh session
+
+**Why clear context?** Planning accumulates exploration context that isn't needed for execution. Starting fresh lets you focus on the work itself.
+
+---
+
+**Ready to structure your work?** Share your goal and I'll help break it down using this framework.
