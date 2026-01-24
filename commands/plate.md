@@ -68,7 +68,7 @@ Verify:
 - User perspective documented
 - Error scenarios included
 
-Report any critical issues before proceeding with plate phase.", subagent_type="maître")
+Report any critical issues before proceeding with plate phase.", subagent_type="maitre")
 ```
 
 **Wait for BDD quality assessment.**
