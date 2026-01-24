@@ -59,7 +59,9 @@ Spawn a separate Claude instance to review:
 **IMPORTANT:** Use a 10-minute timeout (600000ms) for this Bash command - headless reviews often exceed the default 2-minute timeout.
 
 ```bash
-git diff | claude -p "Review these changes for the task: <bead title>
+git diff | claude \
+  --max-turns 1 \
+  -p "Review these changes for the task: <bead title>
 
 Project context:
 <summary of CLAUDE.md patterns if available>
@@ -73,7 +75,7 @@ Focus on:
 Output format (JSON):
 {
   \"summary\": \"brief overall assessment\",
-  \"approval\": \"approved|needs_changes|blocked\",
+  \"verdict\": \"approved|needs_changes|blocked\",
   \"issues\": [
     {
       \"severity\": \"critical|major|minor|nit\",
@@ -85,7 +87,9 @@ Output format (JSON):
     }
   ],
   \"positive\": [\"things done well\"]
-}" --output-format text --allowedTools "Read,Glob,Grep"
+}" \
+  --output-format text \
+  --allowedTools "Read,Glob,Grep"
 ```
 
 ### Step 4: Process Review Results
@@ -122,11 +126,12 @@ Summary: <brief assessment>"
 ```
 
 **Output format:**
+
+CRITICAL: The SERVE_RESULT block must be present and parseable by /line-work.
+
 ```
 REVIEW: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Verdict: APPROVED | NEEDS_CHANGES | BLOCKED
 
 Summary:
   <brief overall assessment of the changes>
@@ -143,21 +148,43 @@ Positive notes:
   - <good thing>
   - <good thing>
 
+┌─────────────────────────────────────────┐
+│ SERVE_RESULT                            │
+│ verdict: APPROVED | NEEDS_CHANGES | BLOCKED │
+│ continue: true | false                  │
+│ blocking_issues: <count or 0>           │
+└─────────────────────────────────────────┘
+
 NEXT STEP: /line-tidy
 ```
 
+**Verdict meanings:**
+- **APPROVED**: No issues found, continue to tidy
+- **NEEDS_CHANGES**: Non-blocking issues noted, continue to tidy (issues will be filed)
+- **BLOCKED**: Critical issues require fixing before commit. STOP workflow.
+
 ## Error Handling
 
-If the headless Claude invocation fails:
+If the headless Claude invocation fails (API error, timeout, etc.):
+
 ```
 ⚠️ REVIEW SKIPPED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Reason: <error message>
 
-Manual review recommended before /line-tidy.
-Workflow can continue - this is non-blocking.
+Manual review recommended. Run /line-serve again after /tidy.
+
+┌─────────────────────────────────────────┐
+│ SERVE_RESULT                            │
+│ verdict: SKIPPED                        │
+│ continue: true                          │
+│ blocking_issues: 0                      │
+│ retry_recommended: true                 │
+└─────────────────────────────────────────┘
 ```
+
+API errors are **transient** - workflow continues but recommends retry later.
 
 ## Example Usage
 

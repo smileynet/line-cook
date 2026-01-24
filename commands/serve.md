@@ -99,8 +99,12 @@ The sous-chef agent will:
 
 **Manual fallback:** If sous-chef agent is unavailable, invoke headless Claude:
 ```bash
-git diff | claude -p "Review these changes for the task: <bead title>
-...
+git diff | claude \
+  --max-turns 1 \
+  -p "Review these changes for the task: <bead title>
+  ..." \
+  --output-format text \
+  --allowedTools "Read,Glob,Grep"
 ```
 
 ### Step 4: Process Review Results
@@ -134,6 +138,9 @@ Summary: <brief assessment>"
 ```
 
 **Output format:**
+
+CRITICAL: The SERVE_RESULT block must be present and parseable by orchestrators.
+
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║  SERVE: Dish Presented                                       ║
@@ -141,8 +148,6 @@ Summary: <brief assessment>"
 
 REVIEW: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Verdict: READY_FOR_TIDY | NEEDS_CHANGES | BLOCKED
 
 Summary:
   <brief overall assessment of the changes>
@@ -159,23 +164,43 @@ Positive notes:
   - <good thing>
   - <good thing>
 
-Signal: READY_FOR_TIDY
+┌─────────────────────────────────────────┐
+│ SERVE_RESULT                            │
+│ verdict: APPROVED | NEEDS_CHANGES | BLOCKED │
+│ continue: true | false                  │
+│ blocking_issues: <count or 0>           │
+└─────────────────────────────────────────┘
 
 NEXT STEP: /line:tidy
 ```
 
+**Verdict meanings:**
+- **APPROVED**: No issues found, continue to tidy
+- **NEEDS_CHANGES**: Non-blocking issues noted, continue to tidy (issues will be filed)
+- **BLOCKED**: Critical issues require fixing before commit. STOP workflow.
+
 ## Error Handling
 
-If the headless Claude invocation fails:
+If the sous-chef agent or headless Claude invocation fails (API error, timeout, etc.):
+
 ```
 ⚠️ REVIEW SKIPPED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Reason: <error message>
 
-Manual review recommended before /line:tidy.
-Workflow can continue - this is non-blocking.
+Manual review recommended. Run /line:serve again after /tidy.
+
+┌─────────────────────────────────────────┐
+│ SERVE_RESULT                            │
+│ verdict: SKIPPED                        │
+│ continue: true                          │
+│ blocking_issues: 0                      │
+│ retry_recommended: true                 │
+└─────────────────────────────────────────┘
 ```
+
+API errors are **transient** - workflow continues but recommends retry later.
 
 ## Example Usage
 
