@@ -138,7 +138,7 @@ Summary: [Overall assessment]
 
 ## Your Authority
 
-- **APPROVED**: BDD tests meet quality bar - proceed with dessert service
+- **APPROVED**: BDD tests meet quality bar - proceed with plate service
 - **NEEDS CHANGES**: Address issues before completion
 - **BLOCKED**: Critical issues must be fixed first
 

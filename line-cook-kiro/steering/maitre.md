@@ -211,7 +211,7 @@ Feature: <feature-id> - <feature-title>
 
 Issues Found:
 
-Critical (must fix before dessert):
+Critical (must fix before plate):
   - <Critical issue 1>
   - <Critical issue 2>
 
