@@ -198,8 +198,9 @@ Status: completed
 
 SESSION SUMMARY
 ━━━━━━━━━━━━━━━
-Task completed:
-  <summary of what was accomplished>
+Intent: <why this change was made>
+Before: <previous state/capability>
+After: <new state/capability>
 
 Problems encountered:
   - <problem>: <how resolved>
@@ -243,9 +244,15 @@ Impact:
 SESSION SUMMARY
 ━━━━━━━━━━━━━━━
 
-Task completed:
-  Task: <id> - <title>
-  <1-2 sentence summary of what was accomplished>
+Task: <id> - <title>
+
+INTENT:
+  <1-2 sentences from task description>
+  Goal: <deliverable or acceptance criteria>
+
+BEFORE → AFTER:
+  <previous state> → <new state>
+  <what couldn't be done> → <what can be done now>
 
 Files changed:
   M src/foo.ts (+45, -12)
@@ -273,6 +280,11 @@ Push: ✓ origin/main | ⚠️ <error> | skipped (no remote)
 
 Session complete.
 ```
+
+**Information sources for summary:**
+- **Intent**: Extract from task description via `bd show <id>`
+- **Before**: Derive from git diff context - what existed before (files modified, previous behavior)
+- **After**: Semantic summary from cook completion - what capability exists now
 
 ## Design Rationale
 

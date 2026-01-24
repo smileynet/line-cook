@@ -56,8 +56,21 @@ WORK CYCLE: Complete
 [3/4] SERVE   ✓ reviewed
 [4/4] TIDY    ✓ committed, pushed
 
+──────────────────────────────────────────
+
 TASK: <id> - <title>
-SUMMARY: <what was accomplished>
+
+INTENT:
+  <1-2 sentences from task description>
+  Goal: <deliverable or acceptance criteria>
+
+BEFORE → AFTER:
+  <previous state> → <new state>
+  <what couldn't be done> → <what can be done now>
+
+Files: <count> changed
+Commit: <hash>
+Issues filed: <count>
 ```
 
 ## Error Handling

@@ -196,7 +196,12 @@ Only after all guardrails pass:
 bd close <id>
 bd comments add <id> "PHASE: COOK
 Status: completed
-Summary: <what was done>
+
+SEMANTIC CONTEXT (for tidy summary):
+Intent: <why this change was made, from task description>
+Before: <previous state - what existed/didn't work>
+After: <new state - what's now possible/fixed>
+
 Files: <count> changed
 Findings: <issues/improvements noted for tidy>"
 ```
@@ -213,8 +218,13 @@ Build: ✓ Successful
 
 Signal: KITCHEN_COMPLETE
 
-Summary:
-  <1-2 sentence description of what was accomplished>
+INTENT:
+  <1-2 sentences from task description>
+  Goal: <deliverable or acceptance criteria>
+
+BEFORE → AFTER:
+  <previous state> → <new state>
+  <what couldn't be done> → <what can be done now>
 
 Files changed:
   M src/foo.ts
