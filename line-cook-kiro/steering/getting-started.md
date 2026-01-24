@@ -16,16 +16,6 @@ If the file cannot be found, display this fallback quick reference:
 
 Line Cook provides structured workflow cycles for AI-assisted development.
 
-### CLI Tool
-
-```bash
-lc prep              # Sync state, show ready tasks
-lc cook [id]         # Claim task, output context
-lc serve             # Output diff for review
-lc tidy              # Commit and push
-lc work [id]         # Full cycle orchestration
-```
-
 ### The Workflow
 
 **Quick cycle (most common):**
@@ -46,23 +36,24 @@ plan   sync  execute  review  commit validate
 
 1. **Sync and see what's ready**
    ```bash
-   lc prep
+   git pull --rebase && bd sync && bd ready
    ```
    Shows available tasks and next step.
 
 2. **Execute a task**
    ```bash
-   lc cook
+   bd update <id> --status in_progress
+   bd show <id>
    ```
    Claims task and provides context for execution.
 
 3. **Complete and push**
    ```bash
-   lc tidy
+   bd close <id>
+   git add . && git commit -m "..."
+   bd sync && git push
    ```
    Commits, files issues, and pushes to remote.
-
-Or run the full cycle: `lc work`
 
 ### All Commands
 
@@ -86,5 +77,5 @@ Or run the full cycle: `lc work`
 
 ### Need Help?
 
-Run `lc prep` at any time to see what's ready to work on.
+Run `bd ready` at any time to see what's ready to work on.
 

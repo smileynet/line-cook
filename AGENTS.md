@@ -581,7 +581,7 @@ See [.github/release.md](.github/release.md) for the release notes template.
 
 ## Line Cook Workflow
 
-> **Context Recovery**: Run `lc service` or individual commands after compaction
+> **Context Recovery**: Run `/line:prep` after compaction
 
 ### Commands
 | Command | Purpose |
@@ -593,17 +593,6 @@ See [.github/release.md](.github/release.md) for the release notes template.
 | `/line:tidy` | Commit and push changes |
 | `/line:plate` | Validate completed feature |
 | `/line:service` | Run full workflow cycle |
-
-### CLI
-```bash
-lc mise              # Create work breakdown
-lc prep              # Sync and show ready tasks
-lc cook [id]         # Claim task, output AI context
-lc serve [id]        # Output diff and review context
-lc tidy              # Commit and push
-lc plate [id]        # Feature validation
-lc service           # Full workflow cycle
-```
 
 ### Core Guardrails
 1. **Sync before work** - Always start with current state

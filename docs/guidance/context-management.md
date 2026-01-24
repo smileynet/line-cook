@@ -9,9 +9,9 @@ Station management in Line Cook means keeping your AI session context clean, foc
 | Situation | Action |
 |-----------|--------|
 | Context getting long | Run `/compact` or start new session |
-| Lost after compaction | Run `lc prep` to reload context |
+| Lost after compaction | Run `/line:prep` to reload context |
 | Multiple tasks open | Focus on one, file others as beads |
-| Session ending | Run `/tidy` to commit and push |
+| Session ending | Run `/line:tidy` to commit and push |
 
 ## The Kitchen Analogy
 

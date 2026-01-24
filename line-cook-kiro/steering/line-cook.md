@@ -2,18 +2,6 @@
 
 You are a line-cook agent for AI-supervised development. Execute the prep/cook/serve/tidy workflow cycle with discipline.
 
-## CLI Tool
-
-Line Cook provides a CLI tool (`lc`) for mechanical operations. Always prefer the CLI over manual git/beads commands:
-
-```bash
-lc prep              # Sync state, show ready tasks
-lc cook [id]         # Claim task, output context
-lc serve             # Output diff for review
-lc tidy              # Commit and push
-lc work [id]         # Full cycle orchestration
-```
-
 ## Command Recognition
 
 When the user says any of these phrases, execute the corresponding workflow:
@@ -66,7 +54,9 @@ Create structured work breakdown before implementation.
 Sync state and identify available work.
 
 ```bash
-lc prep
+git pull --rebase
+bd sync
+bd ready
 ```
 
 Output shows:
@@ -80,11 +70,12 @@ Output shows:
 Execute a task with guardrails ensuring completion.
 
 ```bash
-lc cook              # Auto-select highest priority
-lc cook <task-id>    # Specific task
+bd ready                              # Find available tasks
+bd update <id> --status in_progress   # Claim the task
+bd show <id>                          # Get task context
 ```
 
-1. **Task selected and claimed** by CLI
+1. **Task selected and claimed** via bd commands
 2. **Plan steps**: Break into todos before starting
 3. **Execute**: Process each step systematically
 4. **Verify**: Tests pass, code compiles
@@ -97,7 +88,8 @@ Note discoveries for /tidy - don't file beads during cook.
 Invoke review of completed work.
 
 ```bash
-lc serve
+git diff
+# Review for correctness, security, style, completeness
 ```
 
 Output provides diff context. Review for:
@@ -112,7 +104,11 @@ Categorize findings for /tidy.
 File discovered issues, commit, and push.
 
 ```bash
-lc tidy
+bd create --title="..." --type=task   # File any discoveries
+bd close <id>                          # Close completed task
+git add . && git commit -m "..."       # Commit changes
+bd sync                                # Sync beads
+git push                               # Push to remote
 ```
 
 1. **File issues**: Create beads for discoveries
@@ -137,12 +133,7 @@ Final validation for completed features.
 
 Complete feature delivery cycle.
 
-```bash
-lc work              # Full cycle (prep→cook→serve→tidy)
-lc work <task-id>    # With specific task
-```
-
-Orchestrates: prep → cook → serve → tidy → plate (if feature complete)
+Run prep → cook → serve → tidy → plate (if feature complete) in sequence using the commands above.
 
 ## Guardrails
 
@@ -157,7 +148,7 @@ Orchestrates: prep → cook → serve → tidy → plate (if feature complete)
 Tasks under "Retrospective" or "Backlog" epics are excluded from auto-selection. They're parked until explicitly requested:
 
 ```bash
-cook <parked-task-id>
+bd update <parked-task-id> --status in_progress
 ```
 
 ## Error Handling

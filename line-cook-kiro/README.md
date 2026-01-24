@@ -25,18 +25,6 @@ line-cook-kiro/
 └── install.py        # Installation script
 ```
 
-## CLI Tool
-
-Line Cook provides a CLI tool (`lc`) for mechanical operations:
-
-```bash
-lc prep              # Sync state, show ready tasks
-lc cook [id]         # Claim task, output context
-lc serve             # Output diff for review
-lc tidy              # Commit and push
-lc work [id]         # Full cycle orchestration
-```
-
 ## Workflow Commands
 
 Kiro CLI does **not** support custom slash commands. Workflow invocation uses **natural language recognition** via the steering file:

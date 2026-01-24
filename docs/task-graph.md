@@ -630,18 +630,18 @@ Recovery Scenarios
 │
 ├─▶ After compaction
 │   ├─▶ Session state preserved
-│   ├─▶ Run `lc work` to continue
+│   ├─▶ Run `/line:prep` to continue
 │   └─▶ Phases resume from saved state
 │
 ├─▶ After interruption
-│   ├─▶ Run `lc serve` to review
-│   ├─▶ Run `lc tidy` to commit
-│   └─▶ Or `lc work` to restart cycle
+│   ├─▶ Run `/line:serve` to review
+│   ├─▶ Run `/line:tidy` to commit
+│   └─▶ Or `/line:work` to restart cycle
 │
 └─▶ After COOK completion
     ├─▶ Session has current_task
-    ├─▶ Run `lc serve` to review
-    └─▶ Then `lc tidy` to finalize
+    ├─▶ Run `/line:serve` to review
+    └─▶ Then `/line:tidy` to finalize
 ```
 
 ---
