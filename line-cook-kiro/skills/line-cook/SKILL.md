@@ -23,7 +23,7 @@ Structured AI workflow execution for disciplined development.
 | "cook" | Claim and execute a task with TDD cycle |
 | "serve" | AI peer review of completed work |
 | "tidy" | Commit, sync beads, push |
-| "plate" or "dessert" | Validate completed feature |
+| "plate" | Validate completed feature |
 | "service" | Full service (mise→prep→cook→serve→tidy→plate) |
 | "work" | Quick cycle (prep→cook→serve→tidy) |
 

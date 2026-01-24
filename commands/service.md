@@ -163,7 +163,7 @@ If any step fails:
 2. **Cook fails** - Report what went wrong, offer to continue to tidy (to save progress)
 3. **Serve fails** - Note review was skipped, continue to tidy
 4. **Tidy fails** - Report push error, create bead for follow-up
-5. **Dessert fails** - Note feature validation incomplete, create bead for follow-up
+5. **Plate fails** - Note feature validation incomplete, create bead for follow-up
 
 ```
 WORK CYCLE: Incomplete

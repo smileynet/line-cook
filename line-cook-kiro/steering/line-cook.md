@@ -13,7 +13,7 @@ When the user says any of these phrases, execute the corresponding workflow:
 | "cook", "/cook", "start task", "execute task" | Run cook workflow (TDD cycle) |
 | "serve", "/serve", "review", "review changes" | Run serve workflow |
 | "tidy", "/tidy", "commit", "push changes" | Run tidy workflow |
-| "plate", "/plate", "dessert", "/dessert", "validate feature" | Run plate workflow (feature validation) |
+| "plate", "/plate", "validate feature" | Run plate workflow (feature validation) |
 | "service", "/service", "full service" | Run full service (mise→prep→cook→serve→tidy→plate) |
 | "work", "/work", "full cycle", "start work" | Run work cycle (prep→cook→serve→tidy) |
 | "getting started", "help", "guide", "how do I" | Show getting-started guide |

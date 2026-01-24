@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Code subagent system with specialized review agents:
   - `quality-control` agent for test quality review during TDD RED phase
   - `sous-chef` agent for code review during serve phase
-  - `sommelier` agent for BDD test quality review during dessert phase
+  - `maître` agent for BDD test quality review during plate phase
 
 ### Changed
 - Updated documentation with consistent kitchen theming throughout

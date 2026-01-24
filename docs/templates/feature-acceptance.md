@@ -1,6 +1,6 @@
 # Multi-Course Meal Acceptance Report
 
-> Template for documenting feature (multi-course meal) completion during dessert service.
+> Template for documenting feature (multi-course meal) completion during plate service.
 
 **Feature:** <!-- Feature title -->
 **Bead ID:** <!-- lc-xxx.y -->
@@ -77,7 +77,7 @@ Quality assurance by Line Cook agents:
 |-------|------|--------|
 | **Sous-Chef** | Code review | Approved |
 | **Quality-Control** | Test quality | Approved |
-| **Sommelier** | BDD test quality | Approved |
+| **Maître** | BDD test quality | Approved |
 
 ---
 
@@ -143,7 +143,7 @@ How users can verify this feature works:
 2. Copy this template to `docs/features/<feature-id>-acceptance.md`
 3. Fill in all `<!-- placeholder -->` fields
 4. Delete sections that don't apply (e.g., deployment notes if none)
-5. Run `/line:dessert <feature-id>` to complete validation
+5. Run `/line:plate <feature-id>` to complete validation
 
 ### Section Guide
 
