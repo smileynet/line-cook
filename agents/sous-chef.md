@@ -1,5 +1,8 @@
 ---
-description: Code review specialist - ensures code quality before commit in Line Cook workflow
+name: sous-chef
+description: Code review specialist - ensures code quality before commit, checking correctness, security, style, completeness
+tools: Glob, Grep, Read
+model: sonnet
 ---
 
 # Sous-Chef Agent

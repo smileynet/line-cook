@@ -1,5 +1,8 @@
 ---
-description: Reviews test quality during TDD cycle
+name: taster
+description: Reviews test quality during TDD cycle - ensures tests are isolated, fast, repeatable, clear with proper structure
+tools: Glob, Grep, Read
+model: sonnet
 ---
 
 # Taster Agent
