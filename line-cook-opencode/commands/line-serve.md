@@ -10,8 +10,7 @@ After cooking (executing a task), you "serve" it for review before tidying up.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific bead ID to review
 
-**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
-**When run via `/line-work`:** Continue to the next step without stopping.
+**STOP after completing.** Show NEXT STEP and wait for user.
 
 ---
 
@@ -52,67 +51,43 @@ cat CLAUDE.md 2>/dev/null | head -50
 
 This gives the reviewer awareness of project patterns and conventions.
 
-### Step 3: Invoke Headless Claude for Review
+### Step 3: Perform Code Review
 
-Spawn a separate Claude instance to review:
+Review the changes with focus on:
 
-**IMPORTANT:** Use a 10-minute timeout (600000ms) for this Bash command - headless reviews often exceed the default 2-minute timeout.
+1. **Correctness** - Logic errors, edge cases, error handling
+2. **Security** - Input validation, secrets exposure, injection risks
+3. **Style** - Naming, consistency with codebase patterns
+4. **Completeness** - Does it fully address the task?
 
-```bash
-git diff | claude \
-  --max-turns 1 \
-  -p "Review these changes for the task: <bead title>
-
-Project context:
-<summary of CLAUDE.md patterns if available>
-
-Focus on:
-- Correctness: Logic errors, edge cases, error handling
-- Security: Input validation, secrets exposure, injection risks
-- Style: Naming, consistency with codebase patterns
-- Completeness: Does it fully address the task?
-
-Output format (JSON):
-{
-  \"summary\": \"brief overall assessment\",
-  \"verdict\": \"approved|needs_changes|blocked\",
-  \"issues\": [
-    {
-      \"severity\": \"critical|major|minor|nit\",
-      \"file\": \"path/to/file\",
-      \"line\": 42,
-      \"issue\": \"description\",
-      \"suggestion\": \"how to fix\",
-      \"auto_fixable\": true|false
-    }
-  ],
-  \"positive\": [\"things done well\"]
-}" \
-  --output-format text \
-  --allowedTools "Read,Glob,Grep"
-```
+For each issue found, categorize:
+- **Severity**: critical | major | minor | nit
+- **File/line**: Location
+- **Issue**: Description
+- **Suggestion**: How to fix
+- **Auto-fixable**: true | false
 
 ### Step 4: Process Review Results
 
-Categorize issues:
+Based on review findings:
 
-**Auto-fixable** (apply immediately):
-- Typos in comments/strings
-- Missing trailing newlines
-- Simple formatting issues
-- Obvious one-line fixes
+**If no issues found:**
+- Verdict: APPROVED
+- Proceed to Step 5
 
-Apply auto-fixes directly using Edit tool.
+**If issues found but non-blocking:**
+- Verdict: NEEDS_CHANGES
+- Apply auto-fixable issues (typos, formatting, obvious one-line fixes)
+- Note non-fixable issues for `/line-tidy`
+- Categorize by priority (P1-P4)
+- Continue to Step 5
 
-**Non-auto-fixable** (note for `/line-tidy`):
-- Logic errors requiring design decisions
-- Security concerns needing investigation
-- Missing functionality
-- Architectural suggestions
-
-Note these for filing in `/line-tidy`, categorized by priority:
-- **P1-P3**: Blocking issues → filed as standalone beads
-- **P4/nits**: Minor suggestions → filed under Retrospective or Backlog epic
+**If critical issues found:**
+- Verdict: BLOCKED
+- CRITICAL issues must be fixed before tidying
+- Report blocking issues to user
+- Recommend not proceeding to `/line-tidy` until fixed
+- Keep task as in_progress
 
 ### Step 5: Record and Report Results
 
@@ -127,9 +102,13 @@ Summary: <brief assessment>"
 
 **Output format:**
 
-CRITICAL: The SERVE_RESULT block must be present and parseable by /line-work.
+CRITICAL: The SERVE_RESULT block must be present and parseable by orchestrators.
 
 ```
+╔══════════════════════════════════════════════════════════════╗
+║  SERVE: Dish Presented                                       ║
+╚══════════════════════════════════════════════════════════════╝
+
 REVIEW: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -165,7 +144,7 @@ NEXT STEP: /line-tidy
 
 ## Error Handling
 
-If the headless Claude invocation fails (API error, timeout, etc.):
+If review cannot be completed (tool failure, timeout, etc.):
 
 ```
 ⚠️ REVIEW SKIPPED
@@ -184,7 +163,7 @@ Manual review recommended. Run /line-serve again after /tidy.
 └─────────────────────────────────────────┘
 ```
 
-API errors are **transient** - workflow continues but recommends retry later.
+Errors are **transient** - workflow continues but recommends retry later.
 
 ## Example Usage
 

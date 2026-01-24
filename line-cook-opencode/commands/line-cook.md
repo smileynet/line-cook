@@ -8,8 +8,7 @@ description: Select and execute a task with completion guardrails
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to execute
 
-**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
-**When run via `/line-work`:** Continue to the next step without stopping.
+**STOP after completing.** Show NEXT STEP and wait for user.
 
 ---
 
@@ -18,31 +17,11 @@ description: Select and execute a task with completion guardrails
 ### Step 1: Select Task
 
 **If `$ARGUMENTS` provided:**
-- Use that task ID directly (explicit selection bypasses filtering)
+- Use that task ID directly
 
-**Otherwise (auto-selection with filtering):**
-
-Exclude children of parking-lot epics ("Retrospective", "Backlog") from auto-selection:
-
-```bash
-# Find parking-lot epic IDs
-EXCLUDE_EPICS=$(bd list --type=epic --json | jq '[.[] | select(.title == "Retrospective" or .title == "Backlog") | .id]')
-
-# Get next task from filtered ready list
-NEXT_TASK=$(bd ready --json | jq -r --argjson exclude "$EXCLUDE_EPICS" \
-  'map(select(.parent == null or (.parent | IN($exclude[]) | not))) | .[0].id')
-```
-
-**Important:** This exclusion ONLY applies to auto-selection. If `$ARGUMENTS` is provided, execute that task regardless of parent epic. This allows explicit work on parked items.
-
-**If no tasks after filtering:**
-```
-No actionable tasks ready.
-All ready tasks are in Retrospective or Backlog epics.
-
-To work on parked items: /line-cook <specific-task-id>
-To see parked work: bd list --parent=<epic-id>
-```
+**Otherwise:**
+- Run `bd ready` to get available tasks
+- Select the highest priority task (lowest P number)
 
 **Check if selected item is an epic:**
 ```bash
@@ -83,9 +62,30 @@ bd comments add <id> "PHASE: COOK
 Status: started"
 ```
 
-### Step 2: Plan the Task
+### Step 2: Load Recipe
 
-Break the task into steps using a checklist approach:
+Load the task details (the recipe):
+
+```bash
+bd show <id>
+```
+
+Review the task description, acceptance criteria, and any dependencies. This is the recipe for what will be cooked.
+
+### Step 3: Load Ingredients
+
+Load relevant context files and documentation (the ingredients):
+
+1. **Project structure** - Understand codebase layout
+2. **Kitchen manual** - Review AGENTS.md for conventions
+3. **Related code** - Read files relevant to the task
+4. **Dependencies** - Check what this task builds on
+
+Use Read, Glob, and Grep tools to gather necessary context before starting implementation.
+
+### Step 4: Plan the Task
+
+Break the task into steps using a checklist:
 
 1. Read the task description carefully
 2. Identify all deliverables
@@ -94,23 +94,47 @@ Break the task into steps using a checklist approach:
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
-### Step 3: Execute Task
+### Step 5: Execute TDD Cycle
 
-Process checklist items systematically:
+Process checklist items systematically with TDD guardrails:
 
 - Work through items one at a time
 - Track progress as you go
 
+**For code changes, follow TDD cycle:**
+
+1. **RED**: Write failing test
+    ```bash
+    <test command>  # e.g., pytest, go test, npm test
+    # Should FAIL
+    ```
+
+2. **GREEN**: Implement minimal code
+   ```bash
+   <implementation>
+   <test command>
+   # Should PASS
+   ```
+
+3. **REFACTOR**: Clean up code
+   ```bash
+   <refactoring>
+   <test command>
+   # All tests should PASS
+   ```
+
 **Output format during execution:**
 ```
 COOKING: <id> - <title>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1/N] <item> ... ✓
-[2/N] <item> ... ✓
-[3/N] <item> ... in progress
+[1/N] <todo item> ... ✓
+[2/N] <todo item> ... ✓
+[3/N] <todo item> ... in progress
 
 Progress: 2/N complete
+
+TDD Phase: RED/GREEN/REFACTOR
 ```
 
 **Collecting findings:** As you execute, note (but do NOT file yet):
@@ -120,7 +144,7 @@ Progress: 2/N complete
 
 These will be filed as beads in `/line-tidy`.
 
-### Step 4: Verify Completion
+### Step 6: Verify Kitchen Equipment
 
 Before marking the task done, verify ALL guardrails pass:
 
@@ -129,13 +153,21 @@ Before marking the task done, verify ALL guardrails pass:
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
 
+**Kitchen equipment checklist** (MANDATORY):
+
+- [ ] All tests pass: `<test command>` (e.g., `go test ./...`, `pytest`, `npm test`)
+- [ ] Code builds: `<build command>` (e.g., `go build ./...`, `npm run build`)
+- [ ] Lint passes: `<lint command>` (if applicable, e.g., `npm run lint`)
+- [ ] Task deliverable complete
+- [ ] Code follows kitchen manual conventions
+
 **If any guardrail fails:**
 - Do NOT close the task
 - Report what's incomplete
 - Keep task as `in_progress`
 - Ask user how to proceed
 
-### Step 5: Complete Task
+### Step 7: Complete Task
 
 Only after all guardrails pass:
 
@@ -143,18 +175,35 @@ Only after all guardrails pass:
 bd close <id>
 bd comments add <id> "PHASE: COOK
 Status: completed
-Summary: <what was done>
+
+SEMANTIC CONTEXT (for tidy summary):
+Intent: <why this change was made, from task description>
+Before: <previous state - what existed/didn't work>
+After: <new state - what's now possible/fixed>
+
 Files: <count> changed
 Findings: <issues/improvements noted for tidy>"
 ```
 
 **Completion output format:**
 ```
-DONE: <id> - <title>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+╔══════════════════════════════════════════════════════════════╗
+║  KITCHEN COMPLETE                                             ║
+╚══════════════════════════════════════════════════════════════╝
 
-Summary:
-  <1-2 sentence description of what was accomplished>
+Task: <id> - <title>
+Tests: ✓ All passing
+Build: ✓ Successful
+
+Signal: KITCHEN_COMPLETE
+
+INTENT:
+  <1-2 sentences from task description>
+  Goal: <deliverable or acceptance criteria>
+
+BEFORE → AFTER:
+  <previous state> → <new state>
+  <what couldn't be done> → <what can be done now>
 
 Files changed:
   M src/foo.ts
@@ -187,7 +236,7 @@ NEXT STEP: /line-serve (review) or /line-tidy (commit)
 
 If execution is blocked:
 ```
-⚠️ BLOCKED: <description>
+⚠️ KITCHEN BLOCKED: <description>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Reason: <why it failed>
