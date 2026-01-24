@@ -387,6 +387,6 @@ bd ready       # See created tasks
 ## Related
 
 - [TDD/BDD Workflow](./tdd-bdd.md) - Testing cycle in cook phase
-- [Station Management](./station-management.md) - Managing context
-- [Order Priorities](./order-priorities.md) - What to work on next
-- [Menu Changes](./menu-changes.md) - Handling scope changes
+- [Context Management](./context-management.md) - Managing context
+- [Priority and Dependencies](./priorities.md) - What to work on next
+- [Scope Management](./scope-management.md) - Handling scope changes

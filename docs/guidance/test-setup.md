@@ -1,4 +1,4 @@
-# Test Prep
+# Test Setup
 
 > Prepare your testing mise en place before cooking begins.
 
@@ -308,5 +308,5 @@ Before marking tests complete:
 ## Related
 
 - [TDD/BDD Workflow](./tdd-bdd.md) - When and how to write tests
-- [Tracer Dishes](./tracer-dishes.md) - Integration tests for tracers
+- [Vertical Slicing](./vertical-slicing.md) - Integration tests for tracers
 - [Workflow](./workflow.md) - Where testing fits in the cycle

@@ -1,4 +1,4 @@
-# Order Priorities
+# Priority and Dependencies
 
 > Work on the right things in the right order.
 
@@ -334,5 +334,5 @@ bd blocked
 ## Related
 
 - [Workflow](./workflow.md) - How priorities fit in execution
-- [Menu Changes](./menu-changes.md) - Adjusting priorities during work
-- [Station Management](./station-management.md) - Managing what's in progress
+- [Scope Management](./scope-management.md) - Adjusting priorities during work
+- [Context Management](./context-management.md) - Managing what's in progress

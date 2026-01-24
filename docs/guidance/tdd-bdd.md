@@ -318,6 +318,6 @@ Run: `PASS`
 
 ## Related
 
-- [Test Prep](./test-prep.md) - Setting up test infrastructure
-- [Tracer Dishes](./tracer-dishes.md) - Integration testing vertical slices
+- [Test Setup](./test-setup.md) - Setting up test infrastructure
+- [Vertical Slicing](./vertical-slicing.md) - Integration testing vertical slices
 - [Workflow](./workflow.md) - Where TDD fits in the cook phase

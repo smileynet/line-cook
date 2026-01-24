@@ -404,4 +404,4 @@ phases:
 - **Think dependencies**: What must be done first?
 - **Defer complexity**: Advanced features come after basic flow works
 
-See [Tracer Dishes](../guidance/tracer-dishes.md) for complete methodology.
+See [Vertical Slicing](../guidance/vertical-slicing.md) for complete methodology.
