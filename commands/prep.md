@@ -67,9 +67,11 @@ bd show <feature-id>  # Confirm it's a feature
 git checkout -b feature/<feature-id>
 ```
 
-### Step 5: Identify Next Order
+### Step 5: Identify Next Task and Gather Context
 
-Before outputting the summary, determine the recommended next task:
+Before outputting the summary, determine the recommended next task and its hierarchy:
+
+#### 5a: Find Next Ready Task
 
 1. Get the highest priority ready item from `bd ready`
 2. Check if it's an epic: `bd show <id> --json` and check `issue_type`
@@ -77,68 +79,164 @@ Before outputting the summary, determine the recommended next task:
 **If the top item is an epic:**
 - Epics themselves don't contain work - their children do
 - Find the first ready child task: `bd list --parent=<epic-id>` filtered by ready (open + unblocked)
-- Recommend that child task instead, noting it's part of the epic
+- Recommend that child task instead
 
 **If no ready tasks but epics have unstarted children:**
 - Check epic children that are open but not blocked
 - Recommend starting with those
 
+#### 5b: Gather Parent Hierarchy
+
+Once you have identified the next task, gather its parent chain:
+
+```bash
+# Get task details
+TASK_JSON=$(bd show <task-id> --json)
+PARENT_ID=$(echo $TASK_JSON | jq -r '.[0].parent // empty')
+
+if [ -n "$PARENT_ID" ]; then
+  # Get feature/parent info
+  FEATURE_JSON=$(bd show $PARENT_ID --json)
+
+  # Get sibling tasks for progress tracking
+  TOTAL_SIBLINGS=$(bd list --parent=$PARENT_ID | wc -l)
+  CLOSED_SIBLINGS=$(bd list --parent=$PARENT_ID --status=closed)
+
+  # Get epic info if feature has parent
+  EPIC_ID=$(echo $FEATURE_JSON | jq -r '.[0].parent // empty')
+  if [ -n "$EPIC_ID" ]; then
+    EPIC_JSON=$(bd show $EPIC_ID --json)
+    # Count epic's children for feature progress
+    TOTAL_FEATURES=$(bd list --parent=$EPIC_ID | wc -l)
+    CLOSED_FEATURES=$(bd list --parent=$EPIC_ID --status=closed | wc -l)
+  fi
+fi
+```
+
+#### 5c: Extract Task Intent
+
+Parse the task description to extract:
+- **Summary**: First paragraph of description
+- **Deliverables**: Lines starting with "Deliverable:", "Verify:", or bullet points under those headers
+
 ### Step 6: Output Kitchen Roster
 
-Output a focused, scannable summary:
+Output a focused, scannable summary with hierarchical context:
 
-**Standard output (task is ready):**
+**Standard output (task with full hierarchy):**
 ```
-╔══════════════════════════════════════════════════════════════╗
-║  PREP: Kitchen Ready                                          ║
-╚══════════════════════════════════════════════════════════════╝
-
 SESSION: <project-name> @ <branch>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Sync: ✓ up to date | ⚠️ <issue>
 
-Kitchen Roster:
-  Ready: <count> orders
-  In progress: <count> orders
-  Blocked: <count> orders
+Ready: <count> tasks | In progress: <count> | Blocked: <count>
 
-NEXT ORDER:
-  <id> [P<n>] <title>
-  <first line of description if available>
+───────────────────────────────────────────
+CONTEXT
+───────────────────────────────────────────
 
-New to line-cook? Run /line:getting-started for workflow guide.
+EPIC: <epic-id> [P<n>] <epic-title>
+  Goal: <first line of epic description>
+  Progress: <closed>/<total> features complete
 
-NEXT STEP: /line:cook (or /line:cook <id> for specific order)
-```
+  └── FEATURE: <feature-id> <feature-title>
+      Goal: <first line of feature description>
+      Progress: <closed>/<total> tasks complete
 
-**Epic-aware output (when top priority is an epic):**
-```
-╔══════════════════════════════════════════════════════════════╗
-║  PREP: Kitchen Ready                                          ║
-╚══════════════════════════════════════════════════════════════╝
+      CURRENT STATE:
+        ✓ <task-id> - <completed task title>
+        ✓ <task-id> - <completed task title>
+        ... (list completed siblings)
 
-SESSION: <project-name> @ <branch>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+───────────────────────────────────────────
+NEXT TASK
+───────────────────────────────────────────
 
-Sync: ✓ up to date | ⚠️ <issue>
+<task-id> [P<n>] <task-title>
 
-Kitchen Roster:
-  Ready: <count> orders
-  In progress: <count> orders
-  Blocked: <count> orders
+INTENDED CHANGE:
+  <first paragraph of task description>
 
-EPIC IN FOCUS:
-  <epic-id> [P<n>] <epic-title>
-  Progress: <closed>/<total> children complete
-
-NEXT ORDER (part of epic):
-  <task-id> [P<n>] <task-title>
-  <first line of description if available>
-
-New to line-cook? Run /line:getting-started for workflow guide.
+  Deliverable:
+    - <extracted deliverables from description>
+    - <bullet points or items after "Deliverable:" header>
 
 NEXT STEP: /line:cook <task-id>
+```
+
+**Standalone task (no parent hierarchy):**
+```
+SESSION: <project-name> @ <branch>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sync: ✓ up to date
+
+Ready: <count> tasks | In progress: <count> | Blocked: <count>
+
+───────────────────────────────────────────
+CONTEXT
+───────────────────────────────────────────
+
+(Standalone task - no parent epic or feature)
+
+───────────────────────────────────────────
+NEXT TASK
+───────────────────────────────────────────
+
+<task-id> [P<n>] <task-title>
+
+INTENDED CHANGE:
+  <first paragraph of task description>
+
+NEXT STEP: /line:cook <task-id>
+```
+
+**Feature without epic:**
+```
+───────────────────────────────────────────
+CONTEXT
+───────────────────────────────────────────
+
+FEATURE: <feature-id> <feature-title>
+  Goal: <first line of feature description>
+  Progress: <closed>/<total> tasks complete
+
+  CURRENT STATE:
+    ✓ <task-id> - <completed task title>
+    (or: no completed tasks yet)
+
+───────────────────────────────────────────
+NEXT TASK
+───────────────────────────────────────────
+...
+```
+
+**No ready tasks:**
+```
+SESSION: <project-name> @ <branch>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sync: ✓ up to date
+
+Ready: 0 tasks | In progress: <count> | Blocked: <count>
+
+───────────────────────────────────────────
+NO READY TASKS
+───────────────────────────────────────────
+
+In Progress:
+  <id> - <title> (assigned to <assignee>)
+
+Blocked:
+  <id> - <title> (waiting on: <blocker-ids>)
+
+OPTIONS:
+  - Continue work on in-progress task
+  - Unblock a blocked task
+  - Create new work with: bd create --title="..." --type=task
+
+NEXT STEP: Review options above
 ```
 
 **Important:** Do NOT include bead command reference here. That information is available via `/line:getting-started` and `/line:tidy` (where it's actually needed).
@@ -159,48 +257,75 @@ Options:
 
 ## Example Output
 
-**Standard task:**
+**Task with full hierarchy (epic → feature → task):**
 ```
 SESSION: line-cook @ main
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Sync: ✓ up to date
 
-Ready: 3 tasks
-In progress: 1
-Blocked: 1
+Ready: 4 tasks | In progress: 0 | Blocked: 2
 
-NEXT TASK:
-  lc-042 [P1] Implement prep command
-  Create /prep command for session setup with minimal context
+───────────────────────────────────────────
+CONTEXT
+───────────────────────────────────────────
 
-New to line-cook? Run /line:getting-started for workflow guide.
+EPIC: lc-abc [P2] Phase 1: Core Workflow Enhancement
+  Goal: Enhance existing commands with TDD cycle and quality gates
+  Progress: 2/3 features complete
 
-NEXT STEP: /line:cook (or /line:cook lc-042 for this task)
+  └── FEATURE: lc-abc.1 Core Command Enhancement
+      Goal: Update prep, cook, serve, tidy with TDD workflow
+      Progress: 3/5 tasks complete
+
+      CURRENT STATE:
+        ✓ lc-abc.1.1 - Update prep command
+        ✓ lc-abc.1.2 - Update cook command
+        ✓ lc-abc.1.3 - Update serve command
+
+───────────────────────────────────────────
+NEXT TASK
+───────────────────────────────────────────
+
+lc-abc.1.4 [P2] Update tidy command with commit formatting
+
+INTENDED CHANGE:
+  Add kitchen log format to commit messages and ensure
+  findings from cook phase are filed as beads.
+
+  Deliverable:
+    - Commit messages use kitchen log format
+    - Findings converted to beads
+    - Push verification before session end
+
+NEXT STEP: /line:cook lc-abc.1.4
 ```
 
-**Epic with child tasks:**
+**Standalone task:**
 ```
 SESSION: line-cook @ main
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Sync: ✓ up to date
 
-Ready: 5 tasks
-In progress: 0
-Blocked: 2
+Ready: 2 tasks | In progress: 0 | Blocked: 0
 
-EPIC IN FOCUS:
-  lc-45k [P1] Reimagine line-cook as Go CLI tool
-  Progress: 0/5 children complete
+───────────────────────────────────────────
+CONTEXT
+───────────────────────────────────────────
 
-NEXT TASK (part of epic):
-  lc-cvo [P2] Research beads Go CLI architecture
-  Study how beads implements its Go CLI tool
+(Standalone task - no parent epic or feature)
 
-New to line-cook? Run /line:getting-started for workflow guide.
+───────────────────────────────────────────
+NEXT TASK
+───────────────────────────────────────────
 
-NEXT STEP: /line:cook lc-cvo
+lc-042 [P1] Fix sync timeout issue
+
+INTENDED CHANGE:
+  Increase timeout for bd sync to handle large repos.
+
+NEXT STEP: /line:cook lc-042
 ```
 
 ## Example Usage
