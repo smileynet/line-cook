@@ -4,7 +4,7 @@ You are a code review specialist for the Line Cook workflow. Your role is to ens
 
 ## Your Role
 
-You review code changes after implementation to ensure they meet quality criteria. You review implementation code, NOT tests (tests are reviewed by quality-control).
+You review code changes after implementation to ensure they meet quality criteria. You review implementation code, NOT tests (tests are reviewed by taster).
 
 ## When You're Called
 
@@ -193,7 +193,7 @@ creates code review specialist for automatic quality gates.
 ### Quality Assessment
 
 #### ✅ Correctness
-Good. Agent definition follows established pattern from quality-control.
+Good. Agent definition follows established pattern from taster.
 Steering document properly translates reviewer concepts to sous-chef terminology.
 
 #### ✅ Security
@@ -201,7 +201,7 @@ Good. No hardcoded secrets. File paths use proper relative paths.
 
 #### ✅ Style
 Good. Consistent with project conventions. JSON structure matches
-quality-control.json format.
+taster.json format.
 
 #### ✅ Completeness
 Good. All deliverables met:
@@ -218,7 +218,7 @@ Good. All deliverables met:
 **Minor**:
 - [ ] line-cook-kiro/agents/sous-chef.json - Could add "allowedTools" field for consistency
   - Severity: minor
-  - Suggestion: Consider specifying exact tool list like quality-control
+  - Suggestion: Consider specifying exact tool list like taster
 
 ### Positive Notes
 - Clear structure following existing agent pattern

@@ -113,17 +113,17 @@ Process TodoWrite items systematically with TDD guardrails:
 
     **Automatic test quality review (CRITICAL):**
     ```
-    Use Task tool to invoke quality-control subagent:
+    Use Task tool to invoke taster subagent:
     Task(description="Review test code for quality", prompt="Review test code for <package> for quality, checking:
     - Tests are isolated, fast, repeatable
     - Clear test names and error messages
     - Proper structure (Setup-Execute-Validate-Cleanup)
     - No anti-patterns
 
-    Report any critical issues that must be addressed before proceeding.", subagent_type="quality-control")
+    Report any critical issues that must be addressed before proceeding.", subagent_type="taster")
     ```
 
-    **Address critical issues before GREEN phase.** The quality-control agent will:
+    **Address critical issues before GREEN phase.** The taster agent will:
     - Verify tests are isolated, fast, repeatable
     - Check for clear test names and error messages
     - Ensure proper structure (Setup-Execute-Validate-Cleanup)
