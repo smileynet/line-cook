@@ -52,75 +52,63 @@ cat CLAUDE.md 2>/dev/null | head -50
 
 This gives the reviewer awareness of project patterns and conventions.
 
-### Step 3: Automatic Code Review
+### Step 3: Invoke Headless Claude for Review
 
-Delegate to sous-chef (reviewer) subagent:
+Spawn a separate Claude instance to review:
 
-```
-Use Task tool to invoke sous-chef subagent:
-Task(description="Review code changes for task <id>", prompt="Review the following changes for task: <bead title>
+**IMPORTANT:** Use a 10-minute timeout (600000ms) for this Bash command - headless reviews often exceed the default 2-minute timeout.
 
-Task ID: <id>
-Task description: <brief description>
-
-Changes to review:
-<git diff output or diff HEAD~1>
+```bash
+git diff | claude -p "Review these changes for the task: <bead title>
 
 Project context:
-<CLAUDE.md summary if available>
+<summary of CLAUDE.md patterns if available>
 
-Review checklist:
+Focus on:
 - Correctness: Logic errors, edge cases, error handling
 - Security: Input validation, secrets exposure, injection risks
 - Style: Naming, consistency with codebase patterns
 - Completeness: Does it fully address the task?
 
-Output format:
-1. Summary: Brief overall assessment
-2. Verdict: ready_for_tidy | needs_changes | blocked
-3. Issues found:
-   - Severity: critical | major | minor | nit
-   - File/line: Location
-   - Issue: Description
-   - Suggestion: How to fix
-   - Auto-fixable: true | false
-4. Positive notes: What was done well
-
-CRITICAL: If verdict is 'blocked', explain why and what must be fixed.", subagent_type="sous-chef")
-```
-
-The sous-chef agent will:
-- Review correctness (logic, edge cases, error handling)
-- Check security (input validation, secrets, injection risks)
-- Verify style (naming, consistency with codebase patterns)
-- Assess completeness (fully addresses the task?)
-
-**Wait for reviewer assessment. Address any critical issues before proceeding to tidy.**
-
-**Manual fallback:** If sous-chef agent is unavailable, invoke headless Claude:
-```bash
-git diff | claude -p "Review these changes for task: <bead title>
-...
+Output format (JSON):
+{
+  \"summary\": \"brief overall assessment\",
+  \"approval\": \"approved|needs_changes|blocked\",
+  \"issues\": [
+    {
+      \"severity\": \"critical|major|minor|nit\",
+      \"file\": \"path/to/file\",
+      \"line\": 42,
+      \"issue\": \"description\",
+      \"suggestion\": \"how to fix\",
+      \"auto_fixable\": true|false
+    }
+  ],
+  \"positive\": [\"things done well\"]
+}" --output-format text --allowedTools "Read,Glob,Grep"
 ```
 
 ### Step 4: Process Review Results
 
-Based on sous-chef verdict:
+Categorize issues:
 
-**If verdict is ready_for_tidy:**
-- Proceed to Step 5
-- No changes needed
+**Auto-fixable** (apply immediately):
+- Typos in comments/strings
+- Missing trailing newlines
+- Simple formatting issues
+- Obvious one-line fixes
 
-**If verdict is needs_changes:**
-- Apply auto-fixable issues (typos, formatting, obvious one-line fixes)
-- Note non-fixable issues for `/line-tidy`
-- Categorize by priority (P1-P4)
+Apply auto-fixes directly using Edit tool.
 
-**If verdict is blocked:**
-- CRITICAL issues must be fixed before tidying
-- Report blocking issues to user
-- Recommend not proceeding to `/line-tidy` until fixed
-- Keep task as in_progress
+**Non-auto-fixable** (note for `/line-tidy`):
+- Logic errors requiring design decisions
+- Security concerns needing investigation
+- Missing functionality
+- Architectural suggestions
+
+Note these for filing in `/line-tidy`, categorized by priority:
+- **P1-P3**: Blocking issues → filed as standalone beads
+- **P4/nits**: Minor suggestions → filed under Retrospective or Backlog epic
 
 ### Step 5: Record and Report Results
 
@@ -135,14 +123,10 @@ Summary: <brief assessment>"
 
 **Output format:**
 ```
-╔══════════════════════════════════════════════════════════════╗
-║  SERVE: Dish Presented                                       ║
-╚══════════════════════════════════════════════════════════════╝
-
 REVIEW: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Verdict: READY_FOR_TIDY | NEEDS_CHANGES | BLOCKED
+Verdict: APPROVED | NEEDS_CHANGES | BLOCKED
 
 Summary:
   <brief overall assessment of the changes>
@@ -158,8 +142,6 @@ Issues to file in /tidy:
 Positive notes:
   - <good thing>
   - <good thing>
-
-Signal: READY_FOR_TIDY
 
 NEXT STEP: /line-tidy
 ```
