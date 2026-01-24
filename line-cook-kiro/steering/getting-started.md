@@ -24,6 +24,7 @@ prep → cook → serve → tidy
   ↓      ↓       ↓       ↓
 sync  execute  review  commit
 ```
+Use the quick cycle for individual tasks within a feature.
 
 **Full service (feature delivery):**
 ```
@@ -31,6 +32,7 @@ mise → prep → cook → serve → tidy → plate
   ↓      ↓       ↓       ↓       ↓       ↓
 plan   sync  execute  review  commit validate
 ```
+Use full service when delivering a complete feature. The **plate** phase validates that all feature requirements are met before marking the feature complete.
 
 ### Get Started in 3 Steps
 

@@ -16,6 +16,7 @@ When the user says any of these phrases, execute the corresponding workflow:
 | "plate", "/plate", "dessert", "/dessert", "validate feature" | Run plate workflow (feature validation) |
 | "service", "/service", "full service" | Run full service (mise→prep→cook→serve→tidy→plate) |
 | "work", "/work", "full cycle", "start work" | Run work cycle (prep→cook→serve→tidy) |
+| "getting started", "help", "guide", "how do I" | Show getting-started guide |
 
 ## The Workflow Loop
 
@@ -142,6 +143,8 @@ Final validation for completed features.
 Complete feature delivery cycle.
 
 Run prep → cook → serve → tidy → plate (if feature complete) in sequence using the commands above.
+
+**Kitchen Manager**: Use `/service` when delivering a complete feature. Use individual commands (`/prep`, `/cook`, etc.) when you need fine-grained control, want to pause between phases, or are just doing a quick task. The `/service` command orchestrates the entire flow automatically.
 
 ## Guardrails
 

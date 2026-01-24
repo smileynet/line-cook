@@ -59,15 +59,34 @@ bd stats                             # Project statistics
 bd doctor                            # Check for issues
 ```
 
-## Retrospective Pattern
+## Retrospective Pattern (Parking Lot)
 
-For minor suggestions, file under a retrospective epic:
+Use this pattern for work that shouldn't be auto-selected but should be remembered:
 
+**When to use:**
+- Minor improvements discovered during other work
+- "Nice to have" ideas that aren't urgent
+- Refactoring suggestions for later
+- Technical debt observations
+
+**How to file:**
 ```bash
 bd create --title="Consider X" --type=task --priority=4 --parent=<retro-epic-id>
 ```
 
-Tasks under "Retrospective" or "Backlog" epics are excluded from auto-selection.
+**Why P4 + Retrospective epic:**
+- P4 (backlog) priority signals low urgency
+- Retrospective epic excludes tasks from `bd ready` auto-selection
+- Work is preserved but doesn't clutter active task lists
+- Perfect for "park it and revisit later" items
+
+**Retrieving parked work:**
+```bash
+bd list --parent=<retro-epic-id>              # List all parked items
+bd update <parked-id> --status=in_progress    # Pull from parking lot when ready
+```
+
+Tasks under "Retrospective" or "Backlog" epics are excluded from auto-selection until explicitly claimed.
 
 ## Context Recovery
 
