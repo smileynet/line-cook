@@ -1,4 +1,4 @@
-# Kitchen Logs
+# Logging and Debugging
 
 > Track what happens during service for debugging and improvement.
 
@@ -319,5 +319,5 @@ logging:
 ## Related
 
 - [Workflow](./workflow.md) - Where logging fits in development
-- [Station Management](./station-management.md) - Session and context tracking
-- [Test Prep](./test-prep.md) - Testing log output
+- [Context Management](./context-management.md) - Session and context tracking
+- [Test Setup](./test-setup.md) - Testing log output

@@ -1,4 +1,4 @@
-# Station Management
+# Context Management
 
 > Keep your workstation organized for efficient service.
 
@@ -303,5 +303,5 @@ Fix: Trust beads and git. Compact freely.
 ## Related
 
 - [Workflow](./workflow.md) - Overall workflow structure
-- [Kitchen Logs](./kitchen-logs.md) - Tracking what happens
-- [Order Priorities](./order-priorities.md) - What to work on next
+- [Logging and Debugging](./logging.md) - Tracking what happens
+- [Priority and Dependencies](./priorities.md) - What to work on next

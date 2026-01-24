@@ -1,4 +1,4 @@
-# Tracer Dishes
+# Vertical Slicing
 
 > Build vertical slices through all layers, then expand incrementally.
 
@@ -222,5 +222,5 @@ Before starting a task, verify:
 ## Related
 
 - [TDD/BDD Workflow](./tdd-bdd.md) - How tests prove tracers work
-- [Menu Changes](./menu-changes.md) - Restructuring work during execution
-- [Order Priorities](./order-priorities.md) - Sequencing tracer tasks
+- [Scope Management](./scope-management.md) - Restructuring work during execution
+- [Priority and Dependencies](./priorities.md) - Sequencing tracer tasks

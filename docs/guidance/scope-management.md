@@ -1,4 +1,4 @@
-# Menu Changes
+# Scope Management
 
 > Adapt the plan when reality doesn't match expectations.
 
@@ -294,6 +294,6 @@ Fix: Only file actionable work items.
 
 ## Related
 
-- [Order Priorities](./order-priorities.md) - Deciding what to work on
+- [Priority and Dependencies](./priorities.md) - Deciding what to work on
 - [Workflow](./workflow.md) - Standard execution flow
-- [Station Management](./station-management.md) - Managing context during changes
+- [Context Management](./context-management.md) - Managing context during changes
