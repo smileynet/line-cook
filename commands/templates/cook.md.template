@@ -93,7 +93,7 @@ Process TodoWrite items systematically with TDD guardrails:
    **Automatic test quality review** (use Task tool):
    ```
    Task tool: Review test code for quality
-   Subagent type: quality-control
+   Subagent type: taster
    ```
 
    Test quality checks:
