@@ -345,7 +345,7 @@ Run: `PASS`
 
 ```bash
 # 1. Claim task
-lc cook <task-id>
+/line:cook <task-id>
 
 # 2. RED: Write failing test
 # Define what success looks like
