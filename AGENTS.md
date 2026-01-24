@@ -103,6 +103,7 @@ Line Cook provides agents for each platform:
 | Agent | Role | Purpose |
 |-------|------|---------|
 | **line-cook** | Main agent | Execute workflow commands (prep, cook, serve, tidy, service) |
+| **kitchen-manager** | Orchestrator | Coordinate full service cycle with automatic error handling |
 | **taster** | Test quality | Review tests for isolation, clarity, structure, anti-patterns |
 | **sous-chef** | Code review | Review changes for correctness, security, style, completeness |
 
@@ -185,17 +186,24 @@ OpenCode plugin uses OpenCode's built-in agent system:
 - **Trigger**: Automatically before plate phase (feature completion)
 - **Output**: BDD quality assessment with critical issue blocking if needed
 
-### expeditor
+### kitchen-manager (expeditor)
 
-- **Purpose**: Orchestrate complete workflow cycle
+- **Purpose**: Orchestrate complete service cycle (prep→cook→serve→tidy→plate)
 - **Responsibilities**:
-  - Run prep checks and present ready tasks
-  - Delegate cooking to chef subagent
+  - Run prep checks and auto-select next task
+  - Execute cook phase directly (or delegate to chef)
   - Coordinate serving with sous-chef review
   - Manage tidy phase (commit, push)
   - Trigger plate phase for feature completion
-  - Handle failure conditions and coordinate recovery
-- **Output**: Workflow report after successful service
+  - Handle failure conditions and abort protocol
+- **Failure Conditions** (stop execution):
+  - Tests fail
+  - Build fails
+  - Reviewer blocks (BLOCKED verdict)
+  - BDD quality blocks
+  - Git operations fail
+- **Output**: Service report after successful tidy
+- **Implementation**: `line-cook-kiro/agents/kitchen-manager.json`
 
 ## Workflow Principles
 

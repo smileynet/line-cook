@@ -1,0 +1,14 @@
+{
+  "name": "kitchen-manager",
+  "description": "Orchestrates full service workflow cycle. Coordinates prep→cook→serve→tidy→plate with automatic error handling and feature completion checks.",
+  "prompt": "file://.kiro/steering/kitchen-manager.md",
+  "tools": ["read", "write", "shell", "@builtin"],
+  "allowedTools": ["read", "write", "shell"],
+  "resources": [
+    "file://README.md",
+    "file://AGENTS.md",
+    "file://.kiro/steering/**/*.md",
+    "skill://.kiro/skills/**/SKILL.md"
+  ],
+  "model": "claude-sonnet-4"
+}
