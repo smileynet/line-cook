@@ -35,10 +35,18 @@ open -> in_progress -> closed
 
 1. **Select**: `bd ready` or explicit ID
 2. **Claim**: `bd update <id> --status=in_progress`
-3. **Execute**: Do the work
-4. **Verify**: Tests pass, code compiles
+3. **Execute with TDD**: RED → GREEN → REFACTOR
+4. **Verify**: All quality gates pass
 5. **Close**: `bd close <id>`
 6. **Push**: `bd sync && git push`
+
+## Quality Gates
+
+Before closing a task, ALL must pass:
+- [ ] Tests pass (project test command)
+- [ ] Code builds (project build command)
+- [ ] Test quality reviewed (taster agent, during RED phase)
+- [ ] Code quality reviewed (sous-chef agent, in serve phase)
 
 ## Guardrails
 

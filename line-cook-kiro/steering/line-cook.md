@@ -8,12 +8,12 @@ When the user says any of these phrases, execute the corresponding workflow:
 
 | User Input | Action |
 |------------|--------|
-| "mise", "/mise", "plan", "planning" | Run mise workflow (work breakdown) |
+| "mise", "/mise", "plan", "/plan", "planning" | Run mise workflow (work breakdown) |
 | "prep", "/prep", "sync state", "what's ready" | Run prep workflow |
-| "cook", "/cook", "start task", "execute task" | Run cook workflow |
+| "cook", "/cook", "start task", "execute task" | Run cook workflow (TDD cycle) |
 | "serve", "/serve", "review", "review changes" | Run serve workflow |
 | "tidy", "/tidy", "commit", "push changes" | Run tidy workflow |
-| "plate", "/plate", "validate feature" | Run plate workflow (feature validation) |
+| "plate", "/plate", "dessert", "/dessert", "validate feature" | Run plate workflow (feature validation) |
 | "service", "/service", "full service" | Run full service (mise→prep→cook→serve→tidy→plate) |
 | "work", "/work", "full cycle", "start work" | Run work cycle (prep→cook→serve→tidy) |
 
@@ -67,7 +67,7 @@ Output shows:
 
 ### cook - "Execute the task"
 
-Execute a task with guardrails ensuring completion.
+Execute a task with guardrails ensuring completion. Follows TDD Red-Green-Refactor cycle.
 
 ```bash
 bd ready                              # Find available tasks
@@ -77,9 +77,17 @@ bd show <id>                          # Get task context
 
 1. **Task selected and claimed** via bd commands
 2. **Plan steps**: Break into todos before starting
-3. **Execute**: Process each step systematically
-4. **Verify**: Tests pass, code compiles
-5. **Complete**: `bd close <id>` only after verification
+3. **RED**: Write failing test, invoke taster for quality review
+4. **GREEN**: Implement minimal code to pass test
+5. **REFACTOR**: Clean up while tests pass
+6. **Verify**: All tests pass, code compiles
+7. **Complete**: `bd close <id>` only after verification
+
+**Quality gates** (must pass before completion):
+- Tests pass
+- Code builds
+- Test quality approved (taster)
+- Code quality approved (sous-chef, in serve phase)
 
 Note discoveries for /tidy - don't file beads during cook.
 
