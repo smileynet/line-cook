@@ -16,29 +16,29 @@ Execute all steps in sequence without stopping between commands.
 
 ### Step 1: Run /line-prep
 
-Execute the prep command. Read and follow `line-prep.md`.
+Read and follow `line-prep.md` to sync state and identify available work.
 
 Wait for prep to complete.
 
 ### Step 2: Run /line-cook
 
-**If `$ARGUMENTS` provided:**
-Execute cook with the task ID: `lc cook $ARGUMENTS`
+Read and follow `line-cook.md` to execute work.
 
-**Otherwise:**
-Execute cook to auto-select a task: `lc cook`
+**If `$ARGUMENTS` provided:** Pass the task ID to cook for explicit task selection.
+
+**Otherwise:** Cook will auto-select the highest priority ready task.
 
 Wait for cook to complete.
 
 ### Step 3: Run /line-serve
 
-Execute the serve command. Read and follow `line-serve.md`.
+Read and follow `line-serve.md` for peer review.
 
 Wait for review to complete.
 
 ### Step 4: Run /line-tidy
 
-Execute the tidy command. Read and follow `line-tidy.md`.
+Read and follow `line-tidy.md` to file discovered work, commit, and push.
 
 Tidy files discovered work, commits, syncs, and pushes.
 

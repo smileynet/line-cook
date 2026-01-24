@@ -4,6 +4,21 @@
 
 Test-Driven Development (TDD) ensures code works by writing tests first. Behavior-Driven Development (BDD) ensures features work by testing user scenarios.
 
+## Core Principles
+
+**TDD (Test-Driven Development)** = Task-level implementation = **Individual prep**
+**BDD (Behavior-Driven Development)** = Feature-level validation = **Course tasting**
+
+```
+Epic: Kitchen Service (Multi-course meal)
+├── Feature: Appetizers ready on demand (Course tasting - BDD)
+│   ├── Task: Prep mise en place (Individual prep - TDD)
+│   ├── Task: Implement plating station (Individual prep - TDD)
+│   └── Task: Configure timing system (Individual prep - TDD)
+└── Feature: Main course coordination (Course tasting - BDD)
+    └── ...
+```
+
 ## Quick Reference
 
 | Phase | What | Signal |
@@ -14,11 +29,21 @@ Test-Driven Development (TDD) ensures code works by writing tests first. Behavio
 
 ## The Kitchen Analogy
 
-Making a dish:
+**Task = TDD = Individual Prep**
+- Each ingredient prepped to specification
+- Red: Define what "properly diced" means
+- Green: Dice until it matches spec
+- Refactor: Improve technique, same result
 
-1. **Recipe (RED)** - Write what the dish should taste like before cooking
-2. **Cook (GREEN)** - Make the dish until it matches the recipe
-3. **Plate (REFACTOR)** - Improve presentation without changing taste
+**Feature = BDD = Course Tasting**
+- All prepped items combine into a dish
+- Validate the complete dish works together
+- Guest perspective: does the course deliver?
+
+**Epic = Multi-course Meal**
+- Multiple courses (features) compose the meal
+- Each course validated independently
+- Full meal validated at service
 
 ## TDD Cycle
 
@@ -315,6 +340,81 @@ var emailRegex = regexp.MustCompile(`^[^@]+@[^@]+\.[^@]+$`)
 ```
 
 Run: `PASS`
+
+## Task Workflow (TDD/Individual Prep)
+
+```bash
+# 1. Claim task
+lc cook <task-id>
+
+# 2. RED: Write failing test
+# Define what success looks like
+
+# 3. GREEN: Implement minimal code
+# Make the test pass
+
+# 4. REFACTOR: Clean up
+# Improve without breaking tests
+
+# 5. Verify
+go test ./...
+go build ./...
+
+# 6. Close task
+bd close <task-id>
+```
+
+**Task complete when:**
+- All unit tests pass
+- Code builds without errors
+- Coverage meets threshold (>80%)
+
+## Feature Workflow (BDD/Course Tasting)
+
+After all tasks in a feature complete:
+
+```bash
+# 1. Write feature acceptance tests
+# Map each acceptance criterion to a test
+
+# 2. Run feature tests
+go test ./... -run TestFeature
+
+# 3. Verify all acceptance criteria pass
+# Each criterion = one test case
+
+# 4. Document results (optional)
+# Add to docs/testing/ if complex
+
+# 5. Close feature
+bd close <feature-id>
+```
+
+**Feature complete when:**
+- All acceptance criteria have passing tests
+- Tests use Given-When-Then structure
+- Tests map 1:1 to acceptance criteria
+- Real-world scenarios validated
+
+## Quality Checklist
+
+### TDD Unit Tests (Task-level / Individual Prep)
+
+- [ ] Tests written before implementation
+- [ ] One test per function/method
+- [ ] Fast (< 100ms each)
+- [ ] Isolated (no shared state)
+- [ ] Clear test names
+- [ ] Minimal mocking
+
+### BDD Feature Tests (Feature-level / Course Tasting)
+
+- [ ] Maps to acceptance criteria
+- [ ] Given-When-Then structure
+- [ ] User-centric language
+- [ ] Real-world scenarios
+- [ ] Error cases included
+- [ ] Self-documenting test names
 
 ## Related
 
