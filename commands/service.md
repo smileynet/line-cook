@@ -138,15 +138,21 @@ Quality Gates:
   [✓] Code quality approved (sous-chef)
   [✓] BDD tests approved (maître, if applicable)
 
-Files: <count> changed
-Commit: <hash>
-Issues filed: <count>
-
 ──────────────────────────────────────────
 
 TASK: <id> - <title>
 
-SUMMARY: <what was accomplished>
+INTENT:
+  <1-2 sentences from task description>
+  Goal: <deliverable or acceptance criteria>
+
+BEFORE → AFTER:
+  <previous state> → <new state>
+  <what couldn't be done> → <what can be done now>
+
+Files: <count> changed
+Commit: <hash>
+Issues filed: <count>
 ```
 
 ## Error Handling
