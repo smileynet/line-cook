@@ -18,12 +18,12 @@ Structured AI workflow execution for disciplined development.
 
 | Command | Purpose |
 |---------|---------|
-| "mise" | Plan work breakdown before implementation |
+| "mise" or "plan" | Plan work breakdown before implementation |
 | "prep" | Sync git, show ready tasks |
-| "cook" | Claim and execute a task |
+| "cook" | Claim and execute a task with TDD cycle |
 | "serve" | AI peer review of completed work |
 | "tidy" | Commit, sync beads, push |
-| "plate" | Validate completed feature |
+| "plate" or "dessert" | Validate completed feature |
 | "service" | Full service (mise→prep→cook→serve→tidy→plate) |
 | "work" | Quick cycle (prep→cook→serve→tidy) |
 
@@ -57,6 +57,31 @@ Line Cook enforces these disciplines:
 - **Verify before done** - Tests pass, code compiles
 - **File, don't block** - Discovered issues become new beads
 - **Push before stop** - Work isn't done until it's pushed
+
+## TDD Cycle with Quality Gates
+
+Cook phase follows Red-Green-Refactor with automatic quality checks:
+
+**RED**: Write failing test
+- Write test for the feature
+- Verify test fails
+- Taster agent reviews test quality
+- Address critical issues before proceeding
+
+**GREEN**: Implement minimal code
+- Write simplest code to make test pass
+- Verify tests pass
+- No refactoring yet
+
+**REFACTOR**: Clean up code
+- Improve structure while tests pass
+- Ensure tests still pass after refactoring
+
+**Quality Gates** (must pass before completion):
+- Tests pass (project-specific test command)
+- Code builds (project-specific build command)
+- Test quality approved by taster agent
+- Code quality approved by sous-chef agent (serve phase)
 
 ## Beads Integration
 
