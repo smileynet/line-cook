@@ -585,7 +585,7 @@ After pushing a release, create a GitHub release with these instructions for use
 /plugin update line
 ```
 
-See [.github/release.md](.github/release.md) for the release notes template.
+> **Note:** The `.github/workflows/release.yml` workflow automatically creates releases when `plugin.json` version changes on main.
 
 ## Line Cook Workflow
 
