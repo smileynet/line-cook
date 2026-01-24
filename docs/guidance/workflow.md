@@ -4,6 +4,23 @@
 
 Line Cook's workflow provides structure for AI-assisted development. Each phase has a clear purpose, and the cycle ensures work is tracked, reviewed, and persisted.
 
+## Progressive Disclosure
+
+**Load only what you need:**
+
+```bash
+# Core concepts (this file)
+cat docs/guidance/workflow.md
+
+# Specific topics
+cat docs/guidance/tdd-bdd.md           # Testing workflow details
+cat docs/guidance/priorities.md        # P0-P4 priority system
+cat docs/guidance/scope-management.md  # Handling scope changes
+cat docs/guidance/context-management.md # Managing AI context
+```
+
+---
+
 ## Quick Reference
 
 ```
@@ -16,6 +33,66 @@ Or run the full cycle:
 
 ```
 /line:service
+```
+
+## Work Hierarchy
+
+Line Cook uses a **3-tier hierarchy** for organizing work:
+
+```
+Epic (Meal Theme)
+├── Feature (Multi-course Meal)
+│   ├── Task (Course)
+│   └── Task (Course)
+└── Feature (Multi-course Meal)
+    └── Task (Course)
+```
+
+### The Tiers
+
+| Tier | Kitchen Term | Description | Scope |
+|------|--------------|-------------|-------|
+| **Epic** | Meal Theme | High-level capability area | 3+ sessions |
+| **Feature** | Multi-course Meal | User-observable outcome | 1-3 sessions |
+| **Task** | Course | Single implementation step | 1 session |
+
+### What Makes a Feature
+
+**A feature is user-observable when a human can verify it works.**
+
+| Criterion | Feature | Task |
+|-----------|---------|------|
+| **Value** | Delivers visible benefit to user | Supports features, no standalone value |
+| **Testable** | User can verify "it works" | Only devs can verify |
+| **Perspective** | Human user's viewpoint | System/developer viewpoint |
+| **Scope** | End-to-end (vertical slice) | Single layer/component |
+
+**The "Who" Test:** If the beneficiary is "the system" or "developers," it's a task, not a feature.
+
+### Example
+
+```
+Epic: User Authentication (Meal Theme: "Italian Night")
+├── Feature: Users can log in (Course: Antipasti)
+│   ├── Task: Implement login form
+│   ├── Task: Add password validation
+│   └── Task: Create session management
+└── Feature: Users can reset password (Course: Primo)
+    ├── Task: Create reset email template
+    └── Task: Implement token validation
+```
+
+### Creating Hierarchy
+
+```bash
+# Create epic
+bd create --title="User Authentication" --type=epic --priority=2
+
+# Create features under epic
+bd create --title="Users can log in" --type=feature --parent=lc-abc --priority=2
+
+# Create tasks under feature
+bd create --title="Implement login form" --type=task --parent=lc-abc.1
 ```
 
 ## The Kitchen Analogy
@@ -383,6 +460,45 @@ bd ready       # See created tasks
 /line:serve    # Review
 /line:tidy     # Push
 ```
+
+## TDD/BDD Integration
+
+Testing integrates with the work hierarchy:
+
+| Tier | Testing Style | Purpose |
+|------|---------------|---------|
+| **Task** | TDD (Red-Green-Refactor) | Unit-level implementation |
+| **Feature** | BDD (Given-When-Then) | Acceptance validation |
+| **Epic** | Integration validation | End-to-end verification |
+
+### The Kitchen Analogy
+
+**Task = TDD = Individual Prep**
+- Each ingredient prepped to specification
+- Red: Define what "properly diced" means
+- Green: Dice until it matches spec
+- Refactor: Improve technique, same result
+
+**Feature = BDD = Course Tasting**
+- All prepped items combine into a dish
+- Validate the complete dish works together
+- Guest perspective: does the course deliver?
+
+**Epic = Multi-course Meal**
+- Multiple courses (features) compose the meal
+- Each course validated independently
+- Full meal validated at service
+
+### Quality Gates
+
+| Phase | Agent | Checks |
+|-------|-------|--------|
+| **RED** | Taster | Test isolation, naming, structure |
+| **GREEN** | Automatic | Tests pass, builds, no lint errors |
+| **REFACTOR** | Sous-chef | Correctness, security, style, completeness |
+| **PLATE** | Maître | Acceptance criteria, BDD structure |
+
+See [TDD/BDD Workflow](./tdd-bdd.md) for detailed testing guidance.
 
 ## Related
 
