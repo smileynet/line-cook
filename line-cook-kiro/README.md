@@ -9,45 +9,33 @@ line-cook-kiro/
 ├── agents/           # Custom agent configurations
 │   ├── line-cook.json
 │   ├── taster.json
+│   ├── sous-chef.json
 │   └── maitre.json
 ├── steering/         # Steering files (always-loaded context)
 │   ├── line-cook.md
 │   ├── beads.md
 │   ├── session.md
+│   ├── getting-started.md
 │   ├── taster.md
+│   ├── sous-chef.md
 │   └── maitre.md
 ├── skills/           # Lazy-loaded documentation
 │   └── line-cook/
 │       └── SKILL.md
-├── scripts/          # Hook scripts (stubs - referenced from agent JSON)
-│   ├── session-start.sh  # AgentSpawn hook (stub - TODO: context priming)
-│   └── stop-check.sh     # Stop hook (stub - TODO: work verification)
 └── install.py        # Installation script
 ```
 
-## Hook Architecture
+## CLI Tool
 
-**Important**: Kiro CLI hooks are defined **inline in agent JSON**, not as separate configuration files. The `scripts/` directory contains shell scripts that are referenced by path from the agent configuration:
+Line Cook provides a CLI tool (`lc`) for mechanical operations:
 
-```json
-{
-  "name": "line-cook",
-  "hooks": {
-    "AgentSpawn": {
-      "command": "bash ~/.kiro/scripts/session-start.sh",
-      "timeout_ms": 30000
-    },
-    "Stop": {
-      "command": "bash ~/.kiro/scripts/stop-check.sh",
-      "timeout_ms": 30000
-    }
-  }
-}
+```bash
+lc prep              # Sync state, show ready tasks
+lc cook [id]         # Claim task, output context
+lc serve             # Output diff for review
+lc tidy              # Commit and push
+lc work [id]         # Full cycle orchestration
 ```
-
-**Note**: Paths shown assume global installation to `~/.kiro/`. For project-local installation, use `.kiro/scripts/` relative paths.
-
-Kiro CLI has 5 hook types: `AgentSpawn`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`.
 
 ## Workflow Commands
 
@@ -56,15 +44,14 @@ Kiro CLI does **not** support custom slash commands. Workflow invocation uses **
 | User Input | Workflow |
 |------------|----------|
 | "getting started", "help", "guide" | Show workflow guide |
+| "mise", "/mise", "plan", "planning" | Plan work breakdown |
 | "prep", "/prep", "sync state" | Run prep workflow |
 | "cook", "/cook", "start task" | Run cook workflow |
 | "serve", "/serve", "review" | Run serve workflow |
 | "tidy", "/tidy", "commit" | Run tidy workflow |
-| "work", "/work", "full cycle" | Run prep→cook→serve→tidy sequentially |
-| "season", "/season", "apply findings" | Apply research findings to beads |
-| "mise", "/mise", "plan", "prepare", "planning" | Prime planning session with hierarchy guidance |
-| "setup", "/setup", "configure hooks" | Configure optional hooks |
-| "compact", "/compact", "clear context" | Clear context, preserve workflow state |
+| "plate", "/plate", "validate feature" | Validate completed feature |
+| "service", "/service", "full service" | Full service (mise→prep→cook→serve→tidy→plate) |
+| "work", "/work", "full cycle" | Quick cycle (prep→cook→serve→tidy) |
 
 The steering file (`steering/line-cook.md`) teaches the agent to recognize these phrases and execute the corresponding workflow.
 
@@ -85,5 +72,5 @@ kiro-cli --agent line-cook
 
 ## See Also
 
-- [Research: Kiro Command System](../docs/internal/research/kiro-command-system.md)
 - [Line Cook README](../README.md)
+- [AGENTS.md](../AGENTS.md) - Technical documentation

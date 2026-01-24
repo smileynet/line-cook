@@ -5,38 +5,65 @@ description: AI-supervised development workflow. Use when running prep, cook, se
 
 # Line Cook
 
-Structured AI workflow execution: prep → cook → serve → tidy.
+Structured AI workflow execution with CLI tool support.
 
 ## When to Use
 
 - Starting a work session with "work" or "/work"
-- Running individual workflow steps: "prep", "cook", "serve", "tidy"
+- Running individual workflow steps: "mise", "prep", "cook", "serve", "tidy", "plate"
 - Managing beads issues during execution
 - Understanding workflow guardrails
+
+## CLI Tool
+
+Line Cook provides a CLI (`lc`) for mechanical operations:
+
+```bash
+lc prep              # Sync state, show ready tasks
+lc cook [id]         # Claim task, output context
+lc serve             # Output diff for review
+lc tidy              # Commit and push
+lc work [id]         # Full cycle orchestration
+```
 
 ## Quick Reference
 
 | Command | Purpose |
 |---------|---------|
-| "work" | Full prep→cook→serve→tidy cycle |
+| "mise" | Plan work breakdown before implementation |
 | "prep" | Sync git, show ready tasks |
 | "cook" | Claim and execute a task |
 | "serve" | AI peer review of completed work |
 | "tidy" | Commit, sync beads, push |
+| "plate" | Validate completed feature |
+| "service" | Full service (mise→prep→cook→serve→tidy→plate) |
+| "work" | Quick cycle (prep→cook→serve→tidy) |
 
 ## Core Workflow
 
+```bash
+lc work              # Quick cycle with auto-selected task
+lc work <task-id>    # Quick cycle with specific task
 ```
-work              # Full cycle with auto-selected task
-work <task-id>    # Full cycle with specific task
+
+**Quick cycle (most common):**
+```
+prep → cook → serve → tidy
+```
+
+**Full service (feature delivery):**
+```
+mise → prep → cook → serve → tidy → plate
 ```
 
 ### Step-by-Step
 
-1. **Prep**: Sync state, identify available work
-2. **Cook**: Claim task, execute with guardrails, verify completion
-3. **Serve**: Headless AI reviews changes (if supported)
-4. **Tidy**: File discovered issues, commit, push
+1. **Mise**: Plan work breakdown (interactive)
+2. **Prep**: Sync state, identify available work
+3. **Cook**: Claim task, execute with guardrails, verify completion
+4. **Serve**: AI reviews changes
+5. **Tidy**: File discovered issues, commit, push
+6. **Plate**: Validate feature completion (when applicable)
 
 ## Guardrails
 
@@ -50,11 +77,10 @@ Line Cook enforces these disciplines:
 
 ## Beads Integration
 
-Line Cook orchestrates beads for task management:
+Line Cook uses beads for task management. The CLI handles most operations:
 
 ```bash
 bd ready              # Find unblocked tasks
-bd update <id> --status=in_progress  # Claim task
 bd close <id>         # Complete task
 bd sync               # Sync with git
 ```
@@ -63,8 +89,8 @@ bd sync               # Sync with git
 
 Tasks under "Retrospective" or "Backlog" epics are excluded from auto-selection. Explicit selection still works:
 
-```
-cook <parked-task-id>
+```bash
+lc cook <parked-task-id>
 ```
 
 ## Error Handling
@@ -74,6 +100,7 @@ If a step fails:
 - **Cook fails**: Continue to tidy to save progress
 - **Serve fails**: Review skipped, continue to tidy
 - **Tidy fails**: Create bead for follow-up
+- **Plate fails**: Note incomplete, create follow-up bead
 
 ## Reference
 
