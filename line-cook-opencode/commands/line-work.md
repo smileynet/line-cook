@@ -34,7 +34,10 @@ Wait for cook to complete.
 
 Read and follow `line-serve.md` for peer review.
 
-Wait for review to complete.
+Wait for review to complete. **Check SERVE_RESULT verdict:**
+
+- If `continue: true` → proceed to Step 4
+- If `continue: false` (BLOCKED) → STOP and wait for user decision (see Error Handling)
 
 ### Step 4: Run /line-tidy
 
@@ -62,8 +65,42 @@ SUMMARY: <what was accomplished>
 If any step fails:
 - **Prep fails**: Report sync error, stop workflow
 - **Cook fails**: Report error, offer to continue to tidy (to save progress)
-- **Serve fails**: Note review skipped, continue to tidy
+- **Serve fails**: Check SERVE_RESULT verdict (see below)
 - **Tidy fails**: Report push error, create bead for follow-up
+
+### Serve Verdict Handling
+
+After serve completes, check the SERVE_RESULT block:
+
+| Verdict | continue | Action |
+|---------|----------|--------|
+| `APPROVED` | true | Continue to tidy |
+| `NEEDS_CHANGES` | true | Continue to tidy (issues will be filed) |
+| `SKIPPED` | true | Continue to tidy with retry recommendation |
+| `BLOCKED` | false | **STOP workflow** - require user decision |
+
+**On BLOCKED verdict:**
+```
+⛔ WORKFLOW STOPPED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Review found blocking issues that must be addressed:
+
+<list blocking issues from SERVE_RESULT>
+
+Options:
+1. Fix the issues, then run /line-work again
+2. Override: run /line-tidy directly (skips review gate)
+3. Abandon: leave changes uncommitted for manual handling
+
+Waiting for user decision...
+```
+
+**On SKIPPED verdict (API error):**
+```
+⚠️ Review skipped due to API error. Continuing to tidy.
+Recommendation: Run /line-serve manually after tidy completes.
+```
 
 ## Example Usage
 
