@@ -14,37 +14,68 @@ If the file cannot be found, display this fallback quick reference:
 
 ## Line Cook - Quick Start
 
-Line Cook provides structured workflow cycles for AI-assisted development. Sync → Execute → Review → Commit.
+Line Cook provides structured workflow cycles for AI-assisted development.
+
+### CLI Tool
+
+```bash
+lc prep              # Sync state, show ready tasks
+lc cook [id]         # Claim task, output context
+lc serve             # Output diff for review
+lc tidy              # Commit and push
+lc work [id]         # Full cycle orchestration
+```
 
 ### The Workflow
 
+**Quick cycle (most common):**
 ```
 prep → cook → serve → tidy
-  ↓      ↓      ↓      ↓
-sync  execute review commit
+  ↓      ↓       ↓       ↓
+sync  execute  review  commit
 ```
 
-Or run the full cycle: `work`
+**Full service (feature delivery):**
+```
+mise → prep → cook → serve → tidy → plate
+  ↓      ↓       ↓       ↓       ↓       ↓
+plan   sync  execute  review  commit validate
+```
 
 ### Get Started in 3 Steps
 
 1. **Sync and see what's ready**
-   ```
-   prep
+   ```bash
+   lc prep
    ```
    Shows available tasks and next step.
 
 2. **Execute a task**
+   ```bash
+   lc cook
    ```
-   cook
-   ```
-   Works through a task with verification.
+   Claims task and provides context for execution.
 
 3. **Complete and push**
-   ```
-   tidy
+   ```bash
+   lc tidy
    ```
    Commits, files issues, and pushes to remote.
+
+Or run the full cycle: `lc work`
+
+### All Commands
+
+| Command | Purpose |
+|---------|---------|
+| "mise" | Plan work breakdown before implementation |
+| "prep" | Sync git, show ready tasks |
+| "cook" | Claim and execute a task |
+| "serve" | AI peer review of completed work |
+| "tidy" | Commit, sync beads, push |
+| "plate" | Validate completed feature |
+| "service" | Full service (mise→prep→cook→serve→tidy→plate) |
+| "work" | Quick cycle (prep→cook→serve→tidy) |
 
 ### Learn More
 
@@ -55,5 +86,5 @@ Or run the full cycle: `work`
 
 ### Need Help?
 
-Run `prep` at any time to see what's ready to work on.
+Run `lc prep` at any time to see what's ready to work on.
 
