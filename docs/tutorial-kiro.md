@@ -10,65 +10,64 @@ This tutorial walks you through the complete journey from initial brainstorming 
 
 ---
 
-## Part 1: Why Line Cook?
+## Part 1: Understanding the Mental Models
 
-Before diving into the workflow, let's understand why Line Cook exists and the problems it solves.
+Before diving into commands, understand the ideas that make Line Cook work.
 
-### The Problem: Unstructured Sessions Drift
+> **Full reference:** [Mental Models](mental-models.md) covers these concepts in depth.
 
-Working with AI coding assistants without structure leads to predictable problems:
+### Sessions, Not Streams
 
-- **Scope creep** - "While I'm here, let me also fix this..."
-- **Lost context** - "What were we working on again?"
-- **Forgotten discoveries** - "I noticed a bug but didn't write it down"
-- **Unbounded sessions** - No clear stopping points
-- **Unpushed work** - Changes sitting locally, never committed
+AI coding assistants have limited context windows. Treat interactions as bounded **sessions**, not endless conversations.
 
-Sound familiar? These aren't AI problems—they're discipline problems. Line Cook provides the discipline so you can focus on the work.
+```
+Session = Prep → Cook → Serve → Tidy → Push
+```
 
-### The Kitchen Metaphor
+Each session:
+- Starts clean (fresh context, synced repo)
+- Has one goal (a single task)
+- Ends with artifact (code pushed, issues filed)
+- Leaves memory (beads capture what happened)
 
-Think of a professional kitchen:
+**Why this matters:** When you clear context or start a new conversation, beads remember what was done. `bd ready` shows exactly where to pick up.
 
-- **The Chef** (you) designs the menu, plans the service, decides what gets made
-- **The Line Cook** (this tool) executes orders systematically, calls out problems, follows recipes precisely
+### Planning vs Execution
 
-A good line cook doesn't redesign the dish mid-service. They execute what's been planned, note issues for the chef's attention, and keep the kitchen running smoothly.
+These are different modes. Don't mix them.
 
-That's Line Cook: structured execution of your plans.
+| Planning (You + AI brainstorm) | Execution (AI follows the plan) |
+|-------------------------------|--------------------------------|
+| Explore possibilities | Follow the recipe |
+| Ask clarifying questions | One task at a time |
+| Define scope | Verify before done |
+| Create beads | File discoveries, don't act on them |
 
-### The Trust Ladder
+**The handoff:** After creating beads, clear your context. Start fresh with `prep` for focused execution.
 
-Line Cook sits at a specific point on the automation spectrum:
+### Progressive Trust
 
-| Approach | Control | Automation | Trust Required |
-|----------|---------|------------|----------------|
-| Manual prompting | Full | None | Low |
-| Beads only | High | Low | Low |
-| **Line Cook** | Medium | Medium | Medium |
-| Gas Town | Low | High | High |
+Build confidence gradually:
 
-**Manual prompting**: You direct every action. Maximum control, but tiring.
+```
+MANUAL      →  BEADS      →  INDIVIDUAL  →  WORK
+(you type)     (bd ready)    (prep,cook)    (work)
+```
 
-**Beads only**: Track work in issues, but execute manually. Good for learning.
+Start by running commands separately. Graduate to `work` once you understand each phase and trust the output.
 
-**Line Cook**: Structured cycles with guardrails. You plan, it executes systematically.
+### Guardrails as Recovery Points
 
-**Gas Town**: Autonomous agent framework. You describe goals, it figures out how.
+Each command is a checkpoint. Nothing is permanent until `git push`.
 
-Most people should start with beads, graduate to Line Cook as trust builds, and consider Gas Town for well-understood, repeatable tasks.
+| If this goes wrong... | Recovery |
+|----------------------|----------|
+| Cook made bad changes | `git checkout .` and retry |
+| Serve rejected the code | Fix issues, run serve again |
+| Forgot something | Run cook again, add to findings |
+| Context got messy | Clear context, start fresh with prep |
 
-### The Guardrails Philosophy
-
-Line Cook enforces five principles:
-
-1. **Sync before work** - Always start with current state from remote
-2. **One task at a time** - Focus prevents scope creep
-3. **Verify before done** - Tests pass, code compiles, todos complete
-4. **File, don't block** - Discovered issues become new beads, not interruptions
-5. **Push before stop** - Work isn't done until it's remote
-
-These aren't arbitrary rules. Each prevents a common failure mode in AI-assisted development.
+**Key insight:** Line Cook's phases aren't just workflow—they're safe points to return to.
 
 ---
 
@@ -683,6 +682,58 @@ Items filed under Retrospective are automatically excluded from prep/cook auto-s
 3. **Verify before done** - Tests pass, code compiles
 4. **File, don't block** - Discoveries become beads, not interruptions
 5. **Push before stop** - Work isn't done until it's remote
+
+---
+
+## Recovery Paths
+
+Things go wrong. Here's how to recover at each phase.
+
+### During Prep
+
+| Problem | Solution |
+|---------|----------|
+| Beads out of sync | `bd sync` to pull latest |
+| Merge conflicts | Resolve manually, then `bd sync` |
+| Wrong task selected | Specify task explicitly: `cook lc-xxx` |
+
+### During Cook
+
+| Problem | Solution |
+|---------|----------|
+| Code is wrong | `git checkout .` to discard changes, retry |
+| Task too big | Stop, break into smaller beads, start fresh |
+| Discovered blocking issue | Note in findings, file as blocker in tidy |
+| Tests failing | Fix the tests before proceeding to serve |
+| Context getting large | Finish cook, run tidy, clear context before next task |
+
+### During Serve
+
+| Problem | Solution |
+|---------|----------|
+| Review rejected | Fix issues, run `serve` again |
+| Reviewer found critical bug | Return to cook, fix, re-run serve |
+| Auto-fix made wrong change | `git diff` to review, `git checkout <file>` to undo |
+
+### During Tidy
+
+| Problem | Solution |
+|---------|----------|
+| Commit failed | Check error, fix, retry tidy |
+| Push failed | Check remote status, resolve conflicts, retry |
+| Forgot to file something | Create bead manually with `bd create` |
+
+### The Nuclear Option
+
+If everything is confused:
+
+```bash
+git checkout .              # Discard local changes
+git pull                    # Sync with remote
+bd sync                     # Sync beads
+```
+
+Then start fresh with `prep`. Your beads are still there.
 
 ---
 
