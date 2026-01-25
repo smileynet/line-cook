@@ -4,6 +4,43 @@
 
 Focus on the what and why—Line Cook handles the how. Structured execution with guardrails that keeps you in deep work while AI runs the prep→cook→serve→tidy cycle.
 
+## Core Concepts
+
+Before diving in, understand two key ideas:
+
+**Sessions, not streams.** AI context is finite. Work in bounded sessions—prep, cook, serve, tidy—then clear context and start fresh. Don't treat AI conversations as endless streams. Each session ends with a push; discoveries become tracked issues for the next session.
+
+**You plan, it executes.** Brainstorm with the AI to scope work and create issues. Then hand off to Line Cook for disciplined execution. Don't mix modes—creative exploration and systematic execution are different phases with different goals.
+
+> **Learn more:** [Mental Models](docs/mental-models.md) explains these concepts in depth.
+
+## What is Beads?
+
+[Beads](https://github.com/steveyegge/beads) is a git-native issue tracker. Issues live in your repository as files, travel with your code, and work offline.
+
+**Why git-native issues?**
+- **Memory between sessions** - AI forgets, beads remember. When context clears, your work history persists.
+- **Travels with code** - Clone a repo, get its issues. No separate system to sync.
+- **AI-friendly** - Issues are plain text files the AI can read and update directly.
+- **Works offline** - No external service required.
+
+Line Cook orchestrates beads execution—it picks tasks, runs the work cycle, and files discoveries as new issues.
+
+## When NOT to Use Line Cook
+
+Line Cook adds structure. Structure has overhead. Skip it when:
+
+- **Quick one-off fixes** - Just make the change and commit
+- **Exploratory coding** - When you're learning or prototyping
+- **Pair programming** - When you're actively collaborating in real-time
+- **Tiny projects** - If setup takes longer than the work
+
+Use Line Cook when:
+- Work spans multiple sessions
+- Tasks have dependencies
+- You want automated review
+- You're building trust in AI workflows
+
 ## Quick Start
 
 ```bash
@@ -55,12 +92,19 @@ graph LR
 
 ## Getting Started
 
-**Tutorials:** Step-by-step guides from brainstorming to your first work cycle:
+**Two starting points** depending on where you are:
+
+| Starting Point | What to Do |
+|----------------|------------|
+| **"I know what to build"** | Quick Start above → `bd create` tasks → `/line:service` |
+| **"I have an idea, help me plan"** | `/mise` to brainstorm and create beads → then `/line:prep` |
+
+**Tutorials** walk through the complete journey from idea to execution:
 - [Claude Code Tutorial](docs/tutorial-claude-code.md)
 - [OpenCode Tutorial](docs/tutorial-opencode.md)
 - [Kiro Tutorial](docs/tutorial-kiro.md)
 
-Run each command individually first to understand what happens at each step:
+**Learn the commands** by running them individually first:
 
 ```bash
 # 1. Mise: Create work breakdown before starting
@@ -208,6 +252,40 @@ Then test the command in a new Claude Code session (or use `/plugin reload line`
 **Project-local dev commands** (`.claude/commands/`) are only available when working in the line-cook repository. These are not distributed with the plugin:
 
 - `/smoke-test` - Run end-to-end command execution tests
+
+## FAQ
+
+**What if I don't use beads?**
+
+You can still run the commands—they'll work. But you lose the "memory between sessions" benefit. Without beads, there's no persistent record of what was done, what's blocked, or what was discovered. Consider beads as optional but highly recommended.
+
+**Can I use this with GitHub Issues / Jira?**
+
+Yes. Beads is additive, not exclusive. Use your main tracker for team visibility and beads for your local AI workflow. Some teams sync the two; others keep them separate.
+
+**What if my project doesn't have tests?**
+
+`/cook` verification will be limited to "code compiles." You lose the automated quality gate, so review in `/serve` becomes more important. Consider adding tests incrementally as you work.
+
+**How long should a task be?**
+
+A task should fit in one session—roughly 1-2 hours of work. If you're saying "this might take a while," it's probably too big. Break it down with dependencies.
+
+**Can I run commands out of order?**
+
+Yes. Each command is independent. But the guardrails exist for a reason: `/prep` ensures you're synced, `/serve` catches issues before commit, `/tidy` ensures work is pushed. Skipping steps means accepting more risk.
+
+**What's the minimum viable workflow?**
+
+`/prep` → `/cook` → `/tidy`. This gives you: sync, execute with verification, commit and push. Add `/serve` when you want AI review. Add `/mise` when you need help planning.
+
+**What does "headless Claude" mean?**
+
+Headless means Claude running as a background process—no interactive terminal, just a prompt in and results out. `/serve` uses headless Claude to get a fresh review of your changes from a separate context.
+
+**Why clear context between tasks?**
+
+AI context windows are finite. Old discussions crowd out new work. Clearing between tasks ensures each session starts focused. Your beads persist—only the conversation history resets.
 
 ## License
 
