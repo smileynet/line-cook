@@ -27,8 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `check-platform-parity.py` - Validate command/agent consistency across platforms
   - `check-plugin-health.py` - Version sync and plugin currency validation
   - `doctor-docs.py` - Documentation validation and link checking
+- `/smoke-test` command for end-to-end Line Cook workflow validation
+  - Isolated test environment with ephemeral git repos
+  - 10 proof-of-work validation checks
+  - Workflow integrity validation (TDD cycle, code review, commit format)
 
 ### Changed
+- Smoke test now validates workflow integrity, not just code artifacts
 - Renamed `dessert` phase to `plate` throughout documentation and commands
 - Updated documentation with consistent kitchen theming throughout
 - Enhanced workflow descriptions to use kitchen metaphor (orders, recipes, dishes)
