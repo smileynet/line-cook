@@ -590,8 +590,10 @@ def check_commit_format(test_dir: Path) -> ValidationResult:
             message="Commit follows task ID format"
         )
 
-    # Also accept commits that reference smoke-001 anywhere
-    if "smoke-001" in message.lower():
+    # Also accept commits that reference smoke-001 in a structured way
+    # (e.g., "smoke-001: description" or "(smoke-001)" in the message)
+    task_id_structured = r'(^smoke-\d+\s*:|[\(\[]smoke-\d+[\)\]])'
+    if re.search(task_id_structured, message, re.IGNORECASE):
         return ValidationResult(
             name="commit_format",
             passed=True,
