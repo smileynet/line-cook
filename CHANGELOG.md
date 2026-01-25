@@ -9,15 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `/line:plan` command for menu planning with tracer dish methodology
+- `/line:plate` command for BDD feature validation (acceptance criteria testing)
 - `/line:season` command to apply research findings to beads
+- `/line:service` command for full-service workflow orchestration
 - Claude Code subagent system with specialized review agents:
-  - `quality-control` agent for test quality review during TDD RED phase
+  - `taster` agent for test quality review during TDD RED phase
   - `sous-chef` agent for code review during serve phase
   - `maître` agent for BDD test quality review during plate phase
+- Hierarchical context display in prep phase (shows epic/feature/task relationships)
+- OpenCode integration with synchronized commands
+- Kiro integration with kitchen-manager orchestration agent
+- Comprehensive guidance documentation:
+  - TDD/BDD workflow integration
+  - Menu changes and recipe planning
+  - Core workflow structure
 
 ### Changed
+- Renamed `dessert` phase to `plate` throughout documentation and commands
 - Updated documentation with consistent kitchen theming throughout
 - Enhanced workflow descriptions to use kitchen metaphor (orders, recipes, dishes)
+- TDD cycle integrated into cook workflow with RED-GREEN-REFACTOR phases
+- Headless reviews now use verdict-based blocking (approved/needs_changes/blocked)
+
+### Fixed
+- Removed deprecated `lc` CLI references from documentation and plugin description
+- Agent frontmatter now includes required fields for Claude Code compliance
+
+### Deprecated
+- `lc` CLI binary - use `/line:*` slash commands instead
 
 ## [0.6.3] - 2026-01-19
 
