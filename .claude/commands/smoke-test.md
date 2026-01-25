@@ -69,9 +69,13 @@ Execute the full workflow IN THIS SESSION (not via subprocess).
 ```
 Invoke /line:prep skill
 ```
+After prep completes, create marker:
+```bash
+mkdir -p .smoke-markers && echo "$(date -Iseconds)" > .smoke-markers/prep-complete
+```
 **→ CONTINUE IMMEDIATELY to 4b after prep shows the kitchen roster. Do NOT stop.**
 
-**4b. Cook** - Complete the smoke-001 task:
+**4b. Cook** - Complete the smoke-001 task using TDD:
 ```
 Invoke /line:cook skill with args "smoke-001"
 ```
@@ -81,17 +85,36 @@ The task requires:
 - Add tests in `tests/test_validation.py`
 - Tests must pass
 
+**TDD Marker Protocol (CRITICAL):**
+After writing tests (before implementation), verify they fail and create RED marker:
+```bash
+echo "$(date -Iseconds)" > .smoke-markers/cook-red-phase
+```
+
+After implementing code and tests pass, create GREEN marker:
+```bash
+echo "$(date -Iseconds)" > .smoke-markers/cook-green-phase
+```
+
 **→ CONTINUE IMMEDIATELY to 4c after cook shows "KITCHEN COMPLETE". Do NOT stop.**
 
-**4c. Serve** - Review changes (optional for smoke test):
+**4c. Serve** - Review changes:
 ```
 Invoke /line:serve skill
+```
+After serve completes, create marker:
+```bash
+echo "$(date -Iseconds)" > .smoke-markers/serve-complete
 ```
 **→ CONTINUE IMMEDIATELY to 4d after serve completes. Do NOT stop.**
 
 **4d. Tidy** - Commit and push:
 ```
 Invoke /line:tidy skill
+```
+After tidy completes, create marker:
+```bash
+echo "$(date -Iseconds)" > .smoke-markers/tidy-complete
 ```
 **→ CONTINUE IMMEDIATELY to Step 5 after tidy shows "TIDY REPORT". Do NOT stop.**
 
@@ -114,6 +137,9 @@ The validation checks:
 5. Commit exists referencing the task
 6. Changes pushed to remote
 7. Working tree is clean
+8. TDD cycle followed (RED→GREEN markers)
+9. Serve phase completed (code review)
+10. Commit follows kitchen log format
 
 ### Step 6: Teardown
 
@@ -132,7 +158,7 @@ Clean up the test environment:
 ║  SMOKE TEST: PASSED                                          ║
 ╚══════════════════════════════════════════════════════════════╝
 
-All 7 proof-of-work checks validated:
+All 10 proof-of-work checks validated:
   [✓] validation.py updated with regex
   [✓] Test file created
   [✓] Tests pass
@@ -140,6 +166,9 @@ All 7 proof-of-work checks validated:
   [✓] Commit exists
   [✓] Pushed to remote
   [✓] Working tree clean
+  [✓] TDD cycle verified (RED→GREEN)
+  [✓] Serve phase completed
+  [✓] Commit follows kitchen log format
 
 Line Cook workflow is functioning correctly.
 ```
@@ -157,6 +186,8 @@ Validation results:
   [✗] Tests pass - FAILED
       > Error: 2 tests failed
   [✓] Bead closed
+  [✗] TDD cycle verified - FAILED
+      > RED phase marker missing
   ...
 
 Test directory preserved at: <path>
@@ -197,10 +228,14 @@ When a failure occurs, DO NOT tear down automatically - preserve the test direct
 The smoke test validates the complete Line Cook cycle:
 
 1. **Prep** - Git sync, bead status check
-2. **Cook** - Task execution with TDD guardrails
-3. **Serve** - Code review (optional)
+2. **Cook** - Task execution with TDD guardrails (RED→GREEN cycle)
+3. **Serve** - Code review
 4. **Tidy** - Commit, push, close bead
 
 **Task:** Replace placeholder email validation (`return "@" in email`) with proper regex validation and tests.
+
+**Validates both:**
+- **Code artifacts** - Files created, tests pass, bead closed, commit pushed
+- **Workflow integrity** - TDD discipline followed, code review executed, commit format correct
 
 This is a real coding task that exercises all Line Cook components.
