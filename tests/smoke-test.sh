@@ -245,7 +245,106 @@ def validate_password(password: str) -> bool:
 EOF
     log_success "Set validation.py to placeholder state"
 
-    # Initial commit
+    # Create .gitignore for clean working tree (T3)
+    cat > .gitignore << 'EOF'
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+EOF
+    log_success "Created .gitignore"
+
+    # Create minimal AGENTS.md (T4)
+    cat > AGENTS.md << 'EOF'
+# Agents
+
+Minimal agents file for smoke test project.
+
+## Overview
+
+This project uses beads for task tracking.
+
+## Commands
+
+- `bd list` - List issues
+- `bd ready` - Show ready tasks
+- `bd show <id>` - Show issue details
+EOF
+    log_success "Created AGENTS.md"
+
+    # Create .gitattributes for consistent line endings (T4)
+    cat > .gitattributes << 'EOF'
+* text=auto
+*.py text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+EOF
+    log_success "Created .gitattributes"
+
+    # Create pyproject.toml for proper imports (T6)
+    cat > pyproject.toml << 'EOF'
+[project]
+name = "smoke-test-project"
+version = "0.1.0"
+description = "Smoke test project for Line Cook"
+requires-python = ">=3.8"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+EOF
+    log_success "Created pyproject.toml"
+
+    # Create venv with pytest (T5)
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -m venv .venv >/dev/null 2>&1
+        .venv/bin/pip install --quiet pytest >/dev/null 2>&1
+        log_success "Created .venv with pytest"
+    else
+        log_warning "python3 not found, skipping venv creation"
+    fi
+
+    # Initial commit (includes .gitignore, AGENTS.md, .gitattributes, pyproject.toml)
     git add -A
     git commit -m "Initial commit" >/dev/null 2>&1
     git push -u origin main >/dev/null 2>&1
@@ -255,11 +354,16 @@ EOF
     bd init --prefix=smoke >/dev/null 2>&1
     log_success "Initialized beads (prefix: smoke)"
 
-    # Copy smoke test bead
-    mkdir -p .beads/issues
-    cp "$FIXTURES_DIR/smoke-beads/config.yaml" .beads/config.yaml
-    cp "$FIXTURES_DIR/smoke-beads/smoke-001.yaml" .beads/issues/
-    log_success "Copied smoke-001 bead"
+    # Create smoke test bead via bd create (not YAML copy - beads uses JSONL database)
+    bd create --id=smoke-001 \
+        --title="Replace placeholder email validation with regex" \
+        --type=task \
+        --priority=1 \
+        --label=smoke-test \
+        --label=validation \
+        --description="The validate_email() function in src/validation.py currently uses a placeholder implementation that only checks for @ in the email. Replace with proper regex validation: Use a standard email regex pattern, handle edge cases (empty string, None), and add corresponding tests in tests/test_validation.py. This is a smoke test task for validating the Line Cook workflow." \
+        >/dev/null 2>&1
+    log_success "Created smoke-001 bead via bd create"
 
     # Create a simple CLAUDE.md for the test project
     cat > CLAUDE.md << 'EOF'
@@ -276,8 +380,8 @@ Task smoke-001 requires replacing the placeholder email validation with proper r
 EOF
     log_success "Created CLAUDE.md"
 
-    # Commit beads setup
-    git add .beads/ CLAUDE.md
+    # Commit beads setup (bd init modifies .gitattributes and AGENTS.md)
+    git add .beads/ CLAUDE.md .gitattributes AGENTS.md
     git commit -m "Add beads configuration with smoke-001" >/dev/null 2>&1
     git push >/dev/null 2>&1
     log_success "Committed beads setup"

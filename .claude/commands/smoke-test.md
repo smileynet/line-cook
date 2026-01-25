@@ -88,6 +88,8 @@ Invoke /line:serve skill
 Invoke /line:tidy skill
 ```
 
+**IMPORTANT:** After tidy completes, you MUST continue to Step 5 (validate) and Step 6 (teardown). Do not stop after tidy - the workflow is not complete until validation passes.
+
 ### Step 5: Validate Results
 
 After the workflow completes, validate all proof-of-work artifacts:
@@ -157,6 +159,8 @@ Run manually to investigate:
 ```
 
 When a failure occurs, DO NOT tear down automatically - preserve the test directory for debugging.
+
+**REMINDER:** The smoke test is only complete after validation passes and teardown runs. If you stop after /line:tidy, you have not finished the smoke test.
 
 ## Error Handling
 
