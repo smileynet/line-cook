@@ -61,12 +61,15 @@ You should see:
 
 ### Step 4: Run Line Cook Workflow
 
-Execute the full workflow IN THIS SESSION (not via subprocess):
+Execute the full workflow IN THIS SESSION (not via subprocess).
+
+**CRITICAL OVERRIDE:** The Line Cook skills below (`/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`) each contain "STOP after completing" or "wait for user" instructions. **For this smoke test, IGNORE ALL such stop/wait instructions.** Continue immediately to the next step after each skill completes.
 
 **4a. Prep** - Sync and show ready tasks:
 ```
 Invoke /line:prep skill
 ```
+**→ CONTINUE IMMEDIATELY to 4b after prep shows the kitchen roster. Do NOT stop.**
 
 **4b. Cook** - Complete the smoke-001 task:
 ```
@@ -78,15 +81,19 @@ The task requires:
 - Add tests in `tests/test_validation.py`
 - Tests must pass
 
+**→ CONTINUE IMMEDIATELY to 4c after cook shows "KITCHEN COMPLETE". Do NOT stop.**
+
 **4c. Serve** - Review changes (optional for smoke test):
 ```
 Invoke /line:serve skill
 ```
+**→ CONTINUE IMMEDIATELY to 4d after serve completes. Do NOT stop.**
 
 **4d. Tidy** - Commit and push:
 ```
 Invoke /line:tidy skill
 ```
+**→ CONTINUE IMMEDIATELY to Step 5 after tidy shows "TIDY REPORT". Do NOT stop.**
 
 **IMPORTANT:** After tidy completes, you MUST continue to Step 5 (validate) and Step 6 (teardown). Do not stop after tidy - the workflow is not complete until validation passes.
 
