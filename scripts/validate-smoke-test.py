@@ -180,19 +180,30 @@ def check_test_file_exists(test_dir: Path) -> ValidationResult:
 
 def check_tests_pass(test_dir: Path) -> ValidationResult:
     """Check that pytest passes."""
-    # First check if pytest is available
-    code, _, _ = run_command(["python3", "-m", "pytest", "--version"])
-    if code != 0:
+    # Determine which pytest to use
+    pytest_cmd = None
+
+    # First check for venv pytest (preferred in externally-managed Python environments)
+    venv_pytest = test_dir / ".venv" / "bin" / "pytest"
+    if venv_pytest.exists():
+        pytest_cmd = [str(venv_pytest)]
+    else:
+        # Fall back to system pytest
+        code, _, _ = run_command(["python3", "-m", "pytest", "--version"])
+        if code == 0:
+            pytest_cmd = ["python3", "-m", "pytest"]
+
+    if pytest_cmd is None:
         return ValidationResult(
             name="tests_pass",
             passed=True,  # Skip if pytest not available
             message="pytest not available, skipping test execution",
-            details="Install pytest to enable test verification"
+            details="Install pytest or create .venv with pytest to enable test verification"
         )
 
     # Run pytest
     code, stdout, stderr = run_command(
-        ["python3", "-m", "pytest", "-v", "--tb=short"],
+        pytest_cmd + ["-v", "--tb=short"],
         cwd=test_dir
     )
 
@@ -223,42 +234,89 @@ def check_tests_pass(test_dir: Path) -> ValidationResult:
 
 
 def check_bead_closed(test_dir: Path) -> ValidationResult:
-    """Check that smoke-001 bead is closed."""
-    bead_file = test_dir / ".beads" / "issues" / "smoke-001.yaml"
+    """Check that smoke-001 bead is closed.
 
-    if not bead_file.exists():
-        return ValidationResult(
-            name="bead_closed",
-            passed=False,
-            message="Bead file not found",
-            details=f"Expected at: {bead_file}"
-        )
+    Uses `bd show smoke-001 --json` to get actual status from the JSONL database,
+    not the YAML fixture file which is never updated by bd commands.
+    """
+    # Try to get status via bd CLI (the authoritative source)
+    code, stdout, stderr = run_command(
+        ["bd", "show", "smoke-001", "--json"],
+        cwd=test_dir
+    )
 
-    content = bead_file.read_text()
+    if code == 0 and stdout.strip():
+        try:
+            bead_data = json.loads(stdout)
+            # bd show --json returns an array
+            if isinstance(bead_data, list) and len(bead_data) > 0:
+                bead_data = bead_data[0]
+            status = bead_data.get("status", "unknown")
+            if status in ("closed", "done"):
+                return ValidationResult(
+                    name="bead_closed",
+                    passed=True,
+                    message="Bead smoke-001 is closed"
+                )
+            elif status == "open":
+                return ValidationResult(
+                    name="bead_closed",
+                    passed=False,
+                    message="Bead smoke-001 still open",
+                    details=f"status: {status}"
+                )
+            else:
+                return ValidationResult(
+                    name="bead_closed",
+                    passed=False,
+                    message=f"Bead smoke-001 has unexpected status: {status}"
+                )
+        except json.JSONDecodeError:
+            pass  # Fall through to JSONL check
 
-    # Check status
-    if "status: closed" in content or "status: done" in content:
-        return ValidationResult(
-            name="bead_closed",
-            passed=True,
-            message="Bead smoke-001 is closed"
-        )
-    elif "status: open" in content:
-        return ValidationResult(
-            name="bead_closed",
-            passed=False,
-            message="Bead smoke-001 still open",
-            details="status: open"
-        )
-    else:
-        # Try to extract status
-        match = re.search(r"status:\s*(\w+)", content)
-        status = match.group(1) if match else "unknown"
-        return ValidationResult(
-            name="bead_closed",
-            passed=False,
-            message=f"Bead smoke-001 has unexpected status: {status}"
-        )
+    # Fallback: check JSONL database directly
+    jsonl_file = test_dir / ".beads" / "issues.jsonl"
+    if jsonl_file.exists():
+        content = jsonl_file.read_text()
+        # Find the most recent entry for smoke-001
+        status = None
+        for line in content.strip().split("\n"):
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+                if entry.get("id") == "smoke-001":
+                    status = entry.get("status", status)
+            except json.JSONDecodeError:
+                continue
+
+        if status:
+            if status in ("closed", "done"):
+                return ValidationResult(
+                    name="bead_closed",
+                    passed=True,
+                    message="Bead smoke-001 is closed"
+                )
+            elif status == "open":
+                return ValidationResult(
+                    name="bead_closed",
+                    passed=False,
+                    message="Bead smoke-001 still open",
+                    details=f"status: {status}"
+                )
+            else:
+                return ValidationResult(
+                    name="bead_closed",
+                    passed=False,
+                    message=f"Bead smoke-001 has unexpected status: {status}"
+                )
+
+    return ValidationResult(
+        name="bead_closed",
+        passed=False,
+        message="Bead smoke-001 not found",
+        details="Not found in bd show output or .beads/issues.jsonl"
+    )
 
 
 def check_commit_exists(test_dir: Path) -> ValidationResult:
