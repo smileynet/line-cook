@@ -197,13 +197,17 @@ line-cook/
 
 ## Development
 
-After modifying files in `commands/`, `skills/`, or `agents/`, reinstall to test your changes:
+**Plugin commands** (`commands/`) are distributed to end users. After modifying, reinstall to test:
 
 ```bash
 ./scripts/install-claude-code.sh
 ```
 
 Then test the command in a new Claude Code session (or use `/plugin reload line` if available).
+
+**Project-local dev commands** (`.claude/commands/`) are only available when working in the line-cook repository. These are not distributed with the plugin:
+
+- `/smoke-test` - Run end-to-end command execution tests
 
 ## License
 
