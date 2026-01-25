@@ -47,7 +47,8 @@ EOF
 # Copy plugin manifest
 cp "$REPO_DIR/.claude-plugin/plugin.json" "$MARKETPLACE_DIR/line/.claude-plugin/"
 
-# Copy all commands
+# Clear old commands and copy fresh
+rm -f "$MARKETPLACE_DIR/line/commands/"*.md
 cp "$REPO_DIR/commands/"*.md "$MARKETPLACE_DIR/line/commands/"
 
 # List installed commands
