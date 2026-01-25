@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-01-24
+
 ### Added
 - `/line:plan` command for menu planning with tracer dish methodology
 - `/line:plate` command for BDD feature validation (acceptance criteria testing)
@@ -23,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - TDD/BDD workflow integration
   - Menu changes and recipe planning
   - Core workflow structure
+- Project health maintenance scripts:
+  - `check-platform-parity.py` - Validate command/agent consistency across platforms
+  - `check-plugin-health.py` - Version sync and plugin currency validation
+  - `doctor-docs.py` - Documentation validation and link checking
 
 ### Changed
 - Renamed `dessert` phase to `plate` throughout documentation and commands
@@ -34,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Removed deprecated `lc` CLI references from documentation and plugin description
 - Agent frontmatter now includes required fields for Claude Code compliance
+- Fixed broken internal documentation links in OpenCode plugin
 
 ### Deprecated
 - `lc` CLI binary - use `/line:*` slash commands instead
@@ -75,7 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/smileynet/line-cook/compare/v0.6.3...v1.3.0
 [0.6.3]: https://github.com/smileynet/line-cook/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/smileynet/line-cook/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/smileynet/line-cook/compare/v0.6.0...v0.6.1

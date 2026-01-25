@@ -83,7 +83,7 @@ Create acceptance documentation using the multi-course meal template:
 
 3. Remove the "Usage Instructions" section from the filled template
 
-See [`docs/templates/feature-acceptance.md`](../docs/templates/feature-acceptance.md) for the full template.
+See [`docs/templates/feature-acceptance.md`](../../docs/templates/feature-acceptance.md) for the full template.
 
 ### Step 5: Update CHANGELOG.md
 

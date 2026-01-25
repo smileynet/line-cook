@@ -77,5 +77,5 @@ If a step fails:
 
 ## Reference
 
-- [README](../../README.md) - Philosophy and installation
+- [README](../../../README.md) - Philosophy and installation
 - [Commands](../../commands/) - Detailed command documentation
