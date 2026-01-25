@@ -441,6 +441,172 @@ def check_no_uncommitted_changes(test_dir: Path) -> ValidationResult:
         )
 
 
+def check_tdd_followed(test_dir: Path) -> ValidationResult:
+    """Verify TDD RED→GREEN cycle was executed.
+
+    Checks for marker files created during each TDD phase. The RED phase
+    marker indicates tests were written first (and failed), the GREEN phase
+    marker indicates code was written to make tests pass.
+    """
+    markers_dir = test_dir / ".smoke-markers"
+
+    red_marker = markers_dir / "cook-red-phase"
+    green_marker = markers_dir / "cook-green-phase"
+
+    if not markers_dir.exists():
+        return ValidationResult(
+            name="tdd_followed",
+            passed=False,
+            message="No .smoke-markers directory found",
+            details="TDD phase markers were not created during cook"
+        )
+
+    if not red_marker.exists():
+        return ValidationResult(
+            name="tdd_followed",
+            passed=False,
+            message="RED phase marker missing",
+            details="cook-red-phase marker not found - tests should fail first"
+        )
+
+    if not green_marker.exists():
+        return ValidationResult(
+            name="tdd_followed",
+            passed=False,
+            message="GREEN phase marker missing",
+            details="cook-green-phase marker not found - tests should pass after implementation"
+        )
+
+    # Verify RED happened before GREEN
+    try:
+        red_time = datetime.fromisoformat(red_marker.read_text().strip())
+        green_time = datetime.fromisoformat(green_marker.read_text().strip())
+
+        if green_time <= red_time:
+            return ValidationResult(
+                name="tdd_followed",
+                passed=False,
+                message="GREEN phase before RED phase",
+                details=f"RED: {red_time}, GREEN: {green_time}"
+            )
+
+        return ValidationResult(
+            name="tdd_followed",
+            passed=True,
+            message="TDD cycle verified (RED→GREEN)"
+        )
+    except (ValueError, OSError) as e:
+        return ValidationResult(
+            name="tdd_followed",
+            passed=False,
+            message="Failed to parse marker timestamps",
+            details=str(e)
+        )
+
+
+def check_serve_completed(test_dir: Path) -> ValidationResult:
+    """Verify serve phase code review was executed.
+
+    Checks for the serve-complete marker file. Also accepts evidence
+    from bead comments as fallback validation.
+    """
+    markers_dir = test_dir / ".smoke-markers"
+    serve_marker = markers_dir / "serve-complete"
+
+    # Primary check: marker file exists
+    if serve_marker.exists():
+        return ValidationResult(
+            name="serve_completed",
+            passed=True,
+            message="Serve phase completed"
+        )
+
+    # Fallback: check for serve comment on bead
+    code, stdout, stderr = run_command(
+        ["bd", "comments", "list", "smoke-001"],
+        cwd=test_dir
+    )
+
+    if code == 0 and "PHASE: SERVE" in stdout.upper():
+        return ValidationResult(
+            name="serve_completed",
+            passed=True,
+            message="Serve phase completed (verified via bead comments)"
+        )
+
+    # Also check for any serve-related comments
+    if code == 0 and ("serve" in stdout.lower() or "review" in stdout.lower()):
+        return ValidationResult(
+            name="serve_completed",
+            passed=True,
+            message="Serve phase evidence found in bead comments"
+        )
+
+    return ValidationResult(
+        name="serve_completed",
+        passed=False,
+        message="Serve phase marker missing",
+        details="serve-complete marker not found and no serve evidence in bead comments"
+    )
+
+
+def check_commit_format(test_dir: Path) -> ValidationResult:
+    """Verify commit follows kitchen log format.
+
+    Checks that the commit message follows conventional commit format
+    or includes the task ID prefix.
+    """
+    code, stdout, stderr = run_command(
+        ["git", "log", "-1", "--format=%B"],
+        cwd=test_dir
+    )
+
+    if code != 0:
+        return ValidationResult(
+            name="commit_format",
+            passed=False,
+            message="Failed to check git log",
+            details=stderr
+        )
+
+    message = stdout.strip()
+
+    # Check for conventional commit prefix OR task ID prefix
+    # Patterns: feat(scope): msg, fix: msg, smoke-001: msg, etc.
+    conventional_pattern = r'^(feat|fix|refactor|test|docs|chore|style|perf|ci|build)(\([^)]+\))?:'
+    task_id_pattern = r'^smoke-\d+:'
+
+    if re.match(conventional_pattern, message, re.IGNORECASE):
+        return ValidationResult(
+            name="commit_format",
+            passed=True,
+            message="Commit follows conventional format"
+        )
+
+    if re.match(task_id_pattern, message, re.IGNORECASE):
+        return ValidationResult(
+            name="commit_format",
+            passed=True,
+            message="Commit follows task ID format"
+        )
+
+    # Also accept commits that reference smoke-001 anywhere
+    if "smoke-001" in message.lower():
+        return ValidationResult(
+            name="commit_format",
+            passed=True,
+            message="Commit references task ID",
+            details=message[:100]
+        )
+
+    return ValidationResult(
+        name="commit_format",
+        passed=False,
+        message="Commit missing conventional prefix or task ID",
+        details=f"Message: {message[:100]}"
+    )
+
+
 def run_validation(
     test_dir: Path,
     platform: str,
@@ -462,7 +628,7 @@ def run_validation(
             message="Setup phase completed (cook skipped)"
         ))
     else:
-        # Full validation
+        # Full validation - code artifacts
         report.add_result(check_validation_py_changed(test_dir))
         report.add_result(check_test_file_exists(test_dir))
         report.add_result(check_tests_pass(test_dir))
@@ -470,6 +636,10 @@ def run_validation(
         report.add_result(check_commit_exists(test_dir))
         report.add_result(check_pushed_to_remote(test_dir))
         report.add_result(check_no_uncommitted_changes(test_dir))
+        # Workflow integrity checks
+        report.add_result(check_tdd_followed(test_dir))
+        report.add_result(check_serve_completed(test_dir))
+        report.add_result(check_commit_format(test_dir))
 
     return report
 

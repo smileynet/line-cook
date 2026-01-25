@@ -291,6 +291,9 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Smoke test workflow markers (ephemeral, not committed)
+.smoke-markers/
 EOF
     log_success "Created .gitignore"
 
