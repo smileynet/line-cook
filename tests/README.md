@@ -15,6 +15,74 @@ Integration tests for Line Cook commands across Claude Code, OpenCode, and Kiro.
 ./tests/run-tests.sh
 ```
 
+## Smoke Tests
+
+The smoke test executes a real coding task through the full Line Cook workflow.
+
+### Interactive Mode (Recommended)
+
+Run the smoke test from within an interactive Claude session using the `/smoke-test` command:
+
+```
+/smoke-test
+```
+
+This avoids API conflicts that occur when spawning headless Claude subprocesses from an interactive session.
+
+### Script Mode (Manual/CI)
+
+For manual execution outside of Claude sessions, use the modular script:
+
+```bash
+# 1. Check dependencies
+./tests/smoke-test.sh --dry-run
+
+# 2. Setup creates an isolated test environment
+TEST_DIR=$(./tests/smoke-test.sh --setup)
+
+# 3. Run workflow manually in the test directory
+cd $TEST_DIR
+# ... run /line:prep, /line:cook smoke-001, /line:serve, /line:tidy ...
+
+# 4. Validate artifacts
+./tests/smoke-test.sh --validate $TEST_DIR
+
+# 5. Cleanup
+./tests/smoke-test.sh --teardown $TEST_DIR
+```
+
+### Script Options
+
+```bash
+./tests/smoke-test.sh --setup              # Create isolated env, output TEST_DIR
+./tests/smoke-test.sh --validate <dir>     # Check proof-of-work artifacts
+./tests/smoke-test.sh --teardown <dir>     # Clean up test directory
+./tests/smoke-test.sh --dry-run            # Check dependencies only
+./tests/smoke-test.sh --skip-cook-check    # Skip workflow validation (setup-only)
+```
+
+### What Smoke Tests Validate
+
+| Artifact | Check |
+|----------|-------|
+| Code change | `validation.py` uses regex instead of placeholder |
+| Tests exist | `test_validation.py` created |
+| Tests pass | pytest exit code 0 |
+| Bead closed | `smoke-001` has `status: closed` |
+| Commit exists | Git log contains smoke-001 reference |
+| Pushed | All commits pushed to remote |
+| Clean tree | No uncommitted changes |
+
+### Cost Estimate
+
+~$0.50-2.00 per run (primarily the cook phase)
+
+### Important Notes
+
+- **Use `/smoke-test` command** for testing within interactive sessions
+- Results are saved to `tests/results/smoke-*.json`
+- Test environment includes a bare git remote for push validation
+
 ## Test Tiers
 
 | Tier | Tests | API Cost | Time |
@@ -41,6 +109,7 @@ Options:
 ```
 tests/
 ├── run-tests.sh              # Main test runner
+├── smoke-test.sh             # Cross-platform smoke test
 ├── lib/
 │   ├── setup-env.sh          # Creates isolated git repo with beads
 │   ├── teardown-env.sh       # Cleanup temp directories
@@ -49,7 +118,11 @@ tests/
 │   ├── mock-beads/           # Test beads configuration
 │   │   ├── config.yaml
 │   │   └── issues/           # 6 test issues
+│   ├── smoke-beads/          # Smoke test bead (smoke-001)
+│   │   ├── config.yaml
+│   │   └── smoke-001.yaml
 │   └── sample-project/       # Minimal project for testing
+├── results/                  # Smoke test JSON output
 ├── test-getting-started.sh   # Tests /line:getting-started
 ├── test-prep.sh              # Tests /line:prep
 ├── test-cook.sh              # Tests /line:cook (LLM-heavy)

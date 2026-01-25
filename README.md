@@ -195,6 +195,16 @@ line-cook/
 └── AGENTS.md           # Technical reference
 ```
 
+## Development
+
+After modifying files in `commands/`, `skills/`, or `agents/`, reinstall to test your changes:
+
+```bash
+./scripts/install-claude-code.sh
+```
+
+Then test the command in a new Claude Code session (or use `/plugin reload line` if available).
+
 ## License
 
 MIT

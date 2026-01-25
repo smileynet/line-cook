@@ -38,5 +38,8 @@ bin/
 coverage.out
 coverage.html
 
+# Smoke test results (keep .gitkeep)
+tests/results/*.json
+
 # OpenCode working files (commands are in line-cook-opencode/commands/)
 .opencode/
