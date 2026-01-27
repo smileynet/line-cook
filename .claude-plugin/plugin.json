@@ -1,6 +1,6 @@
 {
   "name": "line",
-  "description": "Simple workflow orchestration for Claude Code sessions - mise, prep, cook, serve, tidy, plate, service",
+  "description": "Simple workflow orchestration for Claude Code sessions - mise, prep, cook, serve, tidy, plate, run",
   "version": "0.8.0",
   "author": {
     "name": "smileynet",

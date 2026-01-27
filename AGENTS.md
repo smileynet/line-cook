@@ -44,7 +44,7 @@ The theme is a **recognition aid**, not a **learning barrier**. Always include t
  plan    sync   execute  review   commit  validate
 ```
 
-Or use `/service` to run the full workflow cycle.
+Or use `/run` to run the full workflow cycle.
 
 ## Commands
 
@@ -57,7 +57,7 @@ Or use `/service` to run the full workflow cycle.
 | `/serve` | Review code changes |
 | `/tidy` | Commit and push changes |
 | `/plate` | Validate completed feature |
-| `/service` | Run full workflow cycle |
+| `/run` | Run full workflow cycle |
 
 ## Platform Command Naming
 
@@ -102,7 +102,7 @@ Line Cook provides agents for each platform:
 
 | Agent | Role | Purpose |
 |-------|------|---------|
-| **line-cook** | Main agent | Execute workflow commands (prep, cook, serve, tidy, service) |
+| **line-cook** | Main agent | Execute workflow commands (prep, cook, serve, tidy, run) |
 | **kitchen-manager** | Orchestrator | Coordinate full service cycle with automatic error handling |
 | **taster** | Test quality | Review tests for isolation, clarity, structure, anti-patterns |
 | **sous-chef** | Code review | Review changes for correctness, security, style, completeness |
@@ -120,7 +120,7 @@ Claude Code uses slash commands instead of agents:
 | **/line:serve** | Serve phase | Review code changes |
 | **/line:tidy** | Tidy phase | Commit and push changes |
 | **/line:plate** | Plate phase | Validate completed feature |
-| **/line:service** | Full cycle | Prep→cook→serve→tidy orchestration |
+| **/line:run** | Full cycle | Prep→cook→serve→tidy orchestration |
 
 ### Claude Code Subagents (agents/)
 
@@ -138,7 +138,7 @@ OpenCode plugin uses OpenCode's built-in agent system:
 
 | Component | Type | Purpose |
 |----------|------|---------|
-| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-plate`, `/line-service` |
+| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-plate`, `/line-run` |
 | **Kiro Agents** | OpenCode agents | taster, sous-chef (via OpenCode's agent system) |
 
 ### chef
@@ -358,7 +358,7 @@ line-cook/
 │   ├── serve.md           # → /line:serve
 │   ├── tidy.md            # → /line:tidy
 │   ├── plate.md           # → /line:plate
-│   └── service.md         # → /line:service
+│   └── run.md             # → /line:run
 ├── scripts/               # Installation and utility scripts
 │   ├── install-claude-code.sh
 │   └── sync-commands.sh   # Sync commands across platforms
@@ -373,7 +373,7 @@ line-cook/
 │       ├── line-tidy.md   # → /line-tidy
 │       ├── line-mise.md   # → /line-mise
 │       ├── line-plate.md  # → /line-plate
-│       └── line-service.md # → /line-service
+│       └── line-run.md     # → /line-run
 │   └── line-getting-started.md # → /line-getting-started
 ├── line-cook-kiro/        # Kiro agent
 │   ├── agents/            # Agent definitions
@@ -443,7 +443,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 > Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
 > To switch from local to remote, uninstall first: `/plugin uninstall line`
 
-Commands: `/line:getting-started`, `/line:mise`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:service`
+Commands: `/line:getting-started`, `/line:mise`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
 ### OpenCode
 
@@ -458,7 +458,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-work`
+Commands: `/line-getting-started`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-run`
 
 ### Kiro
 
@@ -600,7 +600,7 @@ After pushing a release, create a GitHub release with these instructions for use
 | `/line:serve` | Review code changes |
 | `/line:tidy` | Commit and push changes |
 | `/line:plate` | Validate completed feature |
-| `/line:service` | Run full workflow cycle |
+| `/line:run` | Run full workflow cycle |
 
 ### Core Guardrails
 1. **Sync before work** - Always start with current state
@@ -647,12 +647,12 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | **Serve** | Review code changes | `/serve` phase |
 | **Tidy** | Commit and push changes | `/tidy` phase |
 | **Plate** | Validate completed feature | `/plate` phase |
-| **Service** | Run full workflow cycle | `/service` phase |
+| **Run** | Run full workflow cycle | `/run` phase |
 | **Chef** | Subagent that executes tasks with TDD cycle | `/cook` phase |
 | **Sous-Chef** | Subagent that reviews code changes | `/serve` phase |
 | **Taster** | Subagent that reviews test quality | After RED phase |
 | **Maître** | Subagent that reviews feature acceptance | `/plate` phase |
-| **Expeditor** | Subagent that orchestrates full workflow | `/service` phase |
+| **Expeditor** | Subagent that orchestrates full workflow | `/run` phase |
 | **ORDER_UP** | Signal emitted when task is ready for review | End of cook phase |
 | **GOOD_TO_GO** | Assessment from sous-chef indicating code is ready to commit | After serve phase |
 | **Tracer** | Task that proves one aspect of a feature through all layers | Planning methodology |

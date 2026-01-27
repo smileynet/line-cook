@@ -14,7 +14,7 @@ When the user says any of these phrases, execute the corresponding workflow:
 | "serve", "/serve", "review", "review changes" | Run serve workflow |
 | "tidy", "/tidy", "commit", "push changes" | Run tidy workflow |
 | "plate", "/plate", "validate feature" | Run plate workflow (feature validation) |
-| "service", "/service", "full service" | Run full service (mise→prep→cook→serve→tidy→plate) |
+| "run", "/run", "full run" | Run full cycle (mise→prep→cook→serve→tidy→plate) |
 | "work", "/work", "full cycle", "start work" | Run work cycle (prep→cook→serve→tidy) |
 | "getting started", "help", "guide", "how do I" | Show getting-started guide |
 
@@ -138,13 +138,13 @@ Final validation for completed features.
 4. **Update changelog**: Add to CHANGELOG.md
 5. **Close feature**: Mark feature bead complete
 
-### service - "Full service"
+### run - "Full run"
 
 Complete feature delivery cycle.
 
 Run prep → cook → serve → tidy → plate (if feature complete) in sequence using the commands above.
 
-**Kitchen Manager**: Use `/service` when delivering a complete feature. Use individual commands (`/prep`, `/cook`, etc.) when you need fine-grained control, want to pause between phases, or are just doing a quick task. The `/service` command orchestrates the entire flow automatically.
+**Kitchen Manager**: Use `/run` when delivering a complete feature. Use individual commands (`/prep`, `/cook`, etc.) when you need fine-grained control, want to pause between phases, or are just doing a quick task. The `/run` command orchestrates the entire flow automatically.
 
 ## Guardrails
 

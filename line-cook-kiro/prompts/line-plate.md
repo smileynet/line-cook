@@ -144,7 +144,7 @@ Actions:
 
 - After all child tasks for a feature are closed
 - Before closing the feature bead
-- During @line-service when feature completion is detected
+- During @line-run when feature completion is detected
 
 **Do NOT run on:**
 - Partially completed features (tasks still open)

@@ -10,7 +10,7 @@ Task-focused workflow orchestration for AI-assisted development.
 plan    sync   execute  review   commit  validate
 ```
 
-Or use `/line-service` to run the full cycle.
+Or use `/line-run` to run the full cycle.
 
 ## Commands
 
@@ -23,7 +23,7 @@ Or use `/line-service` to run the full cycle.
 | `/line-serve` | Review code changes |
 | `/line-tidy` | Commit and push changes |
 | `/line-plate` | Validate completed feature |
-| `/line-service` | Run full workflow cycle |
+| `/line-run` | Run full workflow cycle |
 
 ## Dependencies
 

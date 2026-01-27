@@ -189,7 +189,7 @@ If plate failed, feature bead will remain open for validation when issues are re
 
 ## Design Notes
 
-The `/line:service` command is the recommended entry point for focused work sessions. It:
+The `/line:run` command is the recommended entry point for focused work sessions. It:
 
 1. **Ensures proper setup** - Prep runs first to sync state
 2. **Maintains focus** - One task per cycle
@@ -201,6 +201,6 @@ For exploratory sessions or when you need more control, use the individual comma
 ## Example Usage
 
 ```
-/line:service              # Full cycle with auto-selected task
-/line:service lc-042       # Full cycle with specific task
+/line:run              # Full cycle with auto-selected task
+/line:run lc-042       # Full cycle with specific task
 ```

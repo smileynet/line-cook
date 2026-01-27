@@ -124,7 +124,7 @@ BEADS           Track work in issues, execute manually
    ↓
 INDIVIDUAL      Run /prep, /cook, /serve, /tidy separately
    ↓
-SERVICE         Run /service for full automated cycle
+SERVICE         Run /run for full automated cycle
    ↓
 AUTONOMOUS      Gas Town - goal-oriented agents
 ```
@@ -144,7 +144,7 @@ Move up the ladder when you can answer "yes" to these questions:
 - Are your beads well-scoped (single-session work)?
 
 **Service → Autonomous:**
-- Have you run many `/service` cycles successfully?
+- Have you run many `/run` cycles successfully?
 - Do your tests reliably catch regressions?
 - Is your codebase well-structured and predictable?
 
@@ -253,7 +253,7 @@ Push (commitment) → Session complete, memory updated
 2. Create epic and tasks as beads
 3. Clear context
 4. Run `/prep` → `/cook` → `/serve` → `/tidy` for each task
-5. Graduate to `/service` when confident
+5. Graduate to `/run` when confident
 
 **Picking up existing work:**
 1. Run `bd ready` to see what's unblocked

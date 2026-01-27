@@ -19,7 +19,7 @@ This guide explains the line-cook workflow and provides a complete reference for
   sync          execute        review         commit
 ```
 
-Or use `/line:service` to run the full cycle.
+Or use `/line:run` to run the full cycle.
 
 ### /line:prep - "What's ready?"
 - Syncs git and beads
@@ -147,4 +147,4 @@ This keeps the main backlog focused on real tasks while preserving good ideas fo
 2. Run `/line:cook` to execute the top task
 3. Run `/line:tidy` when done to commit and push
 
-Or just run `/line:service` for the full cycle.
+Or just run `/line:run` for the full cycle.
