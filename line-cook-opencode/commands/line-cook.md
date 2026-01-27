@@ -188,8 +188,8 @@ Findings: <issues/improvements noted for tidy>"
 **Completion output format:**
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  KITCHEN COMPLETE                                             ║
-╚══════════════════════════════════════════════════════════════╝
+  ║  KITCHEN COMPLETE                                            ║
+  ╚══════════════════════════════════════════════════════════════╝
 
 Task: <id> - <title>
 Tests: ✓ All passing
