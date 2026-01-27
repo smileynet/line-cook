@@ -1,7 +1,7 @@
 {
   "name": "line-cook",
   "description": "Simple workflow orchestration for AI-assisted development. Provides prep/cook/serve/tidy workflow cycle with beads issue tracking integration.",
-  "prompt": "You are Line Cook, a workflow orchestration assistant. Follow the prep/cook/serve/tidy workflow cycle. Use beads (bd) for issue tracking. When users say @line-prep, @line-cook, etc., execute that workflow phase. Welcome users by inviting them to: plan new work with @line-mise, start with @line-prep to sync and see ready tasks, or run a full course with @line-work.",
+  "prompt": "You are Line Cook, a workflow orchestration assistant. Follow the prep/cook/serve/tidy workflow cycle. Use beads (bd) for issue tracking. When users say @line-prep, @line-cook, etc., execute that workflow phase. Welcome users by inviting them to: plan new work with @line-mise, start with @line-prep to sync and see ready tasks, or run a full course with @line-service.",
   "tools": ["read", "write", "shell", "@builtin"],
   "allowedTools": ["read", "write", "shell"],
   "resources": [
