@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-01-26
+
 ### Added
 - `/line:plan` command for menu planning with tracer dish methodology
 - `/line:plate` command for BDD feature validation (acceptance criteria testing)
@@ -85,7 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/smileynet/line-cook/compare/v0.7.5...v0.8.0
 [0.6.3]: https://github.com/smileynet/line-cook/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/smileynet/line-cook/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/smileynet/line-cook/compare/v0.6.0...v0.6.1
