@@ -48,6 +48,7 @@ def main() -> None:
     (kiro_dir / "steering").mkdir(parents=True, exist_ok=True)
     (kiro_dir / "skills" / "line-cook").mkdir(parents=True, exist_ok=True)
     (kiro_dir / "scripts").mkdir(parents=True, exist_ok=True)
+    (kiro_dir / "prompts").mkdir(parents=True, exist_ok=True)
 
     # Copy agent configuration
     print("Installing agent configuration...")
@@ -97,6 +98,19 @@ def main() -> None:
     else:
         print("  Warning: SKILL.md not found")
 
+    # Copy prompts
+    prompts_src = script_dir / "prompts"
+    if prompts_src.exists():
+        prompt_files = list(prompts_src.glob("*.md"))
+        if prompt_files:
+            print("Installing prompts...")
+            for prompt_file in prompt_files:
+                shutil.copy(prompt_file, kiro_dir / "prompts" / prompt_file.name)
+        else:
+            print("  Warning: No prompt files found")
+    else:
+        print("  Warning: prompts directory not found")
+
     # Copy hook scripts (supports both .sh and .py scripts)
     scripts_src = script_dir / "scripts"
     if scripts_src.exists():
@@ -119,13 +133,21 @@ def main() -> None:
     print("  steering/beads.md          - Beads quick reference")
     print("  steering/session.md        - Session protocols")
     print("  skills/line-cook/SKILL.md  - Lazy-loaded documentation")
+    print("  prompts/line-*.md          - @prompt invocations")
     print()
     print("Next steps:")
     print("  1. Start Kiro CLI with: kiro-cli --agent line-cook")
-    print("  2. Say 'prep' or 'work' to start the workflow")
+    print("  2. Use @line-prep, @line-cook, etc. or natural language")
     print()
-    print("Note: Hooks are configured but hook scripts are stubs.")
-    print("The workflow commands work without hooks.")
+    print("Available @prompts:")
+    print("  @line-prep     - Sync state, show ready tasks")
+    print("  @line-cook     - Execute task with TDD cycle")
+    print("  @line-serve    - Review changes")
+    print("  @line-tidy     - Commit and push")
+    print("  @line-mise     - Create work breakdown")
+    print("  @line-plate    - Validate feature")
+    print("  @line-service  - Full workflow cycle")
+    print("  @line-work     - Quick cycle")
 
 
 if __name__ == "__main__":
