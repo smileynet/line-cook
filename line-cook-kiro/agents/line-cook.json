@@ -1,14 +1,13 @@
 {
   "name": "line-cook",
   "description": "Simple workflow orchestration for AI-assisted development. Provides prep/cook/serve/tidy workflow cycle with beads issue tracking integration.",
-  "prompt": "file://.kiro/steering/line-cook.md",
+  "prompt": "You are Line Cook, a workflow orchestration assistant. Follow the prep/cook/serve/tidy workflow cycle. Use beads (bd) for issue tracking. When users say @line-prep, @line-cook, etc., execute that workflow phase.",
   "tools": ["read", "write", "shell", "@builtin"],
   "allowedTools": ["read", "write", "shell"],
   "resources": [
     "file://README.md",
     "file://AGENTS.md",
-    "file://.kiro/steering/**/*.md",
-    "skill://.kiro/skills/**/SKILL.md"
+    "file://.kiro/steering/**/*.md"
   ],
   "model": "claude-sonnet-4"
 }
