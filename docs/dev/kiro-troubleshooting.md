@@ -14,21 +14,35 @@ python3 line-cook-kiro/install.py --local
 
 ## Common Issues
 
-### Agent config malformed error
+### Agent config malformed error (skill://)
 
 **Symptom:**
 ```
-WARNING Agent config line-cook is malformed at /resources/3: "skill://~/.kiro/skills/**/SKILL.md" is not valid
+WARNING Agent config line-cook is malformed at /resources/3: "skill://..." is not valid
 ```
 
-**Cause:** Old global install uses tilde (`~`) paths. Kiro's `skill://` URI scheme doesn't expand tilde.
+**Cause:** The `skill://` URI scheme is not a valid Kiro resource type. This was removed in the agent config.
 
-**Fix:** Reinstall globally:
+**Fix:** Reinstall:
 ```bash
 python3 line-cook-kiro/install.py --global
 ```
 
-The installer now uses absolute paths (e.g., `/home/user/.kiro/...`) instead of tilde paths.
+### Agent conflict warning
+
+**Symptom:**
+```
+WARNING: Agent conflict for line-cook. Using workspace version.
+```
+
+**Cause:** Both global (`~/.kiro/agents/line-cook.json`) and local (`.kiro/agents/line-cook.json`) configs exist.
+
+**Fix:** This is informational only. Kiro uses the local/workspace version when both exist. To remove the conflict, delete one:
+```bash
+rm ~/.kiro/agents/line-cook.json  # Remove global
+# or
+rm .kiro/agents/line-cook.json    # Remove local
+```
 
 ### Local vs Global Priority
 
@@ -76,7 +90,7 @@ The `install.py` script transforms paths based on install type:
 | Local | Relative | `file://.kiro/steering/...` |
 | Global | Absolute | `file:///home/user/.kiro/steering/...` |
 
-**Why absolute paths for global?** The `skill://` URI scheme doesn't expand `~` (tilde). Using full absolute paths avoids validation errors.
+Global installs use absolute paths to ensure resources resolve correctly regardless of working directory.
 
 ## Relevant Files
 
