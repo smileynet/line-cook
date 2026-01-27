@@ -65,10 +65,13 @@ def main() -> None:
         sys.exit(f"Error: Invalid JSON in {agent_src}: {e}")
 
     if args.global_install:
-        # Transform .kiro/ paths to ~/.kiro/ for global install
+        # Transform .kiro/ paths to absolute paths for global install
+        # Use full path instead of ~ because skill:// URIs don't expand tilde
+        home_kiro = str(Path.home() / ".kiro")
+
         def transform_path(obj):
             if isinstance(obj, str):
-                return obj.replace(".kiro/", "~/.kiro/")
+                return obj.replace(".kiro/", f"{home_kiro}/")
             elif isinstance(obj, list):
                 return [transform_path(item) for item in obj]
             elif isinstance(obj, dict):
