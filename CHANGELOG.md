@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.8.0] - 2026-01-26
 
 ### Added
-- `/line:plan` command for menu planning with tracer dish methodology
+- `/line:mise` command for menu planning with tracer dish methodology
 - `/line:plate` command for BDD feature validation (acceptance criteria testing)
 - `/line:season` command to apply research findings to beads
 - `/line:run` command for full-service workflow orchestration
