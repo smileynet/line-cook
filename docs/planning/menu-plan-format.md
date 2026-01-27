@@ -1,6 +1,6 @@
 # Menu Plan Format
 
-Complete reference for menu plan YAML format used by `/line:plan`.
+Complete reference for menu plan YAML format used by `/line:mise`.
 
 ## Purpose
 
