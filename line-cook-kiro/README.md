@@ -26,7 +26,7 @@ line-cook-kiro/
 │   ├── line-tidy.md
 │   ├── line-mise.md
 │   ├── line-plate.md
-│   ├── line-service.md
+│   ├── line-run.md
 │   └── line-getting-started.md
 ├── skills/           # Lazy-loaded documentation
 │   └── line-cook/
@@ -50,14 +50,14 @@ Use `@line-<phase>` for explicit workflow control:
 | `@line-tidy` | Commit and push |
 | `@line-mise` | Create work breakdown |
 | `@line-plate` | Validate completed feature |
-| `@line-service` | Full cycle (prep→cook→serve→tidy) |
+| `@line-run` | Full cycle (prep→cook→serve→tidy) |
 | `@line-getting-started` | Show workflow guide |
 
 **Examples:**
 ```
 @line-prep
 @line-cook lc-042
-@line-service
+@line-run
 ```
 
 ### 2. Natural Language (Flexible)
@@ -73,7 +73,7 @@ The steering file teaches the agent to recognize these phrases:
 | "serve", "review" | Run serve workflow |
 | "tidy", "commit" | Run tidy workflow |
 | "plate", "validate feature" | Validate completed feature |
-| "service", "full service", "full cycle" | Full service cycle |
+| "run", "full run", "full cycle" | Full run cycle |
 
 **Recommendation:** Use @prompts for predictable behavior, natural language for conversational flow.
 

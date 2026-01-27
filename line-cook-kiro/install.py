@@ -149,7 +149,7 @@ def main() -> None:
     print("  @line-tidy            - Commit and push")
     print("  @line-mise            - Create work breakdown")
     print("  @line-plate           - Validate feature")
-    print("  @line-service         - Full workflow cycle")
+    print("  @line-run             - Full workflow cycle")
     print("  @line-getting-started - Show workflow guide")
 
 

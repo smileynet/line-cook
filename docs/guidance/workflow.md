@@ -32,7 +32,7 @@ cat docs/guidance/context-management.md # Managing AI context
 Or run the full cycle:
 
 ```
-/line:service
+/line:run
 ```
 
 ## Work Hierarchy
@@ -325,7 +325,7 @@ Assessment: FEATURE_COMPLETE
 
 ## Complete Cycle
 
-**Command:** `/line:service`
+**Command:** `/line:run`
 
 Runs the full cycle: prep → cook → serve → tidy
 

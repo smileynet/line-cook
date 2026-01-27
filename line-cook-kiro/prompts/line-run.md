@@ -131,7 +131,7 @@ Run @line-tidy to save progress, or investigate the error.
 
 ## Design Notes
 
-The @line-service command is the recommended entry point for focused work sessions:
+The @line-run command is the recommended entry point for focused work sessions:
 
 1. **Ensures proper setup** - Prep runs first to sync state
 2. **Maintains focus** - One task per cycle

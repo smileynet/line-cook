@@ -24,7 +24,7 @@ Structured AI workflow execution for disciplined development.
 | "serve" | AI peer review of completed work |
 | "tidy" | Commit, sync beads, push |
 | "plate" | Validate completed feature |
-| "service" | Full service (mise→prep→cook→serve→tidy→plate) |
+| "run" | Full run (mise→prep→cook→serve→tidy→plate) |
 | "work" | Quick cycle (prep→cook→serve→tidy) |
 
 ## Core Workflow

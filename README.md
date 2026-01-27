@@ -52,7 +52,7 @@ bd create --title="Implement user auth" --type=feature --priority=1
 bd create --title="Add login form" --type=task
 
 # 3. Run the workflow
-/line:service
+/line:run
 ```
 
 That's it. Line Cook syncs your repo, picks a ready task, executes it with guardrails, reviews the work, and commits when done.
@@ -86,7 +86,7 @@ graph LR
 | `/serve` | Review code changes |
 | `/tidy` | Commit and push changes |
 | `/plate` | Validate completed feature |
-| `/service` | Run full workflow cycle |
+| `/run` | Run full workflow cycle |
 
 > **Session boundary:** After `/tidy` pushes your work, start a new session or clear context (`/compact`) before starting `/prep` for the next task.
 
@@ -128,7 +128,7 @@ Both paths use `/mise`—even if you know what you want, it helps create well-sc
 /line:plate <feature-id>
 ```
 
-Once comfortable with each step, use `/line:service` to run them all together.
+Once comfortable with each step, use `/line:run` to run them all together.
 
 ## Installation
 
@@ -155,7 +155,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:getting-started`, `/line:mise`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:service`
+Commands: `/line:getting-started`, `/line:mise`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
 ### OpenCode
 
@@ -172,7 +172,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-mise`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-service`
+Commands: `/line-getting-started`, `/line-mise`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
 
 ### Kiro
 

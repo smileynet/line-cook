@@ -14,7 +14,7 @@ Line Cook provides structured workflow cycles for AI-assisted development.
   sync          execute        review         commit
 ```
 
-Or use `@line-service` to run the full cycle.
+Or use `@line-run` to run the full cycle.
 
 ### Commands
 
@@ -26,7 +26,7 @@ Or use `@line-service` to run the full cycle.
 | `@line-tidy` | File issues, commit, push |
 | `@line-mise` | Plan work breakdown |
 | `@line-plate` | Validate completed feature |
-| `@line-service` | Full cycle (prep→cook→serve→tidy) |
+| `@line-run` | Full cycle (prep→cook→serve→tidy) |
 | `@line-getting-started` | Show this guide |
 
 ### Bead Reference
@@ -46,4 +46,4 @@ bd sync                       # Push/pull with remote
 2. `@line-cook` - Execute the top task
 3. `@line-tidy` - Commit and push
 
-Or just run `@line-service` for the full cycle.
+Or just run `@line-run` for the full cycle.
