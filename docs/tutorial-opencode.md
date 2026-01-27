@@ -447,6 +447,17 @@ Cook won't mark a task complete if tests fail or code doesn't compile.
 
 Before committing, `/line-serve` invokes a separate Claude instance to review your changes. This is AI peer review.
 
+### What is Headless Claude?
+
+**Headless Claude** means Claude running without an interactive terminal—a background process that receives a prompt, does work, and returns results. Think of it like running a script vs typing commands interactively.
+
+Serve spawns a headless Claude with:
+- A focused review prompt
+- The diff of your changes
+- Instructions to categorize findings
+
+**Why fresh context matters:** The Claude that wrote the code has sunk cost—it made decisions and might rationalize them. A separate instance has no stake in defending those choices. It's more objective and more likely to "tell on itself" rather than gloss over problems to misrepresent success.
+
 ### Run Serve
 
 ```
@@ -687,17 +698,25 @@ Items filed under Retrospective are automatically excluded from prep/cook auto-s
 
 ## Recovery Paths
 
-Things go wrong. Here's how to recover at each phase.
+Things go wrong. Each phase of the workflow is a checkpoint—a known-good state you can return to. Understanding what happens at each phase helps you recover when something breaks.
 
 ### During Prep
+
+Prep is about getting oriented. You're syncing with remote, surveying what's available, and picking a task. Problems here are usually about state—your local view doesn't match reality.
+
+The good news: prep is read-only. Nothing you do here changes code. If something looks wrong, sync again or override the auto-selection.
 
 | Problem | Solution |
 |---------|----------|
 | Beads out of sync | `bd sync` to pull latest |
-| Merge conflicts | Resolve manually, then `bd sync` |
+| Merge conflicts | Ask Claude to help resolve, then `bd sync` |
 | Wrong task selected | Specify task explicitly: `/line-cook lc-xxx` |
 
 ### During Cook
+
+Cook is where code changes happen. This is the highest-risk phase because you're modifying files. But it's also the most recoverable—nothing is committed yet. All changes are local.
+
+If cook produces bad output, you can always discard and retry. The key question is whether to fix forward (adjust the code) or reset (discard and try again). Small fixes: fix forward. Fundamentally wrong approach: reset.
 
 | Problem | Solution |
 |---------|----------|
@@ -709,6 +728,10 @@ Things go wrong. Here's how to recover at each phase.
 
 ### During Serve
 
+Serve is the review checkpoint. A fresh Claude instance examines your changes with no memory of writing them—more objective, more likely to catch issues the original author would rationalize away.
+
+Rejection here is normal and healthy. It means the safety net caught something. Don't skip serve just because it sometimes rejects code—that's the point.
+
 | Problem | Solution |
 |---------|----------|
 | Review rejected | Fix issues, run `/line-serve` again |
@@ -717,15 +740,30 @@ Things go wrong. Here's how to recover at each phase.
 
 ### During Tidy
 
+Tidy is the commitment phase. You're filing discoveries as beads, committing code, and pushing to remote. Problems here are usually git-related—conflicts with remote, or issues with the commit itself.
+
+Once push succeeds, the session is complete. Before that, you can still adjust.
+
 | Problem | Solution |
 |---------|----------|
 | Commit failed | Check error, fix, retry tidy |
 | Push failed | Check remote status, resolve conflicts, retry |
 | Forgot to file something | Create bead manually with `bd create` |
 
+### Session-Level Recovery
+
+Sometimes you lose track of where you are. Maybe context got too long, maybe you got interrupted, maybe things just feel confused. The beads system is your anchor—it remembers state even when you don't.
+
+| Problem | Solution |
+|---------|----------|
+| Confused about state | `bd show <task-id>` to see task details |
+| Lost track of progress | `bd stats` and `bd ready` to survey |
+| Context too long | Clear context, run `/line-prep` to resume |
+| Need to abandon session | `git checkout .` to discard, task stays open |
+
 ### The Nuclear Option
 
-If everything is confused:
+If everything is confused and you want to start completely fresh:
 
 ```bash
 git checkout .              # Discard local changes
@@ -733,7 +771,7 @@ git pull                    # Sync with remote
 bd sync                     # Sync beads
 ```
 
-Then start fresh with `/line-prep`. Your beads are still there.
+Then start fresh with `/line-prep`. Your beads are still there—the work tracking survives even a full reset. You haven't lost your place, just your uncommitted changes.
 
 ---
 
