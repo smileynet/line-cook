@@ -81,17 +81,16 @@ The steering file teaches the agent to recognize these phrases:
 ## Installation
 
 ```bash
-./install.py
-# or: python3 install.py
+python3 install.py
 ```
 
 ## Usage
 
-Start Kiro CLI with the line-cook agent:
-
 ```bash
-kiro-cli --agent line-cook
+kiro-cli chat -a -r --agent line-cook
 ```
+
+Then use `@line-prep` to start or say "prep".
 
 ## See Also
 
