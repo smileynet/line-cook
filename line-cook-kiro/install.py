@@ -143,14 +143,14 @@ def main() -> None:
     print("  2. Use @line-prep, @line-cook, etc. or natural language")
     print()
     print("Available @prompts:")
-    print("  @line-prep     - Sync state, show ready tasks")
-    print("  @line-cook     - Execute task with TDD cycle")
-    print("  @line-serve    - Review changes")
-    print("  @line-tidy     - Commit and push")
-    print("  @line-mise     - Create work breakdown")
-    print("  @line-plate    - Validate feature")
-    print("  @line-service  - Full workflow cycle")
-    print("  @line-work     - Quick cycle")
+    print("  @line-prep            - Sync state, show ready tasks")
+    print("  @line-cook            - Execute task with TDD cycle")
+    print("  @line-serve           - Review changes")
+    print("  @line-tidy            - Commit and push")
+    print("  @line-mise            - Create work breakdown")
+    print("  @line-plate           - Validate feature")
+    print("  @line-service         - Full workflow cycle")
+    print("  @line-getting-started - Show workflow guide")
 
 
 if __name__ == "__main__":
