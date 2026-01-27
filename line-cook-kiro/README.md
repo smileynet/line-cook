@@ -19,6 +19,15 @@ line-cook-kiro/
 │   ├── taster.md
 │   ├── sous-chef.md
 │   └── maitre.md
+├── prompts/          # @prompt invocations
+│   ├── line-prep.md
+│   ├── line-cook.md
+│   ├── line-serve.md
+│   ├── line-tidy.md
+│   ├── line-mise.md
+│   ├── line-plate.md
+│   ├── line-service.md
+│   └── line-work.md
 ├── skills/           # Lazy-loaded documentation
 │   └── line-cook/
 │       └── SKILL.md
@@ -27,21 +36,47 @@ line-cook-kiro/
 
 ## Workflow Commands
 
-Kiro CLI does **not** support custom slash commands. Workflow invocation uses **natural language recognition** via the steering file:
+Line Cook supports two invocation methods:
+
+### 1. @Prompt Invocation (Explicit)
+
+Use `@line-<phase>` for explicit workflow control:
+
+| Prompt | Purpose |
+|--------|---------|
+| `@line-prep` | Sync state, show ready tasks |
+| `@line-cook` | Execute task with TDD cycle |
+| `@line-serve` | Review changes |
+| `@line-tidy` | Commit and push |
+| `@line-mise` | Create work breakdown |
+| `@line-plate` | Validate completed feature |
+| `@line-service` | Full cycle (prep→cook→serve→tidy→plate) |
+| `@line-work` | Quick cycle (prep→cook→serve→tidy) |
+
+**Examples:**
+```
+@line-prep
+@line-cook lc-042
+@line-service
+```
+
+### 2. Natural Language (Flexible)
+
+The steering file teaches the agent to recognize these phrases:
 
 | User Input | Workflow |
 |------------|----------|
 | "getting started", "help", "guide" | Show workflow guide |
-| "mise", "/mise", "plan", "/plan", "planning" | Plan work breakdown |
-| "prep", "/prep", "sync state" | Run prep workflow |
-| "cook", "/cook", "start task" | Run cook workflow (TDD cycle) |
-| "serve", "/serve", "review" | Run serve workflow |
-| "tidy", "/tidy", "commit" | Run tidy workflow |
-| "plate", "/plate", "validate feature" | Validate completed feature |
-| "service", "/service", "full service" | Full service (mise→prep→cook→serve→tidy→plate) |
-| "work", "/work", "full cycle" | Quick cycle (prep→cook→serve→tidy) |
+| "mise", "plan", "planning" | Plan work breakdown |
+| "prep", "sync state" | Run prep workflow |
+| "cook", "start task" | Run cook workflow (TDD cycle) |
+| "serve", "review" | Run serve workflow |
+| "tidy", "commit" | Run tidy workflow |
+| "plate", "validate feature" | Validate completed feature |
+| "service", "full service" | Full service cycle |
+| "work", "full cycle" | Quick cycle |
 
-The steering file (`steering/line-cook.md`) teaches the agent to recognize these phrases and execute the corresponding workflow.
+**Recommendation:** Use @prompts for predictable behavior, natural language for conversational flow.
 
 ## Installation
 
