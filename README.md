@@ -96,8 +96,10 @@ graph LR
 
 | Starting Point | What to Do |
 |----------------|------------|
-| **"I know what to build"** | Quick Start above → `bd create` tasks → `/line:service` |
-| **"I have an idea, help me plan"** | `/mise` to brainstorm and create beads → then `/line:prep` |
+| **"I know what to build"** | `/mise` to validate scope and create beads → `/line:prep` |
+| **"I have a vague idea"** | `/mise` to brainstorm, scope, and create beads → `/line:prep` |
+
+Both paths use `/mise`—even if you know what you want, it helps create well-scoped tasks that fit in single sessions.
 
 **Tutorials** walk through the complete journey from idea to execution:
 - [Claude Code Tutorial](docs/tutorial-claude-code.md)
@@ -269,7 +271,7 @@ Yes. Beads is additive, not exclusive. Use your main tracker for team visibility
 
 **How long should a task be?**
 
-A task should fit in one session—roughly 1-2 hours of work. If you're saying "this might take a while," it's probably too big. Break it down with dependencies.
+A task should take roughly 5-10 minutes of AI execution time. If it's taking longer, that's often a sign the task isn't decomposed enough. Break it down with dependencies—smaller tasks mean more checkpoints and easier recovery.
 
 **Can I run commands out of order?**
 
