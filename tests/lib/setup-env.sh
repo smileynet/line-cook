@@ -21,6 +21,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES_DIR="$(cd "$SCRIPT_DIR/../fixtures" && pwd)"
 
+# Clean up stale test directories from previous runs
+cleanup_stale_tests() {
+    local found=0
+    for dir in /tmp/line-cook-test* /tmp/line-cook-remote*; do
+        if [[ -d "$dir" ]]; then
+            echo "  ! Removing stale test directory: $dir"
+            rm -rf "$dir"
+            found=$((found + 1))
+        fi
+    done
+    if [[ $found -gt 0 ]]; then
+        echo "  ✓ Cleaned up $found stale test director(ies)"
+    fi
+}
+
+# Clean up before creating new directories
+cleanup_stale_tests
+
 # Create temp directories
 export TEST_DIR="$(mktemp -d -t line-cook-test.XXXXXX)"
 export REMOTE_DIR="$(mktemp -d -t line-cook-remote.XXXXXX)"
