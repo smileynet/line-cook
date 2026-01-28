@@ -404,7 +404,7 @@ Line Cook maintains commands for both Claude Code (`commands/`) and OpenCode (`l
 **Platform differences handled automatically:**
 - Claude Code: `/line:cook` (colon separator), uses `claude` CLI
 - OpenCode: `/line-cook` (hyphen separator), uses `opencode` CLI
-- OpenCode includes additional "When run via /line-work" instruction
+- OpenCode includes additional "When run via /line-run" instruction
 
 **Synced commands:**
 - cook.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`

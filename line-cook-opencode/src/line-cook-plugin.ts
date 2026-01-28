@@ -435,7 +435,7 @@ async function handleSessionCreated(
         body: {
           service: "line-cook",
           level: "info",
-          message: "Beads-enabled project detected. Use /line-work to start workflow cycle.",
+          message: "Beads-enabled project detected. Use /line-run to start workflow cycle.",
           extra: {
             hasBeads: true,
             directory,
