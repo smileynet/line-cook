@@ -2,7 +2,7 @@
 
 **You design. It ships.**
 
-Focus on the what and why—Line Cook handles the how. Structured execution with guardrails that keeps you in deep work while AI runs the prep→cook→serve→tidy cycle.
+Focus on the what and why—Line Cook handles the how. Structured execution with guardrails that keeps you in deep work while AI runs the prep→cook→serve→tidy cycle—syncing state, executing tasks, reviewing changes, and committing work.
 
 ## Core Concepts
 
@@ -13,6 +13,24 @@ Before diving in, understand two key ideas:
 **You plan, it executes.** Brainstorm with the AI to scope work and create issues. Then hand off to Line Cook for disciplined execution. Don't mix modes—creative exploration and systematic execution are different phases with different goals.
 
 > **Learn more:** [Mental Models](docs/mental-models.md) explains these concepts in depth.
+
+## Quick Start
+
+```bash
+# 1. Initialize beads in your project
+bd init
+
+# 2. Create some tasks
+bd create --title="Implement user auth" --type=feature --priority=1
+bd create --title="Add login form" --type=task
+
+# 3. Run the workflow
+/line:run
+```
+
+That's it. Line Cook syncs your repo, picks a ready task, executes it with guardrails, reviews the work, and commits when done.
+
+> **New to Line Cook?** Run `/line:getting-started` for a quick workflow guide.
 
 ## What is Beads?
 
@@ -40,24 +58,6 @@ Use Line Cook when:
 - Tasks have dependencies
 - You want automated review
 - You're building trust in AI workflows
-
-## Quick Start
-
-```bash
-# 1. Initialize beads in your project
-bd init
-
-# 2. Create some tasks
-bd create --title="Implement user auth" --type=feature --priority=1
-bd create --title="Add login form" --type=task
-
-# 3. Run the workflow
-/line:run
-```
-
-That's it. Line Cook syncs your repo, picks a ready task, executes it with guardrails, reviews the work, and commits when done.
-
-> **New to Line Cook?** Run `/line:getting-started` for a quick workflow guide.
 
 ## What It Does
 
