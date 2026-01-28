@@ -9,6 +9,7 @@
 #   ./tests/smoke-test.sh --setup              # Create env, output TEST_DIR path
 #   ./tests/smoke-test.sh --validate <dir>     # Validate artifacts in dir
 #   ./tests/smoke-test.sh --teardown <dir>     # Clean up test directory
+#   ./tests/smoke-test.sh --cleanup            # Remove stale test directories only
 #   ./tests/smoke-test.sh --dry-run            # Check dependencies only
 #
 # Interactive workflow (Claude runs this):
@@ -79,6 +80,21 @@ log_warning() {
     log "  ${YELLOW}!${NC} $1"
 }
 
+# Clean up stale test directories from previous runs
+cleanup_stale_tests() {
+    local found=0
+    for dir in /tmp/line-cook-smoke* /tmp/line-cook-smoke-remote*; do
+        if [[ -d "$dir" ]]; then
+            log_warning "Removing stale test directory: $dir"
+            rm -rf "$dir"
+            found=$((found + 1))
+        fi
+    done
+    if [[ $found -gt 0 ]]; then
+        log_success "Cleaned up $found stale test director(ies)"
+    fi
+}
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -107,6 +123,10 @@ while [[ $# -gt 0 ]]; do
         --dry-run)
             DRY_RUN=true
             MODE="dry-run"
+            shift
+            ;;
+        --cleanup)
+            MODE="cleanup"
             shift
             ;;
         --platform)
@@ -179,6 +199,9 @@ check_dependencies() {
 # Outputs: TEST_DIR path to stdout (other output to stderr)
 do_setup() {
     log_phase "Setup: Creating Isolated Test Environment"
+
+    # Clean up stale directories from previous runs
+    cleanup_stale_tests
 
     # Create temp directories
     local TEST_DIR
@@ -500,9 +523,15 @@ main() {
                 exit 1
             fi
             ;;
+        cleanup)
+            log_phase "Cleanup: Removing Stale Test Directories"
+            cleanup_stale_tests
+            log ""
+            log_success "Cleanup complete"
+            ;;
         "")
             echo "Error: No mode specified" >&2
-            echo "Use --setup, --validate <dir>, --teardown <dir>, or --dry-run" >&2
+            echo "Use --setup, --validate <dir>, --teardown <dir>, --cleanup, or --dry-run" >&2
             echo "Use --help for usage information" >&2
             exit 1
             ;;
