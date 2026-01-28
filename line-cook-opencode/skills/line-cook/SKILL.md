@@ -1,6 +1,6 @@
 ---
 name: line-cook
-description: AI-supervised development workflow. Use when running /line-work, /line-prep, /line-cook, /line-serve, /line-tidy commands, managing beads issues during sessions, or following prep→cook→serve→tidy cycle. Covers workflow orchestration, guardrails, and session management.
+description: AI-supervised development workflow. Use when running /line-run, /line-prep, /line-cook, /line-serve, /line-tidy commands, managing beads issues during sessions, or following prep→cook→serve→tidy cycle. Covers workflow orchestration, guardrails, and session management.
 ---
 
 # Line Cook
@@ -9,7 +9,7 @@ Structured AI workflow execution: prep → cook → serve → tidy.
 
 ## When to Use
 
-- Starting a work session with `/line-work`
+- Starting a work session with `/line-run`
 - Running individual workflow steps: `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`
 - Managing beads issues during execution
 - Understanding workflow guardrails
@@ -18,7 +18,7 @@ Structured AI workflow execution: prep → cook → serve → tidy.
 
 | Command | Purpose |
 |---------|---------|
-| `/line-work` | Full prep→cook→serve→tidy cycle |
+| `/line-run` | Full prep→cook→serve→tidy cycle |
 | `/line-prep` | Sync git, show ready tasks |
 | `/line-cook` | Claim and execute a task |
 | `/line-serve` | AI peer review of completed work |
@@ -27,8 +27,8 @@ Structured AI workflow execution: prep → cook → serve → tidy.
 ## Core Workflow
 
 ```
-/line-work              # Full cycle with auto-selected task
-/line-work <task-id>    # Full cycle with specific task
+/line-run              # Full cycle with auto-selected task
+/line-run <task-id>    # Full cycle with specific task
 ```
 
 ### Step-by-Step

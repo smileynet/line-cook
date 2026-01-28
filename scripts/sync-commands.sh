@@ -23,8 +23,8 @@ sed 's/@NAMESPACE@/line-/g' "$TEMPLATES_DIR/cook.md.template" > "$OPENCODE_DIR/l
 
 # Add platform-specific STOP instruction for OpenCode
 sed -i '/STOP after completing/c\**When run directly:** STOP after completing, show NEXT STEP, and wait for user.\
-**When run via `\/line-work`:** Continue to the next step without stopping.' "$OPENCODE_DIR/line-cook.md"
+**When run via `\/line-run`:** Continue to the next step without stopping.' "$OPENCODE_DIR/line-cook.md"
 
-# TODO: Add other commands (prep, serve, tidy, work) as needed
+# TODO: Add other commands (prep, serve, tidy, run) as needed
 
 echo -e "${GREEN}✓ Commands synced${NC}"
