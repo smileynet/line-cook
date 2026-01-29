@@ -44,6 +44,22 @@ Review the code changes for:
 
 Categorize any issues found.
 
+**Check SERVE_RESULT verdict:**
+
+| Verdict | Action |
+|---------|--------|
+| `APPROVED` | Continue to Step 4 (tidy) |
+| `NEEDS_CHANGES` | Loop back to Step 2 (cook rework) |
+| `SKIPPED` | Continue to Step 4 with retry recommendation |
+| `BLOCKED` | **STOP workflow** - require user decision |
+
+**On NEEDS_CHANGES (Rework Loop):**
+1. Reopen the task: `bd update <id> --status=in_progress`
+2. Run @line-cook again (task will detect rework mode)
+3. Run @line-serve again
+4. Repeat until APPROVED or BLOCKED
+5. Maximum 3 rework attempts before requiring user decision
+
 ### Step 4: Run @line-tidy
 
 File discovered work, commit, and push.
