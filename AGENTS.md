@@ -360,29 +360,55 @@ line-cook/
 │   ├── plate.md           # → /line:plate
 │   └── run.md             # → /line:run
 ├── scripts/               # Installation and utility scripts
-│   ├── install-claude-code.sh
-│   └── sync-commands.sh   # Sync commands across platforms
+│   ├── install-claude-code.sh    # Install Claude Code plugin locally
+│   ├── sync-commands.sh          # Sync commands across platforms
+│   ├── check-platform-parity.py  # Verify command parity across platforms
+│   ├── check-plugin-health.py    # Health checks for plugin files
+│   ├── doctor-docs.py            # Validate documentation consistency
+│   ├── menu-plan-to-beads.sh     # Convert menu plans to beads issues
+│   └── validate-smoke-test.py    # Validate smoke test results
 ├── line-cook-opencode/    # OpenCode plugin
 │   ├── package.json       # Plugin manifest
 │   ├── install.sh         # Installation script
 │   ├── AGENTS.md          # Agent instructions (bundled)
 │   └── commands/          # OpenCode command definitions
+│       ├── line-getting-started.md # → /line-getting-started
 │       ├── line-prep.md   # → /line-prep
 │       ├── line-cook.md   # → /line-cook
 │       ├── line-serve.md  # → /line-serve
 │       ├── line-tidy.md   # → /line-tidy
 │       ├── line-mise.md   # → /line-mise
 │       ├── line-plate.md  # → /line-plate
-│       └── line-run.md     # → /line-run
-│   └── line-getting-started.md # → /line-getting-started
-├── line-cook-kiro/        # Kiro agent
-│   ├── agents/            # Agent definitions
-│   │   ├── line-cook.json # Main agent
-│   │   ├── taster.json    # Test quality review agent
-│   │   ├── sous-chef.json # Code review agent
-│   │   └── maitre.json    # BDD test quality agent
-│   ├── steering/          # Workflow steering docs
-│   └── skills/            # Skill definitions
+│       └── line-run.md    # → /line-run
+├── line-cook-kiro/        # Kiro CLI prompts
+│   ├── prompts/           # Kiro prompt definitions
+│   │   ├── line-getting-started.md
+│   │   ├── line-prep.md
+│   │   ├── line-cook.md
+│   │   ├── line-serve.md
+│   │   ├── line-tidy.md
+│   │   ├── line-mise.md
+│   │   ├── line-plate.md
+│   │   └── line-run.md
+│   └── steering/          # Workflow steering docs
+│       ├── beads.md
+│       ├── getting-started.md
+│       ├── kitchen-manager.md
+│       ├── line-cook.md
+│       ├── maitre.md
+│       ├── session.md
+│       ├── sous-chef.md
+│       └── taster.md
+├── tests/                 # Test files
+├── docs/                  # Documentation
+│   ├── guidance/          # Workflow guidance docs
+│   ├── planning/          # Planning methodology
+│   ├── templates/         # Feature templates
+│   └── dev/               # Developer docs
+├── .github/
+│   └── workflows/         # CI/CD automation
+│       ├── ci.yml         # Continuous integration
+│       └── release.yml    # Automated releases
 ├── .claude-plugin/
 │   └── plugin.json        # Claude Code plugin manifest
 ├── AGENTS.md              # Agent workflow instructions (this file)
@@ -469,7 +495,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cp -r ~/line-cook/line-cook-kiro/* ~/.kiro/
 ```
 
-Commands: `prep`, `cook`, `serve`, `tidy`, `work`
+Commands: `line-getting-started`, `line-prep`, `line-cook`, `line-serve`, `line-tidy`, `line-mise`, `line-plate`, `line-run`
 
 ## Release Process
 
@@ -525,7 +551,7 @@ git push
 
 **Track in [Unreleased]:**
 - Command changes (commands/*.md)
-- Hook changes (hooks/*.py, src/*.ts)
+- Script changes (scripts/*.py, scripts/*.sh)
 - Plugin manifest changes
 - Core workflow logic
 - Significant user-facing features or fixes
