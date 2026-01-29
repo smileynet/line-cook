@@ -103,9 +103,27 @@ After serve completes, check the SERVE_RESULT block:
 | Verdict | continue | Action |
 |---------|----------|--------|
 | `APPROVED` | true | Continue to tidy |
-| `NEEDS_CHANGES` | true | Continue to tidy (issues will be filed) |
+| `NEEDS_CHANGES` | true | Loop back to cook (rework) |
 | `SKIPPED` | true | Continue to tidy with retry recommendation |
 | `BLOCKED` | false | **STOP workflow** - require user decision |
+
+**On NEEDS_CHANGES verdict (Rework Loop):**
+1. Reopen the task: `bd update <id> --status=in_progress`
+2. Run /line-cook again (task will detect rework mode via serve comments)
+3. Run /line-serve again
+4. Repeat until APPROVED or BLOCKED
+5. Maximum 3 rework attempts before requiring user decision
+
+```
+REWORK REQUIRED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Review found issues that should be addressed:
+
+<list issues from SERVE_RESULT>
+
+Looping back to /line-cook for rework (attempt <n>/3)...
+```
 
 **On BLOCKED verdict:**
 ```
