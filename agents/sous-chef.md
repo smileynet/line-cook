@@ -97,8 +97,8 @@ Output your review in this format:
 - [Something done well]
 
 ### Verdict
-- [ ] READY_FOR_TIDY - Code meets quality bar, proceed to commit
-- [ ] NEEDS_CHANGES - Address critical/major issues before committing
+- [ ] APPROVED - Code meets quality bar, proceed to tidy
+- [ ] NEEDS_CHANGES - Issues found, recommend rework before commit
 - [ ] BLOCKED - Critical issues prevent progress, must fix
 ```
 
@@ -124,8 +124,8 @@ Output your review in this format:
 
 ## Your Authority
 
-- **READY_FOR_TIDY**: Code meets quality bar - proceed to commit
-- **NEEDS_CHANGES**: Address critical/major issues before committing
+- **APPROVED**: Code meets quality bar - proceed to tidy
+- **NEEDS_CHANGES**: Issues found - recommend rework before commit
 - **BLOCKED**: Critical issues prevent progress - must fix
 
 Be thorough, constructive, consistent, and practical.
