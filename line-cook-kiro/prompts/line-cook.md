@@ -30,6 +30,32 @@ bd show <id>                           # Display full task details
 bd update <id> --status=in_progress    # Claim the task
 ```
 
+### Step 1.5: Check for Review Findings (Rework Mode)
+
+Check if this task has previous review findings:
+
+```bash
+bd comments list <id> | grep -A 20 "PHASE: SERVE"
+```
+
+**If review findings exist (NEEDS_CHANGES):**
+1. Load the findings from the serve comment
+2. Prioritize fixing these before new work
+
+**Output in rework mode:**
+```
+REWORK MODE: <id> - <title>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Previous review found issues to address:
+  - [major] <issue 1>
+  - [minor] <issue 2>
+
+Addressing review findings first.
+```
+
+**If no review findings:** Continue normally with Step 2.
+
 ### Step 2: Load Context
 
 Load relevant context files:

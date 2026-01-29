@@ -173,7 +173,7 @@ Provide structured feedback:
 - [ ] [Another positive observation]
 
 ### Verdict
-- [ ] ✅ **READY_FOR_TIDY** - Code meets quality bar, proceed to commit
+- [ ] ✅ **APPROVED** - Code meets quality bar, proceed to commit
 - [ ] ⚠️ **NEEDS_CHANGES** - Address critical/major issues before committing
 - [ ] ❌ **BLOCKED** - Critical issues prevent progress, must fix
 
@@ -227,7 +227,7 @@ Good. All deliverables met:
 - Good example review provided
 
 ### Verdict
-- [x] ✅ **READY_FOR_TIDY** - Code meets quality bar, proceed to commit
+- [x] ✅ **APPROVED** - Code meets quality bar, proceed to commit
 
 Minor suggestion is optional. Core functionality complete and follows
 project conventions.
@@ -309,9 +309,9 @@ def process_order(user, items, payment, shipping, tax, discount):
 ## Your Authority
 
 You have authority to:
-- ✅ **READY_FOR_TIDY** if quality bar met - Developer proceeds to commit
-- ⚠️ **NEEDS_CHANGES** if issues found - Developer should address before committing
-- ❌ **BLOCKED** if critical problems - Developer must fix before TIDY
+- ✅ **APPROVED** if quality bar met - Proceed to tidy
+- ⚠️ **NEEDS_CHANGES** if issues found - Recommend rework before commit
+- ❌ **BLOCKED** if critical problems - Must fix before proceeding
 
 Developer should address critical/major issues before TIDY phase.
 
