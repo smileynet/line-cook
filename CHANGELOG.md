@@ -7,8 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-01-28
+
+### Added
+- Kiro platform configuration with kitchen-manager orchestration prompts
+
 ### Changed
-- Renamed `/line:service` command to `/line:run` to disambiguate from `/line:serve`
+- Consolidated `/line:run` command (removed `/line:work` and `/line:service` aliases)
+- Moved Quick Start section earlier in README for better discoverability
+
+### Fixed
+- NEEDS_CHANGES verdict now properly loops back to cook phase for rework
+- Updated Kiro prompts to handle NEEDS_CHANGES rework loop correctly
+- Fixed `/line:plan` references to use correct `/line:mise` command name
+
+### Documentation
+- Updated AGENTS.md to match actual repository structure
+- Removed obsolete CAPSULE_MIGRATION_PLAN.md
+
+### Internal
+- Added stale test directory cleanup in smoke tests
+- Rebuilt opencode plugin with latest changes
 
 ## [0.8.0] - 2026-01-26
 
@@ -90,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/smileynet/line-cook/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/smileynet/line-cook/compare/v0.7.5...v0.8.0
 [0.6.3]: https://github.com/smileynet/line-cook/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/smileynet/line-cook/compare/v0.6.1...v0.6.2
