@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `/line:cook` now always indicates `/line:serve` as next step (serve should never be skipped)
+
 ## [0.8.3] - 2026-01-30
 ### Fixed
 - OpenCode `/line-serve` now correctly loops back to `/line-cook` when verdict is `needs_changes`

@@ -270,7 +270,7 @@ Findings (to file in /tidy):
   Improvements:
     - "Consider refactoring Z for clarity"
 
-NEXT STEP: /line:serve (review) or /line:tidy (commit)
+NEXT STEP: /line:serve
 ```
 
 ## Guardrails (Critical)
