@@ -1,430 +1,118 @@
 ---
-description: Create work breakdown before starting implementation
+description: Create work breakdown before starting implementation (orchestrates brainstorm→plan→commit)
 ---
 
 ## Summary
 
-**Create human-readable work breakdown using tracer methodology.** Prep step before creating beads.
+**Mise en place orchestrator: brainstorm → plan → commit.** Primary entry point for planning work.
 
-**STOP after creating menu plan.** Wait for user approval before converting to beads.
+Like `/line-run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line-mise` orchestrates the planning cycle (brainstorm→plan→commit).
+
+**Phases:**
+1. **Brainstorm** - Divergent thinking: explore, question, research
+2. **Plan** - Convergent thinking: structure, scope, decompose
+3. **Commit** - Execution: create beads, write test specs, persist
 
 ---
 
 ## Process
 
-### Step 1: Understand the Order
+### Step 1: Run /mise-brainstorm
 
-Ask clarifying questions:
+**Unless requirements are crystal clear:**
 
-**What are we building?**
-- What problem are we solving?
-- What does success look like?
-- Who is the user?
+Run the brainstorm phase to explore the problem space.
 
-**What are the constraints?**
-- Are there technical constraints?
-- Time constraints (MVP vs full feature)?
-- Dependencies on other work?
+Output is `docs/planning/brainstorm-<name>.md`.
 
-**What's the scope?**
-- MVP (minimum viable product)
-- Full feature
-- Multi-session epic
+**Pause for review.** Ask user if they want to proceed to planning.
 
-**Ask questions if unclear.** Don't assume.
+### Step 2: Run /mise-plan
 
-### Step 2: Create Menu Plan (Task Graph)
+Run the plan phase to create structured breakdown.
 
-Build a structured breakdown in YAML format for easy conversion to beads.
+Output is `docs/planning/menu-plan.yaml`.
 
-**Why YAML?**
-- Human-readable and easy to edit
-- Machine-parseable for automated bead creation
-- Version controlled and reviewable
-- Can iterate quickly before creating beads
+**Pause for review.** Ask user if they want to proceed to committing.
 
-**Create `docs/planning/menu-plan.yaml`:**
+### Step 3: Run /mise-commit
 
-```yaml
-phases:
-  - id: phase-1
-    title: "Phase 1: Foundation"
-    description: "Core infrastructure for tmux integration and worktrees"
-    duration: "Week 1 (4-6 sessions)"
+Run the commit phase to create beads and test specs.
 
-    features:
-      - id: feature-1.1
-        title: "Feature 1.1: Execute commands in tmux sessions"
-        priority: 2
-        user_story: "As a capsule orchestrator, I want to execute commands in tmux sessions so that I can programmatic control OpenCode TUI"
-        acceptance_criteria:
-          - "Can create/destroy tmux sessions"
-          - "Can send commands with proper debouncing"
-          - "Can capture session output"
-        tracer_strategy:
-          minimal_flow: "Create session → Send command → Capture output → Destroy"
-          layers: "Tmux wrapper → Command execution → Output capture"
-          expansion: "Window management, pane splitting (deferred)"
+Beads and test specs are created.
 
-        tasks:
-          - title: "Port tmux wrapper from gastown"
-            priority: 1
-            tracer: "Foundation layer - proves tmux integration works"
-            description: |
-              - Copy internal/tmux/tmux.go structure
-              - Adapt for Capsule needs
-            deliverable: "internal/tmux/tmux.go skeleton"
-            reference: "~/code/gastown/internal/tmux/tmux.go"
-            tdd: true
-
-          - title: "Implement session creation/destruction"
-            priority: 1
-            depends_on: ["Port tmux wrapper from gastown"]
-            tracer: "Session lifecycle - proves basic management works"
-            description: |
-              - NewSession(name, workDir) function
-              - KillSession(name) function
-              - SessionExists(name) check
-            deliverable: "Session management with tests"
-            tdd: true
-
-          - title: "Implement command execution"
-            priority: 1
-            depends_on: ["Implement session creation/destruction"]
-            tracer: "Command execution - proves sending commands works"
-            description: |
-              - SendCommand(session, command) function
-              - Wait for completion with timeout
-              - Capture stdout/stderr
-            deliverable: "Command execution with tests"
-            tdd: true
-```
-
-**See `docs/planning/menu-plan-format.md` for complete format reference.**
-
-### Step 3: Add Feature Dependencies (Sequential Features)
-
-Add `blocks` field to enforce sequential feature completion:
-
-```yaml
-features:
-  - id: feature-2.1
-    title: "Feature 2.1: Run missions in isolated worktrees"
-    blocks: ["feature-1.2"]  # This feature blocks Feature 1.2
-    # ...
-
-  - id: feature-1.2
-    title: "Feature 1.2: Basic CLI structure"
-    blocks: ["feature-3.1"]  # This feature blocks Feature 3.1
-    # ...
-```
-
-**Why sequential?**
-- Maintains focus on one feature at a time
-- Prevents context switching
-- Ensures features are fully complete before moving on
-
-### Step 4: Plan BDD Tests for Features
-
-**Every feature must include BDD tests** that validate acceptance criteria from the user's perspective.
-
-**Define BDD test plan:**
-
-```yaml
-features:
-  - id: feature-2.1
-    title: "Feature 2.1: Run missions in isolated worktrees"
-    user_story: "As a capsule orchestrator, I want to run missions in isolated git worktrees so that I can execute multiple missions in parallel without workspace conflicts"
-    acceptance_criteria:
-      - "Can create worktree with unique name"
-      - "Worktree on new branch"
-      - "Changes don't affect main workspace"
-      - "Clean removal of worktrees"
-    bdd_tests:
-      - test: "TestFeature_RunMissionsInIsolatedWorktrees"
-        scenarios:
-          - "Acceptance_Criterion_1_Create_worktree_with_unique_name"
-          - "Acceptance_Criterion_2_Worktree_on_new_branch"
-          - "Acceptance_Criterion_3_Changes_dont_affect_main_workspace"
-          - "Acceptance_Criterion_4_Clean_removal_of_worktrees"
-      - test: "TestFeature_ParallelMissionIsolation"
-        scenarios:
-          - "Multiple missions run independently"
-    smoke_tests:  # CLI validation - REQUIRED for user-facing features
-      - "capsule launch creates worktree"
-      - "capsule dock removes worktree cleanly"
-```
-
-**BDD Test Structure:**
-- File: `internal/<package>/integration_test.go`
-- Format: Given-When-Then comments
-- Naming: `TestFeature_<FeatureName>`
-- Subtests: Map to acceptance criteria
-- Real operations: Use actual git/tmux/system calls
-
-**Smoke Test Structure:**
-- File: `scripts/smoke-test-<feature>.sh` or `cmd/smoke-test/`
-- Tests: Real CLI commands with expected outputs
-- **Every feature must have smoke tests** (features are user-facing by definition)
-- Validates: End-to-end user experience
-
-**If you can't write smoke tests, it's not a feature** - it's infrastructure that should be tasks under a user-facing feature.
-
-### Step 5: Output Menu Plan Summary
-
-After creating the menu plan, output:
+### Step 4: Mise Complete Summary
 
 ```
-MENU PLAN CREATED
+╔══════════════════════════════════════════════════════════════╗
+║  MISE EN PLACE COMPLETE                                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+PLANNING CYCLE: Complete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-File: docs/planning/menu-plan.yaml
+[1/3] BRAINSTORM  ✓ explored
+[2/3] PLAN        ✓ structured
+[3/3] COMMIT      ✓ beads + specs created
 
-Phases: <N>
-Features: <M>
-Courses (tasks): <L>
+Artifacts:
+  - docs/planning/brainstorm-<name>.md
+  - docs/planning/menu-plan.yaml
+  - .beads/ (<N> beads)
+  - tests/features/ (<N> .feature files)
+  - tests/specs/ (<N> .md files)
 
-Breakdown:
-  Phase 1: <title> (<X> sessions)
-    - Feature 1.1: <title>
-      - <N> courses
-    - Feature 1.2: <title>
-      - <N> courses
-  ...
+──────────────────────────────────────────
 
-Tracer Strategy:
-  Feature 1.1:
-    Minimal flow: <flow description>
-    Layers: <layers>
-    Expansion: <deferred items>
+READY TO WORK
 
-REVIEW THE PLAN:
-  1. Check hierarchy makes sense
-  2. Verify each feature has:
-     ✓ User story
-     ✓ Acceptance criteria (3-5)
-     ✓ BDD test plan
-     ✓ Smoke test plan (CLI)
-  3. Verify each course has:
-     ✓ Tracer explanation
-     ✓ Clear deliverable
-     ✓ Dependencies listed
+Available tasks:
+  <id> - <title>
 
-NEXT STEP: Run /line-cook to convert menu plan to beads
-  (Review plan first, modify if needed, then convert)
-```
-
-### Step 6: Convert Menu Plan to Beads
-
-**ONLY convert after user approves the menu plan.**
-
-Run the conversion script:
-
-```bash
-./scripts/menu-plan-to-beads.sh docs/planning/menu-plan.yaml
-```
-
-**Script will:**
-- Create epics (phases)
-- Create features with acceptance criteria
-- Create tasks with descriptions and deliverables
-- Add task dependencies (depends_on)
-- Add feature dependencies (blocks)
-
-**Or create beads manually:**
-```bash
-bd create --title="Phase 1: Foundation" --type=epic --priority=2
-bd create --title="Feature 1.1: Execute commands in tmux sessions" --type=feature --parent=lc-abc --priority=3
-bd create --title="Port tmux wrapper from gastown" --parent=lc-abc.1 --priority=1
-bd dep add <new-task-id> <dependency-task-id>
-```
-
-### Step 7: Verify Beads and Dependencies
-
-Check that beads were created correctly and dependencies are enforced:
-
-```bash
-bd list              # See all beads
-bd list -t epic      # See only epics
-bd list -t feature   # See only features
-bd ready             # See available work (should be focused on one feature)
-bd blocked           # See blocked features
-bd show <epic-id>    # View epic with child features
-bd show <feature-id> # View feature with child tasks
-```
-
-**Verify hierarchy:**
-```bash
-# Check epic structure
-bd show <epic-id>
-# Should show:
-#   Epic: Phase 1: Foundation
-#   Children:
-#     - Feature 1.1: Execute commands in tmux sessions
-#     - Feature 1.2: Manage git worktrees
-
-# Check feature structure
-bd show <feature-id>
-# Should show:
-#   Feature: 1.1: Execute commands in tmux sessions
-#   Parent: Phase 1: Foundation
-#   Children:
-#     - Course: Port tmux wrapper from gastown
-#     - Course: Implement session creation/destruction
-```
-
-**Verify dependencies:**
-```bash
-bd ready
-# Should only show courses from the current feature (not blocked)
-
-bd blocked
-# Should show features blocked by dependencies
-```
-
-### Step 8: Sync and Commit
-
-```bash
-bd sync
-git add docs/planning/menu-plan.yaml .beads/
-git commit -m "plan: Create menu plan for <phase>
-
-- <N> phases planned
-- <M> features with acceptance criteria
-- <L> courses (tasks) with tracer strategy
-
-Key features:
-- Feature 1.1: <title>
-- Feature 1.2: <title>
-
-Tracer approach:
-- Each course builds foundation for next
-- Vertical slices through all layers
-- Production quality from start"
-git push
+NEXT STEP: Run /line-prep to start working on tasks
 ```
 
 ---
 
-## Hierarchy Structure
+## Using Individual Phases
 
-**Three-tier hierarchy:**
+Users can run phases individually for more control:
 
-```
-Epic (Phase)
-├── Feature 1 (User-observable outcome)
-│   ├── Course 1.1 (Implementation step)
-│   ├── Course 1.2 (Implementation step)
-│   └── Course 1.3 (Implementation step)
-└── Feature 2 (User-observable outcome)
-    ├── Course 2.1 (Implementation step)
-    └── Course 2.2 (Implementation step)
-```
-
-**Mapping:**
-- **Epic** = Phase (3+ sessions, multiple features)
-- **Feature** = User-observable capability (1-3 sessions, multiple courses)
-- **Course (Task)** = Single implementation unit (< 2 hours, one tracer)
+| Command | Purpose |
+|---------|---------|
+| `/line-mise-brainstorm` | Just explore and create brainstorm.md |
+| `/line-mise-plan` | Just create menu-plan.yaml from brainstorm |
+| `/line-mise-commit` | Just convert existing menu-plan to beads + specs |
+| `/line-mise` | Run all three phases with review pauses |
 
 ---
 
-## Tracer Dish Approach
+## Relationship to Execution Cycle
 
-**Build vertical slices through all system layers, then expand incrementally.**
+```
+PLANNING CYCLE              EXECUTION CYCLE
+━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
+/mise-brainstorm            /prep
+      ↓                           ↓
+/mise-plan                  /cook
+      ↓                           ↓
+/mise-commit                /serve
+                                  ↓
+                            /tidy
+                                  ↓
+                            /plate
 
-**Key principle**: Each course is a mini-tracer that:
-- Implements one focused capability end-to-end
-- Touches relevant architectural layers
-- Provides foundation for next course
-- Is production-quality (not throwaway)
-
-**Example - Feature broken into tracer courses:**
-
-```markdown
-Feature 3.1: Launch missions from beads
-
-Course 1: Define mission struct and state machine
-  → Tracer: Data layer foundation
-  → Proves: State management approach works
-
-Course 2: Implement bead integration
-  → Tracer: External interface layer
-  → Proves: Can read/update bead status
-
-Course 3: Implement launch command
-  → Tracer: Orchestration layer
-  → Proves: End-to-end flow works (CLI → Mission → Worktree → Tmux → Bead)
+/mise (orchestrator)        /run (orchestrator)
 ```
 
-Each course builds on the previous, creating a complete vertical slice.
-
----
-
-## Course Sizing Guidelines
-
-**Use tracer bullet thinking** - each course should be a vertical slice through relevant layers.
-
-**Too Small** (combine into one tracer):
-- "Add import statement"
-- "Create empty file"
-- "Update comment"
-
-**Just Right** (single tracer, one session):
-- "Define mission struct and state machine" (data layer)
-- "Implement bead integration" (external interface layer)
-- "Implement launch command" (orchestration layer)
-
-**Too Large** (break into multiple tracers):
-- "Implement entire mission lifecycle" → Break into: state machine, launch, monitor, dock
-- "Add all monitoring features" → Break into: capture, detect, log, report
-- "Complete Phase 1" → Break into individual features
-
----
-
-## Common Mistakes to Avoid
-
-❌ **Creating beads directly**: Hard to review, edit, and discuss
-✅ **Menu plan first**: Easy to review and iterate
-
-❌ **Too vague**: "Implement monitoring"
-✅ **Specific tracer**: "Implement output capture loop with 5s interval"
-
-❌ **Too large**: "Complete Phase 1"
-✅ **Sized right**: "Define mission struct and state machine"
-
-❌ **No deliverable**: "Research tmux"
-✅ **Clear outcome**: "Document tmux patterns in RESEARCH.md"
-
-❌ **Horizontal slicing**: "Build entire UI layer"
-✅ **Vertical slicing**: "Implement launch command (CLI → Mission → Tmux)"
-
-❌ **No tracer strategy**: Courses in random order
-✅ **Tracer sequence**: Foundation → Integration → Orchestration
-
-❌ **Prototype thinking**: "Quick and dirty, we'll rewrite later"
-✅ **Tracer thinking**: "Production quality, minimal scope, expand incrementally"
-
-❌ **"Internal features" with no CLI**: "Feature: Manage worktrees" (no user interface)
-✅ **User-facing features only**: "Feature: Launch missions in isolated worktrees" (has `capsule launch`)
-
-❌ **Features without smoke tests**: If you can't smoke test it, it's not a feature
-✅ **Every feature has smoke tests**: Validates end-to-end user experience
+Planning creates the work. Execution completes the work.
 
 ---
 
 ## Example Usage
 
 ```
-/line-mise
+/line-mise                    # Full planning cycle with pauses
 ```
 
-This command takes no arguments. It will:
-1. Ask clarifying questions about what you're building
-2. Create a YAML menu plan in `docs/planning/menu-plan.yaml`
-3. Output summary for review
-4. Wait for user to convert to beads
-
-To convert plan to beads:
-```bash
-./scripts/menu-plan-to-beads.sh docs/planning/menu-plan.yaml
-```
+**NEXT STEP: @line-prep (after beads created)**
