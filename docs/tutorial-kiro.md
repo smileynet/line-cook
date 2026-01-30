@@ -504,10 +504,10 @@ NEXT STEP: tidy
 ### Verdicts
 
 - **APPROVED** - Changes look good, proceed to tidy
-- **NEEDS_CHANGES** - Issues found, may want to address before committing
-- **BLOCKED** - Critical problems, should fix before proceeding
+- **NEEDS_CHANGES** - Issues found, returns to cook phase to address before continuing
+- **BLOCKED** - Critical problems, must fix before proceeding
 
-Serve is non-blocking. Even if review fails, you can continue to tidy.
+When serve returns NEEDS_CHANGES, the workflow loops back to cook. Cook automatically loads the previous serve findings and addresses them before re-running serve. This cook → serve → cook cycle continues until the code is approved.
 
 ---
 
@@ -586,7 +586,44 @@ Ready Tasks (3):
 
 ---
 
-## Part 8: Graduating to Full Automation
+## Part 8: Plate - Feature Acceptance
+
+While tidy completes individual tasks, `plate` validates entire features. Use it when all tasks for a feature are complete and you're ready for BDD acceptance testing.
+
+### Task vs Feature Workflows
+
+The distinction matters:
+- **Task workflow:** `prep → cook → serve → tidy` (TDD validation)
+- **Feature completion:** `prep → cook → serve → tidy → plate` (BDD acceptance)
+
+Not every task needs plate. Run it when:
+- All tasks under a feature bead are complete
+- The feature has BDD acceptance criteria defined
+- You're ready to close the feature and its parent epic (if applicable)
+
+### Run Plate
+
+```
+plate <feature-id>
+```
+
+Or let it auto-detect close-eligible features:
+
+```
+plate
+```
+
+### What Plate Does
+
+1. **Validates acceptance criteria** - Runs BDD tests or manual validation
+2. **Verifies all tasks complete** - Checks child beads are closed
+3. **Creates acceptance doc** - Documents what was delivered
+4. **Closes feature** - Marks the feature bead complete
+5. **Checks epic** - Closes parent epic if all features done
+
+---
+
+## Part 9: Graduating to Full Automation
 
 Now that you understand each phase, you can use `work` to run them all together.
 
@@ -806,6 +843,7 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 | `cook` | Execute a task with guardrails |
 | `serve` | AI peer review |
 | `tidy` | Commit, file findings, push |
+| `plate` | Validate completed feature (BDD acceptance) |
 | `work` | Full execution cycle |
 
 | Beads Command | Purpose |
@@ -816,3 +854,4 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 | `bd blocked` | Show blocked tasks |
 | `bd stats` | Project overview |
 | `bd sync` | Sync with remote |
+| `bd epic close-eligible` | Show features ready to plate |
