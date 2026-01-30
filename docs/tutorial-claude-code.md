@@ -50,8 +50,8 @@ These are different modes. Don't mix them.
 Build confidence gradually:
 
 ```
-MANUAL      →  BEADS      →  INDIVIDUAL  →  SERVICE
-(you type)     (bd ready)    (/prep,/cook)  (/service)
+MANUAL      →  BEADS      →  INDIVIDUAL  →  RUN
+(you type)     (bd ready)    (/prep,/cook)  (/run)
 ```
 
 Start by running commands separately. Graduate to `/line:run` once you understand each phase and trust the output.
