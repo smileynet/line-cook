@@ -80,9 +80,9 @@ graph LR
 | Command | What happens |
 |---------|--------------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/mise` | Create work breakdown (orchestrates brainstorm→plan→finalize) |
+| `/mise` | Create work breakdown (orchestrates brainstorm→scope→finalize) |
 | `/brainstorm` | Explore problem space (divergent thinking) |
-| `/plan` | Create structured work breakdown |
+| `/scope` | Create structured work breakdown |
 | `/finalize` | Convert plan to beads + create test specs |
 | `/prep` | Sync git, show ready tasks |
 | `/cook` | Execute task with TDD cycle |
@@ -100,7 +100,7 @@ Line Cook separates planning into three cognitive phases:
 | Phase | Command | Mode | Output |
 |-------|---------|------|--------|
 | Brainstorm | `/brainstorm` | Divergent | `docs/planning/brainstorm-<name>.md` |
-| Plan | `/plan` | Convergent | `docs/planning/menu-plan.yaml` |
+| Scope | `/scope` | Convergent | `docs/planning/menu-plan.yaml` |
 | Finalize | `/finalize` | Execution prep | Beads + test specs |
 
 **Why three phases?** Each phase has a natural pause point for review. Brainstorm expands possibilities, plan narrows to structure, finalize commits to tracked artifacts. This prevents premature commitment and allows iteration at each level.
@@ -108,7 +108,7 @@ Line Cook separates planning into three cognitive phases:
 **Flexibility:**
 - `/mise` - Full flow with pause points between phases
 - `/mise skip-brainstorm` - Skip exploration when requirements are clear
-- Individual commands (`/brainstorm`, `/plan`, `/finalize`) - Maximum control
+- Individual commands (`/brainstorm`, `/scope`, `/finalize`) - Maximum control
 
 > **Learn more:** [Workflow Guide](docs/guidance/workflow.md) explains the planning cycle in detail.
 
@@ -177,7 +177,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:plan`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
+Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:scope`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
 ### OpenCode
 
@@ -194,7 +194,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-plan`, `/line-finalize`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
+Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
 
 ### Kiro
 

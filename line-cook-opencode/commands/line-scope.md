@@ -133,7 +133,7 @@ NEXT STEP: Run /line-finalize to convert to beads and create test specs
 ## Example Usage
 
 ```
-/line-plan
+/line-scope
 ```
 
-**NEXT STEP: @line-finalize (after plan approval)**
+**NEXT STEP: @line-finalize (after scope approval)**

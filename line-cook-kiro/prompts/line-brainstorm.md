@@ -66,9 +66,9 @@ Problem: <1-sentence summary>
 User: <who benefits>
 Recommended approach: <1-sentence summary>
 
-NEXT STEP: Run @line-plan to create structured work breakdown
+NEXT STEP: Run @line-scope to create structured work breakdown
 ```
 
 ## When to Skip
 
-Skip if requirements are crystal clear. Proceed to @line-plan.
+Skip if requirements are crystal clear. Proceed to @line-scope.
