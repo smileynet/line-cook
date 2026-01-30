@@ -25,12 +25,12 @@ Check that the menu plan exists and is ready for conversion:
 
 ```bash
 if [ ! -f docs/planning/menu-plan.yaml ]; then
-    echo "Error: Menu plan not found. Run /line:mise:plan first."
+    echo "Error: Menu plan not found. Run /line:plan first."
     exit 1
 fi
 ```
 
-**If no menu plan exists:** Stop and instruct user to run `/line:mise:plan`.
+**If no menu plan exists:** Stop and instruct user to run `/line:plan`.
 
 ### Step 2: Convert Menu Plan to Beads
 
@@ -237,7 +237,7 @@ NEXT STEP: Run /line:prep to start working on tasks
 
 Test specs are **language-agnostic** templates that guide implementation:
 
-1. **During /mise:commit** - Generate `.feature` and `.md` specs from menu plan
+1. **During /finalize** - Generate `.feature` and `.md` specs from menu plan
 2. **During /cook RED phase** - Translate specs to actual test code
 3. **During /cook GREEN phase** - Implement to pass the tests
 
@@ -265,7 +265,7 @@ tests/
 ## Example Usage
 
 ```
-/line:mise:commit
+/line:finalize
 ```
 
 This command will:

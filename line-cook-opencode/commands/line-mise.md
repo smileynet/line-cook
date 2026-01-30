@@ -6,18 +6,18 @@ description: Create work breakdown before starting implementation (orchestrates 
 
 **Mise en place orchestrator: brainstorm → plan → commit.** Primary entry point for planning work.
 
-Like `/line-run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line-mise` orchestrates the planning cycle (brainstorm→plan→commit).
+Like `/line-run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line-mise` orchestrates the planning cycle (brainstorm→plan→finalize).
 
 **Phases:**
 1. **Brainstorm** - Divergent thinking: explore, question, research
 2. **Plan** - Convergent thinking: structure, scope, decompose
-3. **Commit** - Execution: create beads, write test specs, persist
+3. **Finalize** - Execution: create beads, write test specs, persist
 
 ---
 
 ## Process
 
-### Step 1: Run /mise-brainstorm
+### Step 1: Run /brainstorm
 
 **Unless requirements are crystal clear:**
 
@@ -27,7 +27,7 @@ Output is `docs/planning/brainstorm-<name>.md`.
 
 **Pause for review.** Ask user if they want to proceed to planning.
 
-### Step 2: Run /mise-plan
+### Step 2: Run /plan
 
 Run the plan phase to create structured breakdown.
 
@@ -35,9 +35,9 @@ Output is `docs/planning/menu-plan.yaml`.
 
 **Pause for review.** Ask user if they want to proceed to committing.
 
-### Step 3: Run /mise-commit
+### Step 3: Run /finalize
 
-Run the commit phase to create beads and test specs.
+Run the finalize phase to create beads and test specs.
 
 Beads and test specs are created.
 
@@ -53,7 +53,7 @@ PLANNING CYCLE: Complete
 
 [1/3] BRAINSTORM  ✓ explored
 [2/3] PLAN        ✓ structured
-[3/3] COMMIT      ✓ beads + specs created
+[3/3] FINALIZE    ✓ beads + specs created
 
 Artifacts:
   - docs/planning/brainstorm-<name>.md
@@ -80,9 +80,9 @@ Users can run phases individually for more control:
 
 | Command | Purpose |
 |---------|---------|
-| `/line-mise-brainstorm` | Just explore and create brainstorm.md |
-| `/line-mise-plan` | Just create menu-plan.yaml from brainstorm |
-| `/line-mise-commit` | Just convert existing menu-plan to beads + specs |
+| `/line-brainstorm` | Just explore and create brainstorm.md |
+| `/line-plan` | Just create menu-plan.yaml from brainstorm |
+| `/line-finalize` | Just convert existing menu-plan to beads + specs |
 | `/line-mise` | Run all three phases with review pauses |
 
 ---
@@ -92,11 +92,11 @@ Users can run phases individually for more control:
 ```
 PLANNING CYCLE              EXECUTION CYCLE
 ━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
-/mise-brainstorm            /prep
+/brainstorm                 /prep
       ↓                           ↓
-/mise-plan                  /cook
+/plan                       /cook
       ↓                           ↓
-/mise-commit                /serve
+/finalize                   /serve
                                   ↓
                             /tidy
                                   ↓

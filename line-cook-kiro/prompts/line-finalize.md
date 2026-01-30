@@ -14,7 +14,7 @@ Convert plan to beads and create test specifications (execution). Third and fina
 
 ```bash
 if [ ! -f docs/planning/menu-plan.yaml ]; then
-    echo "Error: Menu plan not found. Run @line-mise-plan first."
+    echo "Error: Menu plan not found. Run @line-plan first."
     exit 1
 fi
 ```

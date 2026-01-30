@@ -108,7 +108,7 @@ REVIEW THE PLAN:
      [ ] Tracer explanation
      [ ] Clear deliverable
 
-NEXT STEP: Run /line-mise-commit to convert to beads and create test specs
+NEXT STEP: Run /line-finalize to convert to beads and create test specs
 ```
 
 ---
@@ -133,7 +133,7 @@ NEXT STEP: Run /line-mise-commit to convert to beads and create test specs
 ## Example Usage
 
 ```
-/line-mise-plan
+/line-plan
 ```
 
-**NEXT STEP: @line-mise-commit (after plan approval)**
+**NEXT STEP: @line-finalize (after plan approval)**
