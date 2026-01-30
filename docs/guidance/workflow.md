@@ -110,22 +110,97 @@ Restaurant service flow:
 
 **Command:** `/line:mise`
 
-**Purpose:** Create work breakdown before starting.
+**Purpose:** Create work breakdown before starting implementation.
 
-**When to use:**
-- Starting a new feature or project
-- Breaking down complex work
-- Planning multiple sessions
+Mise en place separates planning into three cognitive phases, each with a natural pause point for review:
 
-**What happens:**
-1. Analyze requirements
-2. Create menu plan (YAML)
-3. Convert to beads
-4. Set up dependencies
+```
+/brainstorm → /plan → /finalize
+(divergent)   (convergent)   (execution prep)
+```
 
-**Output:** Beads ready for execution
+### Why Three Phases?
 
-See [Menu Plan Format](../planning/menu-plan-format.md) for details.
+Each phase has a distinct cognitive mode:
+
+| Phase | Mode | Purpose | Output |
+|-------|------|---------|--------|
+| **Brainstorm** | Divergent | Explore, question, research | `docs/planning/brainstorm-<name>.md` |
+| **Plan** | Convergent | Structure, scope, decompose | `docs/planning/menu-plan.yaml` |
+| **Finalize** | Execution | Create beads, write test specs | `.beads/` + `tests/` |
+
+This prevents premature commitment. Brainstorm expands possibilities before plan narrows to structure. Plan creates a reviewable artifact before finalize commits to tracked work.
+
+### The Sub-Phases
+
+**`/line:brainstorm`** - Divergent thinking
+- Asks clarifying questions about the problem
+- Explores technical approaches in the codebase
+- Identifies risks and unknowns
+- Recommends direction with rationale
+- Output: `docs/planning/brainstorm-<name>.md`
+
+**`/line:plan`** - Convergent thinking
+- Loads brainstorm document (if exists)
+- Determines scope (task/feature/epic)
+- Creates structured YAML breakdown
+- Adds tracer strategy and dependencies
+- Output: `docs/planning/menu-plan.yaml`
+
+**`/line:finalize`** - Execution prep
+- Validates menu plan exists
+- Converts plan to beads with hierarchy
+- Creates BDD test specs (`.feature` files)
+- Creates TDD test specs (`.md` files)
+- Output: Beads + test specifications
+
+### Pause Points
+
+Between each phase, `/mise` pauses for user review:
+
+```
+BRAINSTORM COMPLETE
+━━━━━━━━━━━━━━━━━━━━━
+File: docs/planning/brainstorm-reading-cli.md
+
+Ready to proceed to planning phase?
+Continue to /line:plan? [Y/n]
+```
+
+This allows you to:
+- Review the brainstorm document
+- Resolve open questions
+- Make edits before proceeding
+- Abandon if direction is wrong
+
+### When to Use What
+
+| Situation | Command |
+|-----------|---------|
+| Full planning with review pauses | `/line:mise` |
+| Requirements are crystal clear | `/line:mise skip-brainstorm` |
+| Just want to explore first | `/line:brainstorm` alone |
+| Already have brainstorm, need structure | `/line:plan` alone |
+| Already have menu plan, need beads | `/line:finalize` alone |
+
+### Example Flow
+
+```bash
+# Full orchestrated flow with pauses
+/line:mise
+
+# Skip brainstorm when requirements are clear
+/line:mise skip-brainstorm
+
+# Maximum control - run each phase separately
+/line:brainstorm
+# ... review and refine brainstorm document ...
+/line:plan
+# ... review and refine menu plan ...
+/line:finalize
+```
+
+See [Menu Plan Format](../planning/menu-plan-format.md) for YAML structure details.
 
 ## Phase: Prep
 

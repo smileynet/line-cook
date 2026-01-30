@@ -93,6 +93,25 @@ graph LR
 
 > **Session boundary:** After `/tidy` pushes your work, start a new session or clear context (`/compact`) before starting `/prep` for the next task.
 
+### The Planning Cycle (/mise)
+
+Line Cook separates planning into three cognitive phases:
+
+| Phase | Command | Mode | Output |
+|-------|---------|------|--------|
+| Brainstorm | `/brainstorm` | Divergent | `docs/planning/brainstorm-<name>.md` |
+| Plan | `/plan` | Convergent | `docs/planning/menu-plan.yaml` |
+| Finalize | `/finalize` | Execution prep | Beads + test specs |
+
+**Why three phases?** Each phase has a natural pause point for review. Brainstorm expands possibilities, plan narrows to structure, finalize commits to tracked artifacts. This prevents premature commitment and allows iteration at each level.
+
+**Flexibility:**
+- `/mise` - Full flow with pause points between phases
+- `/mise skip-brainstorm` - Skip exploration when requirements are clear
+- Individual commands (`/brainstorm`, `/plan`, `/finalize`) - Maximum control
+
+> **Learn more:** [Workflow Guide](docs/guidance/workflow.md) explains the planning cycle in detail.
+
 ## Getting Started
 
 **Two starting points** depending on where you are:
