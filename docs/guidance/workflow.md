@@ -127,7 +127,7 @@ Each phase has a distinct cognitive mode:
 |-------|------|---------|--------|
 | **Brainstorm** | Divergent | Explore, question, research | `docs/planning/brainstorm-<name>.md` |
 | **Plan** | Convergent | Structure, scope, decompose | `docs/planning/menu-plan.yaml` |
-| **Finalize** | Execution | Create beads, write test specs | `.beads/` + `tests/` |
+| **Finalize** | Execution | Create beads, write test specs | `.beads/` + `tests/features/` + `tests/specs/` |
 
 This prevents premature commitment. Brainstorm expands possibilities before plan narrows to structure. Plan creates a reviewable artifact before finalize commits to tracked work.
 
