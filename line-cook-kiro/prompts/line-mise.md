@@ -1,160 +1,93 @@
-Create work breakdown before starting implementation. Prep step before creating beads.
+Mise en place orchestrator: brainstorm → plan → commit. Primary entry point for planning work.
 
-**STOP after creating menu plan.** Wait for user approval before converting to beads.
+Like @line-run orchestrates the execution cycle (prep→cook→serve→tidy), @line-mise orchestrates the planning cycle (brainstorm→plan→commit).
+
+**Phases:**
+1. **Brainstorm** - Divergent thinking: explore, question, research
+2. **Plan** - Convergent thinking: structure, scope, decompose
+3. **Commit** - Execution: create beads, write test specs, persist
 
 ---
 
 ## Process
 
-### Step 1: Understand the Order
+### Step 1: Run @line-mise-brainstorm
 
-Ask clarifying questions:
+**Unless requirements are crystal clear:**
 
-**What are we building?**
-- What problem are we solving?
-- What does success look like?
-- Who is the user?
+Run the brainstorm phase to explore the problem space.
 
-**What are the constraints?**
-- Are there technical constraints?
-- Time constraints (MVP vs full feature)?
-- Dependencies on other work?
+Output: `docs/planning/brainstorm-<name>.md`
 
-**What's the scope?**
-- MVP (minimum viable product)
-- Full feature
-- Multi-session epic
+**Pause for review.** Ask user if they want to proceed to planning.
 
-**Ask questions if unclear.** Don't assume.
+### Step 2: Run @line-mise-plan
 
-### Step 2: Create Menu Plan
+Run the plan phase to create structured breakdown.
 
-Build a structured breakdown in YAML format:
+Output: `docs/planning/menu-plan.yaml`
 
-**Create `docs/planning/menu-plan.yaml`:**
+**Pause for review.** Ask user if they want to proceed to committing.
 
-```yaml
-phases:
-  - id: phase-1
-    title: "Phase 1: Foundation"
-    description: "Core infrastructure"
+### Step 3: Run @line-mise-commit
 
-    features:
-      - id: feature-1.1
-        title: "Feature 1.1: <user-facing capability>"
-        priority: 2
-        user_story: "As a <role>, I want to <action> so that <benefit>"
-        acceptance_criteria:
-          - "Can do X"
-          - "Can do Y"
-          - "Handles error Z"
+Run the commit phase to create beads and test specs.
 
-        tasks:
-          - title: "<implementation step>"
-            priority: 1
-            description: |
-              - Detail 1
-              - Detail 2
-            deliverable: "<what is created>"
-```
+Outputs:
+- Beads in `.beads/`
+- BDD specs in `tests/features/`
+- TDD specs in `tests/specs/`
 
-### Step 3: Hierarchy Structure
-
-Use three-tier hierarchy:
+### Step 4: Mise Complete Summary
 
 ```
-Epic (Phase)
-├── Feature 1 (User-observable outcome)
-│   ├── Task 1.1 (Implementation step)
-│   ├── Task 1.2 (Implementation step)
-│   └── Task 1.3 (Implementation step)
-└── Feature 2 (User-observable outcome)
-    ├── Task 2.1 (Implementation step)
-    └── Task 2.2 (Implementation step)
+╔══════════════════════════════════════════════════════════════╗
+║  MISE EN PLACE COMPLETE                                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+[1/3] BRAINSTORM  ✓ explored
+[2/3] PLAN        ✓ structured
+[3/3] COMMIT      ✓ beads + specs created
+
+Artifacts:
+  - docs/planning/brainstorm-<name>.md
+  - docs/planning/menu-plan.yaml
+  - .beads/ (<N> beads)
+  - tests/features/ (<N> .feature files)
+  - tests/specs/ (<N> .md files)
+
+NEXT STEP: Run @line-prep to start working on tasks
 ```
 
-**Mapping:**
-- **Epic** = Phase (3+ sessions, multiple features)
-- **Feature** = User-observable capability (1-3 sessions)
-- **Task** = Single implementation unit (< 2 hours)
+---
 
-### Step 4: Output Menu Plan Summary
+## Using Individual Phases
+
+| Command | Purpose |
+|---------|---------|
+| `@line-mise-brainstorm` | Just explore and create brainstorm.md |
+| `@line-mise-plan` | Just create menu-plan.yaml from brainstorm |
+| `@line-mise-commit` | Just convert existing menu-plan to beads + specs |
+| `@line-mise` | Run all three phases with review pauses |
+
+---
+
+## Relationship to Execution Cycle
 
 ```
-MENU PLAN CREATED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PLANNING CYCLE              EXECUTION CYCLE
+━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
+@mise-brainstorm            @prep
+      ↓                           ↓
+@mise-plan                  @cook
+      ↓                           ↓
+@mise-commit                @serve
+                                  ↓
+                            @tidy
+                                  ↓
+                            @plate
 
-File: docs/planning/menu-plan.yaml
-
-Phases: <N>
-Features: <M>
-Tasks: <L>
-
-Breakdown:
-  Phase 1: <title>
-    - Feature 1.1: <title>
-      - <N> tasks
-    - Feature 1.2: <title>
-      - <N> tasks
-
-REVIEW THE PLAN:
-  1. Check hierarchy makes sense
-  2. Verify each feature has:
-     ✓ User story
-     ✓ Acceptance criteria (3-5)
-  3. Verify each task has:
-     ✓ Clear deliverable
-     ✓ Dependencies listed
-
-NEXT STEP: Approve plan, then convert to beads
+@mise (orchestrator)        @run (orchestrator)
 ```
 
-### Step 5: Convert to Beads (After Approval)
-
-**ONLY convert after user approves the menu plan.**
-
-Create beads manually:
-```bash
-bd create --title="Phase 1: Foundation" --type=epic --priority=2
-bd create --title="Feature 1.1: <title>" --type=feature --parent=<epic-id> --priority=2
-bd create --title="<task>" --parent=<feature-id> --priority=1
-bd dep add <new-task-id> <dependency-task-id>
-```
-
-### Step 6: Sync and Commit
-
-```bash
-bd sync
-git add docs/planning/menu-plan.yaml .beads/
-git commit -m "plan: Create menu plan for <phase>
-
-- <N> phases planned
-- <M> features with acceptance criteria
-- <L> tasks with deliverables"
-git push
-```
-
-## Task Sizing Guidelines
-
-**Too Small** (combine):
-- "Add import statement"
-- "Create empty file"
-
-**Just Right** (single session):
-- "Implement session management"
-- "Add command execution"
-- "Create CLI wrapper"
-
-**Too Large** (break down):
-- "Implement entire lifecycle"
-- "Add all monitoring features"
-
-## Common Mistakes
-
-- Creating beads directly without plan review
-- Tasks too vague: "Implement monitoring"
-- Tasks too large: "Complete Phase 1"
-- No deliverable: "Research X"
-- "Internal features" with no user interface
-
-**NEXT STEP: @line-prep (after beads created)**
+Planning creates the work. Execution completes the work.

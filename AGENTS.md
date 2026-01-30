@@ -39,19 +39,24 @@ The theme is a **recognition aid**, not a **learning barrier**. Always include t
 ## Overview
 
 ```
-/mise → /prep → /cook → /serve → /tidy → /plate
-   ↓       ↓       ↓       ↓        ↓        ↓
- plan    sync   execute  review   commit  validate
+/mise ─────────────────────────────────→ /prep → /cook → /serve → /tidy → /plate
+  │                                         ↓       ↓       ↓        ↓        ↓
+  ├─ /mise:brainstorm → brainstorm.md     sync   execute  review   commit  validate
+  ├─ /mise:plan → menu-plan.yaml
+  └─ /mise:commit → beads + specs
 ```
 
-Or use `/run` to run the full workflow cycle.
+Or use `/run` to run the full execution cycle, `/mise` to run the full planning cycle.
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/mise` | Create work breakdown before starting |
+| `/mise` | Create work breakdown (orchestrates brainstorm→plan→commit) |
+| `/mise:brainstorm` | Explore problem space (divergent thinking) |
+| `/mise:plan` | Create structured work breakdown (convergent thinking) |
+| `/mise:commit` | Convert plan to beads and create test specs |
 | `/prep` | Sync git, show ready tasks |
 | `/cook` | Execute task with TDD cycle |
 | `/serve` | Review code changes |
@@ -114,13 +119,16 @@ Claude Code uses slash commands instead of agents:
 | Command | Role | Purpose |
 |---------|------|---------|
 | **/line:getting-started** | Tutorial | Quick workflow guide for beginners |
-| **/line:mise** | Planning phase | Create work breakdown before starting |
+| **/line:mise** | Planning orchestrator | Brainstorm→plan→commit with pauses |
+| **/line:mise:brainstorm** | Brainstorm phase | Explore problem space (divergent thinking) |
+| **/line:mise:plan** | Plan phase | Create structured work breakdown |
+| **/line:mise:commit** | Commit phase | Convert plan to beads + test specs |
 | **/line:prep** | Prep phase | Sync git, show ready tasks |
 | **/line:cook** | Cook phase | Execute task with TDD cycle |
 | **/line:serve** | Serve phase | Review code changes |
 | **/line:tidy** | Tidy phase | Commit and push changes |
 | **/line:plate** | Plate phase | Validate completed feature |
-| **/line:run** | Full cycle | Prep→cook→serve→tidy orchestration |
+| **/line:run** | Execution orchestrator | Prep→cook→serve→tidy orchestration |
 
 ### Claude Code Subagents (agents/)
 
@@ -469,7 +477,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 > Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
 > To switch from local to remote, uninstall first: `/plugin uninstall line`
 
-Commands: `/line:getting-started`, `/line:mise`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
+Commands: `/line:getting-started`, `/line:mise`, `/line:mise:brainstorm`, `/line:mise:plan`, `/line:mise:commit`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
 ### OpenCode
 
@@ -620,7 +628,10 @@ After pushing a release, create a GitHub release with these instructions for use
 ### Commands
 | Command | Purpose |
 |---------|---------|
-| `/line:mise` | Create work breakdown before starting |
+| `/line:mise` | Create work breakdown (orchestrates brainstorm→plan→commit) |
+| `/line:mise:brainstorm` | Explore problem space (divergent thinking) |
+| `/line:mise:plan` | Create structured work breakdown (convergent thinking) |
+| `/line:mise:commit` | Convert plan to beads and create test specs |
 | `/line:prep` | Sync git, show ready tasks |
 | `/line:cook` | Execute task with TDD cycle |
 | `/line:serve` | Review code changes |
