@@ -131,15 +131,16 @@ Positive notes:
 │ SERVE_RESULT                            │
 │ verdict: APPROVED | NEEDS_CHANGES | BLOCKED │
 │ continue: true | false                  │
+│ next_step: /line-tidy | /line-cook      │
 │ blocking_issues: <count or 0>           │
 └─────────────────────────────────────────┘
 
-NEXT STEP: /line-tidy
+NEXT STEP: /line-tidy (if APPROVED) or /line-cook (if NEEDS_CHANGES)
 ```
 
 **Verdict meanings:**
 - **APPROVED**: No issues found, continue to tidy
-- **NEEDS_CHANGES**: Non-blocking issues noted, continue to tidy (issues will be filed)
+- **NEEDS_CHANGES**: Issues found requiring rework. Rerun /line-cook with findings.
 - **BLOCKED**: Critical issues require fixing before commit. STOP workflow.
 
 ## Error Handling
