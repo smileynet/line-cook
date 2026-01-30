@@ -1,18 +1,18 @@
 ---
-description: Create work breakdown before starting implementation (orchestrates brainstorm→plan→commit)
+description: Create work breakdown before starting implementation (orchestrates brainstorm→plan→finalize)
 allowed-tools: Bash, Write, Read, Glob, Grep, Task, AskUserQuestion, Skill, WebFetch, WebSearch
 ---
 
 ## Summary
 
-**Mise en place orchestrator: brainstorm → plan → commit.** Primary entry point for planning work.
+**Mise en place orchestrator: brainstorm → plan → finalize.** Primary entry point for planning work.
 
-Like `/line:run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line:mise` orchestrates the planning cycle (brainstorm→plan→commit).
+Like `/line:run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line:mise` orchestrates the planning cycle (brainstorm→plan→finalize).
 
 **Phases:**
 1. **Brainstorm** - Divergent thinking: explore, question, research
 2. **Plan** - Convergent thinking: structure, scope, decompose
-3. **Commit** - Execution: create beads, write test specs, persist
+3. **Finalize** - Execution: create beads, write test specs, persist
 
 **Arguments:** `$ARGUMENTS` (optional)
 - `skip-brainstorm` - Skip directly to planning (when requirements are clear)
@@ -66,7 +66,7 @@ Skill(skill="line:plan")
 
 Wait for plan to complete. Output is `docs/planning/menu-plan.yaml`.
 
-**Pause for review.** Ask user if they want to proceed to committing:
+**Pause for review.** Ask user if they want to proceed to finalizing:
 
 ```
 MENU PLAN CREATED
@@ -78,7 +78,7 @@ File: docs/planning/menu-plan.yaml
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Ready to commit to beads and create test specs?
+Ready to finalize beads and create test specs?
 - Review the menu plan
 - Make any edits to the YAML file
 - Then continue to create beads
@@ -90,13 +90,13 @@ Wait for user confirmation before proceeding.
 
 ### Step 3: Run /finalize
 
-Invoke the commit command to create beads and test specs:
+Invoke the finalize command to create beads and test specs:
 
 ```
 Skill(skill="line:finalize")
 ```
 
-Wait for commit to complete. Beads and test specs are created.
+Wait for finalize to complete. Beads and test specs are created.
 
 ### Step 4: Mise Complete Summary
 
@@ -112,7 +112,7 @@ PLANNING CYCLE: Complete
 
 [1/3] BRAINSTORM  ✓ explored
 [2/3] PLAN        ✓ structured
-[3/3] COMMIT      ✓ beads + specs created
+[3/3] FINALIZE    ✓ beads + specs created
 
 Artifacts:
   - docs/planning/brainstorm-<name>.md
@@ -172,7 +172,7 @@ If any step fails:
 
 1. **Brainstorm fails** - Report what went wrong, offer to skip to plan
 2. **Plan fails** - Report error, suggest running brainstorm first
-3. **Commit fails** - Report error, suggest reviewing menu-plan.yaml
+3. **Finalize fails** - Report error, suggest reviewing menu-plan.yaml
 
 ```
 PLANNING CYCLE: Incomplete
@@ -180,9 +180,9 @@ PLANNING CYCLE: Incomplete
 
 [1/3] BRAINSTORM  ✓
 [2/3] PLAN        ✓
-[3/3] COMMIT      ✗ (error: <reason>)
+[3/3] FINALIZE    ✗ (error: <reason>)
 
-Failed at: COMMIT
+Failed at: FINALIZE
 Error: <description>
 
 ──────────────────────────────────────────
@@ -220,7 +220,7 @@ The `/line:mise` command separates planning into natural cognitive phases:
 
 1. **Brainstorm** (divergent) - Expand possibilities, explore freely
 2. **Plan** (convergent) - Narrow to structure, make decisions
-3. **Commit** (execution) - Persist to trackable artifacts
+3. **Finalize** (execution) - Persist to trackable artifacts
 
 This matches the "Planning vs Execution" mental model from `docs/mental-models.md`.
 
