@@ -34,7 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `/line:mise` command for menu planning with tracer dish methodology
 - `/line:plate` command for BDD feature validation (acceptance criteria testing)
-- `/line:season` command to apply research findings to beads
 - `/line:run` command for full-service workflow orchestration
 - Claude Code subagent system with specialized review agents:
   - `taster` agent for test quality review during TDD RED phase

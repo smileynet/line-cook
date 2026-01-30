@@ -1,7 +1,7 @@
 {
   "name": "@line-cook/opencode-plugin",
-    "version": "0.8.0",
-  "description": "Simple workflow orchestration for OpenCode sessions - prep, cook, serve, tidy, work",
+    "version": "0.8.1",
+  "description": "Simple workflow orchestration for OpenCode sessions - mise, prep, cook, serve, tidy, plate, run",
   "main": "dist/line-cook-plugin.js",
   "types": "dist/line-cook-plugin.d.ts",
   "type": "module",
@@ -12,7 +12,7 @@
   ],
   "opencode": {
     "name": "line",
-  "version": "0.8.0",
+  "version": "0.8.1",
     "description": "Simple workflow orchestration for AI-assisted development",
     "commands": [
       "line-prep",
@@ -22,7 +22,10 @@
       "line-run",
       "line-getting-started",
       "line-plate",
-      "line-mise"
+      "line-mise",
+      "line-brainstorm",
+      "line-plan",
+      "line-finalize"
     ]
   },
   "peerDependencies": {
