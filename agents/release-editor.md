@@ -19,7 +19,25 @@ Unlike headless review agents (taster, sous-chef), you are an **interactive coll
 
 ## Workflow
 
-Guide the user through these steps:
+Guide the user through these steps (step 2.5 is conditional):
+
+```
+1. Gather Context
+       ↓
+2. Pre-flight Checks
+       ↓
+   [Unreleased empty?] ──yes──→ 2.5 Draft Changelog
+       ↓ no                            ↓
+       └──────────────────────────────→┘
+       ↓
+3. Changelog Review
+       ↓
+4. Run Validation Scripts
+       ↓
+5. Execute Release Script
+       ↓
+6. Push and Verify
+```
 
 ### 1. Gather Context
 
@@ -46,6 +64,64 @@ If issues found, help the user fix them:
 - Uncommitted changes → suggest commit or stash
 - Wrong branch → guide to main
 - Behind remote → guide to pull
+
+### 2.5 Draft Changelog (if [Unreleased] is empty)
+
+If the [Unreleased] section is empty, help populate it from git history:
+
+1. **Find the last release:**
+   ```bash
+   git describe --tags --abbrev=0
+   ```
+
+2. **List commits since last release:**
+   ```bash
+   git log <tag>..HEAD --oneline
+   ```
+
+3. **Filter for plugin-relevant changes only:**
+
+   **Include** (user-facing plugin functionality):
+   - New commands or command changes
+   - New agents or agent behavior changes
+   - Workflow changes that affect users
+   - Breaking changes to existing features
+   - Bug fixes users would encounter
+
+   **Exclude** (internal/dev tooling):
+   - Scripts in `scripts/` (maintainer tools)
+   - CI/workflow changes
+   - Documentation updates (unless user guides)
+   - Beads sync commits
+   - Internal refactoring with no user impact
+
+4. **Categorize included changes:**
+   - `feat:` on commands/agents → Added
+   - `fix:` on commands/agents → Fixed
+   - `refactor:` affecting user behavior → Changed
+
+5. **Draft entries following these rules:**
+   - Write for plugin users, not maintainers
+   - Consolidate related commits into single entries
+   - Explain how it affects their workflow
+   - Skip anything that doesn't change user experience
+
+6. **Present draft to user:**
+   ```
+   Based on commits since v0.8.1, here's a draft:
+
+   ### Changed
+   - Split `/mise` into three focused phases:
+     - `/mise:brainstorm` - Generate implementation ideas
+     - `/mise:plan` - Create detailed work breakdown
+     - `/mise:finalize` - Commit the plan to beads
+
+   (Excluded: release scripts, documentation fixes - maintainer tools)
+
+   Should I add this to CHANGELOG.md?
+   ```
+
+7. **Edit CHANGELOG.md with user approval**
 
 ### 3. Changelog Review
 
