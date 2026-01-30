@@ -130,7 +130,7 @@
 ## Next Steps
 
 - [ ] Resolve open questions (if any)
-- [ ] Proceed to `/line:plan` to create structured breakdown
+- [ ] Proceed to `/line:scope` to create structured breakdown
 - [ ] Review with stakeholders (if needed)
 
 ---
@@ -143,4 +143,4 @@
 2. Delete sections that don't apply
 3. Save as `docs/planning/brainstorm-<name>.md`
 4. Change status to "Ready for Planning" when complete
-5. Run `/line:plan` to continue
+5. Run `/line:scope` to continue

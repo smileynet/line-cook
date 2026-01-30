@@ -78,7 +78,7 @@ Before any code is written, you need a plan. Line Cook provides the `/line-mise`
 ### The Three-Phase Planning Workflow
 
 ```
-/line-brainstorm → /line-plan → /line-finalize
+/line-brainstorm → /line-scope → /line-finalize
    (divergent)      (convergent)    (execution prep)
 ```
 
@@ -154,7 +154,7 @@ Ready to proceed to planning phase?
 - Resolve any open questions
 - Then continue to create structured plan
 
-Continue to /line-plan? [Y/n]
+Continue to /line-scope? [Y/n]
 ```
 
 ### Step 2: Review the Brainstorm
@@ -167,9 +167,9 @@ Before proceeding, you can review `docs/planning/brainstorm-reading-cli.md`. Thi
 
 If anything looks wrong, edit the document or ask Claude to adjust before continuing.
 
-### Step 3: Run /line-plan
+### Step 3: Run /line-scope
 
-After confirming, Claude runs the plan phase:
+After confirming, Claude runs the scope phase:
 
 ```
 MENU PLAN CREATED
@@ -297,7 +297,7 @@ Or run phases individually for maximum control:
 /line-brainstorm
 
 # Already have brainstorm, need structure
-/line-plan
+/line-scope
 
 # Already have menu plan, need beads
 /line-finalize
@@ -833,7 +833,7 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 |-------------------|---------|
 | `/line-mise` | Full planning cycle with pause points |
 | `/line-brainstorm` | Explore problem space (divergent) |
-| `/line-plan` | Create structured breakdown (convergent) |
+| `/line-scope` | Create structured breakdown (convergent) |
 | `/line-finalize` | Convert plan to beads + test specs |
 
 | Execution Commands | Purpose |

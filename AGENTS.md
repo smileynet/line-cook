@@ -42,7 +42,7 @@ The theme is a **recognition aid**, not a **learning barrier**. Always include t
 /mise ─────────────────────────────────→ /prep → /cook → /serve → /tidy → /plate
   │                                         ↓       ↓       ↓        ↓        ↓
   ├─ /brainstorm → brainstorm.md          sync   execute  review   commit  validate
-  ├─ /plan → menu-plan.yaml
+  ├─ /scope → menu-plan.yaml
   └─ /finalize → beads + specs
 ```
 
@@ -53,9 +53,9 @@ Or use `/run` to run the full execution cycle, `/mise` to run the full planning 
 | Command | Purpose |
 |---------|---------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/mise` | Create work breakdown (orchestrates brainstorm→plan→finalize) |
+| `/mise` | Create work breakdown (orchestrates brainstorm→scope→finalize) |
 | `/brainstorm` | Explore problem space (divergent thinking) |
-| `/plan` | Create structured work breakdown (convergent thinking) |
+| `/scope` | Create structured work breakdown (convergent thinking) |
 | `/finalize` | Convert plan to beads and create test specs |
 | `/prep` | Sync git, show ready tasks |
 | `/cook` | Execute task with TDD cycle |
@@ -119,9 +119,9 @@ Claude Code uses slash commands instead of agents:
 | Command | Role | Purpose |
 |---------|------|---------|
 | **/line:getting-started** | Tutorial | Quick workflow guide for beginners |
-| **/line:mise** | Planning orchestrator | Brainstorm→plan→finalize with pauses |
+| **/line:mise** | Planning orchestrator | Brainstorm→scope→finalize with pauses |
 | **/line:brainstorm** | Brainstorm phase | Explore problem space (divergent thinking) |
-| **/line:plan** | Plan phase | Create structured work breakdown |
+| **/line:scope** | Scope phase | Create structured work breakdown |
 | **/line:finalize** | Finalize phase | Convert plan to beads + test specs |
 | **/line:prep** | Prep phase | Sync git, show ready tasks |
 | **/line:cook** | Cook phase | Execute task with TDD cycle |
@@ -146,7 +146,7 @@ OpenCode plugin uses OpenCode's built-in agent system:
 
 | Component | Type | Purpose |
 |----------|------|---------|
-| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-plan`, `/line-finalize`, `/line-plate`, `/line-run` |
+| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-run` |
 | **Kiro Agents** | OpenCode agents | taster, sous-chef (via OpenCode's agent system) |
 
 ### chef
@@ -362,7 +362,7 @@ line-cook/
 │   ├── getting-started.md # → /line:getting-started
 │   ├── mise.md            # → /line:mise (planning orchestrator)
 │   ├── brainstorm.md      # → /line:brainstorm
-│   ├── plan.md            # → /line:plan
+│   ├── scope.md           # → /line:scope
 │   ├── finalize.md        # → /line:finalize
 │   ├── prep.md            # → /line:prep
 │   ├── cook.md            # → /line:cook
@@ -390,7 +390,7 @@ line-cook/
 │       ├── line-tidy.md   # → /line-tidy
 │       ├── line-mise.md   # → /line-mise
 │       ├── line-brainstorm.md  # → /line-brainstorm
-│       ├── line-plan.md        # → /line-plan
+│       ├── line-scope.md       # → /line-scope
 │       ├── line-finalize.md    # → /line-finalize
 │       ├── line-plate.md  # → /line-plate
 │       └── line-run.md    # → /line-run
@@ -403,7 +403,7 @@ line-cook/
 │   │   ├── line-tidy.md
 │   │   ├── line-mise.md
 │   │   ├── line-brainstorm.md
-│   │   ├── line-plan.md
+│   │   ├── line-scope.md
 │   │   ├── line-finalize.md
 │   │   ├── line-plate.md
 │   │   └── line-run.md
@@ -486,7 +486,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 > Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
 > To switch from local to remote, uninstall first: `/plugin uninstall line`
 
-Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:plan`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
+Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:scope`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
 ### OpenCode
 
@@ -501,7 +501,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-plan`, `/line-finalize`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
+Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
 
 ### Kiro
 
@@ -637,9 +637,9 @@ After pushing a release, create a GitHub release with these instructions for use
 ### Commands
 | Command | Purpose |
 |---------|---------|
-| `/line:mise` | Create work breakdown (orchestrates brainstorm→plan→finalize) |
+| `/line:mise` | Create work breakdown (orchestrates brainstorm→scope→finalize) |
 | `/line:brainstorm` | Explore problem space (divergent thinking) |
-| `/line:plan` | Create structured work breakdown (convergent thinking) |
+| `/line:scope` | Create structured work breakdown (convergent thinking) |
 | `/line:finalize` | Convert plan to beads and create test specs |
 | `/line:prep` | Sync git, show ready tasks |
 | `/line:cook` | Execute task with TDD cycle |

@@ -90,7 +90,7 @@ Key decisions:
 
 Open questions: <N> (if any)
 
-NEXT STEP: Run /line-plan to create structured work breakdown
+NEXT STEP: Run /line-scope to create structured work breakdown
 ```
 
 ---
@@ -102,7 +102,7 @@ Skip this phase if:
 - Requirements are crystal clear and well-documented
 - It's a small, well-defined task (not an epic/feature)
 
-In these cases, proceed directly to `/line-plan`.
+In these cases, proceed directly to `/line-scope`.
 
 ---
 
@@ -112,4 +112,4 @@ In these cases, proceed directly to `/line-plan`.
 /line-brainstorm
 ```
 
-**NEXT STEP: @line-plan (after brainstorm review)**
+**NEXT STEP: @line-scope (after brainstorm review)**

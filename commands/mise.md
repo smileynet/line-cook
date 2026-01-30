@@ -1,17 +1,17 @@
 ---
-description: Create work breakdown before starting implementation (orchestrates brainstorm→plan→finalize)
+description: Create work breakdown before starting implementation (orchestrates brainstorm→scope→finalize)
 allowed-tools: Bash, Write, Read, Glob, Grep, Task, AskUserQuestion, Skill, WebFetch, WebSearch
 ---
 
 ## Summary
 
-**Mise en place orchestrator: brainstorm → plan → finalize.** Primary entry point for planning work.
+**Mise en place orchestrator: brainstorm → scope → finalize.** Primary entry point for planning work.
 
-Like `/line:run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line:mise` orchestrates the planning cycle (brainstorm→plan→finalize).
+Like `/line:run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line:mise` orchestrates the planning cycle (brainstorm→scope→finalize).
 
 **Phases:**
 1. **Brainstorm** - Divergent thinking: explore, question, research
-2. **Plan** - Convergent thinking: structure, scope, decompose
+2. **Scope** - Convergent thinking: structure, scope, decompose
 3. **Finalize** - Execution: create beads, write test specs, persist
 
 **Arguments:** `$ARGUMENTS` (optional)
@@ -51,17 +51,17 @@ Ready to proceed to planning phase?
 - Resolve any open questions
 - Then continue to create structured plan
 
-Continue to /line:plan? [Y/n]
+Continue to /line:scope? [Y/n]
 ```
 
 Wait for user confirmation before proceeding.
 
-### Step 2: Run /plan
+### Step 2: Run /scope
 
-Invoke the plan command to create structured breakdown:
+Invoke the scope command to create structured breakdown:
 
 ```
-Skill(skill="line:plan")
+Skill(skill="line:scope")
 ```
 
 Wait for plan to complete. Output is `docs/planning/menu-plan.yaml`.
@@ -111,7 +111,7 @@ PLANNING CYCLE: Complete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [1/3] BRAINSTORM  ✓ explored
-[2/3] PLAN        ✓ structured
+[2/3] SCOPE       ✓ structured
 [3/3] FINALIZE    ✓ beads + specs created
 
 Artifacts:
@@ -143,7 +143,7 @@ Users can run phases individually for more control:
 | Command | Purpose |
 |---------|---------|
 | `/line:brainstorm` | Just explore and create brainstorm.md |
-| `/line:plan` | Just create menu-plan.yaml from brainstorm |
+| `/line:scope` | Just create menu-plan.yaml from brainstorm |
 | `/line:finalize` | Just convert existing menu-plan to beads + specs |
 | `/line:mise` | Run all three phases with review pauses |
 
@@ -159,7 +159,7 @@ Users can run phases individually for more control:
 # Individual phases for maximum control
 /line:brainstorm
 # ... review and refine ...
-/line:plan
+/line:scope
 # ... review and refine ...
 /line:finalize
 ```
@@ -179,7 +179,7 @@ PLANNING CYCLE: Incomplete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [1/3] BRAINSTORM  ✓
-[2/3] PLAN        ✓
+[2/3] SCOPE       ✓
 [3/3] FINALIZE    ✗ (error: <reason>)
 
 Failed at: FINALIZE
@@ -199,7 +199,7 @@ PLANNING CYCLE              EXECUTION CYCLE
 ━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
 /brainstorm                 /prep
       ↓                           ↓
-/plan                       /cook
+/scope                      /cook
       ↓                           ↓
 /finalize                   /serve
                                   ↓
@@ -219,7 +219,7 @@ Planning creates the work. Execution completes the work.
 The `/line:mise` command separates planning into natural cognitive phases:
 
 1. **Brainstorm** (divergent) - Expand possibilities, explore freely
-2. **Plan** (convergent) - Narrow to structure, make decisions
+2. **Scope** (convergent) - Narrow to structure, make decisions
 3. **Finalize** (execution) - Persist to trackable artifacts
 
 This matches the "Planning vs Execution" mental model from `docs/mental-models.md`.

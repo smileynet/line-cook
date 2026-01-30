@@ -22,7 +22,7 @@ This phase transforms the approved menu plan into actionable beads and creates l
 
 ```bash
 if [ ! -f docs/planning/menu-plan.yaml ]; then
-    echo "Error: Menu plan not found. Run /line-plan first."
+    echo "Error: Menu plan not found. Run /line-scope first."
     exit 1
 fi
 ```

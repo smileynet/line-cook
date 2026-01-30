@@ -1,16 +1,16 @@
 ---
-description: Create work breakdown before starting implementation (orchestrates brainstorm→plan→commit)
+description: Create work breakdown before starting implementation (orchestrates brainstorm→scope→finalize)
 ---
 
 ## Summary
 
-**Mise en place orchestrator: brainstorm → plan → commit.** Primary entry point for planning work.
+**Mise en place orchestrator: brainstorm → scope → finalize.** Primary entry point for planning work.
 
-Like `/line-run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line-mise` orchestrates the planning cycle (brainstorm→plan→finalize).
+Like `/line-run` orchestrates the execution cycle (prep→cook→serve→tidy), `/line-mise` orchestrates the planning cycle (brainstorm→scope→finalize).
 
 **Phases:**
 1. **Brainstorm** - Divergent thinking: explore, question, research
-2. **Plan** - Convergent thinking: structure, scope, decompose
+2. **Scope** - Convergent thinking: structure, scope, decompose
 3. **Finalize** - Execution: create beads, write test specs, persist
 
 ---
@@ -27,9 +27,9 @@ Output is `docs/planning/brainstorm-<name>.md`.
 
 **Pause for review.** Ask user if they want to proceed to planning.
 
-### Step 2: Run /plan
+### Step 2: Run /scope
 
-Run the plan phase to create structured breakdown.
+Run the scope phase to create structured breakdown.
 
 Output is `docs/planning/menu-plan.yaml`.
 
@@ -52,7 +52,7 @@ PLANNING CYCLE: Complete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [1/3] BRAINSTORM  ✓ explored
-[2/3] PLAN        ✓ structured
+[2/3] SCOPE       ✓ structured
 [3/3] FINALIZE    ✓ beads + specs created
 
 Artifacts:
@@ -81,7 +81,7 @@ Users can run phases individually for more control:
 | Command | Purpose |
 |---------|---------|
 | `/line-brainstorm` | Just explore and create brainstorm.md |
-| `/line-plan` | Just create menu-plan.yaml from brainstorm |
+| `/line-scope` | Just create menu-plan.yaml from brainstorm |
 | `/line-finalize` | Just convert existing menu-plan to beads + specs |
 | `/line-mise` | Run all three phases with review pauses |
 
@@ -94,7 +94,7 @@ PLANNING CYCLE              EXECUTION CYCLE
 ━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
 /brainstorm                 /prep
       ↓                           ↓
-/plan                       /cook
+/scope                      /cook
       ↓                           ↓
 /finalize                   /serve
                                   ↓

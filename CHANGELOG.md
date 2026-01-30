@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Renamed `/line:plan` to `/line:scope` to avoid collision with Claude Code's native `/plan` command
+  - Claude Code: `line:plan` → `line:scope`
+  - OpenCode: `line-plan` → `line-scope`
+  - Kiro: `@line-plan` → `@line-scope`
+
 ### Fixed
 - `/line:cook` now always indicates `/line:serve` as next step (serve should never be skipped)
 

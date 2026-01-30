@@ -241,7 +241,7 @@ Epic (Phase)
 ## Example Usage
 
 ```
-/line:plan
+/line:scope
 ```
 
 This command will:

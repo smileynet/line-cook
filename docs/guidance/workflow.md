@@ -115,7 +115,7 @@ Restaurant service flow:
 Mise en place separates planning into three cognitive phases, each with a natural pause point for review:
 
 ```
-/brainstorm → /plan → /finalize
+/brainstorm → /scope → /finalize
 (divergent)   (convergent)   (execution prep)
 ```
 
@@ -126,7 +126,7 @@ Each phase has a distinct cognitive mode:
 | Phase | Mode | Purpose | Output |
 |-------|------|---------|--------|
 | **Brainstorm** | Divergent | Explore, question, research | `docs/planning/brainstorm-<name>.md` |
-| **Plan** | Convergent | Structure, scope, decompose | `docs/planning/menu-plan.yaml` |
+| **Scope** | Convergent | Structure, scope, decompose | `docs/planning/menu-plan.yaml` |
 | **Finalize** | Execution | Create beads, write test specs | `.beads/` + `tests/features/` + `tests/specs/` |
 
 This prevents premature commitment. Brainstorm expands possibilities before plan narrows to structure. Plan creates a reviewable artifact before finalize commits to tracked work.
@@ -140,7 +140,7 @@ This prevents premature commitment. Brainstorm expands possibilities before plan
 - Recommends direction with rationale
 - Output: `docs/planning/brainstorm-<name>.md`
 
-**`/line:plan`** - Convergent thinking
+**`/line:scope`** - Convergent thinking
 - Loads brainstorm document (if exists)
 - Determines scope (task/feature/epic)
 - Creates structured YAML breakdown
@@ -164,7 +164,7 @@ BRAINSTORM COMPLETE
 File: docs/planning/brainstorm-reading-cli.md
 
 Ready to proceed to planning phase?
-Continue to /line:plan? [Y/n]
+Continue to /line:scope? [Y/n]
 ```
 
 This allows you to:
@@ -180,7 +180,7 @@ This allows you to:
 | Full planning with review pauses | `/line:mise` |
 | Requirements are crystal clear | `/line:mise skip-brainstorm` |
 | Just want to explore first | `/line:brainstorm` alone |
-| Already have brainstorm, need structure | `/line:plan` alone |
+| Already have brainstorm, need structure | `/line:scope` alone |
 | Already have menu plan, need beads | `/line:finalize` alone |
 
 ### Example Flow
@@ -195,7 +195,7 @@ This allows you to:
 # Maximum control - run each phase separately
 /line:brainstorm
 # ... review and refine brainstorm document ...
-/line:plan
+/line:scope
 # ... review and refine menu plan ...
 /line:finalize
 ```

@@ -25,12 +25,12 @@ Check that the menu plan exists and is ready for conversion:
 
 ```bash
 if [ ! -f docs/planning/menu-plan.yaml ]; then
-    echo "Error: Menu plan not found. Run /line:plan first."
+    echo "Error: Menu plan not found. Run /line:scope first."
     exit 1
 fi
 ```
 
-**If no menu plan exists:** Stop and instruct user to run `/line:plan`.
+**If no menu plan exists:** Stop and instruct user to run `/line:scope`.
 
 ### Step 2: Convert Menu Plan to Beads
 
