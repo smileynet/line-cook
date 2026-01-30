@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `/line:brainstorm`, `/line:plan`, and `/line:finalize` commands for phased menu planning
+  - Brainstorm: divergent exploration and research
+  - Plan: convergent scoping and task decomposition
+  - Finalize: create beads, write BDD/TDD specs
+- Release automation with `scripts/release.py` and `release-editor` agent
+  - Automates version sync across plugin files
+  - Handles CHANGELOG transformation
+  - Interactive changelog quality review
+
+### Fixed
+- `/line:serve` now correctly loops back to `/line:cook` when review verdict is `needs_changes`
+  (previously continued toward tidy, losing the rework loop)
+
+### Changed
+- `/line:mise` now orchestrates brainstorm → plan → finalize with review pauses between phases
+
 ## [0.8.1] - 2026-01-28
 
 ### Added
