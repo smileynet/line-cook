@@ -163,7 +163,7 @@ Findings (to file in @line-tidy):
   Potential issues:
     - "<issue noted>"
 
-NEXT STEP: @line-serve (review) or @line-tidy (commit)
+NEXT STEP: @line-serve
 ```
 
 ## Guardrails
