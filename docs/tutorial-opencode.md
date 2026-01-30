@@ -71,7 +71,7 @@ Each command is a checkpoint. Nothing is permanent until `git push`.
 
 ---
 
-## Part 2: Planning with /mise
+## Part 2: Planning with /line-mise
 
 Before any code is written, you need a plan. Line Cook provides the `/line-mise` command to guide you through structured planning with three phases: brainstorm, plan, and finalize.
 
@@ -87,7 +87,7 @@ Each phase produces a reviewable artifact:
 - **Plan** outputs `docs/planning/menu-plan.yaml`
 - **Finalize** creates beads + test specifications
 
-Between each phase, `/mise` pauses for your review. This prevents premature commitment and lets you iterate at each level.
+Between each phase, `/line-mise` pauses for your review. This prevents premature commitment and lets you iterate at each level.
 
 ### Example: Building a Reading List CLI
 
