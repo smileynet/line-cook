@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-01-30
 ### Fixed
 - OpenCode `/line-serve` now correctly loops back to `/line-cook` when verdict is `needs_changes`
   (ported fix from Claude Code to OpenCode platform)
@@ -130,7 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/smileynet/line-cook/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/smileynet/line-cook/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/smileynet/line-cook/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/smileynet/line-cook/compare/v0.7.5...v0.8.0
