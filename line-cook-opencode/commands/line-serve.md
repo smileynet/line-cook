@@ -77,10 +77,9 @@ Based on review findings:
 
 **If issues found but non-blocking:**
 - Verdict: NEEDS_CHANGES
-- Apply auto-fixable issues (typos, formatting, obvious one-line fixes)
-- Note non-fixable issues for `/line-tidy`
-- Categorize by priority (P1-P4)
-- Continue to Step 5
+- Do NOT continue to tidy
+- Report findings to user with SERVE_RESULT showing `next_step: /line-cook`
+- The user will rerun `/line-cook` with the review findings
 
 **If critical issues found:**
 - Verdict: BLOCKED
