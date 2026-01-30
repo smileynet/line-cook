@@ -118,8 +118,8 @@ Line Cook separates planning into three cognitive phases:
 
 | Starting Point | What to Do |
 |----------------|------------|
-| **"I know what to build"** | `/mise` to validate scope and create beads → `/line:prep` |
-| **"I have a vague idea"** | `/mise` to brainstorm, scope, and create beads → `/line:prep` |
+| **"I know what to build"** | `/line:mise` to validate scope and create beads → `/line:prep` |
+| **"I have a vague idea"** | `/line:mise` to brainstorm, scope, and create beads → `/line:prep` |
 
 Both paths use `/mise`—even if you know what you want, it helps create well-scoped tasks that fit in single sessions.
 
@@ -298,10 +298,6 @@ A task should take roughly 5-10 minutes of AI execution time. If it's taking lon
 **Can I run commands out of order?**
 
 Yes. Each command is independent. But the guardrails exist for a reason: `/prep` ensures you're synced, `/serve` catches issues before commit, `/tidy` ensures work is pushed. Skipping steps means accepting more risk.
-
-**What's the minimum viable workflow?**
-
-`/prep` → `/cook` → `/tidy`. This gives you: sync, execute with verification, commit and push. Add `/serve` when you want AI review. Add `/mise` when you need help planning.
 
 **What does "headless Claude" mean?**
 
