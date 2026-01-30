@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- OpenCode `/line-serve` now correctly loops back to `/line-cook` when verdict is `needs_changes`
+  (ported fix from Claude Code to OpenCode platform)
+
 ## [0.8.2] - 2026-01-30
 ### Added
 - `/line:brainstorm`, `/line:plan`, and `/line:finalize` commands for phased menu planning
