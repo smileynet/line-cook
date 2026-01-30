@@ -71,234 +71,237 @@ Each command is a checkpoint. Nothing is permanent until `git push`.
 
 ---
 
-## Part 2: Brainstorming with the LLM
+## Part 2: Planning with mise
 
-Before any code is written, you need a plan. Line Cook works best when tasks are well-defined and properly sized. Here's how to collaborate with Claude to break down a project.
+Before any code is written, you need a plan. Line Cook provides the `mise` command to guide you through structured planning with three phases: brainstorm, plan, and finalize.
+
+### The Three-Phase Planning Workflow
+
+```
+brainstorm → plan → finalize
+(divergent)   (convergent)   (execution prep)
+```
+
+Each phase produces a reviewable artifact:
+- **Brainstorm** outputs `docs/planning/brainstorm-<name>.md`
+- **Plan** outputs `docs/planning/menu-plan.yaml`
+- **Finalize** creates beads + test specifications
+
+Between each phase, `mise` pauses for your review. This prevents premature commitment and lets you iterate at each level.
 
 ### Example: Building a Reading List CLI
 
-Let's say you want to build a simple CLI tool to track books you're reading. Here's how the conversation might unfold over several turns.
+Let's say you want to build a simple CLI tool to track books you're reading. Instead of manually brainstorming, we'll use `mise` to structure the planning.
 
-**Turn 1 - Start broad:**
+### Step 1: Run brainstorm
+
+Start the planning cycle:
 
 ```
-You: I want to build a CLI tool that tracks my reading list.
-
-Claude: Good project! Before we dive in, a few questions to scope this:
-
-        1. What info do you want to track per book? (title, author, pages, etc.)
-        2. Where should data live? (local file, database, cloud?)
-        3. Is this just for you, or will others use it?
+mise
 ```
 
-**Turn 2 - Narrow the scope:**
+Or run brainstorm directly for more control:
+
+```
+brainstorm
+```
+
+Claude will ask clarifying questions:
+
+```
+BRAINSTORM: Reading List CLI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Understanding the problem...
+
+Questions:
+  1. What info do you want to track per book? (title, author, pages, etc.)
+  2. Where should data live? (local file, database, cloud?)
+  3. Is this just for you, or will others use it?
+```
+
+You answer:
 
 ```
 You: Just for me. I want title, author, and whether I've finished it.
      Local file is fine - keep it simple.
-
-Claude: Perfect. A JSON file will work well for that. Now, what operations
-        do you need?
-
-        - Add a book
-        - List all books
-        - Mark a book as finished
-        - Remove a book
-
-        Anything else? Search? Stats? Export?
 ```
 
-**Turn 3 - Decide what's MVP vs later:**
+Claude explores approaches, identifies risks, and creates the brainstorm document:
 
 ```
-You: Those four are the core. Search would be nice but not essential.
-     Let's keep the first version minimal.
+BRAINSTORM COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Claude: Smart. We can add search later. So for MVP:
+File: docs/planning/brainstorm-reading-cli.md
 
-        **Storage** (build first - everything depends on this):
-        - JSON file with load/save operations
-        - Simple schema: [{title, author, finished}]
+Problem: Personal CLI to track reading list (title, author, finished)
+User: Developer (you)
+Recommended approach: JSON file storage with simple CRUD commands
 
-        **Commands** (build after storage):
-        - `add` - title and author required
-        - `list` - show all books, maybe indicate finished ones
-        - `done` - mark a book finished
-        - `remove` - delete by title or ID
+Key decisions:
+  - JSON file for simplicity (no database overhead)
+  - Four core commands: add, list, done, remove
+  - Search deferred to later iteration
 
-        Should I structure this as beads? One epic for "Core CLI",
-        with storage as the first task, then the commands?
+Open questions: 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ready to proceed to planning phase?
+- Review the brainstorm document
+- Resolve any open questions
+- Then continue to create structured plan
+
+Continue to plan? [Y/n]
 ```
 
-**Turn 4 - Confirm the structure:**
+### Step 2: Review the Brainstorm
+
+Before proceeding, you can review `docs/planning/brainstorm-reading-cli.md`. This document captures:
+- Problem statement and user context
+- Technical approaches explored
+- Risks and unknowns identified
+- Recommended direction with rationale
+
+If anything looks wrong, edit the document or ask Claude to adjust before continuing.
+
+### Step 3: Run plan
+
+After confirming, Claude runs the plan phase:
 
 ```
-You: Yes, that makes sense. The commands can't work without storage,
-     so that dependency is real.
+MENU PLAN CREATED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Claude: Exactly. Here's the structure:
+File: docs/planning/menu-plan.yaml
 
-        Epic: "Core CLI Commands"
-        ├── Task: "Implement JSON storage" (no blockers)
-        ├── Task: "Add command" (blocked by storage)
-        ├── Task: "List command" (blocked by storage)
-        ├── Task: "Done command" (blocked by storage)
-        └── Task: "Remove command" (blocked by storage)
+Phases: 1
+Features: 1
+Tasks: 4
 
-        Ready to create these beads?
+Breakdown:
+  Phase 1: Core CLI
+    - Feature 1.1: Basic reading list management
+      - 4 tasks (storage + 3 commands)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ready to commit to beads and create test specs?
+- Review the menu plan
+- Make any edits to the YAML file
+- Then continue to create beads
+
+Continue to finalize? [Y/n]
 ```
 
-### Why Multiple Turns Matter
+### Step 4: Review the Menu Plan
 
-Notice what happened:
-- **Turn 1**: Broad idea, Claude asks clarifying questions
-- **Turn 2**: Scope narrows based on your answers
-- **Turn 3**: MVP vs nice-to-have distinction emerges
-- **Turn 4**: Structure confirmed, ready to execute
+The menu plan is a YAML file you can edit:
 
-Rushing to create tasks from a vague idea leads to rework. Taking a few turns to clarify scope saves time later.
+```yaml
+# docs/planning/menu-plan.yaml
+phases:
+  - id: phase-1
+    title: "Phase 1: Core CLI"
+    features:
+      - id: feature-1.1
+        title: "Basic reading list management"
+        user_story: "As a reader, I want to track books so I know what I've read"
+        acceptance_criteria:
+          - "Can add books with title and author"
+          - "Can list all books with finished status"
+          - "Can mark books as finished"
+        tasks:
+          - title: "Implement JSON file storage"
+            priority: 1
+            tdd: true
+          - title: "Add 'add book' command"
+            priority: 2
+            depends_on: ["Implement JSON file storage"]
+          - title: "Add 'list books' command"
+            priority: 2
+            depends_on: ["Implement JSON file storage"]
+          - title: "Add 'done' command"
+            priority: 2
+            depends_on: ["Implement JSON file storage"]
+```
 
-### What You're Building
+This is your chance to:
+- Adjust task priorities
+- Add or remove tasks
+- Refine acceptance criteria
+- Change dependencies
 
-Through this conversation, you've identified:
+### Step 5: Run finalize
 
-| Type | Name | Notes |
-|------|------|-------|
-| Epic | Core CLI Commands | Groups related work |
-| Task | JSON file storage | No dependencies (do first) |
-| Task | Add book command | Depends on storage |
-| Task | List books command | Depends on storage |
-| Task | Done command | Depends on storage |
-| Task | Remove command | Depends on storage (cut in Part 3) |
+After confirming, Claude converts the plan to beads:
 
-This structure captures both the work and the order it should happen in. Dependencies ensure you don't start "add book" before storage exists.
+```
+MISE COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
----
+Menu plan committed to beads and test specs created.
 
-## Part 3: Creating Your First Beads
+Beads Created:
+  Epics: 1
+  Features: 1
+  Tasks: 4
 
-Now let's turn that brainstorm into tracked issues. Beads are git-native issues that travel with your repository.
+Test Specs Created:
+  BDD (features/): 1 .feature file
+  TDD (specs/): 4 .md files
 
-### Initialize Beads (if needed)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-If this is a new project, initialize beads first:
+READY TO WORK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Available tasks:
+  lc-002 [P1] Implement JSON file storage
+
+NEXT STEP: Run prep to start working on tasks
+```
+
+### What Was Created
+
+The finalize phase created:
+
+**Beads** (in `.beads/`):
+```
+lc-001: Core CLI (epic)
+├── lc-001.1: Basic reading list management (feature)
+│   ├── lc-002: Implement JSON file storage [P1]
+│   ├── lc-003: Add 'add book' command [P2] (blocked by lc-002)
+│   ├── lc-004: Add 'list books' command [P2] (blocked by lc-002)
+│   └── lc-005: Add 'done' command [P2] (blocked by lc-002)
+```
+
+**Test specs** (in `tests/`):
+- `tests/features/feature-1.1-basic-reading-list.feature` (BDD)
+- `tests/specs/implement-json-storage.md` (TDD)
+
+### When to Skip Brainstorm
+
+If requirements are already clear, skip directly to planning:
+
+```
+mise skip-brainstorm
+```
+
+Or run phases individually for maximum control:
 
 ```bash
-bd init
+# Just explore
+brainstorm
+
+# Already have brainstorm, need structure
+plan
+
+# Already have menu plan, need beads
+finalize
 ```
-
-This creates a `.beads/` directory in your project.
-
-### Ask Claude to Create the Beads
-
-Rather than typing commands yourself, ask Claude to propose them:
-
-```
-You: Go ahead and create those beads. Show me what you'll run first.
-
-Claude: I'll create the epic and tasks with dependencies. Here's my plan:
-
-        # 1. Create the epic (container for related work)
-        bd create --title="Core CLI commands" --type=epic --priority=2
-
-        # 2. Create tasks as children of the epic
-        bd create --title="Implement JSON file storage" --type=task --priority=2 --parent=<epic-id>
-        bd create --title="Add 'add book' command" --type=task --priority=2 --parent=<epic-id>
-        bd create --title="Add 'list books' command" --type=task --priority=2 --parent=<epic-id>
-        bd create --title="Add 'done' command" --type=task --priority=2 --parent=<epic-id>
-        bd create --title="Add 'remove' command" --type=task --priority=2 --parent=<epic-id>
-
-        # 3. Add dependencies (commands depend on storage)
-        bd dep add <add-id> <storage-id>
-        bd dep add <list-id> <storage-id>
-        bd dep add <done-id> <storage-id>
-        bd dep add <remove-id> <storage-id>
-
-        Should I proceed?
-```
-
-### Review Before Approving
-
-Take a moment to review. This is your chance to catch issues:
-
-```
-You: Actually, let's drop "remove" for MVP - 3 commands is enough to start.
-     We can add it later. Also, make storage P1 since everything depends on it.
-
-Claude: Good catch. Updated plan:
-
-        # 1. Create epic
-        bd create --title="Core CLI commands" --type=epic --priority=2
-
-        # 2. Create storage first (P1 - critical path)
-        bd create --title="Implement JSON file storage" --type=task --priority=1 --parent=<epic-id>
-
-        # 3. Create command tasks (P2 - after storage)
-        bd create --title="Add 'add book' command" --type=task --priority=2 --parent=<epic-id>
-        bd create --title="Add 'list books' command" --type=task --priority=2 --parent=<epic-id>
-        bd create --title="Add 'done' command" --type=task --priority=2 --parent=<epic-id>
-
-        # 4. Dependencies
-        bd dep add <add-id> <storage-id>
-        bd dep add <list-id> <storage-id>
-        bd dep add <done-id> <storage-id>
-
-        Proceed?
-```
-
-### Approve and Execute
-
-```
-You: Looks good. Go ahead.
-
-Claude: Creating beads...
-
-        ✓ Created lc-001: Core CLI commands (epic)
-        ✓ Created lc-002: Implement JSON file storage (P1, parent: lc-001)
-        ✓ Created lc-003: Add 'add book' command (P2, parent: lc-001)
-        ✓ Created lc-004: Add 'list books' command (P2, parent: lc-001)
-        ✓ Created lc-005: Add 'done' command (P2, parent: lc-001)
-
-        Adding dependencies...
-
-        ✓ lc-003 now depends on lc-002
-        ✓ lc-004 now depends on lc-002
-        ✓ lc-005 now depends on lc-002
-
-        Done. Here's the structure:
-```
-
-### Verify the Structure
-
-Claude shows you the result:
-
-```
-lc-001: Core CLI commands
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Type: epic
-Priority: P2
-Status: open
-
-Children:
-  ○ lc-002: Implement JSON file storage [P1]
-  ○ lc-003: Add 'add book' command [P2] (blocked by lc-002)
-  ○ lc-004: Add 'list books' command [P2] (blocked by lc-002)
-  ○ lc-005: Add 'done' command [P2] (blocked by lc-002)
-
-Project stats:
-  Open: 5 | In Progress: 0 | Blocked: 3 | Ready: 1
-```
-
-### Why Review Matters
-
-Notice what happened:
-- Claude proposed 4 command tasks, but you trimmed scope further (dropped remove)
-- You upgraded storage priority since it's the critical path
-- The review took 30 seconds but prevented creating work you didn't want
-
-The pattern: **Propose → Review → Approve → Execute**
-
-This keeps you in control while letting Claude do the typing.
 
 ### Clear Context Before Execution
 
@@ -789,14 +792,21 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 
 ## Quick Reference
 
-| Command | Purpose |
-|---------|---------|
+| Planning Commands | Purpose |
+|-------------------|---------|
+| `mise` | Full planning cycle with pause points |
+| `brainstorm` | Explore problem space (divergent) |
+| `plan` | Create structured breakdown (convergent) |
+| `finalize` | Convert plan to beads + test specs |
+
+| Execution Commands | Purpose |
+|--------------------|---------|
 | `getting started` | Quick workflow guide |
 | `prep` | Sync and show ready work |
 | `cook` | Execute a task with guardrails |
 | `serve` | AI peer review |
 | `tidy` | Commit, file findings, push |
-| `work` | Full cycle (all four) |
+| `work` | Full execution cycle |
 
 | Beads Command | Purpose |
 |---------------|---------|
