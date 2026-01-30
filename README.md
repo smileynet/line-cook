@@ -64,8 +64,8 @@ Use Line Cook when:
 ```mermaid
 graph LR
     subgraph planning ["Planning Cycle (/mise)"]
-        A["/mise:brainstorm"] --> B["/mise:plan"]
-        B --> C["/mise:commit"]
+        A["/brainstorm"] --> B["/plan"]
+        B --> C["/finalize"]
     end
     subgraph execution ["Execution Cycle (/run)"]
         D["/prep"] --> E["/cook"] --> F["/serve"] --> G["/tidy"]
@@ -80,10 +80,10 @@ graph LR
 | Command | What happens |
 |---------|--------------|
 | `/getting-started` | Quick workflow guide for beginners |
-| `/mise` | Create work breakdown (orchestrates brainstorm→plan→commit) |
-| `/mise:brainstorm` | Explore problem space (divergent thinking) |
-| `/mise:plan` | Create structured work breakdown |
-| `/mise:commit` | Convert plan to beads + create test specs |
+| `/mise` | Create work breakdown (orchestrates brainstorm→plan→finalize) |
+| `/brainstorm` | Explore problem space (divergent thinking) |
+| `/plan` | Create structured work breakdown |
+| `/finalize` | Convert plan to beads + create test specs |
 | `/prep` | Sync git, show ready tasks |
 | `/cook` | Execute task with TDD cycle |
 | `/serve` | Review code changes |
@@ -158,7 +158,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:getting-started`, `/line:mise`, `/line:mise:brainstorm`, `/line:mise:plan`, `/line:mise:commit`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
+Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:plan`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
 ### OpenCode
 
@@ -175,7 +175,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-mise`, `/line-mise-brainstorm`, `/line-mise-plan`, `/line-mise-commit`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
+Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-plan`, `/line-finalize`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
 
 ### Kiro
 

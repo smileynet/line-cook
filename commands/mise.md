@@ -22,14 +22,14 @@ Like `/line:run` orchestrates the execution cycle (prep→cook→serve→tidy), 
 
 ## Process
 
-### Step 1: Run /mise:brainstorm
+### Step 1: Run /brainstorm
 
 **Unless user provides `skip-brainstorm` or requirements are crystal clear:**
 
 Invoke the brainstorm command to explore the problem space:
 
 ```
-Skill(skill="line:mise:brainstorm")
+Skill(skill="line:brainstorm")
 ```
 
 Wait for brainstorm to complete. Output is `docs/planning/brainstorm-<name>.md`.
@@ -51,17 +51,17 @@ Ready to proceed to planning phase?
 - Resolve any open questions
 - Then continue to create structured plan
 
-Continue to /line:mise:plan? [Y/n]
+Continue to /line:plan? [Y/n]
 ```
 
 Wait for user confirmation before proceeding.
 
-### Step 2: Run /mise:plan
+### Step 2: Run /plan
 
 Invoke the plan command to create structured breakdown:
 
 ```
-Skill(skill="line:mise:plan")
+Skill(skill="line:plan")
 ```
 
 Wait for plan to complete. Output is `docs/planning/menu-plan.yaml`.
@@ -83,17 +83,17 @@ Ready to commit to beads and create test specs?
 - Make any edits to the YAML file
 - Then continue to create beads
 
-Continue to /line:mise:commit? [Y/n]
+Continue to /line:finalize? [Y/n]
 ```
 
 Wait for user confirmation before proceeding.
 
-### Step 3: Run /mise:commit
+### Step 3: Run /finalize
 
 Invoke the commit command to create beads and test specs:
 
 ```
-Skill(skill="line:mise:commit")
+Skill(skill="line:finalize")
 ```
 
 Wait for commit to complete. Beads and test specs are created.
@@ -142,9 +142,9 @@ Users can run phases individually for more control:
 
 | Command | Purpose |
 |---------|---------|
-| `/line:mise:brainstorm` | Just explore and create brainstorm.md |
-| `/line:mise:plan` | Just create menu-plan.yaml from brainstorm |
-| `/line:mise:commit` | Just convert existing menu-plan to beads + specs |
+| `/line:brainstorm` | Just explore and create brainstorm.md |
+| `/line:plan` | Just create menu-plan.yaml from brainstorm |
+| `/line:finalize` | Just convert existing menu-plan to beads + specs |
 | `/line:mise` | Run all three phases with review pauses |
 
 **Example workflows:**
@@ -157,11 +157,11 @@ Users can run phases individually for more control:
 /line:mise skip-brainstorm
 
 # Individual phases for maximum control
-/line:mise:brainstorm
+/line:brainstorm
 # ... review and refine ...
-/line:mise:plan
+/line:plan
 # ... review and refine ...
-/line:mise:commit
+/line:finalize
 ```
 
 ---
@@ -187,7 +187,7 @@ Error: <description>
 
 ──────────────────────────────────────────
 
-Run /line:mise:commit to retry after fixing the issue.
+Run /line:finalize to retry after fixing the issue.
 ```
 
 ---
@@ -197,11 +197,11 @@ Run /line:mise:commit to retry after fixing the issue.
 ```
 PLANNING CYCLE              EXECUTION CYCLE
 ━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
-/mise:brainstorm            /prep
+/brainstorm                 /prep
       ↓                           ↓
-/mise:plan                  /cook
+/plan                       /cook
       ↓                           ↓
-/mise:commit                /serve
+/finalize                   /serve
                                   ↓
                             /tidy
                                   ↓

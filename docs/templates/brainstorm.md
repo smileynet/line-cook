@@ -1,6 +1,6 @@
 # Brainstorm: <!-- name -->
 
-> Exploration document from `/line:mise:brainstorm` phase.
+> Exploration document from `/line:brainstorm` phase.
 
 **Created:** <!-- YYYY-MM-DD -->
 **Status:** <!-- Draft | Ready for Planning | Superseded -->
@@ -130,7 +130,7 @@
 ## Next Steps
 
 - [ ] Resolve open questions (if any)
-- [ ] Proceed to `/line:mise:plan` to create structured breakdown
+- [ ] Proceed to `/line:plan` to create structured breakdown
 - [ ] Review with stakeholders (if needed)
 
 ---
@@ -143,4 +143,4 @@
 2. Delete sections that don't apply
 3. Save as `docs/planning/brainstorm-<name>.md`
 4. Change status to "Ready for Planning" when complete
-5. Run `/line:mise:plan` to continue
+5. Run `/line:plan` to continue

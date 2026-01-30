@@ -176,7 +176,7 @@ REVIEW THE PLAN:
      [ ] Dependencies listed
      [ ] TDD flag if applicable
 
-NEXT STEP: Run /line:mise:commit to convert to beads and create test specs
+NEXT STEP: Run /line:finalize to convert to beads and create test specs
   (or /line:mise to continue with full orchestration)
 ```
 
@@ -241,7 +241,7 @@ Epic (Phase)
 ## Example Usage
 
 ```
-/line:mise:plan
+/line:plan
 ```
 
 This command will:

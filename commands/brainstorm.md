@@ -105,7 +105,7 @@ Open questions: <N> (if any)
   - <question 1>
   - <question 2>
 
-NEXT STEP: Run /line:mise:plan to create structured work breakdown
+NEXT STEP: Run /line:plan to create structured work breakdown
   (or /line:mise to continue with full orchestration)
 
 If open questions remain, resolve them before planning.
@@ -121,14 +121,14 @@ Skip this phase if:
 - It's a small, well-defined task (not an epic/feature)
 - User explicitly asks to skip to planning
 
-In these cases, proceed directly to `/line:mise:plan`.
+In these cases, proceed directly to `/line:plan`.
 
 ---
 
 ## Example Usage
 
 ```
-/line:mise:brainstorm
+/line:brainstorm
 ```
 
 This command will:

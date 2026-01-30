@@ -22,7 +22,7 @@ This phase transforms the approved menu plan into actionable beads and creates l
 
 ```bash
 if [ ! -f docs/planning/menu-plan.yaml ]; then
-    echo "Error: Menu plan not found. Run /line-mise-plan first."
+    echo "Error: Menu plan not found. Run /line-plan first."
     exit 1
 fi
 ```
@@ -143,7 +143,7 @@ NEXT STEP: Run /line-prep to start working on tasks
 ## Example Usage
 
 ```
-/line-mise-commit
+/line-finalize
 ```
 
 **NEXT STEP: @line-prep (ready to work)**
