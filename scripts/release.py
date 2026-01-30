@@ -63,6 +63,7 @@ class ReleaseConfig:
     push: bool = False
     yes: bool = False
     repo_root: Path = field(default_factory=lambda: Path(__file__).parent.parent)
+    previous_version: Optional[str] = None  # Set before updating versions
 
 
 def run_git(args: list[str], capture: bool = True) -> tuple[int, str]:
@@ -260,8 +261,8 @@ def update_changelog(config: ReleaseConfig) -> bool:
             return False
 
         # Update comparison links at bottom
-        # Find the [Unreleased] link and update it
-        current = get_current_version(config.repo_root)
+        # Use previous_version (captured before version files were updated)
+        previous = config.previous_version
 
         # Update existing [Unreleased] link
         unreleased_link_pattern = r"\[Unreleased\]: (https://github\.com/[^/]+/[^/]+)/compare/v[\d.]+\.\.\.HEAD"
@@ -269,7 +270,7 @@ def update_changelog(config: ReleaseConfig) -> bool:
         new_content = re.sub(unreleased_link_pattern, unreleased_link_replacement, new_content)
 
         # Add new version link after [Unreleased] link
-        new_version_link = f"[{config.version}]: https://github.com/smileynet/line-cook/compare/v{current}...v{config.version}"
+        new_version_link = f"[{config.version}]: https://github.com/smileynet/line-cook/compare/v{previous}...v{config.version}"
 
         # Insert after [Unreleased] link line
         new_content = re.sub(
@@ -594,6 +595,9 @@ def main():
     if not confirm_release(config):
         print("Release cancelled.")
         return 0
+
+    # Capture current version before updating (for changelog links)
+    config.previous_version = current
 
     # Update versions
     print()
