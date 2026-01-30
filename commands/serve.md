@@ -116,9 +116,9 @@ Based on sous-chef verdict:
 - No changes needed
 
 **If verdict is needs_changes:**
-- Apply auto-fixable issues (typos, formatting, obvious one-line fixes)
-- Note non-fixable issues for `/line:tidy`
-- Categorize by priority (P1-P4)
+- Do NOT continue to tidy
+- Report findings to user with SERVE_RESULT showing `next_step: /line:cook`
+- The user will rerun `/line:cook` with the review findings
 
 **If verdict is blocked:**
 - CRITICAL issues must be fixed before tidying
