@@ -142,7 +142,7 @@ Recommended approach: JSON file storage with simple CRUD commands
 
 Key decisions:
   - JSON file for simplicity (no database overhead)
-  - Four core commands: add, list, done, remove
+  - Core commands: add, list, done (remove considered but deferred)
   - Search deferred to later iteration
 
 Open questions: 0
