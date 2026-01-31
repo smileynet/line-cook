@@ -7,14 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `/line:audit` command for bead hygiene checks
+  - Validates bead structure, quality, and health
+  - Scopes: `active` (default), `full`, or specific bead ID
+  - Optional `--fix` flag for auto-fixable issues
+
 ### Changed
 - Renamed `/line:plan` to `/line:scope` to avoid collision with Claude Code's native `/plan` command
   - Claude Code: `line:plan` → `line:scope`
   - OpenCode: `line-plan` → `line-scope`
   - Kiro: `@line-plan` → `@line-scope`
+- `/line:audit` framed as optional hygiene tool, not mandatory workflow step
+  - Removed from main workflow diagram sequence
+  - Documented as "run periodically" rather than "after mise"
 
 ### Fixed
 - `/line:cook` now always indicates `/line:serve` as next step (serve should never be skipped)
+- Updated mermaid diagram to use `/scope` instead of `/plan`
+- Fixed OpenCode tutorial `/mise` references
+- Fixed workflow.md test output paths
+- Updated mise.md to use 'Finalize' terminology consistently
+
+### Documentation
+- Added Part 10 to tutorial covering `/line:audit` usage
+- Fixed tutorial accuracy issues and added plate phase documentation
 
 ## [0.8.3] - 2026-01-30
 ### Fixed
