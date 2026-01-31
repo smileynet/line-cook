@@ -64,7 +64,7 @@ Use Line Cook when:
 ```mermaid
 graph LR
     subgraph planning ["Planning Cycle (/mise)"]
-        A["/brainstorm"] --> B["/plan"]
+        A["/brainstorm"] --> B["/scope"]
         B --> C["/finalize"]
     end
     subgraph execution ["Execution Cycle (/run)"]
