@@ -1,0 +1,117 @@
+phases:
+  - id: phase-loop
+    title: "Phase: Loop Automation"
+    description: "Add /line:loop command for autonomous multi-task execution"
+    duration: "1-2 sessions"
+
+    features:
+      - id: feature-loop
+        title: "Feature: Execute multiple tasks autonomously"
+        priority: 2
+        user_story: "As a developer using Line Cook, I want to execute multiple ready tasks in sequence so that I can batch work without manual restarts"
+        acceptance_criteria:
+          - "Can start loop that processes all ready tasks"
+          - "Loop stops when no tasks remain (bd ready empty)"
+          - "Loop stops on first task failure (stop-on-failure behavior)"
+          - "Shows task-by-task progress as each task completes"
+          - "Outputs final summary with completed/failed counts"
+        tracer_strategy:
+          minimal_flow: "Check bd ready → Run /line:run → Check result → Repeat or stop"
+          layers: "Loop orchestration → /line:run invocation → Progress tracking → Summary output"
+          expansion: "--max-iterations flag, stop hook for overnight runs, cost tracking"
+        bdd_tests:
+          - test: "TestFeature_ExecuteMultipleTasksAutonomously"
+            scenarios:
+              - "Acceptance_Criterion_1_Process_all_ready_tasks"
+              - "Acceptance_Criterion_2_Stop_when_no_tasks_remain"
+              - "Acceptance_Criterion_3_Stop_on_first_failure"
+              - "Acceptance_Criterion_4_Task_by_task_progress"
+              - "Acceptance_Criterion_5_Final_summary"
+        smoke_tests:
+          - "/line:loop executes first ready task"
+          - "/line:loop continues to second task after first completes"
+          - "/line:loop stops when bd ready returns empty"
+          - "/line:loop stops on task failure"
+          - "/line:loop shows progress after each task"
+
+        tasks:
+          - title: "Create /line:loop command skeleton"
+            priority: 1
+            tracer: "Foundation - proves command structure works"
+            description: |
+              - Create commands/loop.md with YAML frontmatter
+              - Define allowed-tools (same as run.md)
+              - Add summary and process sections
+              - Document arguments ($ARGUMENTS for --max-iterations)
+            deliverable: "commands/loop.md skeleton with basic structure"
+            reference: "commands/run.md"
+            tdd: true
+
+          - title: "Implement loop logic with bd ready check"
+            priority: 1
+            depends_on: ["Create /line:loop command skeleton"]
+            tracer: "Core loop - proves iteration and termination work"
+            description: |
+              - Step 1: Check bd ready for available tasks
+              - Step 2: If empty, output final summary and exit
+              - Step 3: Call Skill("line:run")
+              - Step 4: Parse result status (success/failure)
+              - Step 5: If failure, stop with error summary
+              - Step 6: Output task progress, goto Step 1
+            deliverable: "Working loop that executes until done or failure"
+            tdd: true
+
+          - title: "Add task-by-task progress output"
+            priority: 2
+            depends_on: ["Implement loop logic with bd ready check"]
+            tracer: "UX - proves progress tracking works"
+            description: |
+              - Track iteration count
+              - After each /line:run, output progress block:
+                - Task N: <id> - <title>
+                - Status: completed/failed
+                - Time: (optional, if available)
+              - Running totals: completed X, remaining Y
+            deliverable: "Progress output after each task completion"
+            tdd: true
+
+          - title: "Add final summary output"
+            priority: 2
+            depends_on: ["Add task-by-task progress output"]
+            tracer: "UX - proves summary formatting works"
+            description: |
+              - LOOP COMPLETE header
+              - Total tasks executed
+              - Success count
+              - Failure count (if any)
+              - Remaining tasks (if stopped early)
+              - Elapsed time (if tracked)
+              - Git status (commits made)
+            deliverable: "Comprehensive final summary block"
+            tdd: true
+
+          - title: "Add --max-iterations safety limit"
+            priority: 3
+            depends_on: ["Implement loop logic with bd ready check"]
+            tracer: "Safety - proves iteration limits work"
+            description: |
+              - Parse $ARGUMENTS for --max-iterations N or -n N
+              - Default to 25 if not specified
+              - Track iteration count
+              - Stop loop when limit reached
+              - Include limit status in final summary
+            deliverable: "--max-iterations flag with default of 25"
+            tdd: true
+
+          - title: "Add documentation to getting-started.md"
+            priority: 3
+            depends_on: ["Add final summary output"]
+            tracer: "Documentation - proves feature is discoverable"
+            description: |
+              - Add /line:loop to command reference
+              - Add example usage
+              - Document when to use loop vs run
+              - Document safety limits
+            deliverable: "Updated getting-started.md with loop docs"
+            reference: "commands/getting-started.md"
+            tdd: false
