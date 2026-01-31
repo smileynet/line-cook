@@ -27,6 +27,8 @@ cat docs/guidance/context-management.md # Managing AI context
 /mise → /prep → /cook → /serve → /tidy → /plate
    ↓       ↓       ↓       ↓        ↓        ↓
  plan    sync   execute  review   commit  validate
+
+Hygiene: /audit (run periodically)
 ```
 
 Or run the full cycle:
@@ -201,6 +203,40 @@ This allows you to:
 ```
 
 See [Menu Plan Format](../planning/menu-plan-format.md) for YAML structure details.
+
+## Phase: Audit
+
+**Command:** `/line:audit [scope] [--fix]`
+
+**Purpose:** Optional hygiene check for bead structure and quality.
+
+**When to use:**
+- Periodically for project health checks
+- After major scope changes
+- Before milestones or releases
+
+**Scopes:**
+- `active` (default) - Check open/in_progress beads
+- `full` - All beads including work verification
+- `<id>` - Specific bead and hierarchy
+
+**What it checks:**
+- Structural: hierarchy depth, orphans, type consistency
+- Quality: acceptance criteria, priority, issue_type
+- Health: stale items, nearly complete features
+- Work verification (full): acceptance docs for closed features
+
+**Output:**
+
+```
+AUDIT: Bead Health Check
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+Issues: 0 critical, 2 warnings, 3 info
+Auto-fixable: 2 (run with --fix)
+
+NEXT STEP: Address findings, or continue with /line:prep
+```
 
 ## Phase: Prep
 
