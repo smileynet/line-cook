@@ -57,6 +57,7 @@ Or use `/run` to run the full execution cycle, `/mise` to run the full planning 
 | `/brainstorm` | Explore problem space (divergent thinking) |
 | `/scope` | Create structured work breakdown (convergent thinking) |
 | `/finalize` | Convert plan to beads and create test specs |
+| `/audit` | Audit bead structure, quality, and hygiene |
 | `/prep` | Sync git, show ready tasks |
 | `/cook` | Execute task with TDD cycle |
 | `/serve` | Review code changes |
@@ -123,6 +124,7 @@ Claude Code uses slash commands instead of agents:
 | **/line:brainstorm** | Brainstorm phase | Explore problem space (divergent thinking) |
 | **/line:scope** | Scope phase | Create structured work breakdown |
 | **/line:finalize** | Finalize phase | Convert plan to beads + test specs |
+| **/line:audit** | Hygiene check | Audit bead structure, quality, work verification |
 | **/line:prep** | Prep phase | Sync git, show ready tasks |
 | **/line:cook** | Cook phase | Execute task with TDD cycle |
 | **/line:serve** | Serve phase | Review code changes |
@@ -364,6 +366,7 @@ line-cook/
 │   ├── brainstorm.md      # → /line:brainstorm
 │   ├── scope.md           # → /line:scope
 │   ├── finalize.md        # → /line:finalize
+│   ├── audit.md           # → /line:audit
 │   ├── prep.md            # → /line:prep
 │   ├── cook.md            # → /line:cook
 │   ├── serve.md           # → /line:serve
@@ -641,6 +644,7 @@ After pushing a release, create a GitHub release with these instructions for use
 | `/line:brainstorm` | Explore problem space (divergent thinking) |
 | `/line:scope` | Create structured work breakdown (convergent thinking) |
 | `/line:finalize` | Convert plan to beads and create test specs |
+| `/line:audit` | Audit bead structure, quality, and hygiene |
 | `/line:prep` | Sync git, show ready tasks |
 | `/line:cook` | Execute task with TDD cycle |
 | `/line:serve` | Review code changes |
@@ -688,6 +692,7 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | Term | Meaning | Context |
 |------|---------|---------|
 | **Mise** | Create work breakdown before starting | `/mise` phase |
+| **Audit** | Validate bead structure and quality | `/audit` phase |
 | **Prep** | Sync git, show ready tasks | `/prep` phase |
 | **Cook** | Execute task with TDD cycle | `/cook` phase |
 | **Serve** | Review code changes | `/serve` phase |
