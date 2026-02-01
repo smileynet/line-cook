@@ -1,0 +1,24 @@
+# Epic: Parking Lot
+# Items under this epic are filtered from `bd ready` output
+# Used for ideas to consider later, not immediate work
+id: demo-100
+title: Retrospective & Parking Lot
+type: epic
+status: open
+priority: 4
+created: 2026-01-15T08:00:00Z
+labels:
+  - parking-lot
+  - retrospective
+description: |
+  Collection of ideas and improvements to consider later.
+
+  Items here are NOT ready for immediate work. They represent:
+  - Future enhancements beyond MVP
+  - Ideas that need more research
+  - Nice-to-haves that aren't blocking anything
+
+  ## How This Works
+  Tasks filed under this epic (with priority 4) are automatically
+  filtered out of `bd ready` results. They can still be explicitly
+  selected via `/line:cook <task-id>` if you want to work on them.

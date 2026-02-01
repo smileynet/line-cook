@@ -1,0 +1,44 @@
+# Task: Mark todo complete [BLOCKED]
+# This task depends on demo-003 and will NOT appear in `bd ready`
+id: demo-004
+title: Implement mark todo as complete
+type: task
+status: open
+priority: 2
+parent: demo-002
+created: 2026-01-15T12:00:00Z
+depends_on:
+  - demo-003
+labels:
+  - frontend
+  - blocked
+description: |
+  Implement the ability to mark todo items as complete.
+
+  ## Requirements
+  - Clicking a todo toggles its completed state
+  - Completed todos have visual distinction (strikethrough, muted color)
+  - Completion state persists in localStorage
+  - Users can un-complete a todo by clicking again
+
+  ## Implementation Notes
+  - Add click handler to todo items
+  - Toggle `completed` boolean in todo object
+  - Update localStorage after each toggle
+  - Use CSS class for completed styling
+
+  ## Dependencies
+  - Requires demo-003 (add todo functionality) to be complete first
+  - Builds on the todo data structure and localStorage pattern
+
+  ## Test Specifications
+
+  ### Unit Tests
+  - `test_toggle_complete_updates_todo_state`
+  - `test_toggle_complete_persists_to_localStorage`
+  - `test_toggle_complete_can_uncomplete`
+
+  ### Manual Verification
+  - Click a todo → it shows as completed
+  - Click again → it shows as incomplete
+  - Refresh page → completion state preserved
