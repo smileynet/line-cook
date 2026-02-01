@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Requires Python 3.8+ for dataclasses and type hints (list[str] syntax)
+# Requires Python 3.9+ for dataclasses and type hints (list[str] syntax)
 """Line Cook autonomous loop - runs /line:run until no tasks remain.
 
 Provides robust feedback through bead state tracking and SERVE_RESULT parsing.
@@ -24,6 +24,7 @@ import logging
 import os
 import random
 import re
+import select
 import shutil
 import signal
 import subprocess
@@ -33,6 +34,9 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Constants
+OUTPUT_SUMMARY_MAX_LENGTH = 200
 
 # Module-level logger
 logger = logging.getLogger('line-loop')
@@ -164,6 +168,53 @@ class ServeResult:
 
 
 @dataclass
+class ActionRecord:
+    """Record of a single tool call during an iteration."""
+    tool_name: str           # "Read", "Edit", "Bash", etc.
+    tool_use_id: str         # For correlation with results
+    input_summary: str       # Truncated input (file path, command, etc.)
+    output_summary: str      # Truncated output or error message
+    success: bool            # True if no error
+    timestamp: str           # ISO timestamp
+
+    @classmethod
+    def from_tool_use(cls, block: dict) -> 'ActionRecord':
+        """Create ActionRecord from a tool_use content block."""
+        tool_name = block.get("name", "unknown")
+        tool_input = block.get("input", {})
+        return cls(
+            tool_name=tool_name,
+            tool_use_id=block.get("id", ""),
+            input_summary=summarize_tool_input(tool_name, tool_input),
+            output_summary="",  # Filled in when tool_result arrives
+            success=True,       # Updated when tool_result arrives
+            timestamp=datetime.now().isoformat()
+        )
+
+
+def summarize_tool_input(tool_name: str, input_data: dict) -> str:
+    """Create concise summary of tool input."""
+    if tool_name == "Read":
+        return input_data.get("file_path", "")[:100]
+    elif tool_name == "Edit":
+        path = input_data.get("file_path", "")
+        return f"{path} (edit)"[:100]
+    elif tool_name == "Bash":
+        cmd = input_data.get("command", "")
+        return cmd[:80] + ("..." if len(cmd) > 80 else "")
+    elif tool_name == "Write":
+        return f"{input_data.get('file_path', '')} (new)"[:100]
+    elif tool_name in ("Glob", "Grep"):
+        return input_data.get("pattern", "")[:60]
+    elif tool_name == "Task":
+        desc = input_data.get("description", "")
+        return f"Task: {desc}"[:80]
+    else:
+        summary = str(input_data)
+        return summary[:80] + ("..." if len(summary) > 80 else "")
+
+
+@dataclass
 class IterationResult:
     """Result of a single loop iteration."""
     iteration: int
@@ -185,6 +236,22 @@ class IterationResult:
     intent: Optional[str] = None
     before_state: Optional[str] = None
     after_state: Optional[str] = None
+
+    # Action tracking (tool calls during iteration)
+    actions: list[ActionRecord] = field(default_factory=list)
+
+    @property
+    def action_counts(self) -> dict[str, int]:
+        """Count actions by tool name."""
+        counts: dict[str, int] = {}
+        for action in self.actions:
+            counts[action.tool_name] = counts.get(action.tool_name, 0) + 1
+        return counts
+
+    @property
+    def total_actions(self) -> int:
+        """Total number of tool calls."""
+        return len(self.actions)
 
 
 @dataclass
@@ -375,6 +442,88 @@ def detect_kitchen_complete(output: str) -> bool:
     return "KITCHEN_COMPLETE" in output or "KITCHEN COMPLETE" in output
 
 
+def parse_stream_json_event(line: str) -> Optional[dict]:
+    """Parse a single line of stream-json output.
+
+    Returns the parsed event dict or None if not valid JSON.
+    """
+    line = line.strip()
+    if not line:
+        return None
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        return None
+
+
+def extract_actions_from_event(
+    event: dict,
+    pending_actions: dict[str, ActionRecord]
+) -> list[ActionRecord]:
+    """Extract tool_use blocks from an assistant message event.
+
+    Also updates pending_actions dict with new tool uses for later correlation.
+    Returns list of new ActionRecords.
+    """
+    actions = []
+    if event.get("type") != "assistant":
+        return actions
+
+    message = event.get("message", {})
+    content = message.get("content", [])
+
+    for block in content:
+        if block.get("type") == "tool_use":
+            action = ActionRecord.from_tool_use(block)
+            actions.append(action)
+            # Track for correlation with tool_result
+            pending_actions[action.tool_use_id] = action
+
+    return actions
+
+
+def update_action_from_result(
+    event: dict,
+    pending_actions: dict[str, ActionRecord]
+) -> None:
+    """Update a pending action with its tool_result.
+
+    Looks for tool_result content blocks and updates the corresponding
+    ActionRecord with output_summary and success status.
+    """
+    if event.get("type") != "user":
+        return
+
+    message = event.get("message", {})
+    content = message.get("content", [])
+
+    for block in content:
+        if block.get("type") == "tool_result":
+            tool_use_id = block.get("tool_use_id", "")
+            if tool_use_id in pending_actions:
+                action = pending_actions[tool_use_id]
+                # Check for error
+                is_error = block.get("is_error", False)
+                action.success = not is_error
+                # Extract output summary
+                result_content = block.get("content", "")
+                if isinstance(result_content, list):
+                    # Handle array of content blocks
+                    text_parts = []
+                    for part in result_content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            text_parts.append(part.get("text", ""))
+                    result_content = "\n".join(text_parts)
+                if isinstance(result_content, str):
+                    # Truncate output summary
+                    if len(result_content) > OUTPUT_SUMMARY_MAX_LENGTH:
+                        action.output_summary = result_content[:OUTPUT_SUMMARY_MAX_LENGTH] + "..."
+                    else:
+                        action.output_summary = result_content
+                # Remove from pending after processing
+                del pending_actions[tool_use_id]
+
+
 def get_latest_commit(cwd: Path) -> Optional[str]:
     """Get the latest commit hash."""
     try:
@@ -417,20 +566,69 @@ def run_iteration(
             after_in_progress=len(before.in_progress_ids)
         )
 
-    # Run claude with line:run skill
-    logger.debug(f"Running claude -p /line:run (timeout={timeout}s)")
+    # Run claude with line:run skill using stream-json for action tracking
+    logger.debug(f"Running claude -p /line:run --output-format stream-json --verbose (timeout={timeout}s)")
     claude_start = time.time()
+    actions: list[ActionRecord] = []
+    pending_actions: dict[str, ActionRecord] = {}
+    output_lines: list[str] = []
+    exit_code = 0
+
     try:
-        result = subprocess.run(
-            ["claude", "-p", "/line:run", "--dangerously-skip-permissions"],
-            capture_output=True,
+        process = subprocess.Popen(
+            ["claude", "-p", "/line:run",
+             "--dangerously-skip-permissions",
+             "--output-format", "stream-json",
+             "--verbose"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,  # Discard stderr to avoid pipe buffer deadlock
             text=True,
-            cwd=cwd,
-            timeout=timeout
+            cwd=cwd
         )
-        logger.debug(f"Claude completed in {time.time()-claude_start:.1f}s, exit={result.returncode}")
-        output = result.stdout + result.stderr
-        exit_code = result.returncode
+
+        # Read stdout line by line with timeout handling
+        deadline = time.time() + timeout
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                # Timeout - kill process and reap to avoid zombie
+                process.kill()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.warning("Process did not terminate after kill")
+                raise subprocess.TimeoutExpired(cmd="claude", timeout=timeout)
+
+            # Check if there's data to read (with small timeout for responsiveness)
+            ready, _, _ = select.select([process.stdout], [], [], min(1.0, remaining))
+            if ready:
+                line = process.stdout.readline()
+                if not line:
+                    # EOF - process finished
+                    break
+                output_lines.append(line)
+                event = parse_stream_json_event(line)
+                if event:
+                    # Extract tool_use from assistant messages
+                    new_actions = extract_actions_from_event(event, pending_actions)
+                    actions.extend(new_actions)
+                    # Update actions with tool_result from user messages
+                    update_action_from_result(event, pending_actions)
+            else:
+                # No data ready - check if process is still running
+                if process.poll() is not None:
+                    break
+
+        # Read any remaining stdout
+        remaining_out = process.stdout.read()
+        if remaining_out:
+            output_lines.extend(remaining_out.splitlines(keepends=True))
+        process.wait()  # Ensure process is reaped
+        exit_code = process.returncode
+
+        logger.debug(f"Claude completed in {time.time()-claude_start:.1f}s, exit={exit_code}, actions={len(actions)}")
+        output = "".join(output_lines)
+
     except subprocess.TimeoutExpired:
         duration = (datetime.now() - start_time).total_seconds()
         after = get_bead_snapshot(cwd)
@@ -448,7 +646,8 @@ def run_iteration(
             before_ready=len(before.ready_ids),
             before_in_progress=len(before.in_progress_ids),
             after_ready=len(after.ready_ids),
-            after_in_progress=len(after.in_progress_ids)
+            after_in_progress=len(after.in_progress_ids),
+            actions=actions  # Include actions captured before timeout
         )
     except Exception as e:
         duration = (datetime.now() - start_time).total_seconds()
@@ -466,7 +665,8 @@ def run_iteration(
             before_ready=len(before.ready_ids),
             before_in_progress=len(before.in_progress_ids),
             after_ready=len(after.ready_ids),
-            after_in_progress=len(after.in_progress_ids)
+            after_in_progress=len(after.in_progress_ids),
+            actions=actions  # Include actions captured before crash
         )
 
     duration = (datetime.now() - start_time).total_seconds()
@@ -518,7 +718,7 @@ def run_iteration(
         outcome = "needs_retry"
         success = False
 
-    logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s")
+    logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s, actions={len(actions)}")
     return IterationResult(
         iteration=iteration,
         task_id=task_id,
@@ -534,7 +734,8 @@ def run_iteration(
         after_in_progress=len(after.in_progress_ids),
         intent=intent,
         before_state=before_state,
-        after_state=after_state
+        after_state=after_state,
+        actions=actions
     )
 
 
@@ -607,8 +808,100 @@ def serialize_iteration_for_status(result: IterationResult) -> dict:
         "intent": result.intent,
         "before_state": result.before_state,
         "after_state": result.after_state,
-        "completed_at": datetime.now().isoformat()
+        "completed_at": datetime.now().isoformat(),
+        # Action counts for watch mode
+        "action_count": result.total_actions,
+        "action_types": result.action_counts
     }
+
+
+def serialize_action(action: ActionRecord) -> dict:
+    """Serialize an ActionRecord for history.json."""
+    return {
+        "tool_name": action.tool_name,
+        "tool_use_id": action.tool_use_id,
+        "input_summary": action.input_summary,
+        "output_summary": action.output_summary,
+        "success": action.success,
+        "timestamp": action.timestamp
+    }
+
+
+def serialize_full_iteration(result: IterationResult) -> dict:
+    """Serialize an IterationResult with full action details for history.json."""
+    return {
+        "iteration": result.iteration,
+        "task_id": result.task_id,
+        "task_title": result.task_title,
+        "outcome": result.outcome,
+        "serve_verdict": result.serve_verdict,
+        "commit_hash": result.commit_hash,
+        "duration_seconds": result.duration_seconds,
+        "success": result.success,
+        "intent": result.intent,
+        "before_state": result.before_state,
+        "after_state": result.after_state,
+        "beads_before": {
+            "ready": result.before_ready,
+            "in_progress": result.before_in_progress
+        },
+        "beads_after": {
+            "ready": result.after_ready,
+            "in_progress": result.after_in_progress
+        },
+        "action_count": result.total_actions,
+        "action_types": result.action_counts,
+        "actions": [serialize_action(a) for a in result.actions]
+    }
+
+
+def append_iteration_to_history(
+    history_file: Path,
+    result: IterationResult,
+    project: str
+):
+    """Append a single iteration record to the history JSONL file.
+
+    Uses JSONL format (one JSON object per line) for efficient append-only writes
+    and streaming reads. Each line contains a complete iteration record.
+    """
+    record = serialize_full_iteration(result)
+    record["project"] = project
+    record["recorded_at"] = datetime.now().isoformat()
+    try:
+        with open(history_file, "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception as e:
+        logger.warning(f"Failed to append to history file: {e}")
+
+
+def write_history_summary(
+    history_file: Path,
+    project: str,
+    started_at: datetime,
+    ended_at: datetime,
+    iteration_count: int,
+    total_actions: int,
+    stop_reason: str
+):
+    """Write a summary record to mark the end of a loop run.
+
+    Written as a special record type at the end of the JSONL file.
+    """
+    summary = {
+        "type": "loop_summary",
+        "project": project,
+        "started_at": started_at.isoformat(),
+        "ended_at": ended_at.isoformat(),
+        "iteration_count": iteration_count,
+        "total_actions": total_actions,
+        "stop_reason": stop_reason
+    }
+    try:
+        with open(history_file, "a") as f:
+            f.write(json.dumps(summary) + "\n")
+    except Exception as e:
+        logger.warning(f"Failed to write history summary: {e}")
 
 
 def write_status_file(
@@ -668,7 +961,8 @@ def run_loop(
     json_output: bool,
     output_file: Optional[Path],
     cwd: Path,
-    status_file: Optional[Path] = None
+    status_file: Optional[Path] = None,
+    history_file: Optional[Path] = None
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat."""
     global _shutdown_requested
@@ -748,6 +1042,15 @@ def run_loop(
                 tasks_remaining=result.after_ready,  # Use data from iteration result
                 started_at=started_at,
                 iterations=iterations
+            )
+
+        # Append iteration to history JSONL file (full action details)
+        if history_file:
+            project_name = cwd.name
+            append_iteration_to_history(
+                history_file=history_file,
+                result=result,
+                project=project_name
             )
 
         # Handle outcome
@@ -842,6 +1145,19 @@ def run_loop(
             started_at=started_at,
             stop_reason=stop_reason,
             iterations=iterations
+        )
+
+    # Write history summary record to mark end of loop
+    if history_file:
+        project_name = cwd.name
+        write_history_summary(
+            history_file=history_file,
+            project=project_name,
+            started_at=started_at,
+            ended_at=ended_at,
+            iteration_count=len(iterations),
+            total_actions=sum(i.total_actions for i in iterations),
+            stop_reason=stop_reason
         )
 
     # Print summary
@@ -992,6 +1308,11 @@ Examples:
         type=Path,
         help="Write live status JSON after each iteration"
     )
+    parser.add_argument(
+        "--history-file",
+        type=Path,
+        help="Write complete history JSONL (one JSON record per line) with all iterations and action details"
+    )
 
     args = parser.parse_args()
 
@@ -1033,7 +1354,8 @@ Examples:
             json_output=args.json,
             output_file=args.output,
             cwd=cwd,
-            status_file=args.status_file
+            status_file=args.status_file,
+            history_file=args.history_file
         )
     finally:
         # Clean up PID file on exit
