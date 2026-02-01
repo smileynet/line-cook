@@ -37,7 +37,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 # Constants
 OUTPUT_SUMMARY_MAX_LENGTH = 200
@@ -428,6 +428,22 @@ def parse_intent_block(output: str) -> tuple[Optional[str], Optional[str], Optio
     return intent, before_state, after_state
 
 
+def parse_bd_json_item(data: Any) -> Optional[dict]:
+    """Extract single item from bd --json response.
+
+    bd commands may return either [{"id": ...}] or {"id": ...}.
+    This helper normalizes both formats to a single dict.
+
+    Returns:
+        The dict item, or None if data is invalid.
+    """
+    if isinstance(data, list) and len(data) > 0:
+        return data[0] if isinstance(data[0], dict) else None
+    elif isinstance(data, dict):
+        return data
+    return None
+
+
 def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[str]:
     """Detect which task was worked on by state diff."""
     # Check for task that moved from ready to in_progress
@@ -458,12 +474,9 @@ def get_task_title(task_id: str, cwd: Path) -> Optional[str]:
         result = run_subprocess(["bd", "show", task_id, "--json"], 30, cwd)
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout)
-            # bd show --json returns a list with one element
-            if isinstance(data, list) and len(data) > 0:
-                issue = data[0]
-            else:
-                issue = data
-            return issue.get("title")
+            issue = parse_bd_json_item(data)
+            if issue:
+                return issue.get("title")
     except subprocess.TimeoutExpired:
         logger.warning(f"Timeout getting title for {task_id}")
     except json.JSONDecodeError as e:
@@ -519,11 +532,8 @@ def check_task_completed(
         try:
             result = run_subprocess(["bd", "show", task_id, "--json"], 10, cwd)
             if result.returncode == 0 and result.stdout.strip():
-                task_data = json.loads(result.stdout)
-                # bd show --json returns a list with one element
-                if isinstance(task_data, list) and len(task_data) > 0:
-                    task_data = task_data[0]
-                if task_data.get("status") == "closed":
+                task_data = parse_bd_json_item(json.loads(result.stdout))
+                if isinstance(task_data, dict) and task_data.get("status") == "closed":
                     definitive_signals.append("bd_status_closed")
         except subprocess.TimeoutExpired:
             logger.debug(f"Timeout checking task status for {task_id}")
@@ -793,10 +803,7 @@ def get_task_info(task_id: str, cwd: Path) -> Optional[dict]:
         result = run_subprocess(["bd", "show", task_id, "--json"], 10, cwd)
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout)
-            # bd show --json returns a list with one element
-            if isinstance(data, list) and len(data) > 0:
-                return data[0]
-            return data
+            return parse_bd_json_item(data)
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
         logger.warning(f"Failed to get task info for {task_id}: {e}")
     except Exception as e:
@@ -813,7 +820,8 @@ def get_children(parent_id: str, cwd: Path) -> list[dict]:
         )
         if result.returncode == 0 and result.stdout.strip():
             children = json.loads(result.stdout)
-            return [c for c in children if isinstance(c, dict)]
+            if isinstance(children, list):
+                return [c for c in children if isinstance(c, dict)]
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
         logger.warning(f"Failed to get children for {parent_id}: {e}")
     except Exception as e:
@@ -928,12 +936,10 @@ def get_epic_summary(epic_id: str, cwd: Path) -> dict:
     try:
         result = run_subprocess(["bd", "show", epic_id, "--json"], 10, cwd)
         if result.returncode == 0 and result.stdout.strip():
-            epic = json.loads(result.stdout)
-            # bd show --json returns a list with one element
-            if isinstance(epic, list) and len(epic) > 0:
-                epic = epic[0]
-            epic_data["title"] = epic.get("title")
-            epic_data["description"] = epic.get("description")
+            epic = parse_bd_json_item(json.loads(result.stdout))
+            if epic:
+                epic_data["title"] = epic.get("title")
+                epic_data["description"] = epic.get("description")
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
         logger.warning(f"Failed to get epic details for {epic_id}: {e}")
     except Exception as e:
@@ -1138,6 +1144,10 @@ def run_iteration(
         logger.info(f"Cook phase attempt {cook_attempts}/{max_cook_retries + 1}")
 
         # Run cook phase
+        retry_info = f" (retry {cook_attempts - 1})" if cook_attempts > 1 else ""
+        if not json_output:
+            print_phase_progress(f"cook{retry_info}", "start")
+
         cook_result = run_phase("cook", cwd)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
@@ -1151,9 +1161,14 @@ def run_iteration(
                 task_info = get_task_info(task_id, cwd)
                 if task_info and task_info.get("status") == "closed":
                     logger.info(f"Cook timed out but task {task_id} was closed")
+                    if not json_output:
+                        print_phase_progress("cook", "done", cook_result.duration_seconds,
+                                           f"{len(cook_result.actions)} actions (timed out but completed)")
                     cook_succeeded = True
                     break
 
+            if not json_output:
+                print_phase_progress("cook", "error", cook_result.duration_seconds, "timeout")
             logger.warning(f"Cook phase timed out on attempt {cook_attempts}")
             if cook_attempts > max_cook_retries:
                 duration = (datetime.now() - start_time).total_seconds()
@@ -1176,10 +1191,18 @@ def run_iteration(
             continue
 
         if not cook_result.success:
+            if not json_output:
+                print_phase_progress("cook", "error", cook_result.duration_seconds,
+                                   cook_result.error or "failed")
             logger.warning(f"Cook phase failed on attempt {cook_attempts}: {cook_result.error}")
             if cook_attempts > max_cook_retries:
                 break
             continue
+
+        # Cook succeeded - print progress (we'll report actions after serve since we continue to serve)
+        if not json_output:
+            print_phase_progress("cook", "done", cook_result.duration_seconds,
+                               f"{len(cook_result.actions)} actions")
 
         # Cook succeeded, detect task
         after_cook = get_bead_snapshot(cwd)
@@ -1191,12 +1214,17 @@ def run_iteration(
 
         # ===== PHASE 2: SERVE =====
         logger.info("Serve phase")
+        if not json_output:
+            print_phase_progress("serve", "start")
+
         serve_result = run_phase("serve", cwd)
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
         all_output.append(serve_result.output)
 
         if serve_result.error:
+            if not json_output:
+                print_phase_progress("serve", "error", serve_result.duration_seconds, "skipped")
             logger.warning(f"Serve phase error: {serve_result.error}")
             # Treat serve errors as SKIPPED - transient, continue
             serve_verdict = "SKIPPED"
@@ -1210,9 +1238,13 @@ def run_iteration(
             logger.info(f"Serve verdict: {serve_verdict}")
 
             if serve_verdict == "APPROVED":
+                if not json_output:
+                    print_phase_progress("serve", "done", serve_result.duration_seconds, "APPROVED")
                 cook_succeeded = True
                 break
             elif serve_verdict == "NEEDS_CHANGES":
+                if not json_output:
+                    print_phase_progress("serve", "done", serve_result.duration_seconds, "NEEDS_CHANGES")
                 logger.info(f"NEEDS_CHANGES - will retry cook (attempt {cook_attempts}/{max_cook_retries + 1})")
                 # Cook will read the rework comment on next attempt
                 if cook_attempts > max_cook_retries:
@@ -1220,6 +1252,8 @@ def run_iteration(
                     break
                 continue
             elif serve_verdict == "BLOCKED":
+                if not json_output:
+                    print_phase_progress("serve", "done", serve_result.duration_seconds, "BLOCKED")
                 logger.warning("Serve returned BLOCKED verdict")
                 duration = (datetime.now() - start_time).total_seconds()
                 after = get_bead_snapshot(cwd)
@@ -1239,6 +1273,8 @@ def run_iteration(
                     actions=all_actions
                 )
             elif serve_verdict == "SKIPPED":
+                if not json_output:
+                    print_phase_progress("serve", "done", serve_result.duration_seconds, "SKIPPED")
                 logger.info("Serve skipped (transient error) - continuing")
                 cook_succeeded = True
                 break
@@ -1246,10 +1282,14 @@ def run_iteration(
             # No SERVE_RESULT found - check signals
             if "serve_approved" in serve_result.signals:
                 serve_verdict = "APPROVED"
+                if not json_output:
+                    print_phase_progress("serve", "done", serve_result.duration_seconds, "APPROVED")
                 cook_succeeded = True
                 break
             elif "serve_needs_changes" in serve_result.signals:
                 serve_verdict = "NEEDS_CHANGES"
+                if not json_output:
+                    print_phase_progress("serve", "done", serve_result.duration_seconds, "NEEDS_CHANGES")
                 if cook_attempts > max_cook_retries:
                     break
                 continue
@@ -1257,6 +1297,8 @@ def run_iteration(
                 # Assume success if serve completed without error
                 logger.debug("No serve verdict found, assuming approved")
                 serve_verdict = "APPROVED"
+                if not json_output:
+                    print_phase_progress("serve", "done", serve_result.duration_seconds, "APPROVED")
                 cook_succeeded = True
                 break
 
@@ -1282,14 +1324,26 @@ def run_iteration(
 
     # ===== PHASE 3: TIDY =====
     logger.info("Tidy phase")
+    if not json_output:
+        print_phase_progress("tidy", "start")
+
     tidy_result = run_phase("tidy", cwd)
     all_actions.extend(tidy_result.actions)
     all_output.append("\n=== TIDY PHASE ===\n")
     all_output.append(tidy_result.output)
 
+    # Get commit hash for tidy completion message
+    commit_hash = get_latest_commit(cwd)
+
     if tidy_result.error:
+        if not json_output:
+            print_phase_progress("tidy", "error", tidy_result.duration_seconds, tidy_result.error or "failed")
         logger.warning(f"Tidy phase error: {tidy_result.error}")
         # Tidy errors are concerning but not fatal
+    else:
+        if not json_output:
+            extra = f"committed {commit_hash[:7]}" if commit_hash else "done"
+            print_phase_progress("tidy", "done", tidy_result.duration_seconds, extra)
 
     # Capture final state
     after = get_bead_snapshot(cwd)
@@ -1312,9 +1366,10 @@ def run_iteration(
         # Check if completing this task completes a feature
         feature_complete, feature_id = check_feature_completion(task_id, cwd)
         if feature_complete and feature_id:
-            logger.info(f"Feature {feature_id} is complete, triggering plate phase")
+            logger.info(f"Feature {feature_id} complete - running plate phase")
             if not json_output:
-                print(f"\n  Feature complete: {feature_id} - triggering plate phase")
+                print(f"\n  Feature complete: {feature_id}")
+                print_phase_progress("plate", "start")
 
             plate_result = run_phase("plate", cwd, args=feature_id)
             all_actions.extend(plate_result.actions)
@@ -1322,12 +1377,19 @@ def run_iteration(
             all_output.append(plate_result.output)
 
             if plate_result.error:
-                logger.warning(f"Plate phase error: {plate_result.error}")
+                if not json_output:
+                    print_phase_progress("plate", "error", plate_result.duration_seconds,
+                                       plate_result.error or "failed")
+                logger.warning(f"Plate phase error for feature {feature_id}: {plate_result.error}")
             else:
+                if not json_output:
+                    print_phase_progress("plate", "done", plate_result.duration_seconds,
+                                       f"feature {feature_id} validated")
+                logger.info(f"Plate phase completed for feature {feature_id}")
                 # Check if completing the feature completes an epic
                 epic_complete, epic_id = check_epic_completion_after_feature(feature_id, cwd)
                 if epic_complete and epic_id:
-                    logger.info(f"Epic {epic_id} is complete")
+                    logger.info(f"Epic {epic_id} complete - all features closed")
                     report = generate_epic_closure_report(epic_id, cwd)
                     if not json_output:
                         print(report)
@@ -1379,6 +1441,26 @@ def format_duration(seconds: float) -> str:
     return f"{hours}h {mins}m"
 
 
+def print_phase_progress(phase: str, status: str, duration: float = 0, extra: str = ""):
+    """Print phase progress indicator.
+
+    Args:
+        phase: Phase name (cook, serve, tidy, plate)
+        status: "start", "done", or "error"
+        duration: Phase duration in seconds (for done/error status)
+        extra: Additional info to append (e.g., action count, verdict)
+    """
+    symbols = {"start": "▶", "done": "✓", "error": "✗"}
+    symbol = symbols.get(status, "?")
+    if status == "start":
+        print(f"  {symbol} {phase.upper()} phase...")
+    else:
+        msg = f"  {symbol} {phase.upper()} complete ({format_duration(duration)})"
+        if extra:
+            msg += f" - {extra}"
+        print(msg)
+
+
 def print_human_iteration(result: IterationResult, retries: int = 0):
     """Print iteration result in human-readable format."""
     # Status indicator
@@ -1409,6 +1491,11 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
     if result.commit_hash:
         details.append(f"Commit: {result.commit_hash}")
     print(f"  {' | '.join(details)}")
+
+    # Action summary
+    if result.total_actions > 0:
+        action_parts = [f"{name}: {count}" for name, count in sorted(result.action_counts.items())]
+        print(f"  Actions: {result.total_actions} total ({', '.join(action_parts)})")
 
     # Bead state changes
     ready_delta = result.after_ready - result.before_ready
@@ -1855,7 +1942,7 @@ def run_loop(
             current_task=iterations[-1].task_id if iterations else None,
             last_verdict=iterations[-1].serve_verdict if iterations else None,
             tasks_completed=completed_count,
-            tasks_remaining=len(final_snapshot.ready_ids),
+            tasks_remaining=len(final_snapshot.ready_work_ids),
             started_at=started_at,
             stop_reason=stop_reason,
             iterations=iterations
@@ -1887,9 +1974,14 @@ def run_loop(
         if iterations:
             print(f"Success rate: {metrics.success_rate:.0%} | P50: {format_duration(metrics.p50_duration)} | P95: {format_duration(metrics.p95_duration)}")
 
-        # Final state
+        # Final state (show work items, note if epics remain)
         final_snapshot = get_bead_snapshot(cwd)
-        print(f"Remaining ready: {len(final_snapshot.ready_ids)}")
+        work_count = len(final_snapshot.ready_work_ids)
+        epic_count = len(final_snapshot.ready_ids) - work_count
+        if epic_count > 0:
+            print(f"Remaining ready: {work_count} work items ({epic_count} epics)")
+        else:
+            print(f"Remaining ready: {work_count}")
 
     # Output JSON
     if json_output or output_file:
