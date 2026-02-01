@@ -17,32 +17,19 @@ Before diving in, understand two key ideas:
 ## Quick Start
 
 ```bash
-# 1. Initialize beads in your project
-bd init
+# 1. Install beads (git-native issue tracker)
+brew install steveyegge/beads/bd && bd init
 
-# 2. Create some tasks
-bd create --title="Implement user auth" --type=feature --priority=1
-bd create --title="Add login form" --type=task
+# 2. Plan your work
+/line:mise
 
-# 3. Run the workflow
+# 3. Execute the workflow
 /line:run
 ```
 
 That's it. Line Cook syncs your repo, picks a ready task, executes it with guardrails, reviews the work, and commits when done.
 
 > **New to Line Cook?** Run `/line:getting-started` for a quick workflow guide.
-
-## What is Beads?
-
-[Beads](https://github.com/steveyegge/beads) is a git-native issue tracker. Issues live in your repository as files, travel with your code, and work offline.
-
-**Why git-native issues?**
-- **Memory between sessions** - AI forgets, beads remember. When context clears, your work history persists.
-- **Travels with code** - Clone a repo, get its issues. No separate system to sync.
-- **AI-friendly** - Issues are plain text files the AI can read and update directly.
-- **Works offline** - No external service required.
-
-Line Cook orchestrates beads execution—it picks tasks, runs the work cycle, and files discoveries as new issues.
 
 ## When NOT to Use Line Cook
 
@@ -156,7 +143,7 @@ Once comfortable with each step, use `/line:run` to run them all together.
 ## Installation
 
 > **Requires:**
-> - [beads](https://github.com/steveyegge/beads): `brew install steveyegge/beads/bd` (or see repo for npm/go options)
+> - [beads](https://github.com/steveyegge/beads) - Git-native issue tracker that gives AI memory between sessions: `brew install steveyegge/beads/bd` (or see repo for npm/go options)
 > - Git
 > - Claude Code or OpenCode
 
