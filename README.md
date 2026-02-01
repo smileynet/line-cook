@@ -16,11 +16,11 @@ Before diving in, understand two key ideas:
 
 ## Quick Start
 
-After [installing](#installation) the Line Cook plugin:
+After [installing](#installation) Line Cook and beads:
 
 ```bash
-# 1. Install beads (git-native issue tracker)
-brew install steveyegge/beads/bd && bd init
+# 1. Initialize beads in your project
+bd init
 
 # 2. Plan your work
 /line:mise
@@ -144,12 +144,21 @@ Once comfortable with each step, use `/line:run` to run them all together.
 
 ## Installation
 
-> **Requires:**
-> - [beads](https://github.com/steveyegge/beads) - Git-native issue tracker that gives AI memory between sessions: `brew install steveyegge/beads/bd` (or see repo for npm/go options)
-> - Git
-> - Claude Code or OpenCode
+### 1. Install beads
 
-### Claude Code
+[Beads](https://github.com/steveyegge/beads) is the git-native issue tracker that gives AI memory between sessions.
+
+```bash
+brew install steveyegge/beads/bd
+```
+
+See [beads repo](https://github.com/steveyegge/beads) for npm/go options.
+
+### 2. Install Line Cook
+
+Choose your editor:
+
+#### Claude Code
 
 **Remote (recommended):**
 ```bash
@@ -169,7 +178,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:scope`, `/line:finalize`, `/line:audit`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
-### OpenCode
+#### OpenCode
 
 **Remote:**
 ```bash
@@ -186,7 +195,7 @@ cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 
 Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-audit`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
 
-### Kiro
+#### Kiro
 
 Copy the `line-cook-kiro/` directory to your `.kiro/` folder:
 
