@@ -293,9 +293,11 @@ CURRENT: Iteration 3
 RECENT MILESTONES
 ───────────────────────────────────────
 [10:15] ✓ lc-041 APPROVED (3m 45s) → a1b2c3d
+        Intent: Increase timeout for large repos
         Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
         No timeout config → Configurable timeout
 [10:11] ✓ lc-040 APPROVED (4m 12s) → e4f5g6h
+        Intent: Support environment-based configuration
         Actions: 12 (5 Read, 4 Edit, 2 Bash, 1 Glob)
         Hardcoded values → Environment variables
 
@@ -320,6 +322,7 @@ For each entry in `recent_iterations` (from status.json):
 - Show verdict symbol: ✓ for APPROVED, ✗ for NEEDS_CHANGES, ⚠ for BLOCKED
 - Show task_id and verdict
 - Show duration and commit hash
+- Show intent (why the change was made)
 - Show action summary (total count and breakdown by type from action_types)
 - Show before_state → after_state if available
 
