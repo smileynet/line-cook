@@ -594,6 +594,23 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         print(f"\n  Retrying ({retries})...")
 
 
+def serialize_iteration_for_status(result: IterationResult) -> dict:
+    """Serialize an IterationResult for the status file's recent_iterations array."""
+    return {
+        "iteration": result.iteration,
+        "task_id": result.task_id,
+        "task_title": result.task_title,
+        "outcome": result.outcome,
+        "serve_verdict": result.serve_verdict,
+        "commit_hash": result.commit_hash,
+        "duration_seconds": result.duration_seconds,
+        "intent": result.intent,
+        "before_state": result.before_state,
+        "after_state": result.after_state,
+        "completed_at": datetime.now().isoformat()
+    }
+
+
 def write_status_file(
     status_file: Path,
     running: bool,
@@ -604,9 +621,14 @@ def write_status_file(
     tasks_completed: int,
     tasks_remaining: int,
     started_at: datetime,
-    stop_reason: Optional[str] = None
+    stop_reason: Optional[str] = None,
+    iterations: Optional[list] = None
 ):
-    """Write live status JSON for external monitoring."""
+    """Write live status JSON for external monitoring.
+
+    Includes recent_iterations array with last 5 completed iterations
+    for watch mode milestone display.
+    """
     status = {
         "running": running,
         "iteration": iteration,
@@ -620,6 +642,17 @@ def write_status_file(
     }
     if stop_reason:
         status["stop_reason"] = stop_reason
+
+    # Add recent_iterations (last 5 completed iterations)
+    if iterations:
+        completed = [i for i in iterations if i.outcome == "completed"]
+        recent = completed[-5:] if len(completed) > 5 else completed
+        status["recent_iterations"] = [
+            serialize_iteration_for_status(i) for i in recent
+        ]
+    else:
+        status["recent_iterations"] = []
+
     try:
         status_file.write_text(json.dumps(status, indent=2))
     except Exception as e:
@@ -713,7 +746,8 @@ def run_loop(
                 last_verdict=result.serve_verdict,
                 tasks_completed=completed_count + (1 if result.success else 0),
                 tasks_remaining=result.after_ready,  # Use data from iteration result
-                started_at=started_at
+                started_at=started_at,
+                iterations=iterations
             )
 
         # Handle outcome
@@ -806,7 +840,8 @@ def run_loop(
             tasks_completed=completed_count,
             tasks_remaining=len(final_snapshot.ready_ids),
             started_at=started_at,
-            stop_reason=stop_reason
+            stop_reason=stop_reason,
+            iterations=iterations
         )
 
     # Print summary

@@ -8,8 +8,10 @@ allowed-tools: Bash, Read, Glob
 **Control the autonomous line-loop process from Claude Code's TUI.** Provides start/status/stop/tail subcommands for managing background loop execution.
 
 **Arguments:** `$ARGUMENTS` contains the subcommand and options:
+- *(no args)* - Smart default: watch if running, start if not
 - `start [--max-iterations N] [--timeout T]` - Start loop in background
-- `status` - Check current loop progress
+- `watch` - Live progress with milestones and context
+- `status` - One-shot status check
 - `stop` - Gracefully stop running loop
 - `tail [--lines N]` - Show recent log output
 
@@ -53,11 +55,15 @@ Extract the subcommand from `$ARGUMENTS`:
 $ARGUMENTS examples:
   "start"                      -> subcommand: start
   "start --max-iterations 10"  -> subcommand: start, max_iterations: 10
+  "watch"                      -> subcommand: watch
   "status"                     -> subcommand: status
   "stop"                       -> subcommand: stop
   "tail"                       -> subcommand: tail
   "tail --lines 100"           -> subcommand: tail, lines: 100
-  ""                           -> default to "status" if loop running, else show help
+  "help"                       -> subcommand: help
+  ""                           -> smart default: check if running
+                                  - If running: invoke watch
+                                  - If not running: invoke start with defaults
 ```
 
 ---
@@ -226,6 +232,121 @@ Start a loop with:
 
 ---
 
+## Subcommand: watch
+
+Watch mode provides unified progress monitoring with milestones and context from completed iterations.
+
+### Check Running State
+
+Same as status - verify the loop is running first.
+
+### Read Status File
+
+Use the Read tool to read `$LOOP_DIR/status.json`. The status file includes:
+
+```json
+{
+  "running": true,
+  "iteration": 3,
+  "max_iterations": 25,
+  "current_task": "lc-042",
+  "last_verdict": "APPROVED",
+  "tasks_completed": 2,
+  "tasks_remaining": 5,
+  "started_at": "2026-02-01T10:00:00",
+  "last_update": "2026-02-01T10:15:20",
+  "recent_iterations": [
+    {
+      "iteration": 2,
+      "task_id": "lc-041",
+      "task_title": "Fix timeout handling",
+      "outcome": "completed",
+      "serve_verdict": "APPROVED",
+      "commit_hash": "a1b2c3d",
+      "duration_seconds": 225,
+      "intent": "Increase timeout for large repos",
+      "before_state": "No timeout config",
+      "after_state": "Configurable timeout",
+      "completed_at": "2026-02-01T10:15:20"
+    }
+  ]
+}
+```
+
+### Format Watch Output
+
+```
+LOOP WATCH: <project> (PID: <pid>)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Progress: ██████░░░░░░░░░░░░░░ 3/25
+Completed: 2 | Remaining: 5 | Runtime: 15m 30s
+
+CURRENT: Iteration 3
+  Task: lc-042 - Fix timeout handling
+  Status: COOKING... (2m 10s)
+
+RECENT MILESTONES
+───────────────────────────────────────
+[10:15] ✓ lc-041 APPROVED (3m 45s) → a1b2c3d
+        No timeout config → Configurable timeout
+[10:11] ✓ lc-040 APPROVED (4m 12s) → e4f5g6h
+        Hardcoded values → Environment variables
+
+RECENT LOG
+───────────────────────────────────────
+<last 20 lines of loop.log>
+
+Refresh: /line:loop watch | Stop: /line:loop stop
+```
+
+### Progress Bar Calculation
+
+```python
+filled = int((iteration / max_iterations) * 20)
+bar = "█" * filled + "░" * (20 - filled)
+```
+
+### Milestones from recent_iterations
+
+For each entry in `recent_iterations` (from status.json):
+- Show timestamp (completed_at formatted as HH:MM)
+- Show verdict symbol: ✓ for APPROVED, ✗ for NEEDS_CHANGES, ⚠ for BLOCKED
+- Show task_id and verdict
+- Show duration and commit hash
+- Show before_state → after_state if available
+
+### Runtime Calculation
+
+Calculate runtime from `started_at` in status.json:
+```bash
+START_TIME=$(jq -r '.started_at' "$LOOP_DIR/status.json")
+RUNTIME=$(( $(date +%s) - $(date -d "$START_TIME" +%s) ))
+```
+
+Format as human-readable (e.g., "15m 30s").
+
+### Log Tail
+
+Include last 20 lines of `$LOOP_DIR/loop.log` at the bottom.
+
+### If Not Running
+
+If the loop is not running, show the final status instead:
+```
+LOOP WATCH: <project> (STOPPED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Final: ████████████████████ 8/25
+Completed: 6 | Failed: 2 | Stop reason: no_tasks
+
+FINAL MILESTONES
+───────────────────────────────────────
+<last 5 completed iterations>
+
+Start a new loop: /line:loop start
+```
+
+---
+
 ## Subcommand: stop
 
 ### Check if Running
@@ -308,28 +429,33 @@ Display the raw log output.
 
 ## Help Output
 
-If no arguments provided and no loop is running:
+If `help` is passed as an argument:
 
 ```
 /line:loop - Manage autonomous loop execution
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Usage:
+  /line:loop                           # Smart default (watch if running, start if not)
+  /line:loop watch                     # Live progress with milestones
   /line:loop start [--max-iterations N] [--timeout T]
-  /line:loop status
-  /line:loop stop
-  /line:loop tail [--lines N]
+  /line:loop status                    # One-shot status check
+  /line:loop stop                      # Gracefully stop
+  /line:loop tail [--lines N]          # View log output
 
 Commands:
+  (none)  Smart default - watch if loop running, start if not
+  watch   Live progress with milestones and before/after context
   start   Launch loop in background (default: 25 iterations, 600s timeout)
-  status  Check current loop progress
+  status  One-shot status check
   stop    Gracefully stop running loop
   tail    Show recent log output (default: 50 lines)
 
 Examples:
-  /line:loop start                    # Start with defaults
+  /line:loop                          # Start or watch (smart default)
+  /line:loop watch                    # Monitor progress with context
   /line:loop start --max-iterations 5 # Quick test run
-  /line:loop status                   # Check progress
+  /line:loop status                   # One-shot status check
   /line:loop tail --lines 100         # View more log output
   /line:loop stop                     # Stop gracefully
 
