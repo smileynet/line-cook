@@ -104,7 +104,7 @@ Where:
 
 **Check remaining tasks:**
 ```bash
-bd ready | grep -c "^\[●"
+bd ready | grep -c "^[0-9]"
 ```
 
 Return to Step 2.
