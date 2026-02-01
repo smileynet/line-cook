@@ -644,6 +644,9 @@ def update_action_from_result(
                         action.output_summary = result_content[:OUTPUT_SUMMARY_MAX_LENGTH] + "..."
                     else:
                         action.output_summary = result_content
+                    # Prefix with ERROR: if this was an error result
+                    if is_error and not action.output_summary.startswith("ERROR:"):
+                        action.output_summary = f"ERROR: {action.output_summary}"
                 # Remove from pending after processing
                 del pending_actions[tool_use_id]
 
@@ -1293,19 +1296,51 @@ def run_iteration(
                 if cook_attempts > max_cook_retries:
                     break
                 continue
-            else:
-                # Assume success if serve completed without error
-                logger.debug("No serve verdict found, assuming approved")
-                serve_verdict = "APPROVED"
+            elif "serve_blocked" in serve_result.signals:
+                serve_verdict = "BLOCKED"
                 if not json_output:
-                    print_phase_progress("serve", "done", serve_result.duration_seconds, "APPROVED")
-                cook_succeeded = True
-                break
+                    print_phase_progress("serve", "done", serve_result.duration_seconds, "BLOCKED")
+                logger.warning("Serve returned BLOCKED verdict (from signal)")
+                duration = (datetime.now() - start_time).total_seconds()
+                after = get_bead_snapshot(cwd)
+                return IterationResult(
+                    iteration=iteration,
+                    task_id=task_id,
+                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    outcome="blocked",
+                    duration_seconds=duration,
+                    serve_verdict="BLOCKED",
+                    commit_hash=get_latest_commit(cwd),
+                    success=False,
+                    before_ready=len(before.ready_ids),
+                    before_in_progress=len(before.in_progress_ids),
+                    after_ready=len(after.ready_ids),
+                    after_in_progress=len(after.in_progress_ids),
+                    actions=all_actions
+                )
+            else:
+                # No verdict parsed and no signals detected - retry full cook→serve cycle
+                # (serve-only retry not supported; full cycle ensures clean state)
+                if cook_attempts <= max_cook_retries:
+                    logger.warning("Could not parse serve verdict, retrying cook→serve cycle")
+                    if not json_output:
+                        print_phase_progress("serve", "error", serve_result.duration_seconds, "no verdict, retrying")
+                    continue
+                else:
+                    # Max retries reached - fail conservatively
+                    logger.warning("Could not parse serve verdict after max retries")
+                    serve_verdict = None
+                    if not json_output:
+                        print_phase_progress("serve", "error", serve_result.duration_seconds, "no verdict")
+                    break
 
     # Check if we exhausted retries
     if not cook_succeeded:
         duration = (datetime.now() - start_time).total_seconds()
-        after = get_bead_snapshot(cwd)
+        # Safety fallback: after snapshot may be None if we failed before any snapshot
+        # was taken (e.g., immediate cook failure before post-cook snapshot)
+        if after is None:
+            after = get_bead_snapshot(cwd)
         return IterationResult(
             iteration=iteration,
             task_id=task_id,
@@ -1317,8 +1352,8 @@ def run_iteration(
             success=False,
             before_ready=len(before.ready_ids),
             before_in_progress=len(before.in_progress_ids),
-            after_ready=len(after.ready_ids) if after else len(before.ready_ids),
-            after_in_progress=len(after.in_progress_ids) if after else len(before.in_progress_ids),
+            after_ready=len(after.ready_ids),
+            after_in_progress=len(after.in_progress_ids),
             actions=all_actions
         )
 
@@ -1796,8 +1831,13 @@ def run_loop(
         )
         iterations.append(result)
 
-        # Record result for circuit breaker
-        circuit_breaker.record(result.success)
+        # Circuit breaker: track failures, reset on success
+        if result.success:
+            # Reset on success to give fresh chances after recovery
+            circuit_breaker.reset()
+        else:
+            # Only record failures for tracking
+            circuit_breaker.record(False)
 
         if not json_output:
             print_human_iteration(result, current_retries)

@@ -740,6 +740,86 @@ Start a loop to begin recording:
 
 ---
 
+## Circuit Breaker Behavior
+
+The loop includes a circuit breaker to prevent runaway failures:
+
+- **Threshold:** 5 consecutive failures within a 10-iteration window
+- **Triggers on:** Any non-success outcome (timeout, blocked, needs_retry after max retries)
+- **Reset on success:** After any successful iteration, the failure window resets
+- **Exit code:** 3 when circuit breaker trips
+
+When the circuit breaker trips, the loop stops with a message indicating too many consecutive failures. Check the logs (`/line:loop tail --lines 100`) to understand what's failing.
+
+---
+
+## Epic Completion Workflow
+
+When the loop completes tasks that roll up into epics, it automatically detects and celebrates epic completion:
+
+### Automatic Detection
+
+After each successful iteration:
+1. Check if the completed task's parent feature has all tasks closed
+2. If feature complete, run `/line:plate` for acceptance validation
+3. Check if the completed feature's parent epic has all features closed
+4. If epic complete, display an epic closure report
+
+### Epic Closure Report
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║  EPIC COMPLETE: beads-001 - Implement User Authentication    ║
+╚══════════════════════════════════════════════════════════════╝
+
+Intent: Add secure user authentication to the application
+
+Features delivered (3):
+  [x] beads-010: Login flow
+  [x] beads-011: Session management
+  [x] beads-012: Password reset
+
+Summary: Completed 3 features under this epic.
+
+══════════════════════════════════════════════════════════════
+```
+
+### Break on Epic
+
+Use `--break-on-epic` flag to pause the loop when an epic completes:
+
+```bash
+python line-loop.py --break-on-epic
+```
+
+This gives you a natural checkpoint to review progress before continuing.
+
+---
+
+## Retry Mechanism
+
+### Cook Phase Retries
+
+When the serve phase returns `NEEDS_CHANGES`:
+1. The cook phase is retried (up to `--max-retries`, default 2)
+2. Each retry reads any rework comments from the previous serve
+3. Exponential backoff applies between retries (2s, 4s, 8s... capped at 60s)
+
+### Serve Parse Failure
+
+If the serve output cannot be parsed to extract a verdict:
+1. The full cook→serve cycle is retried (using the same attempt counter)
+2. This ensures we don't incorrectly assume success or failure
+3. If max retries exhausted without a verdict, the iteration fails conservatively
+
+### Transient Errors
+
+Some errors are treated as transient and don't count toward retries:
+- Serve phase errors (network issues, claude crashes) → `SKIPPED` verdict, iteration continues
+- These allow the loop to self-heal from temporary infrastructure issues
+
+---
+
 ## Design Notes
 
 This skill provides TUI-friendly management of the autonomous loop:
