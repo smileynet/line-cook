@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.8.6] - 2026-02-01
 ### Changed
 - `sous-chef` agent enhanced with detailed step-by-step review process and proactive invocation examples
 - All review agents (`sous-chef`, `taster`, `maitre`) now use Opus model for higher quality reviews
@@ -171,7 +173,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.8.5...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.8.6...HEAD
+[0.8.6]: https://github.com/smileynet/line-cook/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/smileynet/line-cook/compare/v0.8.4...v0.8.5
 [0.8.3]: https://github.com/smileynet/line-cook/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/smileynet/line-cook/compare/v0.8.1...v0.8.2
