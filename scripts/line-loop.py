@@ -457,7 +457,12 @@ def get_task_title(task_id: str, cwd: Path) -> Optional[str]:
     try:
         result = run_subprocess(["bd", "show", task_id, "--json"], 30, cwd)
         if result.returncode == 0 and result.stdout.strip():
-            issue = json.loads(result.stdout)
+            data = json.loads(result.stdout)
+            # bd show --json returns a list with one element
+            if isinstance(data, list) and len(data) > 0:
+                issue = data[0]
+            else:
+                issue = data
             return issue.get("title")
     except subprocess.TimeoutExpired:
         logger.warning(f"Timeout getting title for {task_id}")
@@ -515,6 +520,9 @@ def check_task_completed(
             result = run_subprocess(["bd", "show", task_id, "--json"], 10, cwd)
             if result.returncode == 0 and result.stdout.strip():
                 task_data = json.loads(result.stdout)
+                # bd show --json returns a list with one element
+                if isinstance(task_data, list) and len(task_data) > 0:
+                    task_data = task_data[0]
                 if task_data.get("status") == "closed":
                     definitive_signals.append("bd_status_closed")
         except subprocess.TimeoutExpired:
@@ -784,7 +792,11 @@ def get_task_info(task_id: str, cwd: Path) -> Optional[dict]:
     try:
         result = run_subprocess(["bd", "show", task_id, "--json"], 10, cwd)
         if result.returncode == 0 and result.stdout.strip():
-            return json.loads(result.stdout)
+            data = json.loads(result.stdout)
+            # bd show --json returns a list with one element
+            if isinstance(data, list) and len(data) > 0:
+                return data[0]
+            return data
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
         logger.warning(f"Failed to get task info for {task_id}: {e}")
     except Exception as e:
@@ -917,6 +929,9 @@ def get_epic_summary(epic_id: str, cwd: Path) -> dict:
         result = run_subprocess(["bd", "show", epic_id, "--json"], 10, cwd)
         if result.returncode == 0 and result.stdout.strip():
             epic = json.loads(result.stdout)
+            # bd show --json returns a list with one element
+            if isinstance(epic, list) and len(epic) > 0:
+                epic = epic[0]
             epic_data["title"] = epic.get("title")
             epic_data["description"] = epic.get("description")
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
@@ -1171,10 +1186,8 @@ def run_iteration(
         task_id = detect_worked_task(before, after_cook)
         logger.debug(f"Detected task: {task_id}")
 
-        # Check for KITCHEN_COMPLETE signal
-        if "kitchen_complete" in cook_result.signals:
-            cook_succeeded = True
-            break
+        # Note: KITCHEN_COMPLETE signal indicates cook is confident, but we
+        # still run serve for code review validation
 
         # ===== PHASE 2: SERVE =====
         logger.info("Serve phase")
