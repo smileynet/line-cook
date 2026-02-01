@@ -142,6 +142,16 @@ Claude Code subagents are specialized review agents invoked during workflow phas
 | **sous-chef** | Serve | Reviews code changes |
 | **maître** | Plate | Reviews feature acceptance |
 
+### Project-Specific Agents (.claude/agents/)
+
+Agents for Line Cook development (not shipped with the plugin):
+
+| Agent | Purpose |
+|-------|---------|
+| **release-editor** | Interactive release coordinator for preparing new versions |
+
+> **Note:** The shipped `agents/sous-chef.md` is used directly for this project (no local override).
+
 ### OpenCode Plugin (line-cook-opencode/)
 
 OpenCode plugin uses OpenCode's built-in agent system:
@@ -356,7 +366,10 @@ bd list --parent=<epic-id> --all  # Include closed children
 
 ```
 line-cook/
-├── agents/                # Claude Code subagent definitions
+├── .claude/
+│   └── agents/            # Project-specific agents (not shipped)
+│       └── release-editor.md  # Release coordinator
+├── agents/                # Claude Code subagent definitions (shipped)
 │   ├── taster.md          # Test quality review (cook RED phase)
 │   ├── sous-chef.md       # Code review (serve phase)
 │   └── maitre.md          # BDD test review (plate phase)
