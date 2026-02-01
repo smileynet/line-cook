@@ -32,3 +32,22 @@ Feature: Execute multiple tasks autonomously
     When the action is performed
     Then outputs final summary with completed/failed counts
 
+  Scenario: Respects --max-iterations limit
+    Given 10 ready tasks exist
+    And the loop is invoked with "--max-iterations 3"
+    When the loop executes
+    Then exactly 3 tasks are processed
+    And the final summary shows "Iterations: 3 / 3"
+    And the status shows "Iteration Limit Reached"
+    And remaining ready tasks count is shown
+
+  Scenario: Uses default iteration limit of 25
+    Given no iteration limit is specified
+    When the loop is invoked
+    Then the maximum iterations defaults to 25
+
+  Scenario: Supports short form -n flag
+    Given the loop is invoked with "-n 5"
+    When the loop executes
+    Then the maximum iterations is set to 5
+
