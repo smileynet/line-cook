@@ -363,11 +363,11 @@ def run_iteration(
     kitchen_complete = detect_kitchen_complete(output)
     commit_hash = get_latest_commit(cwd)
 
-    # Determine outcome
-    if exit_code != 0:
-        outcome = "crashed"
-        success = False
-    elif serve_result:
+    # Determine outcome - prioritize bead state changes over exit code
+    new_closed = set(after.closed_ids) - set(before.closed_ids)
+    task_closed = bool(new_closed)
+
+    if serve_result:
         if serve_result.verdict == "APPROVED":
             outcome = "completed"
             success = True
@@ -378,20 +378,22 @@ def run_iteration(
             outcome = "blocked"
             success = False
         else:  # SKIPPED or unknown
-            outcome = "completed" if kitchen_complete else "needs_retry"
-            success = kitchen_complete
+            outcome = "completed" if (kitchen_complete or task_closed) else "needs_retry"
+            success = kitchen_complete or task_closed
+    elif task_closed:
+        # Task was closed - this is the most reliable success indicator
+        outcome = "completed"
+        success = True
     elif kitchen_complete:
         outcome = "completed"
         success = True
+    elif exit_code != 0:
+        outcome = "crashed"
+        success = False
     else:
-        # Check if a task was closed
-        new_closed = set(after.closed_ids) - set(before.closed_ids)
-        if new_closed:
-            outcome = "completed"
-            success = True
-        else:
-            outcome = "crashed"
-            success = False
+        # No clear signal - assume needs retry
+        outcome = "needs_retry"
+        success = False
 
     return IterationResult(
         iteration=iteration,
