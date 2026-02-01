@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 # Requires Python 3.9+ for dataclasses and type hints (list[str] syntax)
-"""Line Cook autonomous loop - runs /line:run until no tasks remain.
+"""Line Cook autonomous loop - runs individual phase skills until no tasks remain.
 
 Provides robust feedback through bead state tracking and SERVE_RESULT parsing.
+
+Platform Support:
+    Linux, macOS, WSL - Fully supported
+    Windows - NOT supported (select.select() requires Unix file descriptors)
 
 Data Flow Architecture:
     BeadSnapshot - Captures ready/in_progress/closed task IDs at a point in time.
@@ -1056,7 +1060,6 @@ def run_iteration(
     iteration: int,
     max_iterations: int,
     cwd: Path,
-    timeout: int,
     max_cook_retries: int = 2,
     json_output: bool = False
 ) -> IterationResult:
@@ -1066,11 +1069,13 @@ def run_iteration(
     enabling better error detection, retry on NEEDS_CHANGES, and feature/epic
     completion triggers.
 
+    Phase timeouts are controlled by PHASE_TIMEOUTS dict (cook=600s, serve=300s,
+    tidy=120s, plate=300s).
+
     Args:
         iteration: Current iteration number
         max_iterations: Maximum iterations for logging
         cwd: Working directory
-        timeout: Per-iteration timeout (used for legacy fallback)
         max_cook_retries: Max retries on NEEDS_CHANGES verdict
         json_output: If True, suppress human-readable phase output
     """
@@ -1107,6 +1112,7 @@ def run_iteration(
     all_output: list[str] = []
     serve_verdict: Optional[str] = None
     task_id: Optional[str] = None
+    after: Optional[BeadSnapshot] = None  # Will be set during phase execution
 
     # ===== PHASE 1: COOK (with retry loop) =====
     cook_attempts = 0
@@ -1256,8 +1262,8 @@ def run_iteration(
             success=False,
             before_ready=len(before.ready_ids),
             before_in_progress=len(before.in_progress_ids),
-            after_ready=len(after.ready_ids) if 'after' in dir() else len(before.ready_ids),
-            after_in_progress=len(after.in_progress_ids) if 'after' in dir() else len(before.in_progress_ids),
+            after_ready=len(after.ready_ids) if after else len(before.ready_ids),
+            after_in_progress=len(after.in_progress_ids) if after else len(before.in_progress_ids),
             actions=all_actions
         )
 
@@ -1603,7 +1609,7 @@ def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
 
 def run_loop(
     max_iterations: int,
-    timeout: int,
+    timeout: int,  # Deprecated: phases use PHASE_TIMEOUTS instead
     stop_on_blocked: bool,
     stop_on_crash: bool,
     max_retries: int,
@@ -1615,7 +1621,11 @@ def run_loop(
     break_on_epic: bool = False,
     skip_initial_sync: bool = False
 ) -> LoopReport:
-    """Main loop: check ready, run iteration, handle outcome, repeat."""
+    """Main loop: check ready, run iteration, handle outcome, repeat.
+
+    Note: The timeout parameter is kept for CLI compatibility but is no longer
+    used. Individual phases have their own timeouts via PHASE_TIMEOUTS.
+    """
     global _shutdown_requested
 
     started_at = datetime.now()
@@ -1625,7 +1635,7 @@ def run_loop(
     stop_reason = "unknown"
     circuit_breaker = CircuitBreaker()
 
-    logger.info(f"Loop starting: max_iterations={max_iterations}, timeout={timeout}s")
+    logger.info(f"Loop starting: max_iterations={max_iterations}")
 
     if not json_output:
         print(f"Line Cook Loop starting (max {max_iterations} iterations)")
@@ -1680,7 +1690,7 @@ def run_loop(
 
         # Run iteration with individual phase invocations
         result = run_iteration(
-            iteration, max_iterations, cwd, timeout,
+            iteration, max_iterations, cwd,
             max_cook_retries=max_retries,
             json_output=json_output
         )
