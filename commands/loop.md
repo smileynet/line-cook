@@ -18,6 +18,158 @@ allowed-tools: Bash, Read, Glob
 
 ---
 
+## Quick Start
+
+### Learning Path (Recommended)
+
+Before using `/line:loop`, familiarize yourself with the individual phases:
+
+**1. Start with individual phases:**
+```
+/line:prep       # Check ready tasks, sync state
+/line:cook       # Execute one task interactively
+/line:serve      # Review changes before commit
+/line:tidy       # Commit and push changes
+```
+Run these manually a few times to understand the workflow.
+
+**2. Then try the combined run:**
+```
+/line:run        # Runs prep → cook → serve → tidy for one task
+```
+This completes a single task cycle with your oversight.
+
+**3. Finally, use loop for autonomous execution:**
+```
+/line:loop       # Runs multiple iterations unattended
+```
+
+### Using /line:loop
+
+**Default (auto-detect):**
+```
+/line:loop
+```
+Starts a loop if none running, or shows watch mode if already running.
+
+**Monitor a running loop:**
+```
+/line:loop watch
+```
+Shows live progress with milestones, action counts, and before/after context.
+
+**Start with limited iterations (good for testing):**
+```
+/line:loop start --max-iterations 5
+```
+
+---
+
+## Command Selection Guide
+
+| Scenario | Command |
+|----------|---------|
+| First time / unsure | `/line:loop` (smart default) |
+| Monitor with context | `/line:loop watch` |
+| Quick status check | `/line:loop status` |
+| Debug issues | `/line:loop tail --lines 100` |
+| Review what happened | `/line:loop history --actions` |
+| Stop gracefully | `/line:loop stop` |
+| Custom iteration limit | `/line:loop start --max-iterations N` |
+
+---
+
+## Understanding Output
+
+### Phase Progress Indicators
+
+During each iteration, you'll see phase progress:
+```
+  ▶ COOK phase...
+  ✓ COOK complete (23.5s) - 5 actions
+  ▶ SERVE phase...
+  ✓ SERVE complete (8.2s) - APPROVED
+  ▶ TIDY phase...
+  ✓ TIDY complete (4.1s) - committed a3f8b2c
+```
+
+| Symbol | Meaning |
+|--------|---------|
+| ▶ | Phase starting |
+| ✓ | Phase completed successfully |
+| ✗ | Phase encountered an error |
+
+### Iteration Summary
+
+After each iteration completes:
+```
+  [OK] lc-042: Fix timeout handling
+  Intent: Increase timeout for large repos
+  Before: No timeout config
+  After:  Configurable timeout
+  Duration: 45.2s | Verdict: APPROVED | Commit: a3f8b2c
+  Actions: 12 total (Read: 4, Edit: 3, Bash: 3, Grep: 2)
+
+  Beads: ready 5→4 | in_progress 0→0 | closed +1
+```
+
+| Status | Meaning |
+|--------|---------|
+| [OK] | Task completed and committed |
+| [RETRY] | Task needs changes, will retry |
+| [BLOCKED] | Task blocked, cannot proceed |
+| [TIMEOUT] | Phase timed out |
+| [DONE] | No more work items ready |
+
+### Action Breakdown
+
+The `Actions:` line shows tool usage during the iteration:
+- **Total count** followed by breakdown by tool type
+- Sorted alphabetically by tool name
+- Only non-zero counts shown
+
+---
+
+## Help Output
+
+If `help` is passed as an argument:
+
+```
+/line:loop - Manage autonomous loop execution
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Usage:
+  /line:loop                           # Smart default (watch if running, start if not)
+  /line:loop watch                     # Live progress with milestones
+  /line:loop start [--max-iterations N] [--timeout T]
+  /line:loop status                    # One-shot status check
+  /line:loop stop                      # Gracefully stop
+  /line:loop tail [--lines N]          # View log output
+  /line:loop history [--iteration N] [--actions]  # View iteration history
+
+Commands:
+  (none)   Smart default - watch if loop running, start if not
+  watch    Live progress with milestones and before/after context
+  start    Launch loop in background (default: 25 iterations, 600s timeout)
+  status   One-shot status check
+  stop     Gracefully stop running loop
+  tail     Show recent log output (default: 50 lines)
+  history  View iteration history with action details
+
+Examples:
+  /line:loop                          # Start or watch (smart default)
+  /line:loop watch                    # Monitor progress with context
+  /line:loop start --max-iterations 5 # Quick test run
+  /line:loop status                   # One-shot status check
+  /line:loop tail --lines 100         # View more log output
+  /line:loop history --actions        # View all iterations with actions
+  /line:loop stop                     # Stop gracefully
+
+Files stored in: /tmp/line-loop-<project-name>/
+```
+
+---
+
 ## File Locations
 
 Loop artifacts are stored in a **project-specific directory** to avoid conflicts when working on multiple projects:
@@ -295,11 +447,11 @@ RECENT MILESTONES
 [10:15] ✓ lc-041 APPROVED (3m 45s) → a1b2c3d
         Intent: Increase timeout for large repos
         No timeout config → Configurable timeout
-        Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
+        Actions: 18 (Bash: 3, Edit: 6, Read: 8, Write: 1)
 [10:11] ✓ lc-040 APPROVED (4m 12s) → e4f5g6h
         Intent: Support environment-based configuration
         Hardcoded values → Environment variables
-        Actions: 12 (5 Read, 4 Edit, 2 Bash, 1 Glob)
+        Actions: 12 (Bash: 2, Edit: 4, Glob: 1, Read: 5)
 
 RECENT LOG
 ───────────────────────────────────────
@@ -328,9 +480,9 @@ For each entry in `recent_iterations` (from status.json):
 
 **Action summary format:**
 ```
-Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
+Actions: 18 (Bash: 3, Edit: 6, Read: 8, Write: 1)
 ```
-Only include tool types with count > 0, ordered by count descending.
+Only include tool types with count > 0, sorted alphabetically by tool name.
 
 ### Runtime Calculation
 
@@ -530,15 +682,15 @@ ITERATIONS
 ───────────────────────────────────────
 #1  lc-040: Add config validation
     ✓ APPROVED (4m 12s) → e4f5g6h
-    Actions: 12 (5 Read, 4 Edit, 2 Bash, 1 Glob)
+    Actions: 12 (Bash: 2, Edit: 4, Glob: 1, Read: 5)
 
 #2  lc-041: Fix timeout handling
     ✓ APPROVED (3m 45s) → a1b2c3d
-    Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
+    Actions: 18 (Bash: 3, Edit: 6, Read: 8, Write: 1)
 
 #3  lc-042: Update documentation
     ✗ NEEDS_CHANGES (2m 30s)
-    Actions: 8 (4 Read, 3 Edit, 1 Bash)
+    Actions: 8 (Bash: 1, Edit: 3, Read: 4)
 
 SUMMARY
 ───────────────────────────────────────
@@ -552,7 +704,7 @@ Include the full list of actions for each iteration:
 ```
 #2  lc-041: Fix timeout handling
     ✓ APPROVED (3m 45s) → a1b2c3d
-    Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
+    Actions: 18 (Bash: 3, Edit: 6, Read: 8, Write: 1)
 
     ACTIONS:
     [10:12:30] Read /src/config.py ✓
@@ -575,46 +727,6 @@ No history file found.
 
 Start a loop to begin recording:
   /line:loop start
-```
-
----
-
-## Help Output
-
-If `help` is passed as an argument:
-
-```
-/line:loop - Manage autonomous loop execution
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Usage:
-  /line:loop                           # Smart default (watch if running, start if not)
-  /line:loop watch                     # Live progress with milestones
-  /line:loop start [--max-iterations N] [--timeout T]
-  /line:loop status                    # One-shot status check
-  /line:loop stop                      # Gracefully stop
-  /line:loop tail [--lines N]          # View log output
-  /line:loop history [--iteration N] [--actions]  # View iteration history
-
-Commands:
-  (none)   Smart default - watch if loop running, start if not
-  watch    Live progress with milestones and before/after context
-  start    Launch loop in background (default: 25 iterations, 600s timeout)
-  status   One-shot status check
-  stop     Gracefully stop running loop
-  tail     Show recent log output (default: 50 lines)
-  history  View iteration history with action details
-
-Examples:
-  /line:loop                          # Start or watch (smart default)
-  /line:loop watch                    # Monitor progress with context
-  /line:loop start --max-iterations 5 # Quick test run
-  /line:loop status                   # One-shot status check
-  /line:loop tail --lines 100         # View more log output
-  /line:loop history --actions        # View all iterations with actions
-  /line:loop stop                     # Stop gracefully
-
-Files stored in: /tmp/line-loop-<project-name>/
 ```
 
 ---
