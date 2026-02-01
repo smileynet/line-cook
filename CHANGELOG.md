@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `/line:loop` command for managing autonomous loop execution from TUI
+  - `start` - Launch line-loop.py in background with configurable iterations/timeout
+  - `status` - Check current loop progress via live status JSON
+  - `stop` - Graceful shutdown via SIGTERM
+  - `tail` - View recent log output
+  - Project-specific temp directories (`/tmp/line-loop-<project>/`) for isolation
+- `line-loop.py` now supports `--pid-file` and `--status-file` for external process management
 - `/line:audit` command for bead hygiene checks
   - Validates bead structure, quality, and health
   - Scopes: `active` (default), `full`, or specific bead ID
