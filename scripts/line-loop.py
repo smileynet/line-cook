@@ -149,6 +149,7 @@ class LoopMetrics:
 class BeadSnapshot:
     """State of beads at a point in time."""
     ready_ids: list[str] = field(default_factory=list)
+    ready_task_ids: list[str] = field(default_factory=list)  # Tasks only (not epics/features)
     in_progress_ids: list[str] = field(default_factory=list)
     closed_ids: list[str] = field(default_factory=list)
     timestamp: str = ""
@@ -283,12 +284,25 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
     """Capture ready/in_progress/closed task IDs via bd --json."""
     snapshot = BeadSnapshot()
 
-    # Get ready tasks
+    # Get all ready items (for backwards compat and state tracking)
     try:
         result = run_subprocess(["bd", "ready", "--json"], 30, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.ready_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout getting ready items")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse ready items JSON: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting ready items: {e}")
+
+    # Get ready TASKS only (for loop decision making - excludes epics/features)
+    try:
+        result = run_subprocess(["bd", "ready", "--type=task", "--json"], 30, cwd)
+        if result.returncode == 0 and result.stdout.strip():
+            issues = json.loads(result.stdout)
+            snapshot.ready_task_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
     except subprocess.TimeoutExpired:
         logger.warning("Timeout getting ready tasks")
     except json.JSONDecodeError as e:
@@ -442,6 +456,64 @@ def detect_kitchen_complete(output: str) -> bool:
     return "KITCHEN_COMPLETE" in output or "KITCHEN COMPLETE" in output
 
 
+def check_task_completed(
+    task_id: Optional[str],
+    before: BeadSnapshot,
+    after: BeadSnapshot,
+    output: str,
+    cwd: Path
+) -> tuple[bool, str]:
+    """Check if task completed using multiple signals.
+
+    Returns (completed: bool, reason: str).
+
+    Requires at least one DEFINITIVE signal:
+    - bd_status_closed: Task status is "closed" via bd show
+    - bead_closed: Task moved to closed in snapshot diff
+    - serve_approved: SERVE_RESULT verdict is APPROVED
+
+    Supporting signals alone are NOT sufficient:
+    - kitchen_complete: KITCHEN_COMPLETE marker in output
+    """
+    definitive_signals = []
+    supporting_signals = []
+
+    # DEFINITIVE: Bead state - task moved to closed
+    new_closed = set(after.closed_ids) - set(before.closed_ids)
+    # Use ready_task_ids for consistency with task-only loop focus
+    disappeared = set(before.ready_task_ids) - set(after.ready_task_ids) - set(after.in_progress_ids)
+    if new_closed or disappeared:
+        definitive_signals.append("bead_closed")
+
+    # DEFINITIVE: Check task status directly via bd
+    if task_id:
+        try:
+            result = run_subprocess(["bd", "show", task_id, "--json"], 10, cwd)
+            if result.returncode == 0 and result.stdout.strip():
+                task_data = json.loads(result.stdout)
+                if task_data.get("status") == "closed":
+                    definitive_signals.append("bd_status_closed")
+        except subprocess.TimeoutExpired:
+            logger.debug(f"Timeout checking task status for {task_id}")
+        except json.JSONDecodeError:
+            logger.debug(f"Failed to parse task status JSON for {task_id}")
+        except Exception as e:
+            logger.debug(f"Error checking task status for {task_id}: {e}")
+
+    # HIGH: SERVE_RESULT with APPROVED in partial output
+    serve = parse_serve_result(output)
+    if serve and serve.verdict == "APPROVED":
+        definitive_signals.append("serve_approved")
+
+    # SUPPORTING ONLY: KITCHEN_COMPLETE in output
+    if detect_kitchen_complete(output):
+        supporting_signals.append("kitchen_complete")
+
+    all_signals = definitive_signals + supporting_signals
+    completed = len(definitive_signals) > 0  # Must have at least one definitive signal
+    return completed, ",".join(all_signals) if all_signals else "none"
+
+
 def parse_stream_json_event(line: str) -> Optional[dict]:
     """Parse a single line of stream-json output.
 
@@ -547,10 +619,14 @@ def run_iteration(
 
     # Capture before state
     before = get_bead_snapshot(cwd)
-    logger.debug(f"Before state: {len(before.ready_ids)} ready, {len(before.in_progress_ids)} in_progress")
+    logger.debug(f"Before state: {len(before.ready_ids)} ready ({len(before.ready_task_ids)} tasks), {len(before.in_progress_ids)} in_progress")
 
-    if not before.ready_ids:
-        logger.info("No tasks ready")
+    # Check for ready TASKS (not just any ready items - epics/features can't be executed)
+    if not before.ready_task_ids:
+        if before.ready_ids:
+            logger.info(f"No tasks ready ({len(before.ready_ids)} epics/features ready)")
+        else:
+            logger.info("No tasks ready")
         return IterationResult(
             iteration=iteration,
             task_id=None,
@@ -560,9 +636,9 @@ def run_iteration(
             serve_verdict=None,
             commit_hash=None,
             success=False,
-            before_ready=0,
+            before_ready=len(before.ready_ids),
             before_in_progress=len(before.in_progress_ids),
-            after_ready=0,
+            after_ready=len(before.ready_ids),
             after_in_progress=len(before.in_progress_ids)
         )
 
@@ -633,16 +709,32 @@ def run_iteration(
         duration = (datetime.now() - start_time).total_seconds()
         after = get_bead_snapshot(cwd)
         task_id = detect_worked_task(before, after)
-        logger.warning(f"Iteration {iteration} timed out after {duration:.1f}s (task: {task_id})")
+
+        # Check completion using multiple signals (output already captured before timeout)
+        output = "".join(output_lines)
+        completed, completion_reason = check_task_completed(task_id, before, after, output, cwd)
+
+        if completed:
+            logger.info(f"Iteration {iteration} completed despite timeout (signals: {completion_reason})")
+            serve_result = parse_serve_result(output)
+            outcome = "completed"
+            success = True
+            serve_verdict = serve_result.verdict if serve_result else "TIMEOUT_COMPLETED"
+        else:
+            logger.warning(f"Iteration {iteration} timed out after {duration:.1f}s (task: {task_id})")
+            outcome = "timeout"
+            success = False
+            serve_verdict = None
+
         return IterationResult(
             iteration=iteration,
             task_id=task_id,
-            task_title=None,
-            outcome="timeout",
+            task_title=get_task_title(task_id, cwd) if task_id else None,
+            outcome=outcome,
             duration_seconds=duration,
-            serve_verdict=None,
-            commit_hash=None,
-            success=False,
+            serve_verdict=serve_verdict,
+            commit_hash=get_latest_commit(cwd),
+            success=success,
             before_ready=len(before.ready_ids),
             before_in_progress=len(before.in_progress_ids),
             after_ready=len(after.ready_ids),
@@ -1001,21 +1093,26 @@ def run_loop(
                 print("\nCircuit breaker tripped: too many consecutive failures. Stopping.")
             break
 
-        # Check for ready tasks
+        # Check for ready tasks (only tasks, not epics/features)
         snapshot = get_bead_snapshot(cwd)
-        ready_count = len(snapshot.ready_ids)
+        ready_task_count = len(snapshot.ready_task_ids)
 
-        if ready_count == 0:
+        if ready_task_count == 0:
             stop_reason = "no_tasks"
-            logger.info("No tasks ready, loop complete")
-            if not json_output:
-                print("\nNo tasks ready. Loop complete.")
+            if snapshot.ready_ids:
+                logger.info(f"No tasks ready ({len(snapshot.ready_ids)} epics/features ready), loop complete")
+                if not json_output:
+                    print(f"\nNo tasks ready ({len(snapshot.ready_ids)} epics/features remain). Loop complete.")
+            else:
+                logger.info("No tasks ready, loop complete")
+                if not json_output:
+                    print("\nNo tasks ready. Loop complete.")
             break
 
         iteration += 1
 
         if not json_output:
-            print(f"\n[{iteration}/{max_iterations}] {ready_count} tasks ready")
+            print(f"\n[{iteration}/{max_iterations}] {ready_task_count} tasks ready")
             print("-" * 44)
 
         # Run iteration
