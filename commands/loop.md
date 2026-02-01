@@ -36,6 +36,17 @@ Initialize tracking state:
 - `completed_tasks = []` - list of {id, title, status}
 - `failed_task = null` - {id, title, error} if failure occurs
 
+Capture baseline for final summary:
+```bash
+# Capture start time (Unix timestamp)
+date +%s
+# Store the result as START_TIME
+
+# Capture initial commit SHA
+git rev-parse HEAD
+# Store the result as INITIAL_COMMIT
+```
+
 ### Step 2: Check Ready Tasks
 
 Query for available work:
@@ -111,6 +122,19 @@ Return to Step 2.
 
 ### Step 6: Final Summary
 
+Calculate elapsed time and git statistics:
+
+```bash
+# Get current time and calculate elapsed (using START_TIME from Step 1)
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+# Format as HH:MM:SS
+printf '%02d:%02d:%02d\n' $((ELAPSED/3600)) $((ELAPSED%3600/60)) $((ELAPSED%60))
+
+# Get commit count since loop started (using INITIAL_COMMIT from Step 1)
+git rev-list --count $INITIAL_COMMIT..HEAD
+```
+
 Output comprehensive summary:
 
 ```
@@ -123,6 +147,8 @@ STATUS: <Success | Failed | Iteration Limit Reached>
 
 Iterations: N / max
 Tasks completed: M
+Elapsed time: HH:MM:SS
+Commits made: C
 
 COMPLETED TASKS:
   [✓] <task-1-id> - <title>
@@ -139,6 +165,10 @@ FAILED TASK:
 Remaining ready tasks: <count>
 Run /line:loop to continue processing.
 ```
+
+Where:
+- Elapsed time uses the START_TIME captured in Step 1
+- Commit count uses the INITIAL_COMMIT SHA captured in Step 1
 
 ## Error Handling
 
