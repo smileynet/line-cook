@@ -366,7 +366,9 @@ def run_iteration(
 
     # Determine outcome - prioritize bead state changes over exit code
     new_closed = set(after.closed_ids) - set(before.closed_ids)
-    task_closed = bool(new_closed)
+    # Also detect closure by task disappearing from ready (not moving to in_progress)
+    disappeared_from_ready = set(before.ready_ids) - set(after.ready_ids) - set(after.in_progress_ids)
+    task_closed = bool(new_closed) or bool(disappeared_from_ready)
 
     if serve_result:
         if serve_result.verdict == "APPROVED":
