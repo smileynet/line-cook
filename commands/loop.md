@@ -17,16 +17,33 @@ allowed-tools: Bash, Read, Glob
 
 ## File Locations
 
+Loop artifacts are stored in a **project-specific directory** to avoid conflicts when working on multiple projects:
+
+```
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+```
+
 | File | Purpose |
 |------|---------|
-| `/tmp/line-loop.pid` | Process ID for management |
-| `/tmp/line-loop.log` | Full log output |
-| `/tmp/line-loop-status.json` | Live status (updated per iteration) |
-| `/tmp/line-loop-report.json` | Final report (written on completion) |
+| `$LOOP_DIR/loop.pid` | Process ID for management |
+| `$LOOP_DIR/loop.log` | Full log output |
+| `$LOOP_DIR/status.json` | Live status (updated per iteration) |
+| `$LOOP_DIR/report.json` | Final report (written on completion) |
 
 ---
 
 ## Process
+
+### Compute Loop Directory
+
+**First, compute the project-specific loop directory:**
+
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+mkdir -p "$LOOP_DIR"
+```
+
+Use this `$LOOP_DIR` for all file paths in subsequent commands.
 
 ### Parse Subcommand
 
@@ -52,22 +69,23 @@ $ARGUMENTS examples:
 First, check if a loop is already running:
 
 ```bash
-if [ -f /tmp/line-loop.pid ]; then
-  PID=$(cat /tmp/line-loop.pid 2>/dev/null)
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+if [ -f "$LOOP_DIR/loop.pid" ]; then
+  PID=$(cat "$LOOP_DIR/loop.pid" 2>/dev/null)
   if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
     echo "Loop already running (PID: $PID)"
     echo "Use '/line:loop status' to check progress or '/line:loop stop' to stop it."
     exit 1
   else
     # Stale or invalid PID file, clean up
-    rm -f /tmp/line-loop.pid
+    rm -f "$LOOP_DIR/loop.pid"
   fi
 fi
 ```
 
 ### Find Script Path
 
-First, locate the line-loop.py script. Use Glob to find it:
+Locate the line-loop.py script. Use Glob to find it:
 
 ```
 Glob(pattern="**/line-loop.py")
@@ -80,14 +98,16 @@ This will find the script path (typically in the line-cook plugin's `scripts/` d
 Use the Bash tool with `run_in_background: true` to start the loop:
 
 ```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+mkdir -p "$LOOP_DIR"
 python <path-to-line-loop.py> \
   --max-iterations ${MAX_ITERATIONS:-25} \
   --timeout ${TIMEOUT:-600} \
   --json \
-  --output /tmp/line-loop-report.json \
-  --log-file /tmp/line-loop.log \
-  --pid-file /tmp/line-loop.pid \
-  --status-file /tmp/line-loop-status.json
+  --output "$LOOP_DIR/report.json" \
+  --log-file "$LOOP_DIR/loop.log" \
+  --pid-file "$LOOP_DIR/loop.pid" \
+  --status-file "$LOOP_DIR/status.json"
 ```
 
 Replace `<path-to-line-loop.py>` with the absolute path found by Glob.
@@ -98,6 +118,8 @@ Replace `<path-to-line-loop.py>` with the absolute path found by Glob.
 
 ```
 Loop started in background (task ID: <task_id>)
+Project: <project-name>
+Loop dir: /tmp/line-loop-<project-name>
 
 Monitor with:
   /line:loop status    - Check progress
@@ -112,9 +134,10 @@ Monitor with:
 ### Check Running State
 
 ```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
 # Check if PID file exists and process is running
-if [ -f /tmp/line-loop.pid ]; then
-  PID=$(cat /tmp/line-loop.pid)
+if [ -f "$LOOP_DIR/loop.pid" ]; then
+  PID=$(cat "$LOOP_DIR/loop.pid")
   if kill -0 "$PID" 2>/dev/null; then
     RUNNING=true
   else
@@ -127,7 +150,7 @@ fi
 
 ### Read Status File
 
-Use the Read tool to read `/tmp/line-loop-status.json`.
+Use the Read tool to read `$LOOP_DIR/status.json` (compute the actual path first).
 
 ### Format Output
 
@@ -138,6 +161,7 @@ Use the Read tool to read `/tmp/line-loop-status.json`.
 Loop Status: RUNNING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+Project: <project-name>
 Iteration: 3/25
 Current Task: lc-042
 Last Verdict: APPROVED
@@ -201,15 +225,16 @@ Start a loop with:
 ### Check if Running
 
 ```bash
-if [ ! -f /tmp/line-loop.pid ]; then
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+if [ ! -f "$LOOP_DIR/loop.pid" ]; then
   echo "No loop is running (no PID file found)"
   exit 0
 fi
 
-PID=$(cat /tmp/line-loop.pid)
+PID=$(cat "$LOOP_DIR/loop.pid")
 if ! kill -0 "$PID" 2>/dev/null; then
   echo "Loop is not running (stale PID file)"
-  rm -f /tmp/line-loop.pid
+  rm -f "$LOOP_DIR/loop.pid"
   exit 0
 fi
 ```
@@ -260,12 +285,13 @@ Default to 50 lines if not specified.
 ### Read Log File
 
 ```bash
-if [ ! -f /tmp/line-loop.log ]; then
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+if [ ! -f "$LOOP_DIR/loop.log" ]; then
   echo "No log file found. Is a loop running?"
   exit 1
 fi
 
-tail -n ${LINES:-50} /tmp/line-loop.log
+tail -n "${LINES:-50}" "$LOOP_DIR/loop.log"
 ```
 
 ### Output
@@ -300,6 +326,8 @@ Examples:
   /line:loop status                   # Check progress
   /line:loop tail --lines 100         # View more log output
   /line:loop stop                     # Stop gracefully
+
+Files stored in: /tmp/line-loop-<project-name>/
 ```
 
 ---
@@ -321,5 +349,6 @@ This skill provides TUI-friendly management of the autonomous loop:
 2. **Live status** - Reads status file updated after each iteration
 3. **Graceful stop** - Sends SIGTERM for clean shutdown
 4. **Log access** - Tail command for debugging
+5. **Project isolation** - Each project gets its own loop directory in `/tmp/line-loop-<project>/`
 
 The loop itself handles all the complex logic (circuit breakers, retries, bead tracking). This skill just provides the management interface.
