@@ -682,6 +682,142 @@ For the next task, start a new conversation or use the `/compact` command. Each 
 
 ---
 
+## Part 10: Mid-Project Hygiene with /audit
+
+While the prep → cook → serve → tidy cycle handles individual tasks, `/line:audit` is your tool for stepping back and checking overall project health. It's not part of the execution loop—it's a hygiene tool you reach for periodically.
+
+### When Things Get Messy
+
+After many work cycles, beads accumulate. Scope changes, discoveries get filed, priorities shift. Your carefully planned hierarchy can drift:
+
+- Orphaned tasks pointing to deleted parents
+- Features missing acceptance criteria
+- Stale items no one's touched in weeks
+- Completed features without acceptance documentation
+
+Audit helps you catch these before they become problems.
+
+### What Audit Checks
+
+Audit examines your beads across four categories:
+
+| Category | What It Checks |
+|----------|----------------|
+| **Structural** | Hierarchy depth, orphan references, circular dependencies |
+| **Quality** | Acceptance criteria, priorities, types, user story format |
+| **Health** | Stale items, nearly complete features, work distribution |
+| **Verification** | Acceptance docs for closed features, test coverage |
+
+### Run a Quick Hygiene Check
+
+```
+/line:audit
+```
+
+Sample output:
+
+```
+AUDIT: Active Items
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Scope: 12 open items (3 epics, 4 features, 5 tasks)
+
+Health Summary:
+  ✓ No structural issues
+  ⚠ 2 quality warnings
+  ℹ 1 suggestion
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WARNINGS (should fix):
+
+[Quality] lc-023: Missing priority
+  → Task has no priority set, defaults to P2
+  Fix: bd update lc-023 --priority=2
+
+[Quality] lc-018: Thin acceptance criteria
+  → Feature has only 1 criterion (recommend 2-4)
+  Review: bd show lc-018
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SUGGESTIONS (consider):
+
+[Quality] lc-015: User story format
+  → Feature description doesn't follow "As a... I want... so that..."
+  This is optional but improves clarity.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run /line:audit --fix to auto-fix safe issues.
+```
+
+### Understanding Findings
+
+Audit categorizes findings by severity:
+
+| Level | Color | Meaning | Action |
+|-------|-------|---------|--------|
+| **Critical** | 🔴 Red | Must fix | Orphans, depth violations, circular deps |
+| **Warning** | 🟡 Yellow | Should fix | Missing priority, thin criteria, stale items |
+| **Info** | 🔵 Blue | Suggestion | User story format, documentation ideas |
+
+Critical issues block work—fix them immediately. Warnings indicate quality drift—address them soon. Suggestions are optional improvements.
+
+### Auto-Fixing Safe Issues
+
+Some issues have obvious, safe fixes:
+
+```
+/line:audit --fix
+```
+
+What auto-fix handles:
+- **Missing priority** → Sets to P2 (medium)
+- **Missing type** → Infers from context (task under feature, etc.)
+- **Empty labels** → Removes empty label arrays
+
+What needs manual review:
+- Orphan references (which parent should it have?)
+- Thin acceptance criteria (what's missing?)
+- Stale items (still relevant?)
+
+### Scopes for Different Situations
+
+| Scope | Command | Use Case |
+|-------|---------|----------|
+| `active` | `/line:audit` | Quick check of open items |
+| `full` | `/line:audit full` | Comprehensive audit including work verification |
+| `<id>` | `/line:audit lc-001` | Check a specific epic/feature and its children |
+
+The `full` scope also verifies:
+- Closed features have acceptance documentation
+- Test specs exist for TDD-marked tasks
+- No zombie items (closed but still blocking others)
+
+### When to Audit
+
+Run audit periodically—it's cheap and catches drift early:
+
+- **Weekly** or after several work cycles
+- **Before milestones** or releases
+- **When onboarding** to a new project
+- **When something feels off** or confusing
+- **After significant scope changes**
+
+### Audit vs bd doctor
+
+These tools check different things:
+
+| Tool | Level | What It Checks |
+|------|-------|----------------|
+| `bd doctor` | System | Installation, hooks, git sync, permissions |
+| `/line:audit` | Content | Hierarchy, quality, health, verification |
+
+Run `bd doctor` when beads commands fail. Run `/line:audit` when your project structure needs a checkup.
+
+---
+
 ## Building Your Rhythm
 
 Here's how to develop a sustainable workflow with Line Cook.
@@ -714,6 +850,7 @@ Periodically check your project health:
 bd stats        # Overall counts
 bd blocked      # What's waiting on what
 bd ready        # What you can work on
+/line:audit     # Bead health and quality
 ```
 
 ### The Parking Lot
@@ -835,6 +972,10 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 | `/line:brainstorm` | Explore problem space (divergent) |
 | `/line:scope` | Create structured breakdown (convergent) |
 | `/line:finalize` | Convert plan to beads + test specs |
+
+| Hygiene Commands | Purpose |
+|------------------|---------|
+| `/line:audit` | Validate bead structure and quality |
 
 | Execution Commands | Purpose |
 |--------------------|---------|

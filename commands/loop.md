@@ -31,10 +31,10 @@ Check `$ARGUMENTS` for iteration limit:
 **Otherwise:**
 - Default to 25 iterations (safety limit)
 
-Initialize counters:
+Initialize tracking state:
 - `iteration = 0`
-- `completed_tasks = []`
-- `failed = false`
+- `completed_tasks = []` - list of {id, title, status}
+- `failed_task = null` - {id, title, error} if failure occurs
 
 ### Step 2: Check Ready Tasks
 
@@ -70,22 +70,41 @@ Skill(skill="line:run")
 
 Wait for run to complete. Run will execute prep → cook → serve → tidy for one task.
 
+**Parse the run result to extract:**
+- Task ID and title (from the TASK line in run output)
+- Completion status (success/failure)
+
 **On success:**
-- Record completed task in `completed_tasks`
+- Append {id, title, status: "completed"} to `completed_tasks`
 - Continue to Step 5
 
 **On failure:**
-- Set `failed = true`
-- Record which task failed and why
+- Set `failed_task = {id, title, error: <reason>}`
 - Proceed to Step 6 (Final Summary)
 
-### Step 5: Loop Continuation
+### Step 5: Output Task Progress
 
-Output progress indicator:
+After each completed task, output a progress block:
 
 ```
-Loop iteration N complete. Task <id> finished.
-Checking for more work...
+───────────────────────────────────────────
+TASK <iteration>: <task-id> - <task-title>
+───────────────────────────────────────────
+Status: ✓ completed
+───────────────────────────────────────────
+Progress: <completed_count> completed, <remaining_count> remaining
+───────────────────────────────────────────
+```
+
+Where:
+- `<iteration>` is the current iteration number (1-indexed)
+- `<task-id>` and `<task-title>` come from the run result
+- `<completed_count>` is `len(completed_tasks)`
+- `<remaining_count>` is the count from `bd ready` (check dynamically)
+
+**Check remaining tasks:**
+```bash
+bd ready | grep -c "^\[●"
 ```
 
 Return to Step 2.
