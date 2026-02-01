@@ -2,6 +2,19 @@
 """Line Cook autonomous loop - runs /line:run until no tasks remain.
 
 Provides robust feedback through bead state tracking and SERVE_RESULT parsing.
+
+Data Flow Architecture:
+    BeadSnapshot - Captures ready/in_progress/closed task IDs at a point in time.
+                   Used for before/after comparison to detect which task was worked on.
+
+    ServeResult - Parses the SERVE_RESULT block from claude output to extract
+                  verdict (APPROVED/NEEDS_CHANGES/BLOCKED/SKIPPED) and continuation flags.
+
+    IterationResult - Tracks a single loop iteration including task ID, outcome,
+                      duration, serve verdict, commit hash, and bead state changes.
+
+    LoopReport - Aggregates all iteration results into a final summary with
+                 completed/failed counts, total duration, and stop reason.
 """
 
 import argparse
@@ -292,7 +305,7 @@ def run_iteration(
     # Run claude with line:run skill
     try:
         result = subprocess.run(
-            ["claude", "--skill", "line:run"],
+            ["claude", "-p", "/line:run", "--dangerously-skip-permissions"],
             capture_output=True,
             text=True,
             cwd=cwd,
