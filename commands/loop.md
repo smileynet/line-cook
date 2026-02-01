@@ -14,6 +14,7 @@ allowed-tools: Bash, Read, Glob
 - `status` - One-shot status check
 - `stop` - Gracefully stop running loop
 - `tail [--lines N]` - Show recent log output
+- `history [--iteration N] [--actions]` - View full iteration history with action details
 
 ---
 
@@ -29,7 +30,8 @@ LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
 |------|---------|
 | `$LOOP_DIR/loop.pid` | Process ID for management |
 | `$LOOP_DIR/loop.log` | Full log output |
-| `$LOOP_DIR/status.json` | Live status (updated per iteration) |
+| `$LOOP_DIR/status.json` | Live status (updated per iteration, last 5 iterations with action counts) |
+| `$LOOP_DIR/history.jsonl` | Complete history of ALL iterations with full action details (JSONL format) |
 | `$LOOP_DIR/report.json` | Final report (written on completion) |
 
 ---
@@ -119,7 +121,8 @@ python <path-to-line-loop.py> \
   --output "$LOOP_DIR/report.json" \
   --log-file "$LOOP_DIR/loop.log" \
   --pid-file "$LOOP_DIR/loop.pid" \
-  --status-file "$LOOP_DIR/status.json"
+  --status-file "$LOOP_DIR/status.json" \
+  --history-file "$LOOP_DIR/history.jsonl"
 ```
 
 Replace `<path-to-line-loop.py>` with the absolute path found by Glob.
@@ -267,7 +270,9 @@ Use the Read tool to read `$LOOP_DIR/status.json`. The status file includes:
       "intent": "Increase timeout for large repos",
       "before_state": "No timeout config",
       "after_state": "Configurable timeout",
-      "completed_at": "2026-02-01T10:15:20"
+      "completed_at": "2026-02-01T10:15:20",
+      "action_count": 18,
+      "action_types": {"Read": 8, "Edit": 6, "Bash": 3, "Write": 1}
     }
   ]
 }
@@ -288,8 +293,10 @@ CURRENT: Iteration 3
 RECENT MILESTONES
 ───────────────────────────────────────
 [10:15] ✓ lc-041 APPROVED (3m 45s) → a1b2c3d
+        Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
         No timeout config → Configurable timeout
 [10:11] ✓ lc-040 APPROVED (4m 12s) → e4f5g6h
+        Actions: 12 (5 Read, 4 Edit, 2 Bash, 1 Glob)
         Hardcoded values → Environment variables
 
 RECENT LOG
@@ -313,7 +320,14 @@ For each entry in `recent_iterations` (from status.json):
 - Show verdict symbol: ✓ for APPROVED, ✗ for NEEDS_CHANGES, ⚠ for BLOCKED
 - Show task_id and verdict
 - Show duration and commit hash
+- Show action summary (total count and breakdown by type from action_types)
 - Show before_state → after_state if available
+
+**Action summary format:**
+```
+Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
+```
+Only include tool types with count > 0, ordered by count descending.
 
 ### Runtime Calculation
 
@@ -427,6 +441,141 @@ Display the raw log output.
 
 ---
 
+## Subcommand: history
+
+View detailed history of loop iterations including all tool actions captured during execution.
+
+### Parse Arguments
+
+```
+$ARGUMENTS examples:
+  "history"                    -> Show summary of all iterations
+  "history --iteration 3"      -> Show details for iteration 3 only
+  "history --actions"          -> Include full action list for each iteration
+  "history --iteration 3 --actions"  -> Show iteration 3 with all actions
+```
+
+### Read History File
+
+The history is stored in JSONL format (one JSON object per line). Each line is either:
+1. An iteration record with full details and actions
+2. A loop_summary record marking the end of a run
+
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+HISTORY_FILE="$LOOP_DIR/history.jsonl"
+```
+
+Use the Read tool to read the history file.
+
+### JSONL Record Format
+
+**Iteration record:**
+```json
+{
+  "iteration": 2,
+  "task_id": "lc-041",
+  "task_title": "Fix timeout handling",
+  "outcome": "completed",
+  "serve_verdict": "APPROVED",
+  "commit_hash": "a1b2c3d",
+  "duration_seconds": 225,
+  "success": true,
+  "intent": "Increase timeout for large repos",
+  "before_state": "No timeout config",
+  "after_state": "Configurable timeout",
+  "beads_before": {"ready": 5, "in_progress": 0},
+  "beads_after": {"ready": 4, "in_progress": 0},
+  "action_count": 18,
+  "action_types": {"Read": 8, "Edit": 6, "Bash": 3, "Write": 1},
+  "actions": [
+    {
+      "tool_name": "Read",
+      "tool_use_id": "toolu_abc123",
+      "input_summary": "/path/to/file.py",
+      "output_summary": "File contents...",
+      "success": true,
+      "timestamp": "2026-02-01T10:12:30"
+    }
+  ],
+  "project": "line-cook",
+  "recorded_at": "2026-02-01T10:15:20"
+}
+```
+
+**Loop summary record:**
+```json
+{
+  "type": "loop_summary",
+  "project": "line-cook",
+  "started_at": "2026-02-01T10:00:00",
+  "ended_at": "2026-02-01T11:30:00",
+  "iteration_count": 8,
+  "total_actions": 142,
+  "stop_reason": "no_tasks"
+}
+```
+
+### Format Output
+
+**Default (summary):**
+```
+LOOP HISTORY: <project>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ITERATIONS
+───────────────────────────────────────
+#1  lc-040: Add config validation
+    ✓ APPROVED (4m 12s) → e4f5g6h
+    Actions: 12 (5 Read, 4 Edit, 2 Bash, 1 Glob)
+
+#2  lc-041: Fix timeout handling
+    ✓ APPROVED (3m 45s) → a1b2c3d
+    Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
+
+#3  lc-042: Update documentation
+    ✗ NEEDS_CHANGES (2m 30s)
+    Actions: 8 (4 Read, 3 Edit, 1 Bash)
+
+SUMMARY
+───────────────────────────────────────
+Total iterations: 3
+Total actions: 38
+Duration: 10m 27s
+```
+
+**With --actions flag:**
+Include the full list of actions for each iteration:
+```
+#2  lc-041: Fix timeout handling
+    ✓ APPROVED (3m 45s) → a1b2c3d
+    Actions: 18 (8 Read, 6 Edit, 3 Bash, 1 Write)
+
+    ACTIONS:
+    [10:12:30] Read /src/config.py ✓
+    [10:12:32] Read /src/timeout.py ✓
+    [10:12:45] Edit /src/config.py ✓
+    [10:13:01] Bash: pytest tests/ ✓
+    ...
+```
+
+**With --iteration N:**
+Show only the specified iteration in detail (implies --actions).
+
+### No History File
+
+```
+LOOP HISTORY: <project>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+No history file found.
+
+Start a loop to begin recording:
+  /line:loop start
+```
+
+---
+
 ## Help Output
 
 If `help` is passed as an argument:
@@ -442,14 +591,16 @@ Usage:
   /line:loop status                    # One-shot status check
   /line:loop stop                      # Gracefully stop
   /line:loop tail [--lines N]          # View log output
+  /line:loop history [--iteration N] [--actions]  # View iteration history
 
 Commands:
-  (none)  Smart default - watch if loop running, start if not
-  watch   Live progress with milestones and before/after context
-  start   Launch loop in background (default: 25 iterations, 600s timeout)
-  status  One-shot status check
-  stop    Gracefully stop running loop
-  tail    Show recent log output (default: 50 lines)
+  (none)   Smart default - watch if loop running, start if not
+  watch    Live progress with milestones and before/after context
+  start    Launch loop in background (default: 25 iterations, 600s timeout)
+  status   One-shot status check
+  stop     Gracefully stop running loop
+  tail     Show recent log output (default: 50 lines)
+  history  View iteration history with action details
 
 Examples:
   /line:loop                          # Start or watch (smart default)
@@ -457,6 +608,7 @@ Examples:
   /line:loop start --max-iterations 5 # Quick test run
   /line:loop status                   # One-shot status check
   /line:loop tail --lines 100         # View more log output
+  /line:loop history --actions        # View all iterations with actions
   /line:loop stop                     # Stop gracefully
 
 Files stored in: /tmp/line-loop-<project-name>/
