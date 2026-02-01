@@ -489,6 +489,8 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 > Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
 > To switch from local to remote, uninstall first: `/plugin uninstall line`
 
+> **Important - Command Discovery:** Claude Code caches the list of available commands based on the plugin version number. If you add new commands but don't bump the version in `plugin.json`, they won't appear in other projects. After updating the version and running the install script, start a new Claude Code session (`/clear` or new terminal) for new commands to appear.
+
 Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:scope`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
 ### OpenCode
@@ -593,6 +595,28 @@ git push
 - Iterative development (track in CHANGELOG [Unreleased])
 - Work-in-progress commits (no version bump needed)
 - Small refactorings that don't affect users
+
+### Version Bump Requirements
+
+Claude Code caches the available commands list based on the plugin version. This affects when you need to bump versions:
+
+**Must bump version:**
+- Adding new commands (files in `commands/`)
+- Adding new agents (files in `agents/`)
+- Adding new scripts that skills depend on
+- Any change you want users to see immediately
+
+**Can skip version bump:**
+- Editing existing command content (behavior changes work after install script re-run)
+- Documentation changes
+- Internal refactoring
+
+**How caching works:**
+1. When plugin is installed, Claude Code reads `plugin.json` version and scans directories
+2. Command list is cached per version number
+3. Re-running install script copies new files but doesn't trigger rescan
+4. Bumping version forces Claude Code to rescan and discover new commands
+5. Users must start new session (`/clear`) after plugin update
 
 ### Changelog Format
 
