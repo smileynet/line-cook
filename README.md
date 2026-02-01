@@ -84,6 +84,7 @@ graph LR
 | `/brainstorm` | Explore problem space (divergent thinking) |
 | `/scope` | Create structured work breakdown |
 | `/finalize` | Convert plan to beads + create test specs |
+| `/audit` | Audit bead structure, quality, and hygiene |
 | `/prep` | Sync git, show ready tasks |
 | `/cook` | Execute task with TDD cycle |
 | `/serve` | Review code changes |
@@ -177,7 +178,7 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 > **Note:** Local plugins cannot use `/plugin update`. To switch from local to remote, run `/plugin uninstall line` first.
 
-Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:scope`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
+Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:scope`, `/line:finalize`, `/line:audit`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
 ### OpenCode
 
@@ -194,7 +195,7 @@ git clone https://github.com/smileynet/line-cook.git ~/line-cook
 cd ~/line-cook/line-cook-opencode && bun run build && ./install.sh
 ```
 
-Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
+Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-audit`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
 
 ### Kiro
 

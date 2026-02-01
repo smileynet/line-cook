@@ -51,6 +51,8 @@ Or use `/line:run` to run the full cycle.
 4. **Guardrails on completion** - Verify before marking done
 5. **Push before stop** - Session isn't done until pushed
 
+> **Tip:** Run `/line:audit` periodically to check bead health and structure.
+
 ---
 
 ## Bead Reference
