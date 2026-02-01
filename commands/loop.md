@@ -1,0 +1,325 @@
+---
+description: Manage autonomous loop execution from TUI
+allowed-tools: Bash, Read, Glob
+---
+
+## Summary
+
+**Control the autonomous line-loop process from Claude Code's TUI.** Provides start/status/stop/tail subcommands for managing background loop execution.
+
+**Arguments:** `$ARGUMENTS` contains the subcommand and options:
+- `start [--max-iterations N] [--timeout T]` - Start loop in background
+- `status` - Check current loop progress
+- `stop` - Gracefully stop running loop
+- `tail [--lines N]` - Show recent log output
+
+---
+
+## File Locations
+
+| File | Purpose |
+|------|---------|
+| `/tmp/line-loop.pid` | Process ID for management |
+| `/tmp/line-loop.log` | Full log output |
+| `/tmp/line-loop-status.json` | Live status (updated per iteration) |
+| `/tmp/line-loop-report.json` | Final report (written on completion) |
+
+---
+
+## Process
+
+### Parse Subcommand
+
+Extract the subcommand from `$ARGUMENTS`:
+
+```
+$ARGUMENTS examples:
+  "start"                      -> subcommand: start
+  "start --max-iterations 10"  -> subcommand: start, max_iterations: 10
+  "status"                     -> subcommand: status
+  "stop"                       -> subcommand: stop
+  "tail"                       -> subcommand: tail
+  "tail --lines 100"           -> subcommand: tail, lines: 100
+  ""                           -> default to "status" if loop running, else show help
+```
+
+---
+
+## Subcommand: start
+
+### Check if Already Running
+
+First, check if a loop is already running:
+
+```bash
+if [ -f /tmp/line-loop.pid ]; then
+  PID=$(cat /tmp/line-loop.pid 2>/dev/null)
+  if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+    echo "Loop already running (PID: $PID)"
+    echo "Use '/line:loop status' to check progress or '/line:loop stop' to stop it."
+    exit 1
+  else
+    # Stale or invalid PID file, clean up
+    rm -f /tmp/line-loop.pid
+  fi
+fi
+```
+
+### Find Script Path
+
+First, locate the line-loop.py script. Use Glob to find it:
+
+```
+Glob(pattern="**/line-loop.py")
+```
+
+This will find the script path (typically in the line-cook plugin's `scripts/` directory).
+
+### Launch Background Loop
+
+Use the Bash tool with `run_in_background: true` to start the loop:
+
+```bash
+python <path-to-line-loop.py> \
+  --max-iterations ${MAX_ITERATIONS:-25} \
+  --timeout ${TIMEOUT:-600} \
+  --json \
+  --output /tmp/line-loop-report.json \
+  --log-file /tmp/line-loop.log \
+  --pid-file /tmp/line-loop.pid \
+  --status-file /tmp/line-loop-status.json
+```
+
+Replace `<path-to-line-loop.py>` with the absolute path found by Glob.
+
+**Important:** Set `run_in_background: true` on the Bash tool call.
+
+### Output
+
+```
+Loop started in background (task ID: <task_id>)
+
+Monitor with:
+  /line:loop status    - Check progress
+  /line:loop tail      - View log output
+  /line:loop stop      - Stop gracefully
+```
+
+---
+
+## Subcommand: status
+
+### Check Running State
+
+```bash
+# Check if PID file exists and process is running
+if [ -f /tmp/line-loop.pid ]; then
+  PID=$(cat /tmp/line-loop.pid)
+  if kill -0 "$PID" 2>/dev/null; then
+    RUNNING=true
+  else
+    RUNNING=false
+  fi
+else
+  RUNNING=false
+fi
+```
+
+### Read Status File
+
+Use the Read tool to read `/tmp/line-loop-status.json`.
+
+### Format Output
+
+**Cross-check status file with PID:** If status file shows `running: true` but no process is running (PID file missing or process dead), the loop terminated unexpectedly. Report this to the user.
+
+**If running:**
+```
+Loop Status: RUNNING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Iteration: 3/25
+Current Task: lc-042
+Last Verdict: APPROVED
+
+Progress:
+  Completed: 2
+  Remaining: 5
+
+Running since: 5m 30s ago
+Last update: 10s ago
+```
+
+**If status shows running but process is dead (stale status):**
+```
+Loop Status: TERMINATED UNEXPECTEDLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The loop process is no longer running but did not exit cleanly.
+This may indicate it was killed or crashed.
+
+Last known state:
+  Iteration: 3/25
+  Current Task: lc-042
+  Last update: 5m ago
+
+Check logs for details:
+  /line:loop tail --lines 100
+```
+
+**If not running but status file exists (clean exit):**
+```
+Loop Status: STOPPED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Stop reason: no_tasks
+Final iteration: 8/25
+
+Summary:
+  Completed: 6
+  Remaining: 0
+
+Last update: 2m ago
+```
+
+**If no status file:**
+```
+Loop Status: NOT RUNNING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+No loop is currently running and no previous status found.
+
+Start a loop with:
+  /line:loop start
+  /line:loop start --max-iterations 10
+```
+
+---
+
+## Subcommand: stop
+
+### Check if Running
+
+```bash
+if [ ! -f /tmp/line-loop.pid ]; then
+  echo "No loop is running (no PID file found)"
+  exit 0
+fi
+
+PID=$(cat /tmp/line-loop.pid)
+if ! kill -0 "$PID" 2>/dev/null; then
+  echo "Loop is not running (stale PID file)"
+  rm -f /tmp/line-loop.pid
+  exit 0
+fi
+```
+
+### Send SIGTERM
+
+```bash
+echo "Stopping loop (PID: $PID)..."
+kill -TERM "$PID"
+```
+
+### Wait for Graceful Shutdown
+
+```bash
+# Wait up to 30 seconds for graceful shutdown
+for i in {1..30}; do
+  if ! kill -0 "$PID" 2>/dev/null; then
+    echo "Loop stopped gracefully"
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "Warning: Loop did not stop within 30s"
+echo "You may need to kill it manually: kill -9 $PID"
+```
+
+### Output
+
+```
+Stopping loop (PID: 12345)...
+Loop stopped gracefully.
+
+Final status:
+  Iterations: 5/25
+  Completed: 4
+  Stop reason: shutdown
+```
+
+---
+
+## Subcommand: tail
+
+### Parse Lines Argument
+
+Default to 50 lines if not specified.
+
+### Read Log File
+
+```bash
+if [ ! -f /tmp/line-loop.log ]; then
+  echo "No log file found. Is a loop running?"
+  exit 1
+fi
+
+tail -n ${LINES:-50} /tmp/line-loop.log
+```
+
+### Output
+
+Display the raw log output.
+
+---
+
+## Help Output
+
+If no arguments provided and no loop is running:
+
+```
+/line:loop - Manage autonomous loop execution
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Usage:
+  /line:loop start [--max-iterations N] [--timeout T]
+  /line:loop status
+  /line:loop stop
+  /line:loop tail [--lines N]
+
+Commands:
+  start   Launch loop in background (default: 25 iterations, 600s timeout)
+  status  Check current loop progress
+  stop    Gracefully stop running loop
+  tail    Show recent log output (default: 50 lines)
+
+Examples:
+  /line:loop start                    # Start with defaults
+  /line:loop start --max-iterations 5 # Quick test run
+  /line:loop status                   # Check progress
+  /line:loop tail --lines 100         # View more log output
+  /line:loop stop                     # Stop gracefully
+```
+
+---
+
+## Error Handling
+
+- **Start when already running:** Warn and show current status
+- **Status when not running:** Show helpful message about starting
+- **Stop when not running:** Handle gracefully, clean up stale PID file
+- **Tail when no log:** Inform user no log exists yet
+
+---
+
+## Design Notes
+
+This skill provides TUI-friendly management of the autonomous loop:
+
+1. **Non-blocking start** - Uses `run_in_background` for async execution
+2. **Live status** - Reads status file updated after each iteration
+3. **Graceful stop** - Sends SIGTERM for clean shutdown
+4. **Log access** - Tail command for debugging
+
+The loop itself handles all the complex logic (circuit breakers, retries, bead tracking). This skill just provides the management interface.
