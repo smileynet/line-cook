@@ -21,6 +21,7 @@ echo "Installing line-cook plugin v$VERSION for Claude Code (local)..."
 mkdir -p "$MARKETPLACE_DIR/.claude-plugin"
 mkdir -p "$MARKETPLACE_DIR/line/.claude-plugin"
 mkdir -p "$MARKETPLACE_DIR/line/commands"
+mkdir -p "$MARKETPLACE_DIR/line/agents"
 
 # Copy marketplace manifest with dynamic version
 cat > "$MARKETPLACE_DIR/.claude-plugin/marketplace.json" << EOF
@@ -51,12 +52,24 @@ cp "$REPO_DIR/.claude-plugin/plugin.json" "$MARKETPLACE_DIR/line/.claude-plugin/
 rm -f "$MARKETPLACE_DIR/line/commands/"*.md
 cp "$REPO_DIR/commands/"*.md "$MARKETPLACE_DIR/line/commands/"
 
+# Clear old agents and copy fresh
+rm -f "$MARKETPLACE_DIR/line/agents/"*.md
+cp "$REPO_DIR/agents/"*.md "$MARKETPLACE_DIR/line/agents/"
+
 # List installed commands
 echo ""
 echo "Installed commands:"
 for f in "$MARKETPLACE_DIR/line/commands/"*.md; do
   name=$(basename "$f" .md)
   echo "  /line:$name"
+done
+
+# List installed agents
+echo ""
+echo "Installed agents:"
+for f in "$MARKETPLACE_DIR/line/agents/"*.md; do
+  name=$(basename "$f" .md)
+  echo "  $name"
 done
 
 echo ""
