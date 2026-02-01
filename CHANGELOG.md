@@ -19,15 +19,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Validates bead structure, quality, and health
   - Scopes: `active` (default), `full`, or specific bead ID
   - Optional `--fix` flag for auto-fixable issues
+- `watch` subcommand for live progress with milestones and context
+- `history` subcommand for viewing iteration history with action details
+- Smart default behavior (no args: watch if running, start if not)
+- Action-level visibility tracking every tool call during iterations
+- Progress reporting with before/after state snapshots
+- Circuit breaker to prevent runaway failures (5 consecutive in 10-iteration window)
+- Epic completion detection and celebration workflow
+- `--history-file` option for JSONL action recording
 
 ### Changed
 - Renamed `/line:plan` to `/line:scope` to avoid collision with Claude Code's native `/plan` command
   - Claude Code: `line:plan` → `line:scope`
   - OpenCode: `line-plan` → `line-scope`
   - Kiro: `@line-plan` → `@line-scope`
+- `/line:loop` documentation completely revamped with Quick Start guide
+- `/line:tidy` enhanced with improved bead creation patterns and kitchen report
 
 ### Fixed
 - `/line:cook` now always indicates `/line:serve` as next step (serve should never be skipped)
+- Circuit breaker now resets on successful iteration
+- Serve verdict retry on parse failure (full cook→serve cycle retry)
+- After-snapshot safety fallback when bead commands fail
+- Action tracking uses ERROR: prefix for failed tool calls
 
 ## [0.8.3] - 2026-01-30
 ### Fixed
