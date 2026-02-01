@@ -21,6 +21,7 @@ Data Flow Architecture:
 import argparse
 import json
 import logging
+import os
 import random
 import re
 import shutil
@@ -593,6 +594,38 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         print(f"\n  Retrying ({retries})...")
 
 
+def write_status_file(
+    status_file: Path,
+    running: bool,
+    iteration: int,
+    max_iterations: int,
+    current_task: Optional[str],
+    last_verdict: Optional[str],
+    tasks_completed: int,
+    tasks_remaining: int,
+    started_at: datetime,
+    stop_reason: Optional[str] = None
+):
+    """Write live status JSON for external monitoring."""
+    status = {
+        "running": running,
+        "iteration": iteration,
+        "max_iterations": max_iterations,
+        "current_task": current_task,
+        "last_verdict": last_verdict,
+        "tasks_completed": tasks_completed,
+        "tasks_remaining": tasks_remaining,
+        "started_at": started_at.isoformat(),
+        "last_update": datetime.now().isoformat()
+    }
+    if stop_reason:
+        status["stop_reason"] = stop_reason
+    try:
+        status_file.write_text(json.dumps(status, indent=2))
+    except Exception as e:
+        logger.warning(f"Failed to write status file: {e}")
+
+
 def run_loop(
     max_iterations: int,
     timeout: int,
@@ -601,7 +634,8 @@ def run_loop(
     max_retries: int,
     json_output: bool,
     output_file: Optional[Path],
-    cwd: Path
+    cwd: Path,
+    status_file: Optional[Path] = None
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat."""
     global _shutdown_requested
@@ -666,6 +700,21 @@ def run_loop(
 
         if not json_output:
             print_human_iteration(result, current_retries)
+
+        # Write status file after each iteration
+        if status_file:
+            # Note: completed_count hasn't been incremented yet, so add 1 if this iteration succeeded
+            write_status_file(
+                status_file=status_file,
+                running=True,
+                iteration=iteration,
+                max_iterations=max_iterations,
+                current_task=result.task_id,
+                last_verdict=result.serve_verdict,
+                tasks_completed=completed_count + (1 if result.success else 0),
+                tasks_remaining=result.after_ready,  # Use data from iteration result
+                started_at=started_at
+            )
 
         # Handle outcome
         if result.outcome == "no_tasks":
@@ -743,6 +792,22 @@ def run_loop(
     )
 
     logger.info(f"Loop complete: {completed_count} completed, {failed_count} failed, reason={stop_reason}")
+
+    # Write final status (running=false)
+    if status_file:
+        final_snapshot = get_bead_snapshot(cwd)
+        write_status_file(
+            status_file=status_file,
+            running=False,
+            iteration=iteration,
+            max_iterations=max_iterations,
+            current_task=iterations[-1].task_id if iterations else None,
+            last_verdict=iterations[-1].serve_verdict if iterations else None,
+            tasks_completed=completed_count,
+            tasks_remaining=len(final_snapshot.ready_ids),
+            started_at=started_at,
+            stop_reason=stop_reason
+        )
 
     # Print summary
     if not json_output:
@@ -882,6 +947,16 @@ Examples:
         type=Path,
         help="Write logs to file"
     )
+    parser.add_argument(
+        "--pid-file",
+        type=Path,
+        help="Write PID to file for external process management"
+    )
+    parser.add_argument(
+        "--status-file",
+        type=Path,
+        help="Write live status JSON after each iteration"
+    )
 
     args = parser.parse_args()
 
@@ -905,16 +980,34 @@ Examples:
             print(f"Overall: {'HEALTHY' if health['healthy'] else 'UNHEALTHY'}")
         sys.exit(0 if health['healthy'] else 1)
 
-    report = run_loop(
-        max_iterations=args.max_iterations,
-        timeout=args.timeout,
-        stop_on_blocked=args.stop_on_blocked,
-        stop_on_crash=args.stop_on_crash,
-        max_retries=args.max_retries,
-        json_output=args.json,
-        output_file=args.output,
-        cwd=cwd
-    )
+    # Write PID file if requested
+    if args.pid_file:
+        try:
+            args.pid_file.write_text(str(os.getpid()))
+            logger.debug(f"Wrote PID {os.getpid()} to {args.pid_file}")
+        except Exception as e:
+            logger.warning(f"Failed to write PID file: {e}")
+
+    try:
+        report = run_loop(
+            max_iterations=args.max_iterations,
+            timeout=args.timeout,
+            stop_on_blocked=args.stop_on_blocked,
+            stop_on_crash=args.stop_on_crash,
+            max_retries=args.max_retries,
+            json_output=args.json,
+            output_file=args.output,
+            cwd=cwd,
+            status_file=args.status_file
+        )
+    finally:
+        # Clean up PID file on exit
+        if args.pid_file and args.pid_file.exists():
+            try:
+                args.pid_file.unlink()
+                logger.debug(f"Removed PID file {args.pid_file}")
+            except Exception as e:
+                logger.warning(f"Failed to remove PID file: {e}")
 
     # Exit with appropriate code
     if report.stop_reason in ("no_tasks", "max_iterations", "shutdown"):
