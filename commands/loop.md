@@ -85,13 +85,19 @@ fi
 
 ### Find Script Path
 
-Locate the line-loop.py script. Use Glob to find it:
+Locate the line-loop.py script. Check these locations in order:
 
-```
-Glob(pattern="**/line-loop.py")
-```
+1. **Plugin installation** (most common):
+   ```
+   Glob(pattern="**/line-loop.py", path="~/.claude/plugins")
+   ```
 
-This will find the script path (typically in the line-cook plugin's `scripts/` directory).
+2. **Current project** (for development):
+   ```
+   Glob(pattern="**/line-loop.py")
+   ```
+
+The script is typically at `~/.claude/plugins/marketplaces/line-cook-marketplace/line/scripts/line-loop.py`.
 
 ### Launch Background Loop
 

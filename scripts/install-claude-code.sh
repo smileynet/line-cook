@@ -22,6 +22,7 @@ mkdir -p "$MARKETPLACE_DIR/.claude-plugin"
 mkdir -p "$MARKETPLACE_DIR/line/.claude-plugin"
 mkdir -p "$MARKETPLACE_DIR/line/commands"
 mkdir -p "$MARKETPLACE_DIR/line/agents"
+mkdir -p "$MARKETPLACE_DIR/line/scripts"
 
 # Copy marketplace manifest with dynamic version
 cat > "$MARKETPLACE_DIR/.claude-plugin/marketplace.json" << EOF
@@ -56,6 +57,10 @@ cp "$REPO_DIR/commands/"*.md "$MARKETPLACE_DIR/line/commands/"
 rm -f "$MARKETPLACE_DIR/line/agents/"*.md
 cp "$REPO_DIR/agents/"*.md "$MARKETPLACE_DIR/line/agents/"
 
+# Clear old scripts and copy fresh
+rm -f "$MARKETPLACE_DIR/line/scripts/"*.py
+cp "$REPO_DIR/scripts/"*.py "$MARKETPLACE_DIR/line/scripts/" 2>/dev/null || true
+
 # List installed commands
 echo ""
 echo "Installed commands:"
@@ -71,6 +76,16 @@ for f in "$MARKETPLACE_DIR/line/agents/"*.md; do
   name=$(basename "$f" .md)
   echo "  $name"
 done
+
+# List installed scripts
+if ls "$MARKETPLACE_DIR/line/scripts/"*.py 1>/dev/null 2>&1; then
+  echo ""
+  echo "Installed scripts:"
+  for f in "$MARKETPLACE_DIR/line/scripts/"*.py; do
+    name=$(basename "$f")
+    echo "  $name"
+  done
+fi
 
 echo ""
 echo "Installation complete! (LOCAL)"
