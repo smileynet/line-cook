@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 - `sous-chef` agent enhanced with detailed step-by-step review process and proactive invocation examples
+- All review agents (`sous-chef`, `taster`, `maitre`) now use Opus model for higher quality reviews
 
 ## [0.8.5] - 2026-02-01
 ### Added
