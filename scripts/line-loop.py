@@ -149,7 +149,7 @@ class LoopMetrics:
 class BeadSnapshot:
     """State of beads at a point in time."""
     ready_ids: list[str] = field(default_factory=list)
-    ready_task_ids: list[str] = field(default_factory=list)  # Tasks only (not epics/features)
+    ready_work_ids: list[str] = field(default_factory=list)  # Tasks + features (not epics)
     in_progress_ids: list[str] = field(default_factory=list)
     closed_ids: list[str] = field(default_factory=list)
     timestamp: str = ""
@@ -221,7 +221,7 @@ class IterationResult:
     iteration: int
     task_id: Optional[str]
     task_title: Optional[str]
-    outcome: str  # "completed", "needs_retry", "blocked", "crashed", "timeout", "no_tasks"
+    outcome: str  # "completed", "needs_retry", "blocked", "crashed", "timeout", "no_work"
     duration_seconds: float
     serve_verdict: Optional[str]
     commit_hash: Optional[str]
@@ -261,7 +261,7 @@ class LoopReport:
     started_at: str
     ended_at: str
     iterations: list[IterationResult]
-    stop_reason: str  # "no_tasks", "max_iterations", "blocked", "error", "crashed"
+    stop_reason: str  # "no_work", "max_iterations", "blocked", "error", "crashed", "epic_complete"
     completed_count: int
     failed_count: int
     duration_seconds: float
@@ -281,34 +281,26 @@ def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedPr
 
 
 def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
-    """Capture ready/in_progress/closed task IDs via bd --json."""
+    """Capture ready/in_progress/closed issue IDs via bd --json."""
     snapshot = BeadSnapshot()
 
-    # Get all ready items (for backwards compat and state tracking)
+    # Get all ready items and filter work items (tasks + features, not epics)
     try:
         result = run_subprocess(["bd", "ready", "--json"], 30, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.ready_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
+            # Filter work items (exclude epics) from the same parsed data
+            snapshot.ready_work_ids = [
+                i.get("id", "") for i in issues
+                if isinstance(i, dict) and i.get("type") != "epic"
+            ]
     except subprocess.TimeoutExpired:
         logger.warning("Timeout getting ready items")
     except json.JSONDecodeError as e:
         logger.warning(f"Failed to parse ready items JSON: {e}")
     except Exception as e:
         logger.debug(f"Error getting ready items: {e}")
-
-    # Get ready TASKS only (for loop decision making - excludes epics/features)
-    try:
-        result = run_subprocess(["bd", "ready", "--type=task", "--json"], 30, cwd)
-        if result.returncode == 0 and result.stdout.strip():
-            issues = json.loads(result.stdout)
-            snapshot.ready_task_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
-    except subprocess.TimeoutExpired:
-        logger.warning("Timeout getting ready tasks")
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse ready tasks JSON: {e}")
-    except Exception as e:
-        logger.debug(f"Error getting ready tasks: {e}")
 
     # Get in_progress tasks
     try:
@@ -461,7 +453,8 @@ def check_task_completed(
     before: BeadSnapshot,
     after: BeadSnapshot,
     output: str,
-    cwd: Path
+    cwd: Path,
+    streamed_signals: Optional[list[str]] = None
 ) -> tuple[bool, str]:
     """Check if task completed using multiple signals.
 
@@ -471,17 +464,23 @@ def check_task_completed(
     - bd_status_closed: Task status is "closed" via bd show
     - bead_closed: Task moved to closed in snapshot diff
     - serve_approved: SERVE_RESULT verdict is APPROVED
+    - serve_approved_stream: SERVE_RESULT APPROVED detected during streaming
+    - kitchen_complete_stream: KITCHEN_COMPLETE detected during streaming
 
     Supporting signals alone are NOT sufficient:
-    - kitchen_complete: KITCHEN_COMPLETE marker in output
+    - kitchen_complete: KITCHEN_COMPLETE marker in output (post-hoc)
     """
     definitive_signals = []
     supporting_signals = []
 
+    # Include any signals detected during streaming (these are definitive)
+    if streamed_signals:
+        definitive_signals.extend(streamed_signals)
+
     # DEFINITIVE: Bead state - task moved to closed
     new_closed = set(after.closed_ids) - set(before.closed_ids)
-    # Use ready_task_ids for consistency with task-only loop focus
-    disappeared = set(before.ready_task_ids) - set(after.ready_task_ids) - set(after.in_progress_ids)
+    # Use ready_work_ids for consistency with loop focus (tasks + features, not epics)
+    disappeared = set(before.ready_work_ids) - set(after.ready_work_ids) - set(after.in_progress_ids)
     if new_closed or disappeared:
         definitive_signals.append("bead_closed")
 
@@ -500,7 +499,7 @@ def check_task_completed(
         except Exception as e:
             logger.debug(f"Error checking task status for {task_id}: {e}")
 
-    # HIGH: SERVE_RESULT with APPROVED in partial output
+    # DEFINITIVE: SERVE_RESULT with APPROVED in partial output
     serve = parse_serve_result(output)
     if serve and serve.verdict == "APPROVED":
         definitive_signals.append("serve_approved")
@@ -526,6 +525,16 @@ def parse_stream_json_event(line: str) -> Optional[dict]:
         return json.loads(line)
     except json.JSONDecodeError:
         return None
+
+
+def extract_text_from_event(event: dict) -> str:
+    """Extract text content from assistant message event."""
+    if event.get("type") != "assistant":
+        return ""
+    content = event.get("message", {}).get("content", [])
+    return "\n".join(
+        b.get("text", "") for b in content if b.get("type") == "text"
+    )
 
 
 def extract_actions_from_event(
@@ -607,6 +616,154 @@ def get_latest_commit(cwd: Path) -> Optional[str]:
     return None
 
 
+def get_epic_summary(epic_id: str, cwd: Path) -> dict:
+    """Get epic details and all completed children."""
+    epic_data = {"id": epic_id, "title": None, "description": None, "children": []}
+
+    # Get epic details
+    try:
+        result = run_subprocess(["bd", "show", epic_id, "--json"], 10, cwd)
+        if result.returncode == 0 and result.stdout.strip():
+            epic = json.loads(result.stdout)
+            epic_data["title"] = epic.get("title")
+            epic_data["description"] = epic.get("description")
+    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+        logger.warning(f"Failed to get epic details for {epic_id}: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting epic details for {epic_id}: {e}")
+
+    # Get all children
+    try:
+        result = run_subprocess(
+            ["bd", "list", f"--parent={epic_id}", "--all", "--json"],
+            30, cwd
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            children = json.loads(result.stdout)
+            epic_data["children"] = [
+                {"id": c.get("id"), "title": c.get("title"), "type": c.get("type")}
+                for c in children if isinstance(c, dict)
+            ]
+    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+        logger.warning(f"Failed to get children for epic {epic_id}: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting children for epic {epic_id}: {e}")
+
+    return epic_data
+
+
+def print_epic_completion(epic: dict):
+    """Print epic completion banner."""
+    title = epic.get("title", "Unknown")
+    epic_id = epic.get("id", "?")
+    description = epic.get("description", "")
+    children = epic.get("children", [])
+
+    # Build header
+    header = f"EPIC COMPLETE: {epic_id} - {title}"
+    width = max(62, len(header) + 4)
+
+    print()
+    print("╔" + "═" * width + "╗")
+    print(f"║  {header:<{width-2}}║")
+    print("╚" + "═" * width + "╝")
+
+    # Intent (from description, first sentence)
+    if description:
+        intent = description.split(".")[0].strip()
+        if intent:
+            print(f"\nIntent: {intent}")
+
+    # Features delivered
+    if children:
+        print(f"\nFeatures delivered ({len(children)}):")
+        for child in children:
+            child_id = child.get("id", "?")
+            child_title = child.get("title", "Unknown")
+            print(f"  [x] {child_id}: {child_title}")
+
+    # Summary line
+    if children:
+        types = {}
+        for c in children:
+            t = c.get("type", "item")
+            types[t] = types.get(t, 0) + 1
+        type_summary = ", ".join(
+            f"{count} {t}" if count == 1 else f"{count} {t}s"
+            for t, count in types.items()
+        )
+        print(f"\nSummary: Completed {type_summary} under this epic.")
+
+    print()
+    print("═" * (width + 2))
+
+
+def check_epic_completion(cwd: Path) -> list[dict]:
+    """Check for newly completable epics and close them.
+
+    Returns list of completed epic summaries for display.
+    """
+    # Check what's eligible for closure
+    try:
+        result = run_subprocess(
+            ["bd", "epic", "close-eligible", "--dry-run", "--json"],
+            30, cwd
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return []
+
+        eligible = json.loads(result.stdout)
+        if not eligible:
+            return []
+
+        # eligible is a list of epic IDs or epic objects
+        epic_ids = []
+        for item in eligible:
+            if isinstance(item, str) and item:
+                epic_ids.append(item)
+            elif isinstance(item, dict):
+                epic_id = item.get("id", "")
+                if epic_id:
+                    epic_ids.append(epic_id)
+
+        if not epic_ids:
+            return []
+
+        logger.info(f"Found {len(epic_ids)} epic(s) eligible for closure: {epic_ids}")
+
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout checking epic closure eligibility")
+        return []
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse epic closure eligibility JSON: {e}")
+        return []
+    except Exception as e:
+        logger.debug(f"Error checking epic closure eligibility: {e}")
+        return []
+
+    # Close eligible epics
+    try:
+        result = run_subprocess(["bd", "epic", "close-eligible"], 30, cwd)
+        if result.returncode != 0:
+            logger.warning(f"Failed to close eligible epics: {result.stderr}")
+            return []
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout closing eligible epics")
+        return []
+    except Exception as e:
+        logger.warning(f"Error closing eligible epics: {e}")
+        return []
+
+    # Build and display summaries
+    summaries = []
+    for epic_id in epic_ids:
+        epic = get_epic_summary(epic_id, cwd)
+        summaries.append(epic)
+        print_epic_completion(epic)
+
+    return summaries
+
+
 def run_iteration(
     iteration: int,
     max_iterations: int,
@@ -619,19 +776,19 @@ def run_iteration(
 
     # Capture before state
     before = get_bead_snapshot(cwd)
-    logger.debug(f"Before state: {len(before.ready_ids)} ready ({len(before.ready_task_ids)} tasks), {len(before.in_progress_ids)} in_progress")
+    logger.debug(f"Before state: {len(before.ready_ids)} ready ({len(before.ready_work_ids)} work items), {len(before.in_progress_ids)} in_progress")
 
-    # Check for ready TASKS (not just any ready items - epics/features can't be executed)
-    if not before.ready_task_ids:
+    # Check for ready work items (tasks + features, not epics - epics can't be executed)
+    if not before.ready_work_ids:
         if before.ready_ids:
-            logger.info(f"No tasks ready ({len(before.ready_ids)} epics/features ready)")
+            logger.info(f"No work items ready ({len(before.ready_ids)} epics ready)")
         else:
-            logger.info("No tasks ready")
+            logger.info("No work items ready")
         return IterationResult(
             iteration=iteration,
             task_id=None,
             task_title=None,
-            outcome="no_tasks",
+            outcome="no_work",
             duration_seconds=0.0,
             serve_verdict=None,
             commit_hash=None,
@@ -648,6 +805,7 @@ def run_iteration(
     actions: list[ActionRecord] = []
     pending_actions: dict[str, ActionRecord] = {}
     output_lines: list[str] = []
+    streamed_signals: list[str] = []  # Completion signals detected during streaming
     exit_code = 0
 
     try:
@@ -690,6 +848,17 @@ def run_iteration(
                     actions.extend(new_actions)
                     # Update actions with tool_result from user messages
                     update_action_from_result(event, pending_actions)
+                    # Detect completion signals during streaming
+                    if event.get("type") == "assistant":
+                        text = extract_text_from_event(event)
+                        if "SERVE_RESULT" in text and "APPROVED" in text:
+                            if "serve_approved_stream" not in streamed_signals:
+                                streamed_signals.append("serve_approved_stream")
+                                logger.debug("Detected SERVE_RESULT APPROVED during streaming")
+                        if "KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text:
+                            if "kitchen_complete_stream" not in streamed_signals:
+                                streamed_signals.append("kitchen_complete_stream")
+                                logger.debug("Detected KITCHEN_COMPLETE during streaming")
             else:
                 # No data ready - check if process is still running
                 if process.poll() is not None:
@@ -710,9 +879,11 @@ def run_iteration(
         after = get_bead_snapshot(cwd)
         task_id = detect_worked_task(before, after)
 
-        # Check completion using multiple signals (output already captured before timeout)
+        # Check completion using multiple signals (include streamed signals detected before timeout)
         output = "".join(output_lines)
-        completed, completion_reason = check_task_completed(task_id, before, after, output, cwd)
+        completed, completion_reason = check_task_completed(
+            task_id, before, after, output, cwd, streamed_signals
+        )
 
         if completed:
             logger.info(f"Iteration {iteration} completed despite timeout (signals: {completion_reason})")
@@ -853,7 +1024,7 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         "blocked": "[BLOCKED]",
         "crashed": "[CRASH]",
         "timeout": "[TIMEOUT]",
-        "no_tasks": "[DONE]"
+        "no_work": "[DONE]"
     }
     status = status_map.get(result.outcome, "[?]")
 
@@ -1054,7 +1225,8 @@ def run_loop(
     output_file: Optional[Path],
     cwd: Path,
     status_file: Optional[Path] = None,
-    history_file: Optional[Path] = None
+    history_file: Optional[Path] = None,
+    break_on_epic: bool = False
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat."""
     global _shutdown_requested
@@ -1093,26 +1265,26 @@ def run_loop(
                 print("\nCircuit breaker tripped: too many consecutive failures. Stopping.")
             break
 
-        # Check for ready tasks (only tasks, not epics/features)
+        # Check for ready work items (tasks + features, not epics)
         snapshot = get_bead_snapshot(cwd)
-        ready_task_count = len(snapshot.ready_task_ids)
+        ready_work_count = len(snapshot.ready_work_ids)
 
-        if ready_task_count == 0:
-            stop_reason = "no_tasks"
+        if ready_work_count == 0:
+            stop_reason = "no_work"
             if snapshot.ready_ids:
-                logger.info(f"No tasks ready ({len(snapshot.ready_ids)} epics/features ready), loop complete")
+                logger.info(f"No work items ready ({len(snapshot.ready_ids)} epics ready), loop complete")
                 if not json_output:
-                    print(f"\nNo tasks ready ({len(snapshot.ready_ids)} epics/features remain). Loop complete.")
+                    print(f"\nNo work items ready ({len(snapshot.ready_ids)} epics remain). Loop complete.")
             else:
-                logger.info("No tasks ready, loop complete")
+                logger.info("No work items ready, loop complete")
                 if not json_output:
-                    print("\nNo tasks ready. Loop complete.")
+                    print("\nNo work items ready. Loop complete.")
             break
 
         iteration += 1
 
         if not json_output:
-            print(f"\n[{iteration}/{max_iterations}] {ready_task_count} tasks ready")
+            print(f"\n[{iteration}/{max_iterations}] {ready_work_count} work items ready")
             print("-" * 44)
 
         # Run iteration
@@ -1151,8 +1323,8 @@ def run_loop(
             )
 
         # Handle outcome
-        if result.outcome == "no_tasks":
-            stop_reason = "no_tasks"
+        if result.outcome == "no_work":
+            stop_reason = "no_work"
             break
 
         if result.outcome == "completed":
@@ -1202,6 +1374,33 @@ def run_loop(
                 break
             current_retries = 0
             last_task_id = None
+
+        # Check for epic completions after each successful iteration
+        if result.success and not json_output:
+            epic_summaries = check_epic_completion(cwd)
+            if epic_summaries:
+                # Update status file with epic completions
+                if status_file:
+                    try:
+                        status_content = json.loads(status_file.read_text())
+                        status_content["epic_completions"] = [
+                            {
+                                "id": epic["id"],
+                                "title": epic["title"],
+                                "children_count": len(epic["children"]),
+                                "completed_at": datetime.now().isoformat()
+                            }
+                            for epic in epic_summaries
+                        ]
+                        status_file.write_text(json.dumps(status_content, indent=2))
+                    except Exception as e:
+                        logger.debug(f"Failed to update status with epic completions: {e}")
+
+                if break_on_epic:
+                    stop_reason = "epic_complete"
+                    logger.info(f"Epic(s) {[e['id'] for e in epic_summaries]} completed, breaking as requested")
+                    print("\nEpic completed. Pausing loop (--break-on-epic).")
+                    break
 
     else:
         stop_reason = "max_iterations"
@@ -1410,6 +1609,11 @@ Examples:
         type=Path,
         help="Write complete history JSONL (one JSON record per line) with all iterations and action details"
     )
+    parser.add_argument(
+        "--break-on-epic",
+        action="store_true",
+        help="Pause loop when an epic completes (default: continue with summary)"
+    )
 
     args = parser.parse_args()
 
@@ -1452,7 +1656,8 @@ Examples:
             output_file=args.output,
             cwd=cwd,
             status_file=args.status_file,
-            history_file=args.history_file
+            history_file=args.history_file,
+            break_on_epic=args.break_on_epic
         )
     finally:
         # Clean up PID file on exit
@@ -1464,7 +1669,7 @@ Examples:
                 logger.warning(f"Failed to remove PID file: {e}")
 
     # Exit with appropriate code
-    if report.stop_reason in ("no_tasks", "max_iterations", "shutdown"):
+    if report.stop_reason in ("no_work", "max_iterations", "shutdown", "epic_complete"):
         sys.exit(0)
     elif report.stop_reason == "blocked":
         sys.exit(1)
