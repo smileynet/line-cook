@@ -25,6 +25,7 @@ Data Flow Architecture:
 import argparse
 import json
 import logging
+import logging.handlers
 import os
 import random
 import re
@@ -58,7 +59,7 @@ _shutdown_requested = False
 
 
 def _handle_shutdown(signum, frame):
-    """Handle SIGINT/SIGTERM for graceful shutdown."""
+    """Handle SIGINT/SIGTERM/SIGHUP for graceful shutdown."""
     global _shutdown_requested
     _shutdown_requested = True
     logger.info(f"Shutdown requested (signal {signum})")
@@ -67,19 +68,45 @@ def _handle_shutdown(signum, frame):
 # Register signal handlers
 signal.signal(signal.SIGINT, _handle_shutdown)
 signal.signal(signal.SIGTERM, _handle_shutdown)
+signal.signal(signal.SIGHUP, _handle_shutdown)  # Common daemon restart signal
 
 
 def setup_logging(verbose: bool, log_file: Optional[Path] = None):
-    """Configure logging with optional file output."""
+    """Configure logging with optional file output and rotation."""
     level = logging.DEBUG if verbose else logging.INFO
-    handlers = [logging.StreamHandler()]
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
     if log_file:
-        handlers.append(logging.FileHandler(log_file))
+        # Use RotatingFileHandler to prevent unbounded disk usage
+        # 10MB max per file, keep 3 backups (loop.log.1, loop.log.2, loop.log.3)
+        handlers.append(logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 10MB
+            backupCount=3
+        ))
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(message)s',
         handlers=handlers
     )
+
+
+def atomic_write(path: Path, content: str) -> None:
+    """Write file atomically via temp file + rename.
+
+    This prevents partial reads by external processes (like monitors).
+    The rename operation is atomic on POSIX systems.
+    """
+    tmp = path.with_suffix(path.suffix + '.tmp')
+    try:
+        tmp.write_text(content)
+        tmp.replace(path)  # atomic on POSIX
+    except Exception:
+        # Clean up temp file on any failure
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise
 
 
 def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
@@ -712,11 +739,19 @@ def run_phase(
         while True:
             remaining = deadline - time.time()
             if remaining <= 0:
-                process.kill()
+                # Graceful termination: SIGTERM first, then SIGKILL as fallback
+                logger.debug(f"Phase {phase} timeout - sending SIGTERM")
+                process.terminate()  # SIGTERM
                 try:
                     process.wait(timeout=5)
+                    logger.debug(f"Phase {phase} terminated gracefully")
                 except subprocess.TimeoutExpired:
-                    logger.warning(f"Phase {phase} process did not terminate after kill")
+                    logger.warning(f"Phase {phase} did not respond to SIGTERM, sending SIGKILL")
+                    process.kill()  # SIGKILL as fallback
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        logger.warning(f"Phase {phase} process did not terminate after SIGKILL")
                 raise subprocess.TimeoutExpired(cmd=f"claude -p {skill}", timeout=timeout)
 
             ready, _, _ = select.select([process.stdout], [], [], min(1.0, remaining))
@@ -1659,6 +1694,7 @@ def write_status_file(
     iteration: int,
     max_iterations: int,
     current_task: Optional[str],
+    current_task_title: Optional[str],
     last_verdict: Optional[str],
     tasks_completed: int,
     tasks_remaining: int,
@@ -1676,6 +1712,7 @@ def write_status_file(
         "iteration": iteration,
         "max_iterations": max_iterations,
         "current_task": current_task,
+        "current_task_title": current_task_title,
         "last_verdict": last_verdict,
         "tasks_completed": tasks_completed,
         "tasks_remaining": tasks_remaining,
@@ -1696,7 +1733,7 @@ def write_status_file(
         status["recent_iterations"] = []
 
     try:
-        status_file.write_text(json.dumps(status, indent=2))
+        atomic_write(status_file, json.dumps(status, indent=2))
     except Exception as e:
         logger.warning(f"Failed to write status file: {e}")
 
@@ -1851,6 +1888,7 @@ def run_loop(
                 iteration=iteration,
                 max_iterations=max_iterations,
                 current_task=result.task_id,
+                current_task_title=result.task_title,
                 last_verdict=result.serve_verdict,
                 tasks_completed=completed_count + (1 if result.success else 0),
                 tasks_remaining=result.after_ready,  # Use data from iteration result
@@ -1937,7 +1975,7 @@ def run_loop(
                             }
                             for epic in epic_summaries
                         ]
-                        status_file.write_text(json.dumps(status_content, indent=2))
+                        atomic_write(status_file, json.dumps(status_content, indent=2))
                     except Exception as e:
                         logger.debug(f"Failed to update status with epic completions: {e}")
 
@@ -1980,6 +2018,7 @@ def run_loop(
             iteration=iteration,
             max_iterations=max_iterations,
             current_task=iterations[-1].task_id if iterations else None,
+            current_task_title=iterations[-1].task_title if iterations else None,
             last_verdict=iterations[-1].serve_verdict if iterations else None,
             tasks_completed=completed_count,
             tasks_remaining=len(final_snapshot.ready_work_ids),
@@ -2192,10 +2231,10 @@ Examples:
             print(f"Overall: {'HEALTHY' if health['healthy'] else 'UNHEALTHY'}")
         sys.exit(0 if health['healthy'] else 1)
 
-    # Write PID file if requested
+    # Write PID file if requested (atomic to prevent race on concurrent starts)
     if args.pid_file:
         try:
-            args.pid_file.write_text(str(os.getpid()))
+            atomic_write(args.pid_file, str(os.getpid()))
             logger.debug(f"Wrote PID {os.getpid()} to {args.pid_file}")
         except Exception as e:
             logger.warning(f"Failed to write PID file: {e}")

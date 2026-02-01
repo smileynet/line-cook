@@ -224,12 +224,29 @@ $ARGUMENTS examples:
 
 ## Subcommand: start
 
-### Check if Already Running
+### Acquire Start Lock
 
-First, check if a loop is already running:
+First, acquire an exclusive lock to prevent race conditions when multiple starts are attempted simultaneously:
 
 ```bash
 LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+mkdir -p "$LOOP_DIR"
+LOCKFILE="$LOOP_DIR/loop.lock"
+
+# Try to acquire exclusive lock (non-blocking)
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+  echo "Another loop instance is starting. Please wait and try again."
+  exit 1
+fi
+# Lock held until script exits (fd 9 auto-closes)
+```
+
+### Check if Already Running
+
+Then, check if a loop is already running:
+
+```bash
 if [ -f "$LOOP_DIR/loop.pid" ]; then
   PID=$(cat "$LOOP_DIR/loop.pid" 2>/dev/null)
   if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
@@ -330,7 +347,7 @@ Loop Status: RUNNING
 
 Project: <project-name>
 Iteration: 3/25
-Current Task: lc-042
+Current Task: lc-042 - Fix timeout handling
 Last Verdict: APPROVED
 
 Progress:
@@ -405,6 +422,7 @@ Use the Read tool to read `$LOOP_DIR/status.json`. The status file includes:
   "iteration": 3,
   "max_iterations": 25,
   "current_task": "lc-042",
+  "current_task_title": "Fix timeout handling",
   "last_verdict": "APPROVED",
   "tasks_completed": 2,
   "tasks_remaining": 5,
