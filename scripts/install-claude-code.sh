@@ -88,7 +88,10 @@ if ls "$MARKETPLACE_DIR/line/scripts/"*.py 1>/dev/null 2>&1; then
 fi
 
 echo ""
-echo "Installation complete! (LOCAL)"
+echo "Installation complete! (LOCAL) - v$VERSION"
+echo ""
+echo "IMPORTANT: Start a new Claude Code session (/clear) for changes to take effect."
+echo "           Claude Code caches commands per version - new commands require version bump."
 echo ""
 echo "To update this local installation:"
 echo "  cd $REPO_DIR && git pull && ./scripts/install-claude-code.sh"
