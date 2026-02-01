@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Requires Python 3.8+ for dataclasses and type hints (list[str] syntax)
 """Line Cook autonomous loop - runs /line:run until no tasks remain.
 
 Provides robust feedback through bead state tracking and SERVE_RESULT parsing.
