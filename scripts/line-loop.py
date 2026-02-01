@@ -20,13 +20,124 @@ Data Flow Architecture:
 
 import argparse
 import json
+import logging
+import random
 import re
+import shutil
+import signal
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Module-level logger
+logger = logging.getLogger('line-loop')
+
+# Global flag for graceful shutdown
+_shutdown_requested = False
+
+
+def _handle_shutdown(signum, frame):
+    """Handle SIGINT/SIGTERM for graceful shutdown."""
+    global _shutdown_requested
+    _shutdown_requested = True
+    logger.info(f"Shutdown requested (signal {signum})")
+
+
+# Register signal handlers
+signal.signal(signal.SIGINT, _handle_shutdown)
+signal.signal(signal.SIGTERM, _handle_shutdown)
+
+
+def setup_logging(verbose: bool, log_file: Optional[Path] = None):
+    """Configure logging with optional file output."""
+    level = logging.DEBUG if verbose else logging.INFO
+    handlers = [logging.StreamHandler()]
+    if log_file:
+        handlers.append(logging.FileHandler(log_file))
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        handlers=handlers
+    )
+
+
+def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
+    """Exponential backoff with jitter: 2s, 4s, 8s... capped at 60s."""
+    delay = min(base * (2 ** attempt), 60)
+    return delay * random.uniform(0.8, 1.2)  # ±20% jitter
+
+
+@dataclass
+class CircuitBreaker:
+    """Stops loop after too many consecutive failures."""
+    failure_threshold: int = 5
+    window_size: int = 10
+    window: list = field(default_factory=list)
+
+    def record(self, success: bool):
+        """Record a result (True=success, False=failure)."""
+        self.window.append(success)
+        if len(self.window) > self.window_size:
+            self.window.pop(0)
+
+    def is_open(self) -> bool:
+        """Check if circuit breaker has tripped (too many failures)."""
+        if len(self.window) < self.failure_threshold:
+            return False
+        recent_failures = sum(1 for s in self.window[-self.failure_threshold:] if not s)
+        return recent_failures >= self.failure_threshold
+
+    def reset(self):
+        """Reset the circuit breaker."""
+        self.window.clear()
+
+
+def check_health(cwd: Path) -> dict:
+    """Verify environment before starting loop."""
+    checks = {
+        'claude_cli': shutil.which('claude') is not None,
+        'bd_cli': shutil.which('bd') is not None,
+        'git_repo': (cwd / '.git').exists(),
+        'beads_init': (cwd / '.beads').exists(),
+    }
+    return {'healthy': all(checks.values()), 'checks': checks}
+
+
+@dataclass
+class LoopMetrics:
+    """Computed metrics for the loop run."""
+    success_rate: float
+    p50_duration: float
+    p95_duration: float
+    timeout_rate: float
+    retry_rate: float
+
+    @classmethod
+    def from_iterations(cls, iterations: list) -> 'LoopMetrics':
+        """Compute metrics from iteration results."""
+        if not iterations:
+            return cls(0.0, 0.0, 0.0, 0.0, 0.0)
+
+        total = len(iterations)
+        successes = sum(1 for i in iterations if i.success)
+        timeouts = sum(1 for i in iterations if i.outcome == 'timeout')
+        retries = sum(1 for i in iterations if i.outcome == 'needs_retry')
+
+        durations = sorted(i.duration_seconds for i in iterations)
+        p50_idx = int(len(durations) * 0.5)
+        p95_idx = min(int(len(durations) * 0.95), len(durations) - 1)
+
+        return cls(
+            success_rate=successes / total if total else 0.0,
+            p50_duration=durations[p50_idx] if durations else 0.0,
+            p95_duration=durations[p95_idx] if durations else 0.0,
+            timeout_rate=timeouts / total if total else 0.0,
+            retry_rate=retries / total if total else 0.0
+        )
 
 
 @dataclass
@@ -87,54 +198,61 @@ class LoopReport:
     duration_seconds: float
 
 
+def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedProcess:
+    """Run subprocess with logging."""
+    logger.debug(f"Running: {' '.join(cmd)} (timeout={timeout}s)")
+    start = time.time()
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=timeout)
+        logger.debug(f"Completed in {time.time()-start:.1f}s, exit={result.returncode}")
+        return result
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Timeout after {timeout}s: {' '.join(cmd)}")
+        raise
+
+
 def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
     """Capture ready/in_progress/closed task IDs via bd --json."""
     snapshot = BeadSnapshot()
 
     # Get ready tasks
     try:
-        result = subprocess.run(
-            ["bd", "ready", "--json"],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            timeout=30
-        )
+        result = run_subprocess(["bd", "ready", "--json"], 30, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.ready_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
-        pass
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout getting ready tasks")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse ready tasks JSON: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting ready tasks: {e}")
 
     # Get in_progress tasks
     try:
-        result = subprocess.run(
-            ["bd", "list", "--status=in_progress", "--json"],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            timeout=30
-        )
+        result = run_subprocess(["bd", "list", "--status=in_progress", "--json"], 30, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.in_progress_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
-        pass
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout getting in_progress tasks")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse in_progress tasks JSON: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting in_progress tasks: {e}")
 
     # Get recently closed tasks (limit 10 for performance)
     try:
-        result = subprocess.run(
-            ["bd", "list", "--status=closed", "--limit=10", "--json"],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            timeout=30
-        )
+        result = run_subprocess(["bd", "list", "--status=closed", "--limit=10", "--json"], 30, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.closed_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
-        pass
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout getting closed tasks")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse closed tasks JSON: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting closed tasks: {e}")
 
     return snapshot
 
@@ -238,18 +356,16 @@ def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[st
 def get_task_title(task_id: str, cwd: Path) -> Optional[str]:
     """Get the title for a task ID."""
     try:
-        result = subprocess.run(
-            ["bd", "show", task_id, "--json"],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            timeout=30
-        )
+        result = run_subprocess(["bd", "show", task_id, "--json"], 30, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issue = json.loads(result.stdout)
             return issue.get("title")
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
-        pass
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Timeout getting title for {task_id}")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse task JSON for {task_id}: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting task title for {task_id}: {e}")
     return None
 
 
@@ -261,17 +377,11 @@ def detect_kitchen_complete(output: str) -> bool:
 def get_latest_commit(cwd: Path) -> Optional[str]:
     """Get the latest commit hash."""
     try:
-        result = subprocess.run(
-            ["git", "log", "-1", "--format=%h"],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            timeout=10
-        )
+        result = run_subprocess(["git", "log", "-1", "--format=%h"], 10, cwd)
         if result.returncode == 0:
             return result.stdout.strip()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Error getting latest commit: {e}")
     return None
 
 
@@ -283,11 +393,14 @@ def run_iteration(
 ) -> IterationResult:
     """Execute one claude --skill line:run with full tracking."""
     start_time = datetime.now()
+    logger.info(f"Starting iteration {iteration}/{max_iterations}")
 
     # Capture before state
     before = get_bead_snapshot(cwd)
+    logger.debug(f"Before state: {len(before.ready_ids)} ready, {len(before.in_progress_ids)} in_progress")
 
     if not before.ready_ids:
+        logger.info("No tasks ready")
         return IterationResult(
             iteration=iteration,
             task_id=None,
@@ -304,6 +417,8 @@ def run_iteration(
         )
 
     # Run claude with line:run skill
+    logger.debug(f"Running claude -p /line:run (timeout={timeout}s)")
+    claude_start = time.time()
     try:
         result = subprocess.run(
             ["claude", "-p", "/line:run", "--dangerously-skip-permissions"],
@@ -312,14 +427,17 @@ def run_iteration(
             cwd=cwd,
             timeout=timeout
         )
+        logger.debug(f"Claude completed in {time.time()-claude_start:.1f}s, exit={result.returncode}")
         output = result.stdout + result.stderr
         exit_code = result.returncode
     except subprocess.TimeoutExpired:
         duration = (datetime.now() - start_time).total_seconds()
         after = get_bead_snapshot(cwd)
+        task_id = detect_worked_task(before, after)
+        logger.warning(f"Iteration {iteration} timed out after {duration:.1f}s (task: {task_id})")
         return IterationResult(
             iteration=iteration,
-            task_id=detect_worked_task(before, after),
+            task_id=task_id,
             task_title=None,
             outcome="timeout",
             duration_seconds=duration,
@@ -334,6 +452,7 @@ def run_iteration(
     except Exception as e:
         duration = (datetime.now() - start_time).total_seconds()
         after = get_bead_snapshot(cwd)
+        logger.error(f"Iteration {iteration} crashed: {e}")
         return IterationResult(
             iteration=iteration,
             task_id=None,
@@ -398,6 +517,7 @@ def run_iteration(
         outcome = "needs_retry"
         success = False
 
+    logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s")
     return IterationResult(
         iteration=iteration,
         task_id=task_id,
@@ -484,11 +604,16 @@ def run_loop(
     cwd: Path
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat."""
+    global _shutdown_requested
+
     started_at = datetime.now()
     iterations: list[IterationResult] = []
     completed_count = 0
     failed_count = 0
     stop_reason = "unknown"
+    circuit_breaker = CircuitBreaker()
+
+    logger.info(f"Loop starting: max_iterations={max_iterations}, timeout={timeout}s")
 
     if not json_output:
         print(f"Line Cook Loop starting (max {max_iterations} iterations)")
@@ -499,12 +624,29 @@ def run_loop(
     last_task_id = None
 
     while iteration < max_iterations:
+        # Check for shutdown request
+        if _shutdown_requested:
+            stop_reason = "shutdown"
+            logger.info("Shutdown requested, stopping gracefully")
+            if not json_output:
+                print("\nShutdown requested. Stopping gracefully.")
+            break
+
+        # Check circuit breaker
+        if circuit_breaker.is_open():
+            stop_reason = "circuit_breaker"
+            logger.warning("Circuit breaker tripped after consecutive failures")
+            if not json_output:
+                print("\nCircuit breaker tripped: too many consecutive failures. Stopping.")
+            break
+
         # Check for ready tasks
         snapshot = get_bead_snapshot(cwd)
         ready_count = len(snapshot.ready_ids)
 
         if ready_count == 0:
             stop_reason = "no_tasks"
+            logger.info("No tasks ready, loop complete")
             if not json_output:
                 print("\nNo tasks ready. Loop complete.")
             break
@@ -518,6 +660,9 @@ def run_loop(
         # Run iteration
         result = run_iteration(iteration, max_iterations, cwd, timeout)
         iterations.append(result)
+
+        # Record result for circuit breaker
+        circuit_breaker.record(result.success)
 
         if not json_output:
             print_human_iteration(result, current_retries)
@@ -545,11 +690,19 @@ def run_loop(
                 last_task_id = None
                 if not json_output:
                     print(f"\n  Max retries ({max_retries}) reached. Moving on.")
+            else:
+                # Apply exponential backoff before retry
+                delay = calculate_retry_delay(current_retries)
+                logger.info(f"Retry {current_retries}/{max_retries} for {result.task_id}, waiting {delay:.1f}s")
+                if not json_output:
+                    print(f"\n  Waiting {delay:.1f}s before retry...")
+                time.sleep(delay)
 
         elif result.outcome == "blocked":
             failed_count += 1
             if stop_on_blocked:
                 stop_reason = "blocked"
+                logger.info("Task blocked, stopping (--stop-on-blocked)")
                 if not json_output:
                     print("\nTask blocked. Stopping loop (--stop-on-blocked).")
                 break
@@ -560,6 +713,7 @@ def run_loop(
             failed_count += 1
             if stop_on_crash:
                 stop_reason = result.outcome
+                logger.info(f"Task {result.outcome}, stopping (--stop-on-crash)")
                 if not json_output:
                     print(f"\nTask {result.outcome}. Stopping loop (--stop-on-crash).")
                 break
@@ -568,11 +722,15 @@ def run_loop(
 
     else:
         stop_reason = "max_iterations"
+        logger.info(f"Reached iteration limit ({max_iterations})")
         if not json_output:
             print(f"\nReached iteration limit ({max_iterations}). Stopping.")
 
     ended_at = datetime.now()
     duration = (ended_at - started_at).total_seconds()
+
+    # Compute metrics
+    metrics = LoopMetrics.from_iterations(iterations)
 
     report = LoopReport(
         started_at=started_at.isoformat(),
@@ -584,6 +742,8 @@ def run_loop(
         duration_seconds=duration
     )
 
+    logger.info(f"Loop complete: {completed_count} completed, {failed_count} failed, reason={stop_reason}")
+
     # Print summary
     if not json_output:
         print()
@@ -592,6 +752,10 @@ def run_loop(
         print("=" * 44)
         print(f"Duration: {format_duration(duration)}")
         print(f"Completed: {completed_count} | Failed: {failed_count} | Blocked: {sum(1 for i in iterations if i.outcome == 'blocked')}")
+
+        # Metrics
+        if iterations:
+            print(f"Success rate: {metrics.success_rate:.0%} | P50: {format_duration(metrics.p50_duration)} | P95: {format_duration(metrics.p95_duration)}")
 
         # Final state
         final_snapshot = get_bead_snapshot(cwd)
@@ -605,6 +769,13 @@ def run_loop(
                 "completed": report.completed_count,
                 "failed": report.failed_count,
                 "duration_seconds": report.duration_seconds
+            },
+            "metrics": {
+                "success_rate": metrics.success_rate,
+                "p50_duration": metrics.p50_duration,
+                "p95_duration": metrics.p95_duration,
+                "timeout_rate": metrics.timeout_rate,
+                "retry_rate": metrics.retry_rate
             },
             "iterations": [
                 {
@@ -653,6 +824,8 @@ Examples:
   %(prog)s --json                   # Output JSON instead of human-readable
   %(prog)s --json --output report.json  # Write JSON to file
   %(prog)s --stop-on-blocked        # Stop if any task is blocked
+  %(prog)s --health-check           # Verify environment and exit
+  %(prog)s --verbose --log-file loop.log  # Enable debug logging to file
 """
     )
 
@@ -694,10 +867,43 @@ Examples:
         default=2,
         help="Max retries per task on NEEDS_CHANGES (default: 2)"
     )
+    parser.add_argument(
+        "--health-check",
+        action="store_true",
+        help="Check environment health and exit"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose (debug) logging"
+    )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        help="Write logs to file"
+    )
 
     args = parser.parse_args()
 
     cwd = Path.cwd()
+
+    # Set up logging
+    setup_logging(args.verbose, args.log_file)
+
+    # Health check mode
+    if args.health_check:
+        health = check_health(cwd)
+        if args.json:
+            print(json.dumps(health, indent=2))
+        else:
+            print("Environment Health Check")
+            print("=" * 30)
+            for check, passed in health['checks'].items():
+                status = "OK" if passed else "FAIL"
+                print(f"  {check}: {status}")
+            print("=" * 30)
+            print(f"Overall: {'HEALTHY' if health['healthy'] else 'UNHEALTHY'}")
+        sys.exit(0 if health['healthy'] else 1)
 
     report = run_loop(
         max_iterations=args.max_iterations,
@@ -711,10 +917,12 @@ Examples:
     )
 
     # Exit with appropriate code
-    if report.stop_reason in ("no_tasks", "max_iterations"):
+    if report.stop_reason in ("no_tasks", "max_iterations", "shutdown"):
         sys.exit(0)
     elif report.stop_reason == "blocked":
         sys.exit(1)
+    elif report.stop_reason == "circuit_breaker":
+        sys.exit(3)
     else:
         sys.exit(2)
 
