@@ -38,6 +38,14 @@ from typing import Optional
 # Constants
 OUTPUT_SUMMARY_MAX_LENGTH = 200
 
+# Phase timeouts (in seconds)
+PHASE_TIMEOUTS = {
+    'cook': 600,    # 10 min - Main work phase: TDD cycle, file edits, test runs
+    'serve': 300,   # 5 min - Code review by sous-chef subagent
+    'tidy': 120,    # 2 min - Commit, bd sync, git push
+    'plate': 300,   # 5 min - BDD review via maître, acceptance doc
+}
+
 # Module-level logger
 logger = logging.getLogger('line-loop')
 
@@ -166,6 +174,19 @@ class ServeResult:
     continue_: bool
     next_step: Optional[str]
     blocking_issues: int
+
+
+@dataclass
+class PhaseResult:
+    """Result from running a single workflow phase (cook, serve, tidy, plate)."""
+    phase: str           # cook, serve, tidy, plate
+    success: bool        # True if phase completed without error
+    output: str          # Full output from the phase
+    exit_code: int       # Process exit code
+    duration_seconds: float
+    signals: list[str] = field(default_factory=list)  # Detected signals (KITCHEN_COMPLETE, etc.)
+    actions: list = field(default_factory=list)  # ActionRecords from this phase
+    error: Optional[str] = None  # Error message if failed
 
 
 @dataclass
@@ -616,6 +637,273 @@ def get_latest_commit(cwd: Path) -> Optional[str]:
     return None
 
 
+def run_phase(
+    phase: str,
+    cwd: Path,
+    args: str = "",
+    timeout: Optional[int] = None
+) -> PhaseResult:
+    """Invoke a single Line Cook skill phase (cook, serve, tidy, plate).
+
+    Args:
+        phase: Phase name (cook, serve, tidy, plate)
+        cwd: Working directory
+        args: Optional arguments (e.g., task ID for cook)
+        timeout: Override default phase timeout
+
+    Returns:
+        PhaseResult with output, signals, and success status
+    """
+    if timeout is None:
+        timeout = PHASE_TIMEOUTS.get(phase, 600)
+
+    skill = f"/line:{phase}"
+    if args:
+        skill = f"{skill} {args}"
+
+    logger.debug(f"Running phase {phase}: claude -p '{skill}' (timeout={timeout}s)")
+    start_time = time.time()
+
+    actions: list[ActionRecord] = []
+    pending_actions: dict[str, ActionRecord] = {}
+    output_lines: list[str] = []
+    signals: list[str] = []
+    exit_code = 0
+    error: Optional[str] = None
+
+    try:
+        process = subprocess.Popen(
+            ["claude", "-p", skill,
+             "--dangerously-skip-permissions",
+             "--output-format", "stream-json",
+             "--verbose"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            cwd=cwd
+        )
+
+        deadline = time.time() + timeout
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                process.kill()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"Phase {phase} process did not terminate after kill")
+                raise subprocess.TimeoutExpired(cmd=f"claude -p {skill}", timeout=timeout)
+
+            ready, _, _ = select.select([process.stdout], [], [], min(1.0, remaining))
+            if ready:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                output_lines.append(line)
+                event = parse_stream_json_event(line)
+                if event:
+                    # Extract tool_use from assistant messages
+                    new_actions = extract_actions_from_event(event, pending_actions)
+                    actions.extend(new_actions)
+                    # Update actions with tool_result from user messages
+                    update_action_from_result(event, pending_actions)
+                    # Detect signals during streaming
+                    if event.get("type") == "assistant":
+                        text = extract_text_from_event(event)
+                        if "SERVE_RESULT" in text:
+                            if "APPROVED" in text and "serve_approved" not in signals:
+                                signals.append("serve_approved")
+                            elif "NEEDS_CHANGES" in text and "serve_needs_changes" not in signals:
+                                signals.append("serve_needs_changes")
+                            elif "BLOCKED" in text and "serve_blocked" not in signals:
+                                signals.append("serve_blocked")
+                        if ("KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text) and "kitchen_complete" not in signals:
+                            signals.append("kitchen_complete")
+            else:
+                if process.poll() is not None:
+                    break
+
+        # Read any remaining output
+        remaining_out = process.stdout.read()
+        if remaining_out:
+            output_lines.extend(remaining_out.splitlines(keepends=True))
+        process.wait()
+        exit_code = process.returncode
+
+    except subprocess.TimeoutExpired:
+        duration = time.time() - start_time
+        logger.warning(f"Phase {phase} timed out after {duration:.1f}s")
+        return PhaseResult(
+            phase=phase,
+            success=False,
+            output="".join(output_lines),
+            exit_code=-1,
+            duration_seconds=duration,
+            signals=signals,
+            actions=actions,
+            error=f"Timeout after {timeout}s"
+        )
+    except Exception as e:
+        duration = time.time() - start_time
+        logger.error(f"Phase {phase} crashed: {e}")
+        return PhaseResult(
+            phase=phase,
+            success=False,
+            output="".join(output_lines),
+            exit_code=-1,
+            duration_seconds=duration,
+            signals=signals,
+            actions=actions,
+            error=str(e)
+        )
+
+    duration = time.time() - start_time
+    output = "".join(output_lines)
+    success = exit_code == 0
+
+    logger.debug(f"Phase {phase} completed in {duration:.1f}s, exit={exit_code}, signals={signals}")
+
+    return PhaseResult(
+        phase=phase,
+        success=success,
+        output=output,
+        exit_code=exit_code,
+        duration_seconds=duration,
+        signals=signals,
+        actions=actions,
+        error=None if success else f"Exit code {exit_code}"
+    )
+
+
+def get_task_info(task_id: str, cwd: Path) -> Optional[dict]:
+    """Get task info including parent and status."""
+    try:
+        result = run_subprocess(["bd", "show", task_id, "--json"], 10, cwd)
+        if result.returncode == 0 and result.stdout.strip():
+            return json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+        logger.warning(f"Failed to get task info for {task_id}: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting task info for {task_id}: {e}")
+    return None
+
+
+def get_children(parent_id: str, cwd: Path) -> list[dict]:
+    """Get all children of a parent issue."""
+    try:
+        result = run_subprocess(
+            ["bd", "list", f"--parent={parent_id}", "--all", "--json"],
+            30, cwd
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            children = json.loads(result.stdout)
+            return [c for c in children if isinstance(c, dict)]
+    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+        logger.warning(f"Failed to get children for {parent_id}: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting children for {parent_id}: {e}")
+    return []
+
+
+def check_feature_completion(task_id: str, cwd: Path) -> tuple[bool, Optional[str]]:
+    """Check if completing a task completes its parent feature.
+
+    Returns: (feature_complete, feature_id)
+    """
+    task_info = get_task_info(task_id, cwd)
+    if not task_info or not task_info.get("parent"):
+        return False, None
+
+    parent_id = task_info["parent"]
+    parent_info = get_task_info(parent_id, cwd)
+
+    # Only proceed if parent is a feature
+    if not parent_info or parent_info.get("type") != "feature":
+        return False, None
+
+    # Check if all siblings are closed
+    siblings = get_children(parent_id, cwd)
+    for sibling in siblings:
+        if sibling.get("status") != "closed":
+            return False, None
+
+    return True, parent_id
+
+
+def check_epic_completion_after_feature(feature_id: str, cwd: Path) -> tuple[bool, Optional[str]]:
+    """Check if completing a feature completes its parent epic.
+
+    Returns: (epic_complete, epic_id)
+    """
+    feature_info = get_task_info(feature_id, cwd)
+    if not feature_info or not feature_info.get("parent"):
+        return False, None
+
+    epic_id = feature_info["parent"]
+    epic_info = get_task_info(epic_id, cwd)
+
+    # Only proceed if parent is an epic
+    if not epic_info or epic_info.get("type") != "epic":
+        return False, None
+
+    # Check if all children are closed
+    children = get_children(epic_id, cwd)
+    for child in children:
+        if child.get("status") != "closed":
+            return False, None
+
+    return True, epic_id
+
+
+def generate_epic_closure_report(epic_id: str, cwd: Path) -> str:
+    """Generate a formatted epic closure report."""
+    epic_info = get_task_info(epic_id, cwd)
+    if not epic_info:
+        return f"EPIC COMPLETE: {epic_id} (details unavailable)"
+
+    title = epic_info.get("title", "Unknown")
+    description = epic_info.get("description", "")
+
+    children = get_children(epic_id, cwd)
+    features = [c for c in children if c.get("type") == "feature"]
+
+    lines = [
+        "",
+        f"EPIC COMPLETE: {epic_id} - {title}",
+        "━" * 60,
+        "",
+        "JOURNEY SUMMARY",
+        f"What this epic set out to accomplish:",
+    ]
+
+    # Extract first sentence or paragraph from description
+    if description:
+        goal = description.split('\n')[0].strip()
+        if len(goal) > 200:
+            goal = goal[:197] + "..."
+        lines.append(f"  {goal}")
+    else:
+        lines.append("  (No description provided)")
+
+    lines.append("")
+    lines.append("FEATURES DELIVERED")
+
+    for feature in features:
+        f_id = feature.get("id", "?")
+        f_title = feature.get("title", "Unknown")
+        lines.append(f"  ✓ {f_id}: {f_title}")
+
+    lines.append("")
+    lines.append("COLLECTIVE IMPACT")
+    lines.append(f"  {len(features)} feature(s) completed under this epic.")
+
+    lines.append("")
+    lines.append("━" * 60)
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def get_epic_summary(epic_id: str, cwd: Path) -> dict:
     """Get epic details and all completed children."""
     epic_data = {"id": epic_id, "title": None, "description": None, "children": []}
@@ -768,9 +1056,24 @@ def run_iteration(
     iteration: int,
     max_iterations: int,
     cwd: Path,
-    timeout: int
+    timeout: int,
+    max_cook_retries: int = 2,
+    json_output: bool = False
 ) -> IterationResult:
-    """Execute one claude --skill line:run with full tracking."""
+    """Execute individual phases (cook→serve→tidy) with retry logic.
+
+    This replaces the monolithic /line:run invocation with separate phase calls,
+    enabling better error detection, retry on NEEDS_CHANGES, and feature/epic
+    completion triggers.
+
+    Args:
+        iteration: Current iteration number
+        max_iterations: Maximum iterations for logging
+        cwd: Working directory
+        timeout: Per-iteration timeout (used for legacy fallback)
+        max_cook_retries: Max retries on NEEDS_CHANGES verdict
+        json_output: If True, suppress human-readable phase output
+    """
     start_time = datetime.now()
     logger.info(f"Starting iteration {iteration}/{max_iterations}")
 
@@ -799,196 +1102,238 @@ def run_iteration(
             after_in_progress=len(before.in_progress_ids)
         )
 
-    # Run claude with line:run skill using stream-json for action tracking
-    logger.debug(f"Running claude -p /line:run --output-format stream-json --verbose (timeout={timeout}s)")
-    claude_start = time.time()
-    actions: list[ActionRecord] = []
-    pending_actions: dict[str, ActionRecord] = {}
-    output_lines: list[str] = []
-    streamed_signals: list[str] = []  # Completion signals detected during streaming
-    exit_code = 0
+    # Collect all actions across phases
+    all_actions: list[ActionRecord] = []
+    all_output: list[str] = []
+    serve_verdict: Optional[str] = None
+    task_id: Optional[str] = None
 
-    try:
-        process = subprocess.Popen(
-            ["claude", "-p", "/line:run",
-             "--dangerously-skip-permissions",
-             "--output-format", "stream-json",
-             "--verbose"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,  # Discard stderr to avoid pipe buffer deadlock
-            text=True,
-            cwd=cwd
-        )
+    # ===== PHASE 1: COOK (with retry loop) =====
+    cook_attempts = 0
+    cook_succeeded = False
 
-        # Read stdout line by line with timeout handling
-        deadline = time.time() + timeout
-        while True:
-            remaining = deadline - time.time()
-            if remaining <= 0:
-                # Timeout - kill process and reap to avoid zombie
-                process.kill()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    logger.warning("Process did not terminate after kill")
-                raise subprocess.TimeoutExpired(cmd="claude", timeout=timeout)
+    while cook_attempts <= max_cook_retries:
+        cook_attempts += 1
+        logger.info(f"Cook phase attempt {cook_attempts}/{max_cook_retries + 1}")
 
-            # Check if there's data to read (with small timeout for responsiveness)
-            ready, _, _ = select.select([process.stdout], [], [], min(1.0, remaining))
-            if ready:
-                line = process.stdout.readline()
-                if not line:
-                    # EOF - process finished
+        # Run cook phase
+        cook_result = run_phase("cook", cwd)
+        all_actions.extend(cook_result.actions)
+        all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
+        all_output.append(cook_result.output)
+
+        if cook_result.error and "Timeout" in cook_result.error:
+            # Timeout during cook - check if task completed anyway
+            after = get_bead_snapshot(cwd)
+            task_id = detect_worked_task(before, after)
+            if task_id:
+                task_info = get_task_info(task_id, cwd)
+                if task_info and task_info.get("status") == "closed":
+                    logger.info(f"Cook timed out but task {task_id} was closed")
+                    cook_succeeded = True
                     break
-                output_lines.append(line)
-                event = parse_stream_json_event(line)
-                if event:
-                    # Extract tool_use from assistant messages
-                    new_actions = extract_actions_from_event(event, pending_actions)
-                    actions.extend(new_actions)
-                    # Update actions with tool_result from user messages
-                    update_action_from_result(event, pending_actions)
-                    # Detect completion signals during streaming
-                    if event.get("type") == "assistant":
-                        text = extract_text_from_event(event)
-                        if "SERVE_RESULT" in text and "APPROVED" in text:
-                            if "serve_approved_stream" not in streamed_signals:
-                                streamed_signals.append("serve_approved_stream")
-                                logger.debug("Detected SERVE_RESULT APPROVED during streaming")
-                        if "KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text:
-                            if "kitchen_complete_stream" not in streamed_signals:
-                                streamed_signals.append("kitchen_complete_stream")
-                                logger.debug("Detected KITCHEN_COMPLETE during streaming")
+
+            logger.warning(f"Cook phase timed out on attempt {cook_attempts}")
+            if cook_attempts > max_cook_retries:
+                duration = (datetime.now() - start_time).total_seconds()
+                after = get_bead_snapshot(cwd)
+                return IterationResult(
+                    iteration=iteration,
+                    task_id=task_id,
+                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    outcome="timeout",
+                    duration_seconds=duration,
+                    serve_verdict=None,
+                    commit_hash=get_latest_commit(cwd),
+                    success=False,
+                    before_ready=len(before.ready_ids),
+                    before_in_progress=len(before.in_progress_ids),
+                    after_ready=len(after.ready_ids),
+                    after_in_progress=len(after.in_progress_ids),
+                    actions=all_actions
+                )
+            continue
+
+        if not cook_result.success:
+            logger.warning(f"Cook phase failed on attempt {cook_attempts}: {cook_result.error}")
+            if cook_attempts > max_cook_retries:
+                break
+            continue
+
+        # Cook succeeded, detect task
+        after_cook = get_bead_snapshot(cwd)
+        task_id = detect_worked_task(before, after_cook)
+        logger.debug(f"Detected task: {task_id}")
+
+        # Check for KITCHEN_COMPLETE signal
+        if "kitchen_complete" in cook_result.signals:
+            cook_succeeded = True
+            break
+
+        # ===== PHASE 2: SERVE =====
+        logger.info("Serve phase")
+        serve_result = run_phase("serve", cwd)
+        all_actions.extend(serve_result.actions)
+        all_output.append("\n=== SERVE PHASE ===\n")
+        all_output.append(serve_result.output)
+
+        if serve_result.error:
+            logger.warning(f"Serve phase error: {serve_result.error}")
+            # Treat serve errors as SKIPPED - transient, continue
+            serve_verdict = "SKIPPED"
+            cook_succeeded = True
+            break
+
+        # Parse serve verdict
+        parsed_serve = parse_serve_result(serve_result.output)
+        if parsed_serve:
+            serve_verdict = parsed_serve.verdict
+            logger.info(f"Serve verdict: {serve_verdict}")
+
+            if serve_verdict == "APPROVED":
+                cook_succeeded = True
+                break
+            elif serve_verdict == "NEEDS_CHANGES":
+                logger.info(f"NEEDS_CHANGES - will retry cook (attempt {cook_attempts}/{max_cook_retries + 1})")
+                # Cook will read the rework comment on next attempt
+                if cook_attempts > max_cook_retries:
+                    logger.warning("Max cook retries reached with NEEDS_CHANGES")
+                    break
+                continue
+            elif serve_verdict == "BLOCKED":
+                logger.warning("Serve returned BLOCKED verdict")
+                duration = (datetime.now() - start_time).total_seconds()
+                after = get_bead_snapshot(cwd)
+                return IterationResult(
+                    iteration=iteration,
+                    task_id=task_id,
+                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    outcome="blocked",
+                    duration_seconds=duration,
+                    serve_verdict="BLOCKED",
+                    commit_hash=get_latest_commit(cwd),
+                    success=False,
+                    before_ready=len(before.ready_ids),
+                    before_in_progress=len(before.in_progress_ids),
+                    after_ready=len(after.ready_ids),
+                    after_in_progress=len(after.in_progress_ids),
+                    actions=all_actions
+                )
+            elif serve_verdict == "SKIPPED":
+                logger.info("Serve skipped (transient error) - continuing")
+                cook_succeeded = True
+                break
+        else:
+            # No SERVE_RESULT found - check signals
+            if "serve_approved" in serve_result.signals:
+                serve_verdict = "APPROVED"
+                cook_succeeded = True
+                break
+            elif "serve_needs_changes" in serve_result.signals:
+                serve_verdict = "NEEDS_CHANGES"
+                if cook_attempts > max_cook_retries:
+                    break
+                continue
             else:
-                # No data ready - check if process is still running
-                if process.poll() is not None:
-                    break
+                # Assume success if serve completed without error
+                logger.debug("No serve verdict found, assuming approved")
+                serve_verdict = "APPROVED"
+                cook_succeeded = True
+                break
 
-        # Read any remaining stdout
-        remaining_out = process.stdout.read()
-        if remaining_out:
-            output_lines.extend(remaining_out.splitlines(keepends=True))
-        process.wait()  # Ensure process is reaped
-        exit_code = process.returncode
-
-        logger.debug(f"Claude completed in {time.time()-claude_start:.1f}s, exit={exit_code}, actions={len(actions)}")
-        output = "".join(output_lines)
-
-    except subprocess.TimeoutExpired:
+    # Check if we exhausted retries
+    if not cook_succeeded:
         duration = (datetime.now() - start_time).total_seconds()
         after = get_bead_snapshot(cwd)
-        task_id = detect_worked_task(before, after)
-
-        # Check completion using multiple signals (include streamed signals detected before timeout)
-        output = "".join(output_lines)
-        completed, completion_reason = check_task_completed(
-            task_id, before, after, output, cwd, streamed_signals
-        )
-
-        if completed:
-            logger.info(f"Iteration {iteration} completed despite timeout (signals: {completion_reason})")
-            serve_result = parse_serve_result(output)
-            outcome = "completed"
-            success = True
-            serve_verdict = serve_result.verdict if serve_result else "TIMEOUT_COMPLETED"
-        else:
-            logger.warning(f"Iteration {iteration} timed out after {duration:.1f}s (task: {task_id})")
-            outcome = "timeout"
-            success = False
-            serve_verdict = None
-
         return IterationResult(
             iteration=iteration,
             task_id=task_id,
             task_title=get_task_title(task_id, cwd) if task_id else None,
-            outcome=outcome,
+            outcome="needs_retry",
             duration_seconds=duration,
             serve_verdict=serve_verdict,
             commit_hash=get_latest_commit(cwd),
-            success=success,
-            before_ready=len(before.ready_ids),
-            before_in_progress=len(before.in_progress_ids),
-            after_ready=len(after.ready_ids),
-            after_in_progress=len(after.in_progress_ids),
-            actions=actions  # Include actions captured before timeout
-        )
-    except Exception as e:
-        duration = (datetime.now() - start_time).total_seconds()
-        after = get_bead_snapshot(cwd)
-        logger.error(f"Iteration {iteration} crashed: {e}")
-        return IterationResult(
-            iteration=iteration,
-            task_id=None,
-            task_title=None,
-            outcome="crashed",
-            duration_seconds=duration,
-            serve_verdict=None,
-            commit_hash=None,
             success=False,
             before_ready=len(before.ready_ids),
             before_in_progress=len(before.in_progress_ids),
-            after_ready=len(after.ready_ids),
-            after_in_progress=len(after.in_progress_ids),
-            actions=actions  # Include actions captured before crash
+            after_ready=len(after.ready_ids) if 'after' in dir() else len(before.ready_ids),
+            after_in_progress=len(after.in_progress_ids) if 'after' in dir() else len(before.in_progress_ids),
+            actions=all_actions
         )
+
+    # ===== PHASE 3: TIDY =====
+    logger.info("Tidy phase")
+    tidy_result = run_phase("tidy", cwd)
+    all_actions.extend(tidy_result.actions)
+    all_output.append("\n=== TIDY PHASE ===\n")
+    all_output.append(tidy_result.output)
+
+    if tidy_result.error:
+        logger.warning(f"Tidy phase error: {tidy_result.error}")
+        # Tidy errors are concerning but not fatal
+
+    # Capture final state
+    after = get_bead_snapshot(cwd)
+
+    # Determine final outcome
+    task_id = detect_worked_task(before, after) or task_id
+    task_title = get_task_title(task_id, cwd) if task_id else None
+    commit_hash = get_latest_commit(cwd)
+
+    # Check if task was closed
+    new_closed = set(after.closed_ids) - set(before.closed_ids)
+    task_closed = bool(new_closed) or (task_id and task_id not in after.ready_work_ids and task_id not in after.in_progress_ids)
+
+    # Parse intent from cook output
+    combined_output = "".join(all_output)
+    intent, before_state, after_state = parse_intent_block(combined_output)
+
+    # ===== PHASE 4: FEATURE/EPIC COMPLETION CHECK =====
+    if task_id and task_closed:
+        # Check if completing this task completes a feature
+        feature_complete, feature_id = check_feature_completion(task_id, cwd)
+        if feature_complete and feature_id:
+            logger.info(f"Feature {feature_id} is complete, triggering plate phase")
+            if not json_output:
+                print(f"\n  Feature complete: {feature_id} - triggering plate phase")
+
+            plate_result = run_phase("plate", cwd, args=feature_id)
+            all_actions.extend(plate_result.actions)
+            all_output.append("\n=== PLATE PHASE ===\n")
+            all_output.append(plate_result.output)
+
+            if plate_result.error:
+                logger.warning(f"Plate phase error: {plate_result.error}")
+            else:
+                # Check if completing the feature completes an epic
+                epic_complete, epic_id = check_epic_completion_after_feature(feature_id, cwd)
+                if epic_complete and epic_id:
+                    logger.info(f"Epic {epic_id} is complete")
+                    report = generate_epic_closure_report(epic_id, cwd)
+                    if not json_output:
+                        print(report)
+
+                    # Close the epic
+                    try:
+                        run_subprocess(["bd", "close", epic_id], 30, cwd)
+                        logger.info(f"Closed epic {epic_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to close epic {epic_id}: {e}")
 
     duration = (datetime.now() - start_time).total_seconds()
 
-    # Capture after state
-    after = get_bead_snapshot(cwd)
+    success = task_closed or serve_verdict == "APPROVED"
+    outcome = "completed" if success else "needs_retry"
 
-    # Detect which task was worked on
-    task_id = detect_worked_task(before, after)
-    task_title = get_task_title(task_id, cwd) if task_id else None
+    logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s, actions={len(all_actions)}")
 
-    # Parse outputs
-    serve_result = parse_serve_result(output)
-    intent, before_state, after_state = parse_intent_block(output)
-    kitchen_complete = detect_kitchen_complete(output)
-    commit_hash = get_latest_commit(cwd)
-
-    # Determine outcome - prioritize bead state changes over exit code
-    new_closed = set(after.closed_ids) - set(before.closed_ids)
-    # Also detect closure by task disappearing from ready (not moving to in_progress)
-    disappeared_from_ready = set(before.ready_ids) - set(after.ready_ids) - set(after.in_progress_ids)
-    task_closed = bool(new_closed) or bool(disappeared_from_ready)
-
-    if serve_result:
-        if serve_result.verdict == "APPROVED":
-            outcome = "completed"
-            success = True
-        elif serve_result.verdict == "NEEDS_CHANGES":
-            outcome = "needs_retry"
-            success = False
-        elif serve_result.verdict == "BLOCKED":
-            outcome = "blocked"
-            success = False
-        else:  # SKIPPED or unknown
-            outcome = "completed" if (kitchen_complete or task_closed) else "needs_retry"
-            success = kitchen_complete or task_closed
-    elif task_closed:
-        # Task was closed - this is the most reliable success indicator
-        outcome = "completed"
-        success = True
-    elif kitchen_complete:
-        outcome = "completed"
-        success = True
-    elif exit_code != 0:
-        outcome = "crashed"
-        success = False
-    else:
-        # No clear signal - assume needs retry
-        outcome = "needs_retry"
-        success = False
-
-    logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s, actions={len(actions)}")
     return IterationResult(
         iteration=iteration,
         task_id=task_id,
         task_title=task_title,
         outcome=outcome,
         duration_seconds=duration,
-        serve_verdict=serve_result.verdict if serve_result else None,
+        serve_verdict=serve_verdict,
         commit_hash=commit_hash,
         success=success,
         before_ready=len(before.ready_ids),
@@ -998,7 +1343,7 @@ def run_iteration(
         intent=intent,
         before_state=before_state,
         after_state=after_state,
-        actions=actions
+        actions=all_actions
     )
 
 
@@ -1215,6 +1560,47 @@ def write_status_file(
         logger.warning(f"Failed to write status file: {e}")
 
 
+def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
+    """Sync git and beads at loop start (once, not per-iteration).
+
+    Returns True if sync succeeded, False on error.
+    """
+    logger.info("Syncing git and beads at loop start")
+
+    if not json_output:
+        print("Syncing...")
+
+    # Git fetch and pull
+    try:
+        result = run_subprocess(["git", "fetch"], 60, cwd)
+        if result.returncode != 0:
+            logger.warning(f"git fetch failed: {result.stderr}")
+        else:
+            result = run_subprocess(["git", "pull", "--rebase"], 60, cwd)
+            if result.returncode != 0:
+                logger.warning(f"git pull --rebase failed: {result.stderr}")
+                # Non-fatal - continue
+    except subprocess.TimeoutExpired:
+        logger.warning("git fetch/pull timed out")
+    except Exception as e:
+        logger.warning(f"git sync error: {e}")
+
+    # Beads sync
+    try:
+        result = run_subprocess(["bd", "sync"], 60, cwd)
+        if result.returncode != 0:
+            logger.warning(f"bd sync failed: {result.stderr}")
+    except subprocess.TimeoutExpired:
+        logger.warning("bd sync timed out")
+    except Exception as e:
+        logger.warning(f"bd sync error: {e}")
+
+    if not json_output:
+        print("Sync complete.")
+
+    return True
+
+
 def run_loop(
     max_iterations: int,
     timeout: int,
@@ -1226,7 +1612,8 @@ def run_loop(
     cwd: Path,
     status_file: Optional[Path] = None,
     history_file: Optional[Path] = None,
-    break_on_epic: bool = False
+    break_on_epic: bool = False,
+    skip_initial_sync: bool = False
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat."""
     global _shutdown_requested
@@ -1243,6 +1630,10 @@ def run_loop(
     if not json_output:
         print(f"Line Cook Loop starting (max {max_iterations} iterations)")
         print("=" * 44)
+
+    # Sync git and beads once at loop start
+    if not skip_initial_sync:
+        sync_at_start(cwd, json_output)
 
     iteration = 0
     current_retries = 0
@@ -1287,8 +1678,12 @@ def run_loop(
             print(f"\n[{iteration}/{max_iterations}] {ready_work_count} work items ready")
             print("-" * 44)
 
-        # Run iteration
-        result = run_iteration(iteration, max_iterations, cwd, timeout)
+        # Run iteration with individual phase invocations
+        result = run_iteration(
+            iteration, max_iterations, cwd, timeout,
+            max_cook_retries=max_retries,
+            json_output=json_output
+        )
         iterations.append(result)
 
         # Record result for circuit breaker
@@ -1614,6 +2009,11 @@ Examples:
         action="store_true",
         help="Pause loop when an epic completes (default: continue with summary)"
     )
+    parser.add_argument(
+        "--skip-initial-sync",
+        action="store_true",
+        help="Skip git fetch/pull and bd sync at loop start"
+    )
 
     args = parser.parse_args()
 
@@ -1657,7 +2057,8 @@ Examples:
             cwd=cwd,
             status_file=args.status_file,
             history_file=args.history_file,
-            break_on_epic=args.break_on_epic
+            break_on_epic=args.break_on_epic,
+            skip_initial_sync=args.skip_initial_sync
         )
     finally:
         # Clean up PID file on exit
