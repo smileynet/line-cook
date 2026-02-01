@@ -16,6 +16,8 @@ Before diving in, understand two key ideas:
 
 ## Quick Start
 
+After [installing](#installation) the Line Cook plugin:
+
 ```bash
 # 1. Install beads (git-native issue tracker)
 brew install steveyegge/beads/bd && bd init
