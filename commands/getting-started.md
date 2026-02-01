@@ -161,11 +161,29 @@ For batch processing multiple tasks, use the external script wrapper instead of 
 
 ```bash
 # Run with default 25 iterations
-./scripts/line-loop.sh
+./scripts/line-loop.py
 
 # Run with custom limit
-./scripts/line-loop.sh 10
+./scripts/line-loop.py --max-iterations 10
+
+# JSON output for automation
+./scripts/line-loop.py --json --output report.json
+
+# Control behavior
+./scripts/line-loop.py --stop-on-blocked --max-retries 1
 ```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-n, --max-iterations` | 25 | Max iterations before stopping |
+| `-t, --timeout` | 600 | Per-iteration timeout in seconds |
+| `--json` | false | Output JSON instead of human-readable |
+| `-o, --output` | - | Write final report to file |
+| `--stop-on-blocked` | false | Stop if task is BLOCKED |
+| `--stop-on-crash` | false | Stop on claude crash |
+| `--max-retries` | 2 | Max retries per task on NEEDS_CHANGES |
 
 ### Why External Script?
 
@@ -173,10 +191,12 @@ The script runs **outside** Claude Code, which provides:
 - **Fresh context per task** - No context accumulation across iterations
 - **Session independence** - Runs without active Claude Code session
 - **Better recovery** - Script survives Claude crashes, can restart
-- **Simple implementation** - Just a bash while loop
+- **Robust feedback** - Tracks bead state changes and parses SERVE_RESULT
 
 The script:
-1. Checks `bd ready` for available tasks
+1. Captures bead state (ready/in_progress/closed)
 2. Runs `claude --skill line:run` for each task
-3. Tracks completed count and shows progress
-4. Stops when no tasks remain or iteration limit reached
+3. Parses SERVE_RESULT verdict and INTENT block
+4. Handles retries on NEEDS_CHANGES (up to max-retries)
+5. Reports progress with before/after bead state diffs
+6. Stops when no tasks remain or limit reached
