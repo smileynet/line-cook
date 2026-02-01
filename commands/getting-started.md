@@ -21,6 +21,8 @@ This guide explains the line-cook workflow and provides a complete reference for
 
 Or use `/line:run` to run the full cycle.
 
+For autonomous execution of multiple tasks, use the `scripts/line-loop.sh` wrapper (see [Autonomous Loop](#autonomous-loop) below).
+
 ### /line:prep - "What's ready?"
 - Syncs git and beads
 - Shows available tasks
@@ -150,3 +152,31 @@ This keeps the main backlog focused on real tasks while preserving good ideas fo
 3. Run `/line:tidy` when done to commit and push
 
 Or just run `/line:run` for the full cycle.
+
+---
+
+## Autonomous Loop
+
+For batch processing multiple tasks, use the external script wrapper instead of running `/line:run` manually each time:
+
+```bash
+# Run with default 25 iterations
+./scripts/line-loop.sh
+
+# Run with custom limit
+./scripts/line-loop.sh 10
+```
+
+### Why External Script?
+
+The script runs **outside** Claude Code, which provides:
+- **Fresh context per task** - No context accumulation across iterations
+- **Session independence** - Runs without active Claude Code session
+- **Better recovery** - Script survives Claude crashes, can restart
+- **Simple implementation** - Just a bash while loop
+
+The script:
+1. Checks `bd ready` for available tasks
+2. Runs `claude --skill line:run` for each task
+3. Tracks completed count and shows progress
+4. Stops when no tasks remain or iteration limit reached
