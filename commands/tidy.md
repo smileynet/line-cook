@@ -13,17 +13,39 @@ This is where findings from `/line:cook` and `/line:serve` get filed as beads.
 
 ## Bead Creation Reference
 
-Use this when filing discovered issues:
+Use this when filing discovered issues. **Always include a description** that explains the discovery context:
 
 ```bash
 # Standard issues (blocking tasks)
-bd create --title="..." --type=task|bug|feature --priority=0-4
+bd create --title="..." --type=task|bug|feature --priority=0-4 \
+  --description="$(cat <<'EOF'
+Discovery Source: <source-task-id> - <source-task-title>
+Discovered During: <cook|serve> phase
+
+Impact:
+<why this matters - user impact, technical debt, or risk>
+
+Context:
+<before/after state if relevant, file/component involved>
+EOF
+)"
 
 # Priority: 0=critical, 1=high, 2=medium, 3=low, 4=backlog
 # Types: task, bug (broken), feature (new capability)
 
 # Minor improvements (review later)
-bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic>
+bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic> \
+  --description="$(cat <<'EOF'
+Discovery Source: <source-task-id> - <source-task-title>
+Discovered During: <cook|serve> phase
+
+Impact:
+<why this is worth considering later>
+
+Context:
+<observation that triggered this suggestion>
+EOF
+)"
 ```
 
 **Retrospective Epic Pattern:**
@@ -42,16 +64,44 @@ bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<re
 
 ### Step 1: File Discovered Issues
 
-Review findings from `/line:cook` and `/line:serve` and create beads:
+Review findings from `/line:cook` and `/line:serve` and create beads with full context:
 
 **Blocking issues** (needs attention):
 ```bash
-bd create --title="<issue>" --type=bug|task --priority=1-3
+bd create --title="Fix race condition in session cleanup" \
+  --type=bug --priority=2 \
+  --description="$(cat <<'EOF'
+Discovery Source: lc-abc - Implement session timeout
+Discovered During: cook phase
+
+Impact:
+Sessions may not be cleaned up under load, causing resource leaks.
+This affects production reliability under concurrent requests.
+
+Context:
+Test for timeout cleanup failed intermittently.
+Related: internal/session/manager.go:145
+EOF
+)"
 ```
 
 **Non-blocking findings** (review later):
 ```bash
-bd create --title="<suggestion>" --type=task --priority=4 --parent=<retro-epic>
+bd create --title="Consider caching session lookups" \
+  --type=task --priority=4 --parent=<retro-epic> \
+  --description="$(cat <<'EOF'
+Discovery Source: lc-abc - Implement session timeout
+Discovered During: cook phase (profiling)
+
+Impact:
+Performance optimization opportunity, not blocking.
+Could reduce latency by ~20ms per request in hot path.
+
+Context:
+Session.Get() called 10+ times per request in hot path.
+Related: internal/session/store.go
+EOF
+)"
 ```
 
 #### Research Findings (for research tasks)
@@ -271,7 +321,9 @@ Epics completed: <count>
 
 Issues filed: <count>
   + <new-id>: <title> [P<n>]
+    Source: <source-task-id> (<cook|serve> phase)
   + <new-id>: <title> [P4/retro]
+    Source: <source-task-id> (<cook|serve> phase)
 
 Commit: <hash>
   <commit message>
