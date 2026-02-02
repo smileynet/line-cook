@@ -43,6 +43,8 @@ from typing import Any, Callable, Optional
 # Constants
 OUTPUT_SUMMARY_MAX_LENGTH = 200
 DEFAULT_MAX_TASK_FAILURES = 3  # Skip task after this many failures
+DEFAULT_IDLE_TIMEOUT = 180  # 3 minutes without tool actions triggers idle
+DEFAULT_IDLE_ACTION = "warn"  # "warn" or "terminate"
 
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
@@ -259,6 +261,30 @@ class ServeResult:
 
 
 @dataclass
+class ServeFeedbackIssue:
+    """A single issue from serve review feedback."""
+    severity: str  # critical, major, minor, nit
+    location: Optional[str]  # file:line or description
+    problem: str
+    suggestion: Optional[str]
+
+
+@dataclass
+class ServeFeedback:
+    """Structured feedback from serve phase for cook retry.
+
+    When NEEDS_CHANGES is returned, this captures the issues found
+    so cook can prioritize addressing them on retry.
+    """
+    verdict: str
+    summary: str
+    issues: list[ServeFeedbackIssue] = field(default_factory=list)
+    task_id: Optional[str] = None
+    task_title: Optional[str] = None
+    attempt: int = 1
+
+
+@dataclass
 class PhaseResult:
     """Result from running a single workflow phase (cook, serve, tidy, plate)."""
     phase: str           # cook, serve, tidy, plate
@@ -269,6 +295,7 @@ class PhaseResult:
     signals: list[str] = field(default_factory=list)  # Detected signals (KITCHEN_COMPLETE, etc.)
     actions: list = field(default_factory=list)  # ActionRecords from this phase
     error: Optional[str] = None  # Error message if failed
+    early_completion: bool = False  # True if phase emitted phase_complete signal
 
 
 @dataclass
@@ -382,6 +409,8 @@ class ProgressState:
         phase_start_time: When the current phase started
         current_action_count: Number of tool actions in current phase
         last_action_time: Timestamp of most recent tool action
+        idle_detected: True if phase has been idle beyond threshold
+        idle_since: Timestamp when idle was first detected
     """
     status_file: Optional[Path]
     iteration: int
@@ -399,6 +428,10 @@ class ProgressState:
     current_action_count: int = 0
     last_action_time: Optional[datetime] = None
     _last_write: float = 0.0  # Throttle to 1 write per 5 seconds
+
+    # Idle detection fields
+    idle_detected: bool = False
+    idle_since: Optional[datetime] = None
 
     def start_phase(self, phase: str):
         """Mark the start of a new phase."""
@@ -447,6 +480,22 @@ class ProgressState:
             current_action_count=self.current_action_count,
             last_action_time=self.last_action_time
         )
+
+
+def check_idle(last_action_time: Optional[datetime], idle_timeout: int) -> bool:
+    """Check if the phase has been idle beyond the threshold.
+
+    Args:
+        last_action_time: Timestamp of the most recent tool action, or None if no actions yet
+        idle_timeout: Seconds without actions before considered idle
+
+    Returns:
+        True if idle beyond threshold, False otherwise
+    """
+    if last_action_time is None:
+        return False  # No actions yet, not considered idle
+    idle_seconds = (datetime.now() - last_action_time).total_seconds()
+    return idle_seconds >= idle_timeout
 
 
 def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedProcess:
@@ -578,6 +627,162 @@ def parse_serve_result(output: str) -> Optional[ServeResult]:
         )
 
     return None
+
+
+def parse_serve_feedback(output: str, task_id: Optional[str] = None, task_title: Optional[str] = None, attempt: int = 1) -> Optional[ServeFeedback]:
+    """Parse detailed feedback from serve output for retry context.
+
+    Extracts:
+    - Summary from the "Summary:" section
+    - Issues from "Issues to file" or issue list sections
+    - Severity markers like [critical], [major], [minor], [nit], [P1], [P2], etc.
+
+    Returns ServeFeedback or None if parsing fails.
+    """
+    # Extract summary - look for Summary: section
+    summary = ""
+    summary_match = re.search(
+        r"Summary:\s*\n\s*(.+?)(?:\n\n|\nAuto-fixed:|\nIssues|\nPositive)",
+        output,
+        re.DOTALL | re.IGNORECASE
+    )
+    if summary_match:
+        summary = summary_match.group(1).strip()
+
+    # Extract issues - look for various patterns
+    issues: list[ServeFeedbackIssue] = []
+
+    # Pattern 1: Issues to file in /tidy section with severity markers
+    # e.g., "- [P1] "title" - description" or "- [major] file:line - issue"
+    issue_section_match = re.search(
+        r"Issues to file[^\n]*:\s*\n((?:\s*-[^\n]+\n?)+)",
+        output,
+        re.IGNORECASE
+    )
+
+    # Pattern 2: Issues found section from sous-chef
+    # e.g., "Issues found:\n  - Severity: major\n    File/line: src/foo.py:42\n    Issue: desc"
+    issues_found_match = re.search(
+        r"Issues found:\s*\n((?:.*?\n)+?)(?:\n\n|Positive|$)",
+        output,
+        re.DOTALL | re.IGNORECASE
+    )
+
+    # Parse simple issue list (Pattern 1)
+    if issue_section_match:
+        issue_text = issue_section_match.group(1)
+        # Match lines like: - [P1] "title" - description or - [major] description
+        issue_pattern = re.compile(
+            r'-\s*\[([^\]]+)\]\s*(?:"([^"]+)"\s*-\s*)?(.+?)(?=\n\s*-|\n\n|$)',
+            re.MULTILINE | re.DOTALL
+        )
+        for match in issue_pattern.finditer(issue_text):
+            severity_raw = match.group(1).lower()
+            # Normalize severity: P1/P2 -> major, P3 -> minor, P4 -> nit
+            if severity_raw in ('p1', 'p2', 'critical'):
+                severity = 'critical' if severity_raw in ('p1', 'critical') else 'major'
+            elif severity_raw in ('p3', 'minor'):
+                severity = 'minor'
+            elif severity_raw in ('p4', 'nit', 'retro'):
+                severity = 'nit'
+            else:
+                severity = severity_raw
+
+            title = match.group(2)
+            description = match.group(3).strip()
+
+            issues.append(ServeFeedbackIssue(
+                severity=severity,
+                location=title,  # Use title as location hint
+                problem=description,
+                suggestion=None
+            ))
+
+    # Parse detailed issue format (Pattern 2) from sous-chef
+    if issues_found_match and not issues:
+        issue_text = issues_found_match.group(1)
+        # Look for structured issue blocks
+        severity_matches = re.findall(
+            r"Severity:\s*(\w+).*?(?:File/line:|Location:)\s*([^\n]+).*?Issue:\s*([^\n]+)(?:.*?Suggestion:\s*([^\n]+))?",
+            issue_text,
+            re.DOTALL | re.IGNORECASE
+        )
+        for sev, loc, prob, sugg in severity_matches:
+            issues.append(ServeFeedbackIssue(
+                severity=sev.lower(),
+                location=loc.strip(),
+                problem=prob.strip(),
+                suggestion=sugg.strip() if sugg else None
+            ))
+
+    # If we found a summary or issues, create feedback
+    if summary or issues:
+        # Get verdict from serve result
+        serve_result = parse_serve_result(output)
+        verdict = serve_result.verdict if serve_result else "NEEDS_CHANGES"
+
+        return ServeFeedback(
+            verdict=verdict,
+            summary=summary,
+            issues=issues,
+            task_id=task_id,
+            task_title=task_title,
+            attempt=attempt
+        )
+
+    return None
+
+
+def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
+    """Write retry context file for cook to read on next attempt.
+
+    Creates .line-cook/retry-context.json with structured feedback
+    so cook can prioritize addressing review issues.
+
+    Returns True if written successfully, False otherwise.
+    """
+    context_dir = cwd / ".line-cook"
+    context_file = context_dir / "retry-context.json"
+
+    try:
+        context_dir.mkdir(parents=True, exist_ok=True)
+
+        context = {
+            "task_id": feedback.task_id,
+            "task_title": feedback.task_title,
+            "attempt": feedback.attempt,
+            "verdict": feedback.verdict,
+            "summary": feedback.summary,
+            "issues": [
+                {
+                    "severity": issue.severity,
+                    "location": issue.location,
+                    "problem": issue.problem,
+                    "suggestion": issue.suggestion
+                }
+                for issue in feedback.issues
+            ],
+            "written_at": datetime.now().isoformat()
+        }
+
+        atomic_write(context_file, json.dumps(context, indent=2))
+        logger.info(f"Wrote retry context with {len(feedback.issues)} issues to {context_file}")
+        return True
+
+    except Exception as e:
+        logger.warning(f"Failed to write retry context: {e}")
+        return False
+
+
+def clear_retry_context(cwd: Path) -> None:
+    """Remove retry context file after successful completion."""
+    context_file = cwd / ".line-cook" / "retry-context.json"
+    try:
+        if context_file.exists():
+            context_file.unlink()
+            logger.debug(f"Cleared retry context file {context_file}")
+    except Exception as e:
+        logger.debug(f"Failed to clear retry context: {e}")
 
 
 def parse_intent_block(output: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
@@ -861,7 +1066,9 @@ def run_phase(
     args: str = "",
     timeout: Optional[int] = None,
     on_progress: Optional[Callable[[int, str], None]] = None,
-    phase_timeouts: Optional[dict[str, int]] = None
+    phase_timeouts: Optional[dict[str, int]] = None,
+    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_action: str = DEFAULT_IDLE_ACTION
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate).
 
@@ -873,6 +1080,8 @@ def run_phase(
         on_progress: Optional callback for progress updates.
             Called with (action_count, last_action_timestamp) when new actions detected.
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
+        idle_timeout: Seconds without tool actions before triggering idle (default: 180)
+        idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: warn)
 
     Returns:
         PhaseResult with output, signals, and success status
@@ -894,6 +1103,8 @@ def run_phase(
     signals: list[str] = []
     exit_code = 0
     error: Optional[str] = None
+    last_action_time: Optional[datetime] = None
+    idle_warned: bool = False
 
     try:
         process = subprocess.Popen(
@@ -939,6 +1150,10 @@ def run_phase(
                     actions.extend(new_actions)
                     # Update actions with tool_result from user messages
                     update_action_from_result(event, pending_actions)
+                    # Track last action time for idle detection
+                    if new_actions:
+                        last_action_time = datetime.now()
+                        idle_warned = False  # Reset idle warning on new activity
                     # Notify progress callback when new actions detected
                     if new_actions and on_progress:
                         last_ts = new_actions[-1].timestamp
@@ -955,9 +1170,39 @@ def run_phase(
                                 signals.append("serve_blocked")
                         if ("KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text) and "kitchen_complete" not in signals:
                             signals.append("kitchen_complete")
+                        # Detect phase completion signal for early termination
+                        if "<phase_complete>DONE</phase_complete>" in text and "phase_complete" not in signals:
+                            signals.append("phase_complete")
+                            logger.info(f"Phase {phase} signaled completion, terminating early")
+                            # Graceful early termination
+                            process.terminate()
+                            try:
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                                process.wait(timeout=5)
+                            break
             else:
                 if process.poll() is not None:
                     break
+                # Check for idle when no output is ready
+                if idle_timeout > 0 and last_action_time is not None:
+                    if check_idle(last_action_time, idle_timeout):
+                        if idle_action == "terminate":
+                            logger.warning(f"Phase {phase} idle for {idle_timeout}s, terminating")
+                            signals.append("idle_terminated")
+                            process.terminate()
+                            try:
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                                process.wait(timeout=5)
+                            error = f"Idle timeout after {idle_timeout}s without tool actions"
+                            break
+                        elif idle_action == "warn" and not idle_warned:
+                            idle_seconds = (datetime.now() - last_action_time).total_seconds()
+                            logger.warning(f"Phase {phase} idle for {idle_seconds:.0f}s (threshold: {idle_timeout}s)")
+                            idle_warned = True
 
         # Read any remaining output
         remaining_out = process.stdout.read()
@@ -995,9 +1240,11 @@ def run_phase(
 
     duration = time.time() - start_time
     output = "".join(output_lines)
-    success = exit_code == 0
+    # Phase is successful if exit code is 0 OR if it signaled early completion
+    early_completion = "phase_complete" in signals
+    success = exit_code == 0 or early_completion
 
-    logger.debug(f"Phase {phase} completed in {duration:.1f}s, exit={exit_code}, signals={signals}")
+    logger.debug(f"Phase {phase} completed in {duration:.1f}s, exit={exit_code}, signals={signals}, early_completion={early_completion}")
 
     return PhaseResult(
         phase=phase,
@@ -1007,7 +1254,8 @@ def run_phase(
         duration_seconds=duration,
         signals=signals,
         actions=actions,
-        error=None if success else f"Exit code {exit_code}"
+        error=None if success else f"Exit code {exit_code}",
+        early_completion=early_completion
     )
 
 
@@ -1298,7 +1546,9 @@ def run_iteration(
     max_cook_retries: int = 2,
     json_output: bool = False,
     progress_state: Optional[ProgressState] = None,
-    phase_timeouts: Optional[dict[str, int]] = None
+    phase_timeouts: Optional[dict[str, int]] = None,
+    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_action: str = DEFAULT_IDLE_ACTION
 ) -> IterationResult:
     """Execute individual phases (cook→serve→tidy) with retry logic.
 
@@ -1373,7 +1623,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("cook")
-        cook_result = run_phase("cook", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts)
+        cook_result = run_phase("cook", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
@@ -1449,7 +1699,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("serve")
-        serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts)
+        serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
         all_output.append(serve_result.output)
@@ -1472,13 +1722,23 @@ def run_iteration(
             if serve_verdict == "APPROVED":
                 if not json_output:
                     print_phase_progress("serve", "done", serve_result.duration_seconds, "APPROVED")
+                # Clear retry context on success
+                clear_retry_context(cwd)
                 cook_succeeded = True
                 break
             elif serve_verdict == "NEEDS_CHANGES":
                 if not json_output:
                     print_phase_progress("serve", "done", serve_result.duration_seconds, "NEEDS_CHANGES")
                 logger.info(f"NEEDS_CHANGES - will retry cook (attempt {cook_attempts}/{max_cook_retries + 1})")
-                # Cook will read the rework comment on next attempt
+                # Write structured retry context for cook to read
+                feedback = parse_serve_feedback(
+                    serve_result.output,
+                    task_id=task_id,
+                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    attempt=cook_attempts
+                )
+                if feedback:
+                    write_retry_context(cwd, feedback)
                 if cook_attempts > max_cook_retries:
                     logger.warning("Max cook retries reached with NEEDS_CHANGES")
                     break
@@ -1516,12 +1776,23 @@ def run_iteration(
                 serve_verdict = "APPROVED"
                 if not json_output:
                     print_phase_progress("serve", "done", serve_result.duration_seconds, "APPROVED")
+                # Clear retry context on success
+                clear_retry_context(cwd)
                 cook_succeeded = True
                 break
             elif "serve_needs_changes" in serve_result.signals:
                 serve_verdict = "NEEDS_CHANGES"
                 if not json_output:
                     print_phase_progress("serve", "done", serve_result.duration_seconds, "NEEDS_CHANGES")
+                # Write structured retry context for cook to read
+                feedback = parse_serve_feedback(
+                    serve_result.output,
+                    task_id=task_id,
+                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    attempt=cook_attempts
+                )
+                if feedback:
+                    write_retry_context(cwd, feedback)
                 if cook_attempts > max_cook_retries:
                     break
                 continue
@@ -1593,7 +1864,7 @@ def run_iteration(
 
     if progress_state:
         progress_state.start_phase("tidy")
-    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts)
+    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
     all_actions.extend(tidy_result.actions)
     all_output.append("\n=== TIDY PHASE ===\n")
     all_output.append(tidy_result.output)
@@ -1639,7 +1910,7 @@ def run_iteration(
 
             if progress_state:
                 progress_state.start_phase("plate")
-            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts)
+            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
             all_actions.extend(plate_result.actions)
             all_output.append("\n=== PLATE PHASE ===\n")
             all_output.append(plate_result.output)
@@ -2119,12 +2390,18 @@ def run_loop(
     break_on_epic: bool = False,
     skip_initial_sync: bool = False,
     phase_timeouts: Optional[dict[str, int]] = None,
-    max_task_failures: int = DEFAULT_MAX_TASK_FAILURES
+    max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
+    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_action: str = DEFAULT_IDLE_ACTION
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat.
 
     Individual phases have their own timeouts via phase_timeouts dict
     or DEFAULT_PHASE_TIMEOUTS.
+
+    Idle detection: If idle_timeout > 0, phases will be checked for idle
+    (no tool actions within threshold). idle_action determines response:
+    "warn" logs a warning, "terminate" stops the phase.
     """
     global _shutdown_requested
 
@@ -2233,7 +2510,9 @@ def run_loop(
             max_cook_retries=max_retries,
             json_output=json_output,
             progress_state=progress_state,
-            phase_timeouts=phase_timeouts
+            phase_timeouts=phase_timeouts,
+            idle_timeout=idle_timeout,
+            idle_action=idle_action
         )
         iterations.append(result)
 
@@ -2636,6 +2915,18 @@ Examples:
         default=DEFAULT_MAX_TASK_FAILURES,
         help=f"Skip task after this many failures (default: {DEFAULT_MAX_TASK_FAILURES})"
     )
+    parser.add_argument(
+        "--idle-timeout",
+        type=int,
+        default=DEFAULT_IDLE_TIMEOUT,
+        help=f"Seconds without tool actions before idle triggers (default: {DEFAULT_IDLE_TIMEOUT}). Set to 0 to disable."
+    )
+    parser.add_argument(
+        "--idle-action",
+        choices=["warn", "terminate"],
+        default=DEFAULT_IDLE_ACTION,
+        help=f"Action to take when idle detected: warn (log warning) or terminate (stop phase) (default: {DEFAULT_IDLE_ACTION})"
+    )
 
     args = parser.parse_args()
 
@@ -2689,7 +2980,9 @@ Examples:
             break_on_epic=args.break_on_epic,
             skip_initial_sync=args.skip_initial_sync,
             phase_timeouts=phase_timeouts,
-            max_task_failures=args.max_task_failures
+            max_task_failures=args.max_task_failures,
+            idle_timeout=args.idle_timeout,
+            idle_action=args.idle_action
         )
     finally:
         # Clean up PID file on exit

@@ -90,6 +90,51 @@ Addressing review findings first.
 
 **If no review findings:** Continue normally with Step 2.
 
+### Step 1.6: Check for Retry Context (Loop Mode)
+
+When running in line-loop, check for structured retry context:
+
+```bash
+cat .line-cook/retry-context.json 2>/dev/null
+```
+
+**If retry-context.json exists:**
+This file contains structured feedback from the previous serve review, including:
+- `verdict`: The serve verdict (NEEDS_CHANGES)
+- `summary`: Brief assessment of the changes
+- `issues`: Array of issues with severity, location, problem, and suggestion
+- `attempt`: Which retry attempt this is
+
+**Prioritize issues from the context file over bead comments**, as they're more structured and reliable.
+
+**Output in retry mode:**
+```
+╔══════════════════════════════════════════════════════════════╗
+║  RETRY MODE - Attempt <N>                                    ║
+╚══════════════════════════════════════════════════════════════╝
+
+Task: <id> - <title>
+Previous verdict: NEEDS_CHANGES
+
+Issues to address:
+  [critical] <location>: <problem>
+    → <suggestion>
+  [major] <location>: <problem>
+    → <suggestion>
+  [minor] <location>: <problem>
+
+Summary: <assessment from serve>
+
+Addressing issues in priority order (critical → major → minor).
+```
+
+**Add issues to TodoWrite** in severity order:
+1. Critical issues first (blocking)
+2. Major issues second
+3. Minor issues last
+
+**If no retry context exists:** Continue normally with Step 2.
+
 ### Step 2: Load Recipe
 
 Load the task details (the recipe):
@@ -271,7 +316,11 @@ Findings (to file in /tidy):
     - "Consider refactoring Z for clarity"
 
 NEXT STEP: /line:serve
+
+<phase_complete>DONE</phase_complete>
 ```
+
+**Phase completion signal:** The `<phase_complete>DONE</phase_complete>` tag signals to the line-loop orchestrator that this phase has completed its work and can be terminated early. This avoids waiting for natural exit or timeout. Always emit this signal at the very end of successful completion output.
 
 ## Guardrails (Critical)
 
