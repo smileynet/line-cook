@@ -365,7 +365,11 @@ class ProgressState:
             last_action_time: ISO timestamp of the most recent action
         """
         self.current_action_count = action_count
-        self.last_action_time = datetime.fromisoformat(last_action_time)
+        try:
+            self.last_action_time = datetime.fromisoformat(last_action_time)
+        except (ValueError, TypeError):
+            # Malformed timestamp - fall back to current time
+            self.last_action_time = datetime.now()
         # Throttle writes to max 1 per 5 seconds
         if time.time() - self._last_write >= 5.0:
             self._write_status()

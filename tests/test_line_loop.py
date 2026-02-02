@@ -242,6 +242,73 @@ class TestCircuitBreaker(unittest.TestCase):
         self.assertFalse(cb.is_open())
 
 
+class TestProgressState(unittest.TestCase):
+    """Test ProgressState class for intra-iteration progress tracking."""
+
+    def _create_progress_state(self, status_file=None):
+        """Helper to create a ProgressState with minimal required fields."""
+        from datetime import datetime
+        return line_loop.ProgressState(
+            status_file=status_file,
+            iteration=1,
+            max_iterations=10,
+            current_task="lc-001",
+            current_task_title="Test task",
+            tasks_completed=0,
+            tasks_remaining=5,
+            started_at=datetime.now(),
+            iterations=[]
+        )
+
+    def test_start_phase_sets_fields(self):
+        """start_phase() sets phase name and start time."""
+        ps = self._create_progress_state()
+        ps.start_phase("cook")
+        self.assertEqual(ps.current_phase, "cook")
+        self.assertIsNotNone(ps.phase_start_time)
+        self.assertEqual(ps.current_action_count, 0)
+
+    def test_update_progress_sets_action_count(self):
+        """update_progress() sets action count and last action time."""
+        ps = self._create_progress_state()
+        ps.start_phase("cook")
+        ps.update_progress(5, "2026-02-01T10:15:00")
+        self.assertEqual(ps.current_action_count, 5)
+        self.assertIsNotNone(ps.last_action_time)
+
+    def test_update_progress_handles_malformed_timestamp(self):
+        """update_progress() handles malformed timestamp gracefully."""
+        ps = self._create_progress_state()
+        ps.start_phase("cook")
+        # Should not raise - falls back to datetime.now()
+        ps.update_progress(3, "not-a-timestamp")
+        self.assertEqual(ps.current_action_count, 3)
+        self.assertIsNotNone(ps.last_action_time)
+
+    def test_update_progress_handles_none_timestamp(self):
+        """update_progress() handles None timestamp gracefully."""
+        ps = self._create_progress_state()
+        ps.start_phase("cook")
+        # Should not raise - falls back to datetime.now()
+        ps.update_progress(2, None)
+        self.assertEqual(ps.current_action_count, 2)
+        self.assertIsNotNone(ps.last_action_time)
+
+    def test_throttle_initial_state(self):
+        """_last_write starts at 0 before any writes."""
+        ps = self._create_progress_state()
+        self.assertEqual(ps._last_write, 0.0)
+
+    def test_start_phase_resets_action_count(self):
+        """start_phase() resets action count to 0."""
+        ps = self._create_progress_state()
+        ps.start_phase("cook")
+        ps.current_action_count = 10
+        ps.start_phase("serve")
+        self.assertEqual(ps.current_action_count, 0)
+        self.assertEqual(ps.current_phase, "serve")
+
+
 class TestCalculateRetryDelay(unittest.TestCase):
     """Test calculate_retry_delay() function."""
 
