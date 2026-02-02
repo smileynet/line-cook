@@ -1635,10 +1635,13 @@ def run_iteration(
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
 
+        # Track if task completed despite timeout (still need serve review)
+        task_completed_despite_timeout = False
+
         if cook_result.error and "Timeout" in cook_result.error:
             # Timeout during cook - check if task completed anyway
-            after = get_bead_snapshot(cwd)
-            task_id = detect_worked_task(before, after)
+            after_cook = get_bead_snapshot(cwd)
+            task_id = detect_worked_task(before, after_cook)
             if task_id:
                 task_info = get_task_info(task_id, cwd)
                 if task_info and task_info.get("status") == "closed":
@@ -1646,33 +1649,34 @@ def run_iteration(
                     if not json_output:
                         print_phase_progress("cook", "done", cook_result.duration_seconds,
                                            f"{len(cook_result.actions)} actions (timed out but completed)")
-                    cook_succeeded = True
-                    break
+                    task_completed_despite_timeout = True
+                    # Fall through to serve for code review validation
 
-            if not json_output:
-                print_phase_progress("cook", "error", cook_result.duration_seconds, "timeout")
-            logger.warning(f"Cook phase timed out on attempt {cook_attempts}")
-            if cook_attempts > max_cook_retries:
-                duration = (datetime.now() - start_time).total_seconds()
-                after = get_bead_snapshot(cwd)
-                return IterationResult(
-                    iteration=iteration,
-                    task_id=task_id,
-                    task_title=get_task_title(task_id, cwd) if task_id else None,
-                    outcome="timeout",
-                    duration_seconds=duration,
-                    serve_verdict=None,
-                    commit_hash=get_latest_commit(cwd),
-                    success=False,
-                    before_ready=len(before.ready_ids),
-                    before_in_progress=len(before.in_progress_ids),
-                    after_ready=len(after.ready_ids),
-                    after_in_progress=len(after.in_progress_ids),
-                    actions=all_actions
-                )
-            continue
+            if not task_completed_despite_timeout:
+                if not json_output:
+                    print_phase_progress("cook", "error", cook_result.duration_seconds, "timeout")
+                logger.warning(f"Cook phase timed out on attempt {cook_attempts}")
+                if cook_attempts > max_cook_retries:
+                    duration = (datetime.now() - start_time).total_seconds()
+                    # Reuse after_cook snapshot from above
+                    return IterationResult(
+                        iteration=iteration,
+                        task_id=task_id,
+                        task_title=get_task_title(task_id, cwd) if task_id else None,
+                        outcome="timeout",
+                        duration_seconds=duration,
+                        serve_verdict=None,
+                        commit_hash=get_latest_commit(cwd),
+                        success=False,
+                        before_ready=len(before.ready_ids),
+                        before_in_progress=len(before.in_progress_ids),
+                        after_ready=len(after_cook.ready_ids),
+                        after_in_progress=len(after_cook.in_progress_ids),
+                        actions=all_actions
+                    )
+                continue
 
-        if not cook_result.success:
+        if not cook_result.success and not task_completed_despite_timeout:
             if not json_output:
                 print_phase_progress("cook", "error", cook_result.duration_seconds,
                                    cook_result.error or "failed")
@@ -1682,7 +1686,8 @@ def run_iteration(
             continue
 
         # Check for KITCHEN_IDLE signal (no actionable work found)
-        if "kitchen_idle" in cook_result.signals:
+        # Skip if task completed despite timeout (task closure contradicts IDLE)
+        if "kitchen_idle" in cook_result.signals and not task_completed_despite_timeout:
             if not json_output:
                 print_phase_progress("cook", "done", cook_result.duration_seconds, "IDLE")
             logger.info("Cook found no actionable work (KITCHEN_IDLE)")
@@ -1705,13 +1710,15 @@ def run_iteration(
             )
 
         # Cook succeeded - print progress (we'll report actions after serve since we continue to serve)
-        if not json_output:
+        # Skip if already printed for timeout-but-completed case
+        if not json_output and not task_completed_despite_timeout:
             print_phase_progress("cook", "done", cook_result.duration_seconds,
                                f"{len(cook_result.actions)} actions")
 
-        # Cook succeeded, detect task
-        after_cook = get_bead_snapshot(cwd)
-        task_id = detect_worked_task(before, after_cook)
+        # Cook succeeded, detect task (skip if already detected in timeout path)
+        if not task_completed_despite_timeout:
+            after_cook = get_bead_snapshot(cwd)
+            task_id = detect_worked_task(before, after_cook)
         logger.debug(f"Detected task: {task_id}")
 
         # Update progress state with detected task for status visibility
