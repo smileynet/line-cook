@@ -38,7 +38,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 # Constants
 OUTPUT_SUMMARY_MAX_LENGTH = 200
@@ -317,6 +317,81 @@ class LoopReport:
     completed_count: int
     failed_count: int
     duration_seconds: float
+
+
+@dataclass
+class ProgressState:
+    """Tracks progress for intra-iteration status updates.
+
+    Enables real-time visibility into loop progress during long-running phases.
+    Status updates are throttled to max 1 write per 5 seconds to avoid I/O overhead.
+
+    Fields written to status.json:
+        current_phase: The currently executing phase (cook, serve, tidy, plate)
+        phase_start_time: When the current phase started
+        current_action_count: Number of tool actions in current phase
+        last_action_time: Timestamp of most recent tool action
+    """
+    status_file: Optional[Path]
+    iteration: int
+    max_iterations: int
+    current_task: Optional[str]
+    current_task_title: Optional[str]
+    tasks_completed: int
+    tasks_remaining: int
+    started_at: datetime
+    iterations: list
+
+    # Intra-iteration progress fields
+    current_phase: Optional[str] = None
+    phase_start_time: Optional[datetime] = None
+    current_action_count: int = 0
+    last_action_time: Optional[datetime] = None
+    _last_write: float = 0.0  # Throttle to 1 write per 5 seconds
+
+    def start_phase(self, phase: str):
+        """Mark the start of a new phase."""
+        self.current_phase = phase
+        self.phase_start_time = datetime.now()
+        self.current_action_count = 0
+        self._write_status()
+        self._last_write = time.time()  # Reset throttle after phase start write
+
+    def update_progress(self, action_count: int, last_action_time: str):
+        """Called when new actions are detected during phase execution.
+
+        Args:
+            action_count: Total actions so far in current phase
+            last_action_time: ISO timestamp of the most recent action
+        """
+        self.current_action_count = action_count
+        self.last_action_time = datetime.fromisoformat(last_action_time)
+        # Throttle writes to max 1 per 5 seconds
+        if time.time() - self._last_write >= 5.0:
+            self._write_status()
+            self._last_write = time.time()
+
+    def _write_status(self):
+        """Write current progress to status file."""
+        if not self.status_file:
+            return
+        write_status_file(
+            status_file=self.status_file,
+            running=True,
+            iteration=self.iteration,
+            max_iterations=self.max_iterations,
+            current_task=self.current_task,
+            current_task_title=self.current_task_title,
+            last_verdict=None,  # Not known during phase execution
+            tasks_completed=self.tasks_completed,
+            tasks_remaining=self.tasks_remaining,
+            started_at=self.started_at,
+            iterations=self.iterations,
+            current_phase=self.current_phase,
+            phase_start_time=self.phase_start_time,
+            current_action_count=self.current_action_count,
+            last_action_time=self.last_action_time
+        )
 
 
 def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedProcess:
@@ -693,7 +768,8 @@ def run_phase(
     phase: str,
     cwd: Path,
     args: str = "",
-    timeout: Optional[int] = None
+    timeout: Optional[int] = None,
+    on_progress: Optional[Callable[[int, str], None]] = None
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate).
 
@@ -702,6 +778,8 @@ def run_phase(
         cwd: Working directory
         args: Optional arguments (e.g., task ID for cook)
         timeout: Override default phase timeout
+        on_progress: Optional callback for progress updates.
+            Called with (action_count, last_action_timestamp) when new actions detected.
 
     Returns:
         PhaseResult with output, signals, and success status
@@ -767,6 +845,10 @@ def run_phase(
                     actions.extend(new_actions)
                     # Update actions with tool_result from user messages
                     update_action_from_result(event, pending_actions)
+                    # Notify progress callback when new actions detected
+                    if new_actions and on_progress:
+                        last_ts = new_actions[-1].timestamp
+                        on_progress(len(actions), last_ts)
                     # Detect signals during streaming
                     if event.get("type") == "assistant":
                         text = extract_text_from_event(event)
@@ -1120,7 +1202,8 @@ def run_iteration(
     max_iterations: int,
     cwd: Path,
     max_cook_retries: int = 2,
-    json_output: bool = False
+    json_output: bool = False,
+    progress_state: Optional[ProgressState] = None
 ) -> IterationResult:
     """Execute individual phases (cook→serve→tidy) with retry logic.
 
@@ -1137,6 +1220,7 @@ def run_iteration(
         cwd: Working directory
         max_cook_retries: Max retries on NEEDS_CHANGES verdict
         json_output: If True, suppress human-readable phase output
+        progress_state: Optional progress state for real-time status updates
     """
     start_time = datetime.now()
     logger.info(f"Starting iteration {iteration}/{max_iterations}")
@@ -1173,6 +1257,11 @@ def run_iteration(
     task_id: Optional[str] = None
     after: Optional[BeadSnapshot] = None  # Will be set during phase execution
 
+    # Create progress callback if progress_state is available
+    def progress_callback(action_count: int, last_action_time: str):
+        if progress_state:
+            progress_state.update_progress(action_count, last_action_time)
+
     # ===== PHASE 1: COOK (with retry loop) =====
     cook_attempts = 0
     cook_succeeded = False
@@ -1186,7 +1275,9 @@ def run_iteration(
         if not json_output:
             print_phase_progress(f"cook{retry_info}", "start")
 
-        cook_result = run_phase("cook", cwd)
+        if progress_state:
+            progress_state.start_phase("cook")
+        cook_result = run_phase("cook", cwd, on_progress=progress_callback)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
@@ -1247,6 +1338,11 @@ def run_iteration(
         task_id = detect_worked_task(before, after_cook)
         logger.debug(f"Detected task: {task_id}")
 
+        # Update progress state with detected task for status visibility
+        if progress_state and task_id:
+            progress_state.current_task = task_id
+            progress_state.current_task_title = get_task_title(task_id, cwd)
+
         # Note: KITCHEN_COMPLETE signal indicates cook is confident, but we
         # still run serve for code review validation
 
@@ -1255,7 +1351,9 @@ def run_iteration(
         if not json_output:
             print_phase_progress("serve", "start")
 
-        serve_result = run_phase("serve", cwd)
+        if progress_state:
+            progress_state.start_phase("serve")
+        serve_result = run_phase("serve", cwd, on_progress=progress_callback)
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
         all_output.append(serve_result.output)
@@ -1397,7 +1495,9 @@ def run_iteration(
     if not json_output:
         print_phase_progress("tidy", "start")
 
-    tidy_result = run_phase("tidy", cwd)
+    if progress_state:
+        progress_state.start_phase("tidy")
+    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback)
     all_actions.extend(tidy_result.actions)
     all_output.append("\n=== TIDY PHASE ===\n")
     all_output.append(tidy_result.output)
@@ -1441,7 +1541,9 @@ def run_iteration(
                 print(f"\n  Feature complete: {feature_id}")
                 print_phase_progress("plate", "start")
 
-            plate_result = run_phase("plate", cwd, args=feature_id)
+            if progress_state:
+                progress_state.start_phase("plate")
+            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback)
             all_actions.extend(plate_result.actions)
             all_output.append("\n=== PLATE PHASE ===\n")
             all_output.append(plate_result.output)
@@ -1700,12 +1802,22 @@ def write_status_file(
     tasks_remaining: int,
     started_at: datetime,
     stop_reason: Optional[str] = None,
-    iterations: Optional[list] = None
+    iterations: Optional[list] = None,
+    current_phase: Optional[str] = None,
+    phase_start_time: Optional[datetime] = None,
+    current_action_count: int = 0,
+    last_action_time: Optional[datetime] = None
 ):
     """Write live status JSON for external monitoring.
 
     Includes recent_iterations array with last 5 completed iterations
     for watch mode milestone display.
+
+    Intra-iteration progress fields (for real-time visibility):
+        current_phase: Currently executing phase (cook, serve, tidy, plate)
+        phase_start_time: When the current phase started
+        current_action_count: Number of tool actions in current phase
+        last_action_time: Timestamp of most recent tool action
     """
     status = {
         "running": running,
@@ -1721,6 +1833,16 @@ def write_status_file(
     }
     if stop_reason:
         status["stop_reason"] = stop_reason
+
+    # Add intra-iteration progress fields
+    if current_phase:
+        status["current_phase"] = current_phase
+    if phase_start_time:
+        status["phase_start_time"] = phase_start_time.isoformat()
+    if current_action_count > 0:
+        status["current_action_count"] = current_action_count
+    if last_action_time:
+        status["last_action_time"] = last_action_time.isoformat()
 
     # Add recent_iterations (last 5 completed iterations)
     if iterations:
@@ -1860,11 +1982,27 @@ def run_loop(
             print(f"\n[{iteration}/{max_iterations}] {ready_work_count} work items ready")
             print("-" * 44)
 
+        # Create progress state for real-time status updates during iteration
+        progress_state = None
+        if status_file:
+            progress_state = ProgressState(
+                status_file=status_file,
+                iteration=iteration,
+                max_iterations=max_iterations,
+                current_task=None,  # Will be detected during cook phase
+                current_task_title=None,
+                tasks_completed=completed_count,
+                tasks_remaining=ready_work_count,
+                started_at=started_at,
+                iterations=iterations
+            )
+
         # Run iteration with individual phase invocations
         result = run_iteration(
             iteration, max_iterations, cwd,
             max_cook_retries=max_retries,
-            json_output=json_output
+            json_output=json_output,
+            progress_state=progress_state
         )
         iterations.append(result)
 
