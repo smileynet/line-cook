@@ -351,7 +351,7 @@ class IterationResult:
     iteration: int
     task_id: Optional[str]
     task_title: Optional[str]
-    outcome: str  # "completed", "needs_retry", "blocked", "crashed", "timeout", "no_work"
+    outcome: str  # "completed", "needs_retry", "blocked", "crashed", "timeout", "no_work", "no_actionable_work"
     duration_seconds: float
     serve_verdict: Optional[str]
     commit_hash: Optional[str]
@@ -391,7 +391,7 @@ class LoopReport:
     started_at: str
     ended_at: str
     iterations: list[IterationResult]
-    stop_reason: str  # "no_work", "max_iterations", "blocked", "error", "crashed", "epic_complete"
+    stop_reason: str  # "no_work", "no_actionable_work", "max_iterations", "blocked", "error", "crashed", "epic_complete"
     completed_count: int
     failed_count: int
     duration_seconds: float
@@ -889,6 +889,11 @@ def detect_kitchen_complete(output: str) -> bool:
     return "KITCHEN_COMPLETE" in output or "KITCHEN COMPLETE" in output
 
 
+def detect_kitchen_idle(output: str) -> bool:
+    """Detect KITCHEN_IDLE signal in output."""
+    return "KITCHEN_IDLE" in output or "KITCHEN IDLE" in output
+
+
 def check_task_completed(
     task_id: Optional[str],
     before: BeadSnapshot,
@@ -1170,6 +1175,8 @@ def run_phase(
                                 signals.append("serve_blocked")
                         if ("KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text) and "kitchen_complete" not in signals:
                             signals.append("kitchen_complete")
+                        if detect_kitchen_idle(text) and "kitchen_idle" not in signals:
+                            signals.append("kitchen_idle")
                         # Detect phase completion signal for early termination
                         if "<phase_complete>DONE</phase_complete>" in text and "phase_complete" not in signals:
                             signals.append("phase_complete")
@@ -1674,6 +1681,29 @@ def run_iteration(
                 break
             continue
 
+        # Check for KITCHEN_IDLE signal (no actionable work found)
+        if "kitchen_idle" in cook_result.signals:
+            if not json_output:
+                print_phase_progress("cook", "done", cook_result.duration_seconds, "IDLE")
+            logger.info("Cook found no actionable work (KITCHEN_IDLE)")
+            duration = (datetime.now() - start_time).total_seconds()
+            # State unchanged since no work was done - reuse before snapshot values
+            return IterationResult(
+                iteration=iteration,
+                task_id=None,
+                task_title=None,
+                outcome="no_actionable_work",
+                duration_seconds=duration,
+                serve_verdict=None,
+                commit_hash=None,
+                success=False,
+                before_ready=len(before.ready_ids),
+                before_in_progress=len(before.in_progress_ids),
+                after_ready=len(before.ready_ids),
+                after_in_progress=len(before.in_progress_ids),
+                actions=all_actions
+            )
+
         # Cook succeeded - print progress (we'll report actions after serve since we continue to serve)
         if not json_output:
             print_phase_progress("cook", "done", cook_result.duration_seconds,
@@ -2009,7 +2039,8 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         "blocked": "[BLOCKED]",
         "crashed": "[CRASH]",
         "timeout": "[TIMEOUT]",
-        "no_work": "[DONE]"
+        "no_work": "[DONE]",
+        "no_actionable_work": "[IDLE]"
     }
     status = status_map.get(result.outcome, "[?]")
 
@@ -2558,6 +2589,13 @@ def run_loop(
             stop_reason = "no_work"
             break
 
+        if result.outcome == "no_actionable_work":
+            stop_reason = "no_actionable_work"
+            logger.info("No actionable work found (e.g., only P4 parking lot items)")
+            if not json_output:
+                print("\nNo actionable tasks available. Stopping loop.")
+            break
+
         if result.outcome == "completed":
             completed_count += 1
             current_retries = 0
@@ -2868,12 +2906,12 @@ Examples:
     parser.add_argument(
         "--status-file",
         type=Path,
-        help="Write live status JSON after each iteration"
+        help="Write live status JSON (default: /tmp/line-loop-{project}/status.json)"
     )
     parser.add_argument(
         "--history-file",
         type=Path,
-        help="Write complete history JSONL (one JSON record per line) with all iterations and action details"
+        help="Write history JSONL (default: /tmp/line-loop-{project}/history.jsonl)"
     )
     parser.add_argument(
         "--break-on-epic",
@@ -2931,6 +2969,17 @@ Examples:
     args = parser.parse_args()
 
     cwd = Path.cwd()
+
+    # Generate default paths for status/history files if not provided
+    if args.status_file is None or args.history_file is None:
+        loop_dir = Path("/tmp") / f"line-loop-{cwd.name}"
+        loop_dir.mkdir(parents=True, exist_ok=True)
+
+        if args.status_file is None:
+            args.status_file = loop_dir / "status.json"
+
+        if args.history_file is None:
+            args.history_file = loop_dir / "history.jsonl"
 
     # Set up logging
     setup_logging(args.verbose, args.log_file)
@@ -2994,7 +3043,7 @@ Examples:
                 logger.warning(f"Failed to remove PID file: {e}")
 
     # Exit with appropriate code
-    if report.stop_reason in ("no_work", "max_iterations", "shutdown", "epic_complete"):
+    if report.stop_reason in ("no_work", "no_actionable_work", "max_iterations", "shutdown", "epic_complete"):
         sys.exit(0)
     elif report.stop_reason == "blocked":
         sys.exit(1)

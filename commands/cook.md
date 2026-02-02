@@ -55,6 +55,23 @@ If `issue_type` is `epic`, the epic itself has no work to execute. Instead:
 
 4. Continue with the selected child task
 
+**If no actionable tasks available** (e.g., only P4 parking lot items or research tasks):
+
+Output the idle signal and stop:
+```
+╔══════════════════════════════════════════════════════════════╗
+║  KITCHEN IDLE                                                ║
+╚══════════════════════════════════════════════════════════════╝
+
+No actionable tasks available.
+
+Available: <count> items (all P4 parking lot or research)
+
+Signal: KITCHEN_IDLE
+
+<phase_complete>DONE</phase_complete>
+```
+
 **Once a regular task is selected**, claim it:
 ```bash
 bd show <id>                           # Display full task details

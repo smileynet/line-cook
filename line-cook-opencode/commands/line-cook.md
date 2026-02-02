@@ -1,5 +1,6 @@
 ---
 description: Select and execute a task with completion guardrails
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQuestion
 ---
 
 ## Summary
@@ -8,7 +9,8 @@ description: Select and execute a task with completion guardrails
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to execute
 
-**STOP after completing.** Show NEXT STEP and wait for user.
+**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
+**When run via `/line-run`:** Continue to the next step without stopping.
 
 ---
 
@@ -54,6 +56,23 @@ If `issue_type` is `epic`, the epic itself has no work to execute. Instead:
 
 4. Continue with the selected child task
 
+**If no actionable tasks available** (e.g., only P4 parking lot items or research tasks):
+
+Output the idle signal and stop:
+```
+╔══════════════════════════════════════════════════════════════╗
+║  KITCHEN IDLE                                                ║
+╚══════════════════════════════════════════════════════════════╝
+
+No actionable tasks available.
+
+Available: <count> items (all P4 parking lot or research)
+
+Signal: KITCHEN_IDLE
+
+<phase_complete>DONE</phase_complete>
+```
+
 **Once a regular task is selected**, claim it:
 ```bash
 bd show <id>                           # Display full task details
@@ -62,52 +81,46 @@ bd comments add <id> "PHASE: COOK
 Status: started"
 ```
 
-### Step 2: Load Recipe
+### Step 2: Plan the Task
 
-Load the task details (the recipe):
-
-```bash
-bd show <id>
-```
-
-Review the task description, acceptance criteria, and any dependencies. This is the recipe for what will be cooked.
-
-### Step 3: Load Ingredients
-
-Load relevant context files and documentation (the ingredients):
-
-1. **Project structure** - Understand codebase layout
-2. **Kitchen manual** - Review AGENTS.md for conventions
-3. **Related code** - Read files relevant to the task
-4. **Dependencies** - Check what this task builds on
-
-Use Read, Glob, and Grep tools to gather necessary context before starting implementation.
-
-### Step 4: Plan the Task
-
-Break the task into steps using a checklist:
+Break the task into steps using TodoWrite:
 
 1. Read the task description carefully
 2. Identify all deliverables
-3. List steps before starting
+3. Add steps to TodoWrite before starting
 4. Include verification steps (test, compile, etc.)
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
-### Step 5: Execute TDD Cycle
+### Step 3: Execute TDD Cycle
 
-Process checklist items systematically with TDD guardrails:
+Process TodoWrite items systematically with TDD guardrails:
 
-- Work through items one at a time
-- Track progress as you go
+- Mark items `in_progress` when starting
+- Mark items `completed` immediately when done
+- Only one item should be `in_progress` at a time
 
 **For code changes, follow TDD cycle:**
 
 1. **RED**: Write failing test
-    ```bash
-    <test command>  # e.g., pytest, go test, npm test
-    # Should FAIL
-    ```
+   ```bash
+   <test command>  # e.g., pytest, go test, npm test
+   # Should FAIL
+   ```
+   
+   **Automatic test quality review** (use Task tool):
+   ```
+   Task tool: Review test code for quality
+   Subagent type: taster
+   ```
+
+   Test quality checks:
+   - Tests are isolated, fast, repeatable
+   - Clear test names and error messages
+   - Proper structure (Setup-Execute-Validate-Cleanup)
+   - No anti-patterns
+   
+   **Address critical issues before GREEN phase.**
 
 2. **GREEN**: Implement minimal code
    ```bash
@@ -144,11 +157,11 @@ TDD Phase: RED/GREEN/REFACTOR
 
 These will be filed as beads in `/line-tidy`.
 
-### Step 6: Verify Kitchen Equipment
+### Step 4: Verify Kitchen Equipment
 
 Before marking the task done, verify ALL guardrails pass:
 
-- [ ] All checklist items completed
+- [ ] All TodoWrite items completed
 - [ ] Code compiles/runs without errors
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
@@ -167,7 +180,7 @@ Before marking the task done, verify ALL guardrails pass:
 - Keep task as `in_progress`
 - Ask user how to proceed
 
-### Step 7: Complete Task
+### Step 5: Complete Task
 
 Only after all guardrails pass:
 
@@ -175,12 +188,7 @@ Only after all guardrails pass:
 bd close <id>
 bd comments add <id> "PHASE: COOK
 Status: completed
-
-SEMANTIC CONTEXT (for tidy summary):
-Intent: <why this change was made, from task description>
-Before: <previous state - what existed/didn't work>
-After: <new state - what's now possible/fixed>
-
+Summary: <what was done>
 Files: <count> changed
 Findings: <issues/improvements noted for tidy>"
 ```
@@ -188,7 +196,7 @@ Findings: <issues/improvements noted for tidy>"
 **Completion output format:**
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  KITCHEN COMPLETE                                            ║
+║  KITCHEN COMPLETE                                             ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Task: <id> - <title>
@@ -197,13 +205,8 @@ Build: ✓ Successful
 
 Signal: KITCHEN_COMPLETE
 
-INTENT:
-  <1-2 sentences from task description>
-  Goal: <deliverable or acceptance criteria>
-
-BEFORE → AFTER:
-  <previous state> → <new state>
-  <what couldn't be done> → <what can be done now>
+Summary:
+  <1-2 sentence description of what was accomplished>
 
 Files changed:
   M src/foo.ts
@@ -222,7 +225,7 @@ Findings (to file in /tidy):
   Improvements:
     - "Consider refactoring Z for clarity"
 
-NEXT STEP: /line-serve
+NEXT STEP: /line-serve (review) or /line-tidy (commit)
 ```
 
 ## Guardrails (Critical)
@@ -237,7 +240,7 @@ NEXT STEP: /line-serve
 If execution is blocked:
 ```
 ⚠️ KITCHEN BLOCKED: <description>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Reason: <why it failed>
 Progress: <what was completed>
