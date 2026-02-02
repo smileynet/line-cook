@@ -468,6 +468,8 @@ These enable:
 - **Stall detection**: `last_action_time` unchanged for 5+ minutes = potentially hung
 - **Phase awareness**: Know which phase is executing and how long
 
+**Note:** Status writes are throttled to max 1 per 5 seconds to avoid I/O overhead. Phase transitions always trigger an immediate write.
+
 ### Format Watch Output
 
 ```
