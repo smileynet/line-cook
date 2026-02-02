@@ -182,7 +182,7 @@ LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
 |------|---------|
 | `$LOOP_DIR/loop.pid` | Process ID for management |
 | `$LOOP_DIR/loop.log` | Full log output |
-| `$LOOP_DIR/status.json` | Live status (updated per iteration, last 5 iterations with action counts) |
+| `$LOOP_DIR/status.json` | Live status (updated during phases and after iterations, includes phase progress and action counts) |
 | `$LOOP_DIR/history.jsonl` | Complete history of ALL iterations with full action details (JSONL format) |
 | `$LOOP_DIR/report.json` | Final report (written on completion) |
 
@@ -428,6 +428,10 @@ Use the Read tool to read `$LOOP_DIR/status.json`. The status file includes:
   "tasks_remaining": 5,
   "started_at": "2026-02-01T10:00:00",
   "last_update": "2026-02-01T10:15:20",
+  "current_phase": "cook",
+  "phase_start_time": "2026-02-01T10:15:00",
+  "current_action_count": 12,
+  "last_action_time": "2026-02-01T10:17:45",
   "recent_iterations": [
     {
       "iteration": 2,
@@ -448,6 +452,22 @@ Use the Read tool to read `$LOOP_DIR/status.json`. The status file includes:
 }
 ```
 
+### Intra-Iteration Progress Fields
+
+The following fields provide real-time visibility during long-running phases:
+
+| Field | Description |
+|-------|-------------|
+| `current_phase` | Currently executing phase (cook, serve, tidy, plate) |
+| `phase_start_time` | When the current phase started |
+| `current_action_count` | Number of tool actions in current phase |
+| `last_action_time` | Timestamp of most recent tool action |
+
+These enable:
+- **Progress visibility**: Action count increasing = work happening
+- **Stall detection**: `last_action_time` unchanged for 5+ minutes = potentially hung
+- **Phase awareness**: Know which phase is executing and how long
+
 ### Format Watch Output
 
 ```
@@ -458,7 +478,7 @@ Completed: 2 | Remaining: 5 | Runtime: 15m 30s
 
 CURRENT: Iteration 3
   Task: lc-042 - Fix timeout handling
-  Status: COOKING... (2m 10s)
+  Phase: COOK (2m 45s) | Actions: 12 | Last: 5s ago
 
 RECENT MILESTONES
 ───────────────────────────────────────
@@ -477,6 +497,12 @@ RECENT LOG
 
 Refresh: /line:loop watch | Stop: /line:loop stop
 ```
+
+The `Phase:` line shows:
+- Current phase name (COOK, SERVE, TIDY, PLATE)
+- Time elapsed in current phase
+- Number of tool actions in current phase
+- Time since last action (for stall detection)
 
 ### Progress Bar Calculation
 
