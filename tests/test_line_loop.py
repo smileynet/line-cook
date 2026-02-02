@@ -333,5 +333,266 @@ class TestCalculateRetryDelay(unittest.TestCase):
         self.assertLessEqual(delay, 60 * 1.2)  # Max 72s with jitter
 
 
+class TestSkipList(unittest.TestCase):
+    """Test SkipList class for tracking failing tasks."""
+
+    def test_skip_list_starts_empty(self):
+        """Skip list starts with no skipped tasks."""
+        sl = line_loop.SkipList()
+        self.assertEqual(sl.get_skipped_ids(), set())
+        self.assertEqual(sl.get_skipped_tasks(), [])
+
+    def test_record_failure_counts(self):
+        """record_failure() increments failure count."""
+        sl = line_loop.SkipList(max_failures=3)
+        self.assertFalse(sl.record_failure("lc-001"))
+        self.assertFalse(sl.record_failure("lc-001"))
+        self.assertTrue(sl.record_failure("lc-001"))  # Third failure triggers skip
+        self.assertEqual(sl.failed_tasks["lc-001"], 3)
+
+    def test_record_failure_returns_true_when_skipped(self):
+        """record_failure() returns True when task hits skip threshold."""
+        sl = line_loop.SkipList(max_failures=2)
+        self.assertFalse(sl.record_failure("lc-001"))
+        self.assertTrue(sl.record_failure("lc-001"))
+
+    def test_record_failure_empty_task_id(self):
+        """record_failure() handles empty task ID gracefully."""
+        sl = line_loop.SkipList()
+        self.assertFalse(sl.record_failure(""))
+        self.assertFalse(sl.record_failure(None))
+        self.assertEqual(sl.failed_tasks, {})
+
+    def test_record_success_clears_failures(self):
+        """record_success() clears failure count for a task."""
+        sl = line_loop.SkipList(max_failures=3)
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-001")
+        self.assertEqual(sl.failed_tasks["lc-001"], 2)
+        sl.record_success("lc-001")
+        self.assertNotIn("lc-001", sl.failed_tasks)
+
+    def test_record_success_empty_task_id(self):
+        """record_success() handles empty task ID gracefully."""
+        sl = line_loop.SkipList()
+        sl.record_failure("lc-001")
+        sl.record_success("")  # Should not crash
+        sl.record_success(None)  # Should not crash
+        self.assertIn("lc-001", sl.failed_tasks)
+
+    def test_is_skipped(self):
+        """is_skipped() correctly identifies skipped tasks."""
+        sl = line_loop.SkipList(max_failures=2)
+        self.assertFalse(sl.is_skipped("lc-001"))
+        sl.record_failure("lc-001")
+        self.assertFalse(sl.is_skipped("lc-001"))
+        sl.record_failure("lc-001")
+        self.assertTrue(sl.is_skipped("lc-001"))
+
+    def test_is_skipped_empty_task_id(self):
+        """is_skipped() handles empty task ID gracefully."""
+        sl = line_loop.SkipList()
+        self.assertFalse(sl.is_skipped(""))
+        self.assertFalse(sl.is_skipped(None))
+
+    def test_get_skipped_ids(self):
+        """get_skipped_ids() returns set of skipped task IDs."""
+        sl = line_loop.SkipList(max_failures=2)
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-001")  # Now skipped
+        sl.record_failure("lc-002")  # Not yet skipped
+        sl.record_failure("lc-003")
+        sl.record_failure("lc-003")  # Now skipped
+        skipped = sl.get_skipped_ids()
+        self.assertEqual(skipped, {"lc-001", "lc-003"})
+
+    def test_get_skipped_tasks(self):
+        """get_skipped_tasks() returns list with failure counts."""
+        sl = line_loop.SkipList(max_failures=2)
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-002")
+        skipped = sl.get_skipped_tasks()
+        self.assertEqual(len(skipped), 1)
+        self.assertEqual(skipped[0]["id"], "lc-001")
+        self.assertEqual(skipped[0]["failure_count"], 2)
+
+    def test_multiple_tasks_tracked_independently(self):
+        """Different tasks are tracked independently."""
+        sl = line_loop.SkipList(max_failures=3)
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-002")
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-002")
+        sl.record_failure("lc-001")  # lc-001 now skipped
+        self.assertTrue(sl.is_skipped("lc-001"))
+        self.assertFalse(sl.is_skipped("lc-002"))
+
+
+class TestDefaultPhaseTimeouts(unittest.TestCase):
+    """Test that default phase timeouts are set correctly."""
+
+    def test_default_cook_timeout(self):
+        """Cook phase default timeout is 1200 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['cook'], 1200)
+
+    def test_default_serve_timeout(self):
+        """Serve phase default timeout is 600 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['serve'], 600)
+
+    def test_default_tidy_timeout(self):
+        """Tidy phase default timeout is 240 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['tidy'], 240)
+
+    def test_default_plate_timeout(self):
+        """Plate phase default timeout is 600 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['plate'], 600)
+
+    def test_default_max_task_failures(self):
+        """Default max task failures is 3."""
+        self.assertEqual(line_loop.DEFAULT_MAX_TASK_FAILURES, 3)
+
+    def test_skip_list_uses_default_max_failures(self):
+        """SkipList uses DEFAULT_MAX_TASK_FAILURES by default."""
+        sl = line_loop.SkipList()
+        self.assertEqual(sl.max_failures, line_loop.DEFAULT_MAX_TASK_FAILURES)
+
+
+class TestGenerateEscalationReport(unittest.TestCase):
+    """Test generate_escalation_report function."""
+
+    def _create_mock_iteration(self, iteration, task_id, outcome, success):
+        """Create a mock IterationResult-like object."""
+        return line_loop.IterationResult(
+            iteration=iteration,
+            task_id=task_id,
+            task_title=f"Task {task_id}",
+            outcome=outcome,
+            duration_seconds=60.0,
+            serve_verdict="NEEDS_CHANGES" if not success else "APPROVED",
+            commit_hash=None,
+            success=success
+        )
+
+    def test_escalation_report_has_required_fields(self):
+        """Escalation report contains required fields."""
+        iterations = [
+            self._create_mock_iteration(1, "lc-001", "needs_retry", False),
+            self._create_mock_iteration(2, "lc-001", "needs_retry", False),
+        ]
+        skip_list = line_loop.SkipList(max_failures=2)
+        skip_list.record_failure("lc-001")
+        skip_list.record_failure("lc-001")
+
+        report = line_loop.generate_escalation_report(
+            iterations, skip_list, "all_tasks_skipped"
+        )
+
+        self.assertIn("stop_reason", report)
+        self.assertIn("recent_failures", report)
+        self.assertIn("skipped_tasks", report)
+        self.assertIn("suggested_actions", report)
+        self.assertIn("generated_at", report)
+
+    def test_escalation_report_stop_reason(self):
+        """Escalation report includes correct stop reason."""
+        iterations = []
+        skip_list = line_loop.SkipList()
+
+        report = line_loop.generate_escalation_report(
+            iterations, skip_list, "circuit_breaker"
+        )
+
+        self.assertEqual(report["stop_reason"], "circuit_breaker")
+
+    def test_escalation_report_includes_skipped_tasks(self):
+        """Escalation report includes skipped tasks from skip list."""
+        iterations = []
+        skip_list = line_loop.SkipList(max_failures=2)
+        skip_list.record_failure("lc-001")
+        skip_list.record_failure("lc-001")
+        skip_list.record_failure("lc-002")
+        skip_list.record_failure("lc-002")
+
+        report = line_loop.generate_escalation_report(
+            iterations, skip_list, "all_tasks_skipped"
+        )
+
+        self.assertEqual(len(report["skipped_tasks"]), 2)
+        skipped_ids = {t["id"] for t in report["skipped_tasks"]}
+        self.assertEqual(skipped_ids, {"lc-001", "lc-002"})
+
+    def test_escalation_report_suggested_actions_circuit_breaker(self):
+        """Escalation report has appropriate actions for circuit breaker."""
+        iterations = []
+        skip_list = line_loop.SkipList()
+
+        report = line_loop.generate_escalation_report(
+            iterations, skip_list, "circuit_breaker"
+        )
+
+        self.assertGreater(len(report["suggested_actions"]), 0)
+        # Should mention checking failures
+        actions_text = " ".join(report["suggested_actions"])
+        self.assertIn("failure", actions_text.lower())
+
+    def test_escalation_report_suggested_actions_all_skipped(self):
+        """Escalation report has appropriate actions for all_tasks_skipped."""
+        iterations = []
+        skip_list = line_loop.SkipList()
+
+        report = line_loop.generate_escalation_report(
+            iterations, skip_list, "all_tasks_skipped"
+        )
+
+        self.assertGreater(len(report["suggested_actions"]), 0)
+        # Should mention reviewing skipped tasks
+        actions_text = " ".join(report["suggested_actions"])
+        self.assertIn("skipped", actions_text.lower())
+
+
+class TestFormatEscalationReport(unittest.TestCase):
+    """Test format_escalation_report function."""
+
+    def test_format_escalation_report_output(self):
+        """format_escalation_report produces readable output."""
+        escalation = {
+            "stop_reason": "all_tasks_skipped",
+            "skipped_tasks": [{"id": "lc-001", "failure_count": 3}],
+            "recent_failures": [],
+            "suggested_actions": ["Review the skipped tasks"]
+        }
+        result = line_loop.format_escalation_report(escalation)
+        self.assertIn("ESCALATION REPORT", result)
+        self.assertIn("lc-001", result)
+        self.assertIn("all_tasks_skipped", result)
+
+    def test_format_escalation_report_includes_recent_failures(self):
+        """format_escalation_report includes recent failures."""
+        escalation = {
+            "stop_reason": "circuit_breaker",
+            "skipped_tasks": [],
+            "recent_failures": [
+                {"iteration": 5, "task_id": "lc-123", "outcome": "needs_retry"}
+            ],
+            "suggested_actions": []
+        }
+        result = line_loop.format_escalation_report(escalation)
+        self.assertIn("lc-123", result)
+        self.assertIn("needs_retry", result)
+
+    def test_format_escalation_report_includes_suggested_actions(self):
+        """format_escalation_report includes suggested actions."""
+        escalation = {
+            "stop_reason": "circuit_breaker",
+            "skipped_tasks": [],
+            "recent_failures": [],
+            "suggested_actions": ["Check logs", "Review tasks"]
+        }
+        result = line_loop.format_escalation_report(escalation)
+        self.assertIn("Check logs", result)
+        self.assertIn("Review tasks", result)
+
+
 if __name__ == "__main__":
     unittest.main()

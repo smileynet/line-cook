@@ -9,7 +9,7 @@ allowed-tools: Bash, Read, Glob
 
 **Arguments:** `$ARGUMENTS` contains the subcommand and options:
 - *(no args)* - Smart default: watch if running, start if not
-- `start [--max-iterations N] [--timeout T]` - Start loop in background
+- `start [--max-iterations N] [--cook-timeout S] ...` - Start loop in background
 - `watch` - Live progress with milestones and context
 - `status` - One-shot status check
 - `stop` - Gracefully stop running loop
@@ -141,7 +141,7 @@ If `help` is passed as an argument:
 Usage:
   /line:loop                           # Smart default (watch if running, start if not)
   /line:loop watch                     # Live progress with milestones
-  /line:loop start [--max-iterations N] [--timeout T]
+  /line:loop start [options]           # Start loop with options
   /line:loop status                    # One-shot status check
   /line:loop stop                      # Gracefully stop
   /line:loop tail [--lines N]          # View log output
@@ -150,16 +150,24 @@ Usage:
 Commands:
   (none)   Smart default - watch if loop running, start if not
   watch    Live progress with milestones and before/after context
-  start    Launch loop in background (default: 25 iterations, 600s timeout)
+  start    Launch loop in background (default: 25 iterations)
   status   One-shot status check
   stop     Gracefully stop running loop
   tail     Show recent log output (default: 50 lines)
   history  View iteration history with action details
 
+Start Options:
+  --max-iterations N    Maximum iterations (default: 25)
+  --cook-timeout S      Cook phase timeout in seconds (default: 1200)
+  --serve-timeout S     Serve phase timeout in seconds (default: 600)
+  --tidy-timeout S      Tidy phase timeout in seconds (default: 240)
+  --plate-timeout S     Plate phase timeout in seconds (default: 600)
+
 Examples:
   /line:loop                          # Start or watch (smart default)
   /line:loop watch                    # Monitor progress with context
   /line:loop start --max-iterations 5 # Quick test run
+  /line:loop start --cook-timeout 1800 # Complex tasks (30min cook timeout)
   /line:loop status                   # One-shot status check
   /line:loop tail --lines 100         # View more log output
   /line:loop history --actions        # View all iterations with actions
@@ -285,7 +293,6 @@ LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
 mkdir -p "$LOOP_DIR"
 python <path-to-line-loop.py> \
   --max-iterations ${MAX_ITERATIONS:-25} \
-  --timeout ${TIMEOUT:-600} \
   --json \
   --output "$LOOP_DIR/report.json" \
   --log-file "$LOOP_DIR/loop.log" \
@@ -469,6 +476,43 @@ These enable:
 - **Phase awareness**: Know which phase is executing and how long
 
 **Note:** Status writes are throttled to max 1 per 5 seconds to avoid I/O overhead. Phase transitions always trigger an immediate write.
+
+### Failure Tracking Fields
+
+When tasks fail repeatedly, additional fields are included:
+
+| Field | Description |
+|-------|-------------|
+| `skipped_tasks` | List of tasks skipped due to repeated failures |
+| `escalation` | Escalation report with failure details and suggested actions |
+
+**skipped_tasks format:**
+```json
+{
+  "skipped_tasks": [
+    {"id": "lc-123", "failure_count": 3},
+    {"id": "lc-456", "failure_count": 3}
+  ]
+}
+```
+
+**escalation format (on circuit breaker or all_tasks_skipped):**
+```json
+{
+  "escalation": {
+    "stop_reason": "all_tasks_skipped",
+    "recent_failures": [
+      {"iteration": 5, "task_id": "lc-123", "outcome": "needs_retry", ...}
+    ],
+    "skipped_tasks": [{"id": "lc-123", "failure_count": 3}],
+    "suggested_actions": [
+      "Review the skipped tasks to understand failure patterns",
+      "Check if tasks have missing dependencies or unclear requirements"
+    ],
+    "generated_at": "2026-02-01T10:30:00"
+  }
+}
+```
 
 ### Format Watch Output
 
@@ -796,6 +840,61 @@ The loop includes a circuit breaker to prevent runaway failures:
 - **Exit code:** 3 when circuit breaker trips
 
 When the circuit breaker trips, the loop stops with a message indicating too many consecutive failures. Check the logs (`/line:loop tail --lines 100`) to understand what's failing.
+
+---
+
+## Skip List Behavior
+
+The loop tracks tasks that fail repeatedly and adds them to a skip list:
+
+- **Threshold:** 3 failures for the same task
+- **Triggers on:** Any failed outcome (needs_retry after max retries, blocked, crashed, timeout)
+- **Effect:** Skipped tasks won't be selected for execution until the loop restarts
+- **Reset:** A fresh loop run clears the skip list; successful completion clears a task's failure count
+
+### Stop Reason: all_tasks_skipped
+
+When all remaining ready tasks are in the skip list:
+- The loop stops with `stop_reason: "all_tasks_skipped"`
+- Exit code: 3 (same as circuit breaker)
+- An escalation report is generated with suggested actions
+
+This prevents retry spirals where the same failing tasks burn through all iterations.
+
+---
+
+## Escalation Reports
+
+When the loop stops due to repeated failures (circuit breaker or all_tasks_skipped), an escalation report is generated:
+
+```
+============================================================
+ESCALATION REPORT
+============================================================
+Stop reason: all_tasks_skipped
+
+SKIPPED TASKS (too many failures):
+  - lc-123: 3 failures
+  - lc-456: 3 failures
+
+RECENT FAILURES:
+  - #5: lc-123 (needs_retry)
+  - #4: lc-456 (timeout)
+
+SUGGESTED ACTIONS:
+  • Review the skipped tasks to understand failure patterns
+  • Check if tasks have missing dependencies or unclear requirements
+  • Consider breaking down complex tasks into smaller pieces
+  • Use 'bd show <task_id>' to see full task details
+  • Restart loop after fixing blocking issues: '/line:loop start'
+
+============================================================
+```
+
+The escalation report is:
+- Printed to console on loop stop
+- Written to `status.json` in the `escalation` field
+- Includes actionable suggestions for human intervention
 
 ---
 
