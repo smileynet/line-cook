@@ -24,6 +24,23 @@ bd show <id> --json
 
 If `issue_type` is `epic`, find first ready child and select that instead.
 
+**If no actionable tasks available** (e.g., only P4 parking lot items):
+
+Output the idle signal and stop:
+```
+╔══════════════════════════════════════════════════════════════╗
+║  KITCHEN IDLE                                                ║
+╚══════════════════════════════════════════════════════════════╝
+
+No actionable tasks available.
+
+Available: <count> items (all P4 parking lot or research)
+
+Signal: KITCHEN_IDLE
+
+<phase_complete>DONE</phase_complete>
+```
+
 **Once a task is selected**, claim it:
 ```bash
 bd show <id>                           # Display full task details
