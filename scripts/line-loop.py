@@ -35,20 +35,21 @@ import signal
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 # Constants
 OUTPUT_SUMMARY_MAX_LENGTH = 200
+DEFAULT_MAX_TASK_FAILURES = 3  # Skip task after this many failures
 
-# Phase timeouts (in seconds)
-PHASE_TIMEOUTS = {
-    'cook': 600,    # 10 min - Main work phase: TDD cycle, file edits, test runs
-    'serve': 300,   # 5 min - Code review by sous-chef subagent
-    'tidy': 120,    # 2 min - Commit, bd sync, git push
-    'plate': 300,   # 5 min - BDD review via maître, acceptance doc
+# Default phase timeouts (in seconds) - can be overridden via CLI
+DEFAULT_PHASE_TIMEOUTS = {
+    'cook': 1200,   # 20 min - Main work phase: TDD cycle, file edits, test runs
+    'serve': 600,   # 10 min - Code review by sous-chef subagent
+    'tidy': 240,    # 4 min - Commit, bd sync, git push
+    'plate': 600,   # 10 min - BDD review via maître, acceptance doc
 }
 
 # Module-level logger
@@ -138,6 +139,56 @@ class CircuitBreaker:
     def reset(self):
         """Reset the circuit breaker."""
         self.window.clear()
+
+
+@dataclass
+class SkipList:
+    """Tracks tasks to skip due to repeated failures.
+
+    When a task fails repeatedly (hitting max_failures), it gets added to a skip
+    list so the loop doesn't keep retrying it. This prevents retry spirals where
+    the same failing task burns through all iterations.
+    """
+    failed_tasks: dict[str, int] = field(default_factory=dict)
+    max_failures: int = DEFAULT_MAX_TASK_FAILURES
+
+    def record_failure(self, task_id: Optional[str]) -> bool:
+        """Record a task failure.
+
+        Args:
+            task_id: The ID of the failed task
+
+        Returns:
+            True if the task has now hit the skip threshold and should be skipped
+        """
+        if not task_id:
+            return False
+        self.failed_tasks[task_id] = self.failed_tasks.get(task_id, 0) + 1
+        return self.failed_tasks[task_id] >= self.max_failures
+
+    def record_success(self, task_id: Optional[str]):
+        """Clear failure count for a task on success."""
+        if task_id:
+            self.failed_tasks.pop(task_id, None)
+
+    def is_skipped(self, task_id: Optional[str]) -> bool:
+        """Check if a task should be skipped due to repeated failures."""
+        if not task_id:
+            return False
+        return self.failed_tasks.get(task_id, 0) >= self.max_failures
+
+    def get_skipped_ids(self) -> set[str]:
+        """Get set of task IDs that should be skipped."""
+        return {tid for tid, count in self.failed_tasks.items()
+                if count >= self.max_failures}
+
+    def get_skipped_tasks(self) -> list[dict]:
+        """Get list of skipped tasks with their failure counts."""
+        return [
+            {"id": tid, "failure_count": count}
+            for tid, count in self.failed_tasks.items()
+            if count >= self.max_failures
+        ]
 
 
 def check_health(cwd: Path) -> dict:
@@ -409,6 +460,42 @@ def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedPr
     except subprocess.TimeoutExpired:
         logger.warning(f"Timeout after {timeout}s: {' '.join(cmd)}")
         raise
+
+
+def get_next_ready_task(cwd: Path, skip_ids: Optional[set[str]] = None) -> Optional[tuple[str, str]]:
+    """Get the next ready task ID and title before cook runs.
+
+    Mimics cook.md selection: highest priority work item (not epic).
+    This allows logging the target task before the cook phase runs,
+    which is useful for debugging when cook fails or times out.
+
+    Args:
+        cwd: Working directory
+        skip_ids: Optional set of task IDs to skip (due to repeated failures)
+
+    Returns:
+        Tuple of (task_id, task_title) or None if no tasks ready
+    """
+    skip_ids = skip_ids or set()
+    try:
+        result = run_subprocess(["bd", "ready", "--json"], 30, cwd)
+        if result.returncode == 0 and result.stdout.strip():
+            issues = json.loads(result.stdout)
+            for issue in issues:
+                if isinstance(issue, dict):
+                    issue_id = issue.get("id", "")
+                    issue_type = issue.get("type", "")
+                    # Skip epics (they're not directly workable)
+                    # Skip issues that are in the skip list
+                    if issue_type != "epic" and issue_id and issue_id not in skip_ids:
+                        return (issue_id, issue.get("title", ""))
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout getting next ready task")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse ready items JSON: {e}")
+    except Exception as e:
+        logger.debug(f"Error getting next ready task: {e}")
+    return None
 
 
 def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
@@ -773,7 +860,8 @@ def run_phase(
     cwd: Path,
     args: str = "",
     timeout: Optional[int] = None,
-    on_progress: Optional[Callable[[int, str], None]] = None
+    on_progress: Optional[Callable[[int, str], None]] = None,
+    phase_timeouts: Optional[dict[str, int]] = None
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate).
 
@@ -781,15 +869,17 @@ def run_phase(
         phase: Phase name (cook, serve, tidy, plate)
         cwd: Working directory
         args: Optional arguments (e.g., task ID for cook)
-        timeout: Override default phase timeout
+        timeout: Override default phase timeout (takes precedence over phase_timeouts)
         on_progress: Optional callback for progress updates.
             Called with (action_count, last_action_timestamp) when new actions detected.
+        phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
 
     Returns:
         PhaseResult with output, signals, and success status
     """
     if timeout is None:
-        timeout = PHASE_TIMEOUTS.get(phase, 600)
+        timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
+        timeout = timeouts.get(phase, DEFAULT_PHASE_TIMEOUTS.get(phase, 600))
 
     skill = f"/line:{phase}"
     if args:
@@ -1207,7 +1297,8 @@ def run_iteration(
     cwd: Path,
     max_cook_retries: int = 2,
     json_output: bool = False,
-    progress_state: Optional[ProgressState] = None
+    progress_state: Optional[ProgressState] = None,
+    phase_timeouts: Optional[dict[str, int]] = None
 ) -> IterationResult:
     """Execute individual phases (cook→serve→tidy) with retry logic.
 
@@ -1215,8 +1306,8 @@ def run_iteration(
     enabling better error detection, retry on NEEDS_CHANGES, and feature/epic
     completion triggers.
 
-    Phase timeouts are controlled by PHASE_TIMEOUTS dict (cook=600s, serve=300s,
-    tidy=120s, plate=300s).
+    Phase timeouts are controlled by phase_timeouts dict or DEFAULT_PHASE_TIMEOUTS
+    (cook=1200s, serve=600s, tidy=240s, plate=600s).
 
     Args:
         iteration: Current iteration number
@@ -1225,6 +1316,7 @@ def run_iteration(
         max_cook_retries: Max retries on NEEDS_CHANGES verdict
         json_output: If True, suppress human-readable phase output
         progress_state: Optional progress state for real-time status updates
+        phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
     """
     start_time = datetime.now()
     logger.info(f"Starting iteration {iteration}/{max_iterations}")
@@ -1281,7 +1373,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("cook")
-        cook_result = run_phase("cook", cwd, on_progress=progress_callback)
+        cook_result = run_phase("cook", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
@@ -1357,7 +1449,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("serve")
-        serve_result = run_phase("serve", cwd, on_progress=progress_callback)
+        serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts)
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
         all_output.append(serve_result.output)
@@ -1501,7 +1593,7 @@ def run_iteration(
 
     if progress_state:
         progress_state.start_phase("tidy")
-    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback)
+    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts)
     all_actions.extend(tidy_result.actions)
     all_output.append("\n=== TIDY PHASE ===\n")
     all_output.append(tidy_result.output)
@@ -1547,7 +1639,7 @@ def run_iteration(
 
             if progress_state:
                 progress_state.start_phase("plate")
-            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback)
+            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts)
             all_actions.extend(plate_result.actions)
             all_output.append("\n=== PLATE PHASE ===\n")
             all_output.append(plate_result.output)
@@ -1794,6 +1886,101 @@ def write_history_summary(
         logger.warning(f"Failed to write history summary: {e}")
 
 
+def generate_escalation_report(
+    iterations: list[IterationResult],
+    skip_list: SkipList,
+    stop_reason: str
+) -> dict:
+    """Generate an actionable escalation report when the loop fails.
+
+    Called when circuit breaker trips or all tasks are skipped.
+    Provides context for human intervention.
+
+    Returns:
+        Dict with escalation details for status.json and logging
+    """
+    # Get recent failures (last 10 iterations that weren't successful)
+    recent_failures = [
+        {
+            "iteration": i.iteration,
+            "task_id": i.task_id,
+            "task_title": i.task_title,
+            "outcome": i.outcome,
+            "serve_verdict": i.serve_verdict,
+            "duration_seconds": i.duration_seconds
+        }
+        for i in iterations[-10:]
+        if not i.success
+    ]
+
+    # Get skipped tasks
+    skipped_tasks = skip_list.get_skipped_tasks()
+
+    # Suggested actions based on stop reason
+    if stop_reason == "all_tasks_skipped":
+        suggested_actions = [
+            "Review the skipped tasks to understand failure patterns",
+            "Check if tasks have missing dependencies or unclear requirements",
+            "Consider breaking down complex tasks into smaller pieces",
+            "Use 'bd show <task_id>' to see full task details",
+            "Restart loop after fixing blocking issues: '/line:loop start'"
+        ]
+    elif stop_reason == "circuit_breaker":
+        suggested_actions = [
+            "Check recent failures for common patterns (timeouts, test failures, etc.)",
+            "Review loop logs: '/line:loop tail --lines 100'",
+            "Ensure test environment is healthy (database, services, etc.)",
+            "Consider reducing task complexity or adding more context",
+            "Restart loop after investigation: '/line:loop start'"
+        ]
+    else:
+        suggested_actions = [
+            "Review loop status: '/line:loop status'",
+            "Check logs: '/line:loop tail --lines 100'"
+        ]
+
+    return {
+        "stop_reason": stop_reason,
+        "recent_failures": recent_failures,
+        "skipped_tasks": skipped_tasks,
+        "suggested_actions": suggested_actions,
+        "generated_at": datetime.now().isoformat()
+    }
+
+
+def format_escalation_report(escalation: dict) -> str:
+    """Format escalation report for human-readable output."""
+    lines = [
+        "",
+        "=" * 60,
+        "ESCALATION REPORT",
+        "=" * 60,
+        f"Stop reason: {escalation['stop_reason']}",
+        ""
+    ]
+
+    if escalation['skipped_tasks']:
+        lines.append("SKIPPED TASKS (too many failures):")
+        for task in escalation['skipped_tasks']:
+            lines.append(f"  - {task['id']}: {task['failure_count']} failures")
+        lines.append("")
+
+    if escalation['recent_failures']:
+        lines.append("RECENT FAILURES:")
+        for failure in escalation['recent_failures'][-5:]:  # Last 5
+            task_info = f"{failure['task_id']}" if failure['task_id'] else "unknown"
+            lines.append(f"  - #{failure['iteration']}: {task_info} ({failure['outcome']})")
+        lines.append("")
+
+    lines.append("SUGGESTED ACTIONS:")
+    for action in escalation['suggested_actions']:
+        lines.append(f"  • {action}")
+
+    lines.append("")
+    lines.append("=" * 60)
+    return "\n".join(lines)
+
+
 def write_status_file(
     status_file: Path,
     running: bool,
@@ -1810,7 +1997,9 @@ def write_status_file(
     current_phase: Optional[str] = None,
     phase_start_time: Optional[datetime] = None,
     current_action_count: int = 0,
-    last_action_time: Optional[datetime] = None
+    last_action_time: Optional[datetime] = None,
+    skipped_tasks: Optional[list] = None,
+    escalation: Optional[dict] = None
 ):
     """Write live status JSON for external monitoring.
 
@@ -1822,6 +2011,10 @@ def write_status_file(
         phase_start_time: When the current phase started
         current_action_count: Number of tool actions in current phase
         last_action_time: Timestamp of most recent tool action
+
+    Additional fields on failure:
+        skipped_tasks: List of tasks skipped due to repeated failures
+        escalation: Escalation report with suggested actions
     """
     status = {
         "running": running,
@@ -1857,6 +2050,14 @@ def write_status_file(
         ]
     else:
         status["recent_iterations"] = []
+
+    # Add skipped tasks if any
+    if skipped_tasks:
+        status["skipped_tasks"] = skipped_tasks
+
+    # Add escalation report if provided
+    if escalation:
+        status["escalation"] = escalation
 
     try:
         atomic_write(status_file, json.dumps(status, indent=2))
@@ -1907,7 +2108,6 @@ def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
 
 def run_loop(
     max_iterations: int,
-    timeout: int,  # Deprecated: phases use PHASE_TIMEOUTS instead
     stop_on_blocked: bool,
     stop_on_crash: bool,
     max_retries: int,
@@ -1917,12 +2117,14 @@ def run_loop(
     status_file: Optional[Path] = None,
     history_file: Optional[Path] = None,
     break_on_epic: bool = False,
-    skip_initial_sync: bool = False
+    skip_initial_sync: bool = False,
+    phase_timeouts: Optional[dict[str, int]] = None,
+    max_task_failures: int = DEFAULT_MAX_TASK_FAILURES
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat.
 
-    Note: The timeout parameter is kept for CLI compatibility but is no longer
-    used. Individual phases have their own timeouts via PHASE_TIMEOUTS.
+    Individual phases have their own timeouts via phase_timeouts dict
+    or DEFAULT_PHASE_TIMEOUTS.
     """
     global _shutdown_requested
 
@@ -1932,6 +2134,7 @@ def run_loop(
     failed_count = 0
     stop_reason = "unknown"
     circuit_breaker = CircuitBreaker()
+    skip_list = SkipList(max_failures=max_task_failures)
 
     logger.info(f"Loop starting: max_iterations={max_iterations}")
 
@@ -1980,10 +2183,33 @@ def run_loop(
                     print("\nNo work items ready. Loop complete.")
             break
 
+        # Pre-cook task detection: identify target task before running cook
+        # This helps correlate failures with specific tasks even if cook times out
+        skipped_ids = skip_list.get_skipped_ids()
+        next_task = get_next_ready_task(cwd, skip_ids=skipped_ids)
+
+        if next_task:
+            target_task_id, target_task_title = next_task
+            logger.info(f"Target task: {target_task_id} - {target_task_title}")
+        else:
+            # All ready tasks are in skip list
+            if skipped_ids:
+                stop_reason = "all_tasks_skipped"
+                logger.warning(f"All remaining tasks are skipped due to repeated failures: {skipped_ids}")
+                if not json_output:
+                    print(f"\nAll remaining tasks are skipped due to repeated failures.")
+                    print(f"Skipped tasks: {', '.join(skipped_ids)}")
+                break
+            target_task_id, target_task_title = None, None
+
         iteration += 1
 
         if not json_output:
             print(f"\n[{iteration}/{max_iterations}] {ready_work_count} work items ready")
+            if target_task_id:
+                skipped_count = len(skipped_ids)
+                skip_note = f" ({skipped_count} skipped)" if skipped_count > 0 else ""
+                print(f"  Target: {target_task_id} - {target_task_title}{skip_note}")
             print("-" * 44)
 
         # Create progress state for real-time status updates during iteration
@@ -1993,8 +2219,8 @@ def run_loop(
                 status_file=status_file,
                 iteration=iteration,
                 max_iterations=max_iterations,
-                current_task=None,  # Will be detected during cook phase
-                current_task_title=None,
+                current_task=target_task_id,  # Pre-detected target task
+                current_task_title=target_task_title,
                 tasks_completed=completed_count,
                 tasks_remaining=ready_work_count,
                 started_at=started_at,
@@ -2006,7 +2232,8 @@ def run_loop(
             iteration, max_iterations, cwd,
             max_cook_retries=max_retries,
             json_output=json_output,
-            progress_state=progress_state
+            progress_state=progress_state,
+            phase_timeouts=phase_timeouts
         )
         iterations.append(result)
 
@@ -2056,6 +2283,9 @@ def run_loop(
             completed_count += 1
             current_retries = 0
             last_task_id = None
+            # Clear failure count on success
+            if result.task_id:
+                skip_list.record_success(result.task_id)
 
         elif result.outcome == "needs_retry":
             if result.task_id == last_task_id:
@@ -2066,6 +2296,13 @@ def run_loop(
 
             if current_retries >= max_retries:
                 failed_count += 1
+                # Record failure to skip_list - may trigger skip
+                if result.task_id:
+                    now_skipped = skip_list.record_failure(result.task_id)
+                    if now_skipped:
+                        logger.warning(f"Task {result.task_id} added to skip list after {skip_list.max_failures} failures")
+                        if not json_output:
+                            print(f"\n  Task {result.task_id} added to skip list (too many failures).")
                 current_retries = 0
                 last_task_id = None
                 if not json_output:
@@ -2080,6 +2317,13 @@ def run_loop(
 
         elif result.outcome == "blocked":
             failed_count += 1
+            # Record failure to skip_list for blocked tasks
+            if result.task_id:
+                now_skipped = skip_list.record_failure(result.task_id)
+                if now_skipped:
+                    logger.warning(f"Task {result.task_id} added to skip list after repeated blocks")
+                    if not json_output:
+                        print(f"\n  Task {result.task_id} added to skip list (repeatedly blocked).")
             if stop_on_blocked:
                 stop_reason = "blocked"
                 logger.info("Task blocked, stopping (--stop-on-blocked)")
@@ -2091,6 +2335,13 @@ def run_loop(
 
         elif result.outcome in ("crashed", "timeout"):
             failed_count += 1
+            # Record failure to skip_list for crashed/timeout tasks
+            if result.task_id:
+                now_skipped = skip_list.record_failure(result.task_id)
+                if now_skipped:
+                    logger.warning(f"Task {result.task_id} added to skip list after {result.outcome}")
+                    if not json_output:
+                        print(f"\n  Task {result.task_id} added to skip list ({result.outcome}).")
             if stop_on_crash:
                 stop_reason = result.outcome
                 logger.info(f"Task {result.outcome}, stopping (--stop-on-crash)")
@@ -2151,6 +2402,15 @@ def run_loop(
 
     logger.info(f"Loop complete: {completed_count} completed, {failed_count} failed, reason={stop_reason}")
 
+    # Generate escalation report if stopped due to failures
+    escalation = None
+    if stop_reason in ("circuit_breaker", "all_tasks_skipped"):
+        escalation = generate_escalation_report(iterations, skip_list, stop_reason)
+        # Print escalation report to console
+        if not json_output:
+            print(format_escalation_report(escalation))
+        logger.warning(f"Escalation: {stop_reason} - {len(escalation.get('skipped_tasks', []))} tasks skipped")
+
     # Write final status (running=false)
     if status_file:
         final_snapshot = get_bead_snapshot(cwd)
@@ -2166,7 +2426,9 @@ def run_loop(
             tasks_remaining=len(final_snapshot.ready_work_ids),
             started_at=started_at,
             stop_reason=stop_reason,
-            iterations=iterations
+            iterations=iterations,
+            skipped_tasks=skip_list.get_skipped_tasks(),
+            escalation=escalation
         )
 
     # Write history summary record to mark end of loop
@@ -2279,12 +2541,6 @@ Examples:
         help="Maximum iterations (default: 25)"
     )
     parser.add_argument(
-        "-t", "--timeout",
-        type=int,
-        default=600,
-        help="Per-iteration timeout in seconds (default: 600)"
-    )
-    parser.add_argument(
         "--json",
         action="store_true",
         help="Output JSON instead of human-readable"
@@ -2350,6 +2606,36 @@ Examples:
         action="store_true",
         help="Skip git fetch/pull and bd sync at loop start"
     )
+    parser.add_argument(
+        "--cook-timeout",
+        type=int,
+        default=DEFAULT_PHASE_TIMEOUTS['cook'],
+        help=f"Cook phase timeout in seconds (default: {DEFAULT_PHASE_TIMEOUTS['cook']})"
+    )
+    parser.add_argument(
+        "--serve-timeout",
+        type=int,
+        default=DEFAULT_PHASE_TIMEOUTS['serve'],
+        help=f"Serve phase timeout in seconds (default: {DEFAULT_PHASE_TIMEOUTS['serve']})"
+    )
+    parser.add_argument(
+        "--tidy-timeout",
+        type=int,
+        default=DEFAULT_PHASE_TIMEOUTS['tidy'],
+        help=f"Tidy phase timeout in seconds (default: {DEFAULT_PHASE_TIMEOUTS['tidy']})"
+    )
+    parser.add_argument(
+        "--plate-timeout",
+        type=int,
+        default=DEFAULT_PHASE_TIMEOUTS['plate'],
+        help=f"Plate phase timeout in seconds (default: {DEFAULT_PHASE_TIMEOUTS['plate']})"
+    )
+    parser.add_argument(
+        "--max-task-failures",
+        type=int,
+        default=DEFAULT_MAX_TASK_FAILURES,
+        help=f"Skip task after this many failures (default: {DEFAULT_MAX_TASK_FAILURES})"
+    )
 
     args = parser.parse_args()
 
@@ -2381,10 +2667,17 @@ Examples:
         except Exception as e:
             logger.warning(f"Failed to write PID file: {e}")
 
+    # Build phase timeouts from CLI args
+    phase_timeouts = {
+        'cook': args.cook_timeout,
+        'serve': args.serve_timeout,
+        'tidy': args.tidy_timeout,
+        'plate': args.plate_timeout,
+    }
+
     try:
         report = run_loop(
             max_iterations=args.max_iterations,
-            timeout=args.timeout,
             stop_on_blocked=args.stop_on_blocked,
             stop_on_crash=args.stop_on_crash,
             max_retries=args.max_retries,
@@ -2394,7 +2687,9 @@ Examples:
             status_file=args.status_file,
             history_file=args.history_file,
             break_on_epic=args.break_on_epic,
-            skip_initial_sync=args.skip_initial_sync
+            skip_initial_sync=args.skip_initial_sync,
+            phase_timeouts=phase_timeouts,
+            max_task_failures=args.max_task_failures
         )
     finally:
         # Clean up PID file on exit
@@ -2410,7 +2705,7 @@ Examples:
         sys.exit(0)
     elif report.stop_reason == "blocked":
         sys.exit(1)
-    elif report.stop_reason == "circuit_breaker":
+    elif report.stop_reason in ("circuit_breaker", "all_tasks_skipped"):
         sys.exit(3)
     else:
         sys.exit(2)
