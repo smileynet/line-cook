@@ -180,6 +180,12 @@ NEXT STEP: /line:tidy (if APPROVED) or /line:cook (if NEEDS_CHANGES)
 - **NEEDS_CHANGES**: Issues found requiring rework. Rerun /line:cook with findings.
 - **BLOCKED**: Critical issues require fixing before commit. STOP workflow.
 
+**Phase completion signal:** After outputting the SERVE_RESULT block, emit the phase completion signal:
+```
+<phase_complete>DONE</phase_complete>
+```
+This signals to the line-loop orchestrator that the serve phase has completed its work and can be terminated early, avoiding unnecessary wait for timeout.
+
 ## Error Handling
 
 If the sous-chef agent or headless Claude invocation fails (API error, timeout, etc.):

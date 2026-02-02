@@ -331,7 +331,11 @@ Commit: <hash>
 Push: ✓ origin/main | ⚠️ <error> | skipped (no remote)
 
 Session complete.
+
+<phase_complete>DONE</phase_complete>
 ```
+
+**Phase completion signal:** The `<phase_complete>DONE</phase_complete>` tag signals to the line-loop orchestrator that this phase has completed its work and can be terminated early. Always emit this signal at the very end of successful completion output.
 
 **Information sources for summary:**
 - **Intent**: Extract from task description via `bd show <id>`

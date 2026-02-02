@@ -162,6 +162,8 @@ Start Options:
   --serve-timeout S     Serve phase timeout in seconds (default: 600)
   --tidy-timeout S      Tidy phase timeout in seconds (default: 240)
   --plate-timeout S     Plate phase timeout in seconds (default: 600)
+  --idle-timeout S      Seconds without tool actions before idle triggers (default: 180, 0 to disable)
+  --idle-action ACTION  Action on idle: warn (log warning) or terminate (stop phase) (default: warn)
 
 Examples:
   /line:loop                          # Start or watch (smart default)
@@ -962,6 +964,53 @@ If the serve output cannot be parsed to extract a verdict:
 Some errors are treated as transient and don't count toward retries:
 - Serve phase errors (network issues, claude crashes) → `SKIPPED` verdict, iteration continues
 - These allow the loop to self-heal from temporary infrastructure issues
+
+---
+
+## Idle Detection
+
+The loop monitors tool action activity during phases to detect hung or stalled executions:
+
+- **Default threshold:** 180 seconds (3 minutes) without tool actions
+- **Measurement:** Time since last tool_use event in the stream
+- **Actions:**
+  - `warn` (default): Logs a warning but allows the phase to continue
+  - `terminate`: Stops the phase gracefully with an idle timeout error
+
+### Configuration
+
+```bash
+# Disable idle detection
+/line:loop start --idle-timeout 0
+
+# More aggressive idle detection (60s) with termination
+/line:loop start --idle-timeout 60 --idle-action terminate
+
+# Relaxed idle detection for complex tasks
+/line:loop start --idle-timeout 300
+```
+
+### When Idle Detection Triggers
+
+Idle detection is useful for catching:
+- Phases that are waiting for user input (which won't come in headless mode)
+- Infinite loops or stuck processes within Claude
+- Network issues preventing tool execution
+
+**Note:** Idle detection only triggers after at least one tool action has occurred. A phase that hasn't started any tool calls yet won't be considered idle.
+
+---
+
+## Phase Completion Signal
+
+Phases can emit `<phase_complete>DONE</phase_complete>` to signal early completion:
+
+- Detected during streaming
+- Triggers graceful termination of the phase
+- Avoids waiting for natural exit or timeout
+- Useful when the phase is confident it has completed all work
+
+This signal should be emitted at the end of successful completion output in cook, serve, and tidy phases.
 
 ---
 
