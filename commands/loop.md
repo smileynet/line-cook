@@ -272,19 +272,21 @@ fi
 
 ### Find Script Path
 
-Locate the line-loop.py script. Check these locations in order:
+Locate the `line-loop.py` CLI wrapper. The wrapper is a thin script that imports from the `line_loop/` package in the same directory.
+
+Check these locations in order:
 
 1. **Plugin installation** (most common):
    ```
-   Glob(pattern="**/line-loop.py", path="~/.claude/plugins")
+   Glob(pattern="**/scripts/line-loop.py", path="~/.claude/plugins")
    ```
 
 2. **Current project** (for development):
    ```
-   Glob(pattern="**/line-loop.py")
+   Glob(pattern="**/scripts/line-loop.py")
    ```
 
-The script is typically at `~/.claude/plugins/marketplaces/line-cook-marketplace/line/scripts/line-loop.py`.
+The script is typically at `~/.claude/plugins/marketplaces/line-cook-marketplace/line/scripts/line-loop.py` with the `line_loop/` package as a sibling directory.
 
 ### Launch Background Loop
 
@@ -936,7 +938,7 @@ Summary: Completed 3 features under this epic.
 Use `--break-on-epic` flag to pause the loop when an epic completes:
 
 ```bash
-python line-loop.py --break-on-epic
+python scripts/line-loop.py --break-on-epic
 ```
 
 This gives you a natural checkpoint to review progress before continuing.
@@ -1030,42 +1032,51 @@ The loop itself handles all the complex logic (circuit breakers, retries, bead t
 
 ## Developer Reference
 
-The `line-loop.py` script follows patterns from the [Python Scripting Skill](/.claude/skills/python-scripting/python-scripting.md). Developers modifying the loop script should reference that guidance.
+The loop implementation follows patterns from the [Python Scripting Skill](/.claude/skills/python-scripting/python-scripting.md). Developers modifying the loop script should reference that guidance.
 
 ### Applied Best Practices
 
 | Pattern | Implementation |
 |---------|----------------|
-| Named constants | `DEFAULT_*`, `*_TIMEOUT`, `*_MAX_*` at module top |
+| Named constants | `DEFAULT_*`, `*_TIMEOUT`, `*_MAX_*` in `config.py` |
 | Structured errors | `LoopError` dataclass with context and factory methods |
 | Signal handling | Minimal handlers set `_shutdown_requested` flag |
-| Dataclasses | `BeadSnapshot`, `ServeResult`, `IterationResult`, `LoopReport` |
+| Dataclasses | `BeadSnapshot`, `ServeResult`, `IterationResult`, `LoopReport` in `models.py` |
 | Atomic writes | `atomic_write()` for status/history files |
 | Exponential backoff | `calculate_retry_delay()` with jitter |
 | Circuit breaker | `CircuitBreaker` class for failure throttling |
 
 ### Key Architecture
 
+The loop is implemented as a modular package:
+
 ```
-line-loop.py
-├── Constants (lines ~43-85)
-├── Signal handling (lines ~90-105)
-├── Utility functions (setup_logging, atomic_write, calculate_retry_delay)
-├── Dataclasses
-│   ├── CircuitBreaker - Failure tracking
-│   ├── LoopError - Structured errors with context
-│   ├── BeadSnapshot - Task state at a point in time
-│   ├── ServeResult - Parsed serve phase output
-│   ├── IterationResult - Single iteration outcome
-│   └── LoopReport - Final loop summary
-├── Phase execution (run_phase)
-├── Iteration logic (run_iteration)
-└── Main loop (run_loop, main)
+scripts/
+├── line-loop.py          # Thin CLI wrapper (imports from line_loop)
+└── line_loop/            # Core package
+    ├── __init__.py       # Re-exports public API
+    ├── config.py         # Constants: DEFAULT_*, timeouts, limits
+    ├── models.py         # Dataclasses: CircuitBreaker, LoopError, BeadSnapshot,
+    │                     #   ServeResult, IterationResult, LoopReport, etc.
+    ├── parsing.py        # Output parsing: serve_result, intent, feedback
+    ├── phase.py          # Phase execution: run_phase, streaming, idle detection
+    ├── iteration.py      # Single iteration: run_iteration, completion checks
+    └── loop.py           # Main orchestration: run_loop, sync, status writing
 ```
+
+| Module | Responsibility |
+|--------|----------------|
+| `config.py` | Named constants and default values |
+| `models.py` | Dataclasses for state tracking |
+| `parsing.py` | Parse claude output (serve verdicts, intent blocks) |
+| `phase.py` | Execute individual phases with streaming |
+| `iteration.py` | Run one complete task iteration |
+| `loop.py` | Orchestrate iterations, handle retries, circuit breaker |
 
 ### Adding New Features
 
-1. Extract magic numbers to named constants at module top
-2. Use `LoopError.from_*()` factory methods for error creation
+1. Extract magic numbers to named constants in `config.py`
+2. Use `LoopError.from_*()` factory methods for error creation (in `models.py`)
 3. Follow existing docstring style (Args/Returns/Notes)
 4. Update status.json schema if adding new tracking fields
+5. Add new parsing logic to `parsing.py`, phase logic to `phase.py`, etc.
