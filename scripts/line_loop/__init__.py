@@ -46,6 +46,17 @@ from .models import (
     summarize_tool_input,
 )
 
+# Re-export parsing functions for convenience
+from .parsing import (
+    parse_serve_result,
+    parse_serve_feedback,
+    parse_intent_block,
+    parse_stream_json_event,
+    extract_text_from_event,
+    extract_actions_from_event,
+    update_action_from_result,
+)
+
 # Type-only export for StatusWriter protocol
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -76,5 +87,13 @@ __all__ = [
     "LoopReport",
     "ProgressState",
     "summarize_tool_input",
+    # Parsing
+    "parse_serve_result",
+    "parse_serve_feedback",
+    "parse_intent_block",
+    "parse_stream_json_event",
+    "extract_text_from_event",
+    "extract_actions_from_event",
+    "update_action_from_result",
 ]
 # Note: StatusWriter is available under TYPE_CHECKING for type hints only
