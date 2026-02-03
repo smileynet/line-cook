@@ -1,11 +1,900 @@
 """Main loop orchestration for line-loop.
 
 Functions for the outer loop:
-- run_loop: Main entry point
+- run_loop: Main entry point for autonomous loop execution
 - sync_at_start: Initial git/bead sync
-- write_status_file: Progress tracking
-- generate_escalation_report: Report failures
-- History and reporting functions
+- write_status_file: Progress tracking for external monitoring
+- generate_escalation_report: Report failures for human intervention
+
+Also includes helper functions for:
+- Serialization (serialize_iteration_for_status, serialize_action, serialize_full_iteration)
+- History tracking (append_iteration_to_history, write_history_summary)
+- Retry delay calculation (calculate_retry_delay)
+- Task selection (get_next_ready_task)
 """
 
-# Placeholder - will be populated in lc-lvb.5
+from __future__ import annotations
+
+import json
+import logging
+import random
+import subprocess
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from .config import (
+    BD_COMMAND_TIMEOUT,
+    DEFAULT_IDLE_ACTION,
+    DEFAULT_IDLE_TIMEOUT,
+    DEFAULT_MAX_TASK_FAILURES,
+    GIT_SYNC_TIMEOUT,
+    MAX_RETRY_DELAY_SECONDS,
+    RECENT_ITERATIONS_DISPLAY,
+    RECENT_ITERATIONS_LIMIT,
+)
+from .models import (
+    ActionRecord,
+    CircuitBreaker,
+    IterationResult,
+    LoopError,
+    LoopMetrics,
+    LoopReport,
+    ProgressState,
+    SkipList,
+)
+from .iteration import (
+    atomic_write,
+    check_epic_completion,
+    format_duration,
+    get_bead_snapshot,
+    get_task_title,
+    print_human_iteration,
+    run_iteration,
+)
+from .phase import run_subprocess
+
+logger = logging.getLogger(__name__)
+
+# Global shutdown flag for graceful termination
+_shutdown_requested = False
+
+
+def request_shutdown() -> None:
+    """Request graceful shutdown of the loop.
+
+    Sets the internal flag that run_loop checks between iterations.
+    Call this from a signal handler (e.g., SIGINT, SIGTERM) to stop
+    the loop gracefully after the current iteration completes.
+
+    Example:
+        import signal
+        from line_loop import request_shutdown
+
+        signal.signal(signal.SIGINT, lambda s, f: request_shutdown())
+        signal.signal(signal.SIGTERM, lambda s, f: request_shutdown())
+    """
+    global _shutdown_requested
+    _shutdown_requested = True
+
+
+def reset_shutdown_flag() -> None:
+    """Reset the shutdown flag (for testing or loop restart)."""
+    global _shutdown_requested
+    _shutdown_requested = False
+
+
+def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
+    """Exponential backoff with jitter: 2s, 4s, 8s... capped at MAX_RETRY_DELAY_SECONDS."""
+    delay = min(base * (2 ** attempt), MAX_RETRY_DELAY_SECONDS)
+    return delay * random.uniform(0.8, 1.2)  # ±20% jitter
+
+
+def get_next_ready_task(cwd: Path, skip_ids: Optional[set[str]] = None) -> Optional[tuple[str, str]]:
+    """Get the next ready task ID and title before cook runs.
+
+    Mimics cook.md selection: highest priority work item (not epic).
+    This allows logging the target task before the cook phase runs,
+    which is useful for debugging when cook fails or times out.
+
+    Args:
+        cwd: Working directory
+        skip_ids: Optional set of task IDs to skip (due to repeated failures)
+
+    Returns:
+        Tuple of (task_id, task_title) or None if no tasks ready
+    """
+    skip_ids = skip_ids or set()
+    cmd = "bd ready --json"
+    try:
+        result = run_subprocess(["bd", "ready", "--json"], BD_COMMAND_TIMEOUT, cwd)
+        if result.returncode == 0 and result.stdout.strip():
+            issues = json.loads(result.stdout)
+            for issue in issues:
+                if isinstance(issue, dict):
+                    issue_id = issue.get("id", "")
+                    issue_type = issue.get("type", "")
+                    # Skip epics (they're not directly workable)
+                    # Skip issues that are in the skip list
+                    if issue_type != "epic" and issue_id and issue_id not in skip_ids:
+                        return (issue_id, issue.get("title", ""))
+    except subprocess.TimeoutExpired:
+        err = LoopError.from_timeout(cmd, BD_COMMAND_TIMEOUT)
+        logger.warning(str(err))
+    except json.JSONDecodeError as e:
+        err = LoopError.from_json_decode("bd ready output", e)
+        logger.warning(str(err))
+    except Exception as e:
+        logger.debug(f"Error getting next ready task: {e}")
+    return None
+
+
+def serialize_iteration_for_status(result: IterationResult) -> dict:
+    """Serialize an IterationResult for the status file's recent_iterations array."""
+    return {
+        "iteration": result.iteration,
+        "task_id": result.task_id,
+        "task_title": result.task_title,
+        "outcome": result.outcome,
+        "serve_verdict": result.serve_verdict,
+        "commit_hash": result.commit_hash,
+        "duration_seconds": result.duration_seconds,
+        "intent": result.intent,
+        "before_state": result.before_state,
+        "after_state": result.after_state,
+        "completed_at": datetime.now().isoformat(),
+        # Action counts for watch mode
+        "action_count": result.total_actions,
+        "action_types": result.action_counts
+    }
+
+
+def serialize_action(action: ActionRecord) -> dict:
+    """Serialize an ActionRecord for history.json."""
+    return {
+        "tool_name": action.tool_name,
+        "tool_use_id": action.tool_use_id,
+        "input_summary": action.input_summary,
+        "output_summary": action.output_summary,
+        "success": action.success,
+        "timestamp": action.timestamp
+    }
+
+
+def serialize_full_iteration(result: IterationResult) -> dict:
+    """Serialize an IterationResult with full action details for history.json."""
+    return {
+        "iteration": result.iteration,
+        "task_id": result.task_id,
+        "task_title": result.task_title,
+        "outcome": result.outcome,
+        "serve_verdict": result.serve_verdict,
+        "commit_hash": result.commit_hash,
+        "duration_seconds": result.duration_seconds,
+        "success": result.success,
+        "intent": result.intent,
+        "before_state": result.before_state,
+        "after_state": result.after_state,
+        "beads_before": {
+            "ready": result.before_ready,
+            "in_progress": result.before_in_progress
+        },
+        "beads_after": {
+            "ready": result.after_ready,
+            "in_progress": result.after_in_progress
+        },
+        "action_count": result.total_actions,
+        "action_types": result.action_counts,
+        "actions": [serialize_action(a) for a in result.actions]
+    }
+
+
+def append_iteration_to_history(
+    history_file: Path,
+    result: IterationResult,
+    project: str
+):
+    """Append a single iteration record to the history JSONL file.
+
+    Uses JSONL format (one JSON object per line) for efficient append-only writes
+    and streaming reads. Each line contains a complete iteration record.
+    """
+    record = serialize_full_iteration(result)
+    record["project"] = project
+    record["recorded_at"] = datetime.now().isoformat()
+    try:
+        with open(history_file, "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception as e:
+        logger.warning(f"Failed to append to history file: {e}")
+
+
+def write_history_summary(
+    history_file: Path,
+    project: str,
+    started_at: datetime,
+    ended_at: datetime,
+    iteration_count: int,
+    total_actions: int,
+    stop_reason: str
+):
+    """Write a summary record to mark the end of a loop run.
+
+    Written as a special record type at the end of the JSONL file.
+    """
+    summary = {
+        "type": "loop_summary",
+        "project": project,
+        "started_at": started_at.isoformat(),
+        "ended_at": ended_at.isoformat(),
+        "iteration_count": iteration_count,
+        "total_actions": total_actions,
+        "stop_reason": stop_reason
+    }
+    try:
+        with open(history_file, "a") as f:
+            f.write(json.dumps(summary) + "\n")
+    except Exception as e:
+        logger.warning(f"Failed to write history summary: {e}")
+
+
+def generate_escalation_report(
+    iterations: list[IterationResult],
+    skip_list: SkipList,
+    stop_reason: str
+) -> dict:
+    """Generate an actionable escalation report when the loop fails.
+
+    Called when circuit breaker trips or all tasks are skipped.
+    Provides context for human intervention.
+
+    Returns:
+        Dict with escalation details for status.json and logging
+    """
+    # Get recent failures from the last N iterations that weren't successful
+    recent_failures = [
+        {
+            "iteration": i.iteration,
+            "task_id": i.task_id,
+            "task_title": i.task_title,
+            "outcome": i.outcome,
+            "serve_verdict": i.serve_verdict,
+            "duration_seconds": i.duration_seconds
+        }
+        for i in iterations[-RECENT_ITERATIONS_LIMIT:]
+        if not i.success
+    ]
+
+    # Get skipped tasks
+    skipped_tasks = skip_list.get_skipped_tasks()
+
+    # Suggested actions based on stop reason
+    if stop_reason == "all_tasks_skipped":
+        suggested_actions = [
+            "Review the skipped tasks to understand failure patterns",
+            "Check if tasks have missing dependencies or unclear requirements",
+            "Consider breaking down complex tasks into smaller pieces",
+            "Use 'bd show <task_id>' to see full task details",
+            "Restart loop after fixing blocking issues: '/line:loop start'"
+        ]
+    elif stop_reason == "circuit_breaker":
+        suggested_actions = [
+            "Check recent failures for common patterns (timeouts, test failures, etc.)",
+            "Review loop logs: '/line:loop tail --lines 100'",
+            "Ensure test environment is healthy (database, services, etc.)",
+            "Consider reducing task complexity or adding more context",
+            "Restart loop after investigation: '/line:loop start'"
+        ]
+    else:
+        suggested_actions = [
+            "Review loop status: '/line:loop status'",
+            "Check logs: '/line:loop tail --lines 100'"
+        ]
+
+    return {
+        "stop_reason": stop_reason,
+        "recent_failures": recent_failures,
+        "skipped_tasks": skipped_tasks,
+        "suggested_actions": suggested_actions,
+        "generated_at": datetime.now().isoformat()
+    }
+
+
+def format_escalation_report(escalation: dict) -> str:
+    """Format escalation report for human-readable output."""
+    lines = [
+        "",
+        "=" * 60,
+        "ESCALATION REPORT",
+        "=" * 60,
+        f"Stop reason: {escalation['stop_reason']}",
+        ""
+    ]
+
+    if escalation['skipped_tasks']:
+        lines.append("SKIPPED TASKS (too many failures):")
+        for task in escalation['skipped_tasks']:
+            lines.append(f"  - {task['id']}: {task['failure_count']} failures")
+        lines.append("")
+
+    if escalation['recent_failures']:
+        lines.append("RECENT FAILURES:")
+        for failure in escalation['recent_failures'][-RECENT_ITERATIONS_DISPLAY:]:
+            task_info = f"{failure['task_id']}" if failure['task_id'] else "unknown"
+            lines.append(f"  - #{failure['iteration']}: {task_info} ({failure['outcome']})")
+        lines.append("")
+
+    lines.append("SUGGESTED ACTIONS:")
+    for action in escalation['suggested_actions']:
+        lines.append(f"  • {action}")
+
+    lines.append("")
+    lines.append("=" * 60)
+    return "\n".join(lines)
+
+
+def write_status_file(
+    status_file: Path,
+    running: bool,
+    iteration: int,
+    max_iterations: int,
+    current_task: Optional[str],
+    current_task_title: Optional[str],
+    last_verdict: Optional[str],
+    tasks_completed: int,
+    tasks_remaining: int,
+    started_at: datetime,
+    stop_reason: Optional[str] = None,
+    iterations: Optional[list] = None,
+    current_phase: Optional[str] = None,
+    phase_start_time: Optional[datetime] = None,
+    current_action_count: int = 0,
+    last_action_time: Optional[datetime] = None,
+    skipped_tasks: Optional[list] = None,
+    escalation: Optional[dict] = None
+):
+    """Write live status JSON for external monitoring.
+
+    Includes recent_iterations array with last 5 completed iterations
+    for watch mode milestone display.
+
+    Intra-iteration progress fields (for real-time visibility):
+        current_phase: Currently executing phase (cook, serve, tidy, plate)
+        phase_start_time: When the current phase started
+        current_action_count: Number of tool actions in current phase
+        last_action_time: Timestamp of most recent tool action
+
+    Additional fields on failure:
+        skipped_tasks: List of tasks skipped due to repeated failures
+        escalation: Escalation report with suggested actions
+    """
+    status = {
+        "running": running,
+        "iteration": iteration,
+        "max_iterations": max_iterations,
+        "current_task": current_task,
+        "current_task_title": current_task_title,
+        "last_verdict": last_verdict,
+        "tasks_completed": tasks_completed,
+        "tasks_remaining": tasks_remaining,
+        "started_at": started_at.isoformat(),
+        "last_update": datetime.now().isoformat()
+    }
+    if stop_reason:
+        status["stop_reason"] = stop_reason
+
+    # Add intra-iteration progress fields
+    if current_phase:
+        status["current_phase"] = current_phase
+    if phase_start_time:
+        status["phase_start_time"] = phase_start_time.isoformat()
+    if current_action_count > 0:
+        status["current_action_count"] = current_action_count
+    if last_action_time:
+        status["last_action_time"] = last_action_time.isoformat()
+
+    # Add recent_iterations (limited for display)
+    if iterations:
+        completed = [i for i in iterations if i.outcome == "completed"]
+        recent = completed[-RECENT_ITERATIONS_DISPLAY:] if len(completed) > RECENT_ITERATIONS_DISPLAY else completed
+        status["recent_iterations"] = [
+            serialize_iteration_for_status(i) for i in recent
+        ]
+    else:
+        status["recent_iterations"] = []
+
+    # Add skipped tasks if any
+    if skipped_tasks:
+        status["skipped_tasks"] = skipped_tasks
+
+    # Add escalation report if provided
+    if escalation:
+        status["escalation"] = escalation
+
+    try:
+        atomic_write(status_file, json.dumps(status, indent=2))
+    except Exception as e:
+        logger.warning(f"Failed to write status file: {e}")
+
+
+def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
+    """Sync git and beads at loop start (once, not per-iteration).
+
+    Performs git fetch + pull --rebase and bd sync to ensure the loop
+    starts with the latest code and bead state. Runs once at startup
+    rather than per-iteration for efficiency.
+
+    Args:
+        cwd: Working directory of the git repository.
+        json_output: If True, suppress human-readable progress messages.
+
+    Returns:
+        True if sync completed (even with warnings), False on fatal error.
+
+    Note:
+        Individual sync failures (git fetch, git pull, bd sync) are logged
+        as warnings but don't fail the overall sync. The loop can proceed
+        with potentially stale state.
+    """
+    logger.info("Syncing git and beads at loop start")
+
+    if not json_output:
+        print("Syncing...")
+
+    # Git fetch and pull
+    try:
+        result = run_subprocess(["git", "fetch"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"git fetch failed: {result.stderr}")
+        else:
+            result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+            if result.returncode != 0:
+                logger.warning(f"git pull --rebase failed: {result.stderr}")
+                # Non-fatal - continue
+    except subprocess.TimeoutExpired:
+        logger.warning("git fetch/pull timed out")
+    except Exception as e:
+        logger.warning(f"git sync error: {e}")
+
+    # Beads sync
+    try:
+        result = run_subprocess(["bd", "sync"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"bd sync failed: {result.stderr}")
+    except subprocess.TimeoutExpired:
+        logger.warning("bd sync timed out")
+    except Exception as e:
+        logger.warning(f"bd sync error: {e}")
+
+    if not json_output:
+        print("Sync complete.")
+
+    return True
+
+
+def run_loop(
+    max_iterations: int,
+    stop_on_blocked: bool,
+    stop_on_crash: bool,
+    max_retries: int,
+    json_output: bool,
+    output_file: Optional[Path],
+    cwd: Path,
+    status_file: Optional[Path] = None,
+    history_file: Optional[Path] = None,
+    break_on_epic: bool = False,
+    skip_initial_sync: bool = False,
+    phase_timeouts: Optional[dict[str, int]] = None,
+    max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
+    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_action: str = DEFAULT_IDLE_ACTION
+) -> LoopReport:
+    """Main loop: check ready, run iteration, handle outcome, repeat.
+
+    Individual phases have their own timeouts via phase_timeouts dict
+    or DEFAULT_PHASE_TIMEOUTS.
+
+    Idle detection: If idle_timeout > 0, phases will be checked for idle
+    (no tool actions within threshold). idle_action determines response:
+    "warn" logs a warning, "terminate" stops the phase.
+    """
+    global _shutdown_requested
+
+    started_at = datetime.now()
+    iterations: list[IterationResult] = []
+    completed_count = 0
+    failed_count = 0
+    stop_reason = "unknown"
+    circuit_breaker = CircuitBreaker()
+    skip_list = SkipList(max_failures=max_task_failures)
+
+    logger.info(f"Loop starting: max_iterations={max_iterations}")
+
+    if not json_output:
+        print(f"Line Cook Loop starting (max {max_iterations} iterations)")
+        print("=" * 44)
+
+    # Sync git and beads once at loop start
+    if not skip_initial_sync:
+        sync_at_start(cwd, json_output)
+
+    iteration = 0
+    current_retries = 0
+    last_task_id = None
+
+    while iteration < max_iterations:
+        # Check for shutdown request
+        if _shutdown_requested:
+            stop_reason = "shutdown"
+            logger.info("Shutdown requested, stopping gracefully")
+            if not json_output:
+                print("\nShutdown requested. Stopping gracefully.")
+            break
+
+        # Check circuit breaker
+        if circuit_breaker.is_open():
+            stop_reason = "circuit_breaker"
+            logger.warning("Circuit breaker tripped after consecutive failures")
+            if not json_output:
+                print("\nCircuit breaker tripped: too many consecutive failures. Stopping.")
+            break
+
+        # Check for ready work items (tasks + features, not epics)
+        snapshot = get_bead_snapshot(cwd)
+        ready_work_count = len(snapshot.ready_work_ids)
+
+        if ready_work_count == 0:
+            stop_reason = "no_work"
+            if snapshot.ready_ids:
+                logger.info(f"No work items ready ({len(snapshot.ready_ids)} epics ready), loop complete")
+                if not json_output:
+                    print(f"\nNo work items ready ({len(snapshot.ready_ids)} epics remain). Loop complete.")
+            else:
+                logger.info("No work items ready, loop complete")
+                if not json_output:
+                    print("\nNo work items ready. Loop complete.")
+            break
+
+        # Pre-cook task detection: identify target task before running cook
+        # This helps correlate failures with specific tasks even if cook times out
+        skipped_ids = skip_list.get_skipped_ids()
+        next_task = get_next_ready_task(cwd, skip_ids=skipped_ids)
+
+        if next_task:
+            target_task_id, target_task_title = next_task
+            logger.info(f"Target task: {target_task_id} - {target_task_title}")
+        else:
+            # All ready tasks are in skip list
+            if skipped_ids:
+                stop_reason = "all_tasks_skipped"
+                logger.warning(f"All remaining tasks are skipped due to repeated failures: {skipped_ids}")
+                if not json_output:
+                    print(f"\nAll remaining tasks are skipped due to repeated failures.")
+                    print(f"Skipped tasks: {', '.join(skipped_ids)}")
+                break
+            target_task_id, target_task_title = None, None
+
+        iteration += 1
+
+        if not json_output:
+            print(f"\n[{iteration}/{max_iterations}] {ready_work_count} work items ready")
+            if target_task_id:
+                skipped_count = len(skipped_ids)
+                skip_note = f" ({skipped_count} skipped)" if skipped_count > 0 else ""
+                print(f"  Target: {target_task_id} - {target_task_title}{skip_note}")
+            print("-" * 44)
+
+        # Create progress state for real-time status updates during iteration
+        progress_state = None
+        if status_file:
+            progress_state = ProgressState(
+                status_file=status_file,
+                iteration=iteration,
+                max_iterations=max_iterations,
+                current_task=target_task_id,  # Pre-detected target task
+                current_task_title=target_task_title,
+                tasks_completed=completed_count,
+                tasks_remaining=ready_work_count,
+                started_at=started_at,
+                iterations=iterations
+            )
+
+        # Run iteration with individual phase invocations
+        result = run_iteration(
+            iteration, max_iterations, cwd,
+            max_cook_retries=max_retries,
+            json_output=json_output,
+            progress_state=progress_state,
+            phase_timeouts=phase_timeouts,
+            idle_timeout=idle_timeout,
+            idle_action=idle_action
+        )
+        iterations.append(result)
+
+        # Circuit breaker: track failures, reset on success
+        if result.success:
+            # Reset on success to give fresh chances after recovery
+            circuit_breaker.reset()
+        else:
+            # Only record failures for tracking
+            circuit_breaker.record(False)
+
+        if not json_output:
+            print_human_iteration(result, current_retries)
+
+        # Write status file after each iteration
+        if status_file:
+            # Note: completed_count hasn't been incremented yet, so add 1 if this iteration succeeded
+            write_status_file(
+                status_file=status_file,
+                running=True,
+                iteration=iteration,
+                max_iterations=max_iterations,
+                current_task=result.task_id,
+                current_task_title=result.task_title,
+                last_verdict=result.serve_verdict,
+                tasks_completed=completed_count + (1 if result.success else 0),
+                tasks_remaining=result.after_ready,  # Use data from iteration result
+                started_at=started_at,
+                iterations=iterations
+            )
+
+        # Append iteration to history JSONL file (full action details)
+        if history_file:
+            project_name = cwd.name
+            append_iteration_to_history(
+                history_file=history_file,
+                result=result,
+                project=project_name
+            )
+
+        # Handle outcome
+        if result.outcome == "no_work":
+            stop_reason = "no_work"
+            break
+
+        if result.outcome == "no_actionable_work":
+            stop_reason = "no_actionable_work"
+            logger.info("No actionable work found (e.g., only P4 parking lot items)")
+            if not json_output:
+                print("\nNo actionable tasks available. Stopping loop.")
+            break
+
+        if result.outcome == "completed":
+            completed_count += 1
+            current_retries = 0
+            last_task_id = None
+            # Clear failure count on success
+            if result.task_id:
+                skip_list.record_success(result.task_id)
+
+        elif result.outcome == "needs_retry":
+            if result.task_id == last_task_id:
+                current_retries += 1
+            else:
+                current_retries = 1
+                last_task_id = result.task_id
+
+            if current_retries >= max_retries:
+                failed_count += 1
+                # Record failure to skip_list - may trigger skip
+                if result.task_id:
+                    now_skipped = skip_list.record_failure(result.task_id)
+                    if now_skipped:
+                        logger.warning(f"Task {result.task_id} added to skip list after {skip_list.max_failures} failures")
+                        if not json_output:
+                            print(f"\n  Task {result.task_id} added to skip list (too many failures).")
+                current_retries = 0
+                last_task_id = None
+                if not json_output:
+                    print(f"\n  Max retries ({max_retries}) reached. Moving on.")
+            else:
+                # Apply exponential backoff before retry
+                delay = calculate_retry_delay(current_retries)
+                logger.info(f"Retry {current_retries}/{max_retries} for {result.task_id}, waiting {delay:.1f}s")
+                if not json_output:
+                    print(f"\n  Waiting {delay:.1f}s before retry...")
+                time.sleep(delay)
+
+        elif result.outcome == "blocked":
+            failed_count += 1
+            # Record failure to skip_list for blocked tasks
+            if result.task_id:
+                now_skipped = skip_list.record_failure(result.task_id)
+                if now_skipped:
+                    logger.warning(f"Task {result.task_id} added to skip list after repeated blocks")
+                    if not json_output:
+                        print(f"\n  Task {result.task_id} added to skip list (repeatedly blocked).")
+            if stop_on_blocked:
+                stop_reason = "blocked"
+                logger.info("Task blocked, stopping (--stop-on-blocked)")
+                if not json_output:
+                    print("\nTask blocked. Stopping loop (--stop-on-blocked).")
+                break
+            current_retries = 0
+            last_task_id = None
+
+        elif result.outcome in ("crashed", "timeout"):
+            failed_count += 1
+            # Record failure to skip_list for crashed/timeout tasks
+            if result.task_id:
+                now_skipped = skip_list.record_failure(result.task_id)
+                if now_skipped:
+                    logger.warning(f"Task {result.task_id} added to skip list after {result.outcome}")
+                    if not json_output:
+                        print(f"\n  Task {result.task_id} added to skip list ({result.outcome}).")
+            if stop_on_crash:
+                stop_reason = result.outcome
+                logger.info(f"Task {result.outcome}, stopping (--stop-on-crash)")
+                if not json_output:
+                    print(f"\nTask {result.outcome}. Stopping loop (--stop-on-crash).")
+                break
+            current_retries = 0
+            last_task_id = None
+
+        # Check for epic completions after each successful iteration
+        if result.success and not json_output:
+            epic_summaries = check_epic_completion(cwd)
+            if epic_summaries:
+                # Update status file with epic completions
+                if status_file:
+                    try:
+                        status_content = json.loads(status_file.read_text())
+                        status_content["epic_completions"] = [
+                            {
+                                "id": epic["id"],
+                                "title": epic["title"],
+                                "children_count": len(epic["children"]),
+                                "completed_at": datetime.now().isoformat()
+                            }
+                            for epic in epic_summaries
+                        ]
+                        atomic_write(status_file, json.dumps(status_content, indent=2))
+                    except Exception as e:
+                        logger.debug(f"Failed to update status with epic completions: {e}")
+
+                if break_on_epic:
+                    stop_reason = "epic_complete"
+                    logger.info(f"Epic(s) {[e['id'] for e in epic_summaries]} completed, breaking as requested")
+                    print("\nEpic completed. Pausing loop (--break-on-epic).")
+                    break
+
+    else:
+        stop_reason = "max_iterations"
+        logger.info(f"Reached iteration limit ({max_iterations})")
+        if not json_output:
+            print(f"\nReached iteration limit ({max_iterations}). Stopping.")
+
+    ended_at = datetime.now()
+    duration = (ended_at - started_at).total_seconds()
+
+    # Compute metrics
+    metrics = LoopMetrics.from_iterations(iterations)
+
+    report = LoopReport(
+        started_at=started_at.isoformat(),
+        ended_at=ended_at.isoformat(),
+        iterations=iterations,
+        stop_reason=stop_reason,
+        completed_count=completed_count,
+        failed_count=failed_count,
+        duration_seconds=duration
+    )
+
+    logger.info(f"Loop complete: {completed_count} completed, {failed_count} failed, reason={stop_reason}")
+
+    # Generate escalation report if stopped due to failures
+    escalation = None
+    if stop_reason in ("circuit_breaker", "all_tasks_skipped"):
+        escalation = generate_escalation_report(iterations, skip_list, stop_reason)
+        # Print escalation report to console
+        if not json_output:
+            print(format_escalation_report(escalation))
+        logger.warning(f"Escalation: {stop_reason} - {len(escalation.get('skipped_tasks', []))} tasks skipped")
+
+    # Write final status (running=false)
+    if status_file:
+        final_snapshot = get_bead_snapshot(cwd)
+        write_status_file(
+            status_file=status_file,
+            running=False,
+            iteration=iteration,
+            max_iterations=max_iterations,
+            current_task=iterations[-1].task_id if iterations else None,
+            current_task_title=iterations[-1].task_title if iterations else None,
+            last_verdict=iterations[-1].serve_verdict if iterations else None,
+            tasks_completed=completed_count,
+            tasks_remaining=len(final_snapshot.ready_work_ids),
+            started_at=started_at,
+            stop_reason=stop_reason,
+            iterations=iterations,
+            skipped_tasks=skip_list.get_skipped_tasks(),
+            escalation=escalation
+        )
+
+    # Write history summary record to mark end of loop
+    if history_file:
+        project_name = cwd.name
+        write_history_summary(
+            history_file=history_file,
+            project=project_name,
+            started_at=started_at,
+            ended_at=ended_at,
+            iteration_count=len(iterations),
+            total_actions=sum(i.total_actions for i in iterations),
+            stop_reason=stop_reason
+        )
+
+    # Print summary
+    if not json_output:
+        print()
+        print("=" * 44)
+        print("LOOP COMPLETE")
+        print("=" * 44)
+        print(f"Duration: {format_duration(duration)}")
+        print(f"Completed: {completed_count} | Failed: {failed_count} | Blocked: {sum(1 for i in iterations if i.outcome == 'blocked')}")
+
+        # Metrics
+        if iterations:
+            print(f"Success rate: {metrics.success_rate:.0%} | P50: {format_duration(metrics.p50_duration)} | P95: {format_duration(metrics.p95_duration)}")
+
+        # Final state (show work items, note if epics remain)
+        final_snapshot = get_bead_snapshot(cwd)
+        work_count = len(final_snapshot.ready_work_ids)
+        epic_count = len(final_snapshot.ready_ids) - work_count
+        if epic_count > 0:
+            print(f"Remaining ready: {work_count} work items ({epic_count} epics)")
+        else:
+            print(f"Remaining ready: {work_count}")
+
+    # Output JSON
+    if json_output or output_file:
+        json_data = {
+            "stop_reason": report.stop_reason,
+            "summary": {
+                "completed": report.completed_count,
+                "failed": report.failed_count,
+                "duration_seconds": report.duration_seconds
+            },
+            "metrics": {
+                "success_rate": metrics.success_rate,
+                "p50_duration": metrics.p50_duration,
+                "p95_duration": metrics.p95_duration,
+                "timeout_rate": metrics.timeout_rate,
+                "retry_rate": metrics.retry_rate
+            },
+            "iterations": [
+                {
+                    "iteration": i.iteration,
+                    "task_id": i.task_id,
+                    "task_title": i.task_title,
+                    "intent": i.intent,
+                    "before_state": i.before_state,
+                    "after_state": i.after_state,
+                    "outcome": i.outcome,
+                    "duration_seconds": i.duration_seconds,
+                    "serve_verdict": i.serve_verdict,
+                    "commit_hash": i.commit_hash,
+                    "beads_before": {
+                        "ready": i.before_ready,
+                        "in_progress": i.before_in_progress
+                    },
+                    "beads_after": {
+                        "ready": i.after_ready,
+                        "in_progress": i.after_in_progress
+                    }
+                }
+                for i in report.iterations
+            ]
+        }
+
+        if json_output:
+            print(json.dumps(json_data, indent=2))
+
+        if output_file:
+            output_file.write_text(json.dumps(json_data, indent=2))
+            if not json_output:
+                print(f"\nReport written to: {output_file}")
+
+    return report
