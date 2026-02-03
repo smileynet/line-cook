@@ -1242,6 +1242,24 @@ Main loop orchestration:
 
 ## Troubleshooting
 
+### Quick Scan
+
+| Symptom | Likely Cause | Quick Fix |
+|---------|--------------|-----------|
+| "Loop already running" but nothing happening | Stale PID file | `rm -f /tmp/line-loop-$(basename "$PWD")/loop.pid` |
+| "Another loop instance is starting" | Race condition | Wait a few seconds, or `rm -f $LOOP_DIR/loop.lock` |
+| `stop_reason: circuit_breaker` | 5+ consecutive failures | Review logs, fix failing tasks, restart |
+| `stop_reason: all_tasks_skipped` | All tasks failed 3+ times | `bd show <task-id>` for each, fix issues, restart |
+| `stop_reason: no_tasks` | Work complete | Not an error - all tasks done |
+| Cook phase times out | Task too complex | `--cook-timeout 2400` (40 min) |
+| Serve phase times out | Large diff | `--serve-timeout 900` (15 min) |
+| "Idle timeout after Ns" | Phase waiting/stuck | `--idle-timeout 0` to disable |
+| Status shows "running" but process dead | Unclean shutdown | `rm -f $LOOP_DIR/loop.pid && /line:loop start` |
+| Same task keeps retrying | Unclear requirements | Review task, clarify, restart |
+| Loop exits immediately | No ready work | `bd create` tasks first |
+
+---
+
 ### Loop Won't Start
 
 **Symptom:** `/line:loop start` reports "Loop already running" but nothing is happening.
@@ -1270,6 +1288,35 @@ rm -f "$LOOP_DIR/loop.lock"
 ---
 
 ### Loop Stops Unexpectedly
+
+Use this decision tree to diagnose why the loop stopped:
+
+```
+Loop stops unexpectedly
+├── Check stop_reason in status.json
+│   │   jq '.stop_reason' /tmp/line-loop-$(basename "$PWD")/status.json
+│   │
+│   ├── "circuit_breaker" → 5+ consecutive failures
+│   │   └── See "Circuit Breaker" section below
+│   │
+│   ├── "all_tasks_skipped" → All tasks failed 3+ times
+│   │   └── See "All Tasks Skipped" section below
+│   │
+│   ├── "no_tasks" → Work complete (not an error)
+│   │   └── All ready tasks completed successfully
+│   │
+│   ├── "max_iterations" → Reached iteration limit
+│   │   └── Restart with `/line:loop start` to continue
+│   │
+│   └── "shutdown" → Graceful stop requested
+│       └── User or signal requested stop
+│
+└── No status file or stop_reason
+    └── Process crashed - check logs:
+        /line:loop tail --lines 100
+```
+
+---
 
 **Symptom:** Loop stops with `stop_reason: circuit_breaker`.
 
@@ -1485,3 +1532,41 @@ When things go wrong:
 6. **Restart**:
    ```bash
    /line:loop start
+   ```
+
+---
+
+### Developer Debug
+
+For contributors debugging loop internals, see the [Architecture Overview](#architecture-overview) section above.
+
+**Key source locations:**
+
+| Issue | Module | Key Function |
+|-------|--------|--------------|
+| Phase execution | `phase.py` | `run_phase()` |
+| Iteration logic | `iteration.py` | `run_iteration()` |
+| Circuit breaker | `models.py` | `CircuitBreaker.is_open()` |
+| Skip list | `models.py` | `SkipList.should_skip()` |
+| Status updates | `loop.py` | `write_status_file()` |
+| Serve parsing | `parsing.py` | `parse_serve_result()` |
+
+**Enable verbose logging:**
+```bash
+# Set VERBOSE=1 to see debug output
+VERBOSE=1 python scripts/line-loop.py --max-iterations 1
+```
+
+**Inspect internal state:**
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+
+# Current state with all fields
+jq '.' "$LOOP_DIR/status.json"
+
+# Last iteration actions
+jq -s '.[-1].actions' "$LOOP_DIR/history.jsonl"
+
+# Circuit breaker window (from last iteration)
+jq -s '.[-1] | {iteration, outcome, success}' "$LOOP_DIR/history.jsonl" | tail -10
+```
