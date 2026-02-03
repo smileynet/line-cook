@@ -57,6 +57,15 @@ from .parsing import (
     update_action_from_result,
 )
 
+# Re-export phase execution functions
+from .phase import (
+    run_phase,
+    run_subprocess,
+    check_idle,
+    detect_kitchen_complete,
+    detect_kitchen_idle,
+)
+
 # Type-only export for StatusWriter protocol
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -95,5 +104,11 @@ __all__ = [
     "extract_text_from_event",
     "extract_actions_from_event",
     "update_action_from_result",
+    # Phase execution
+    "run_phase",
+    "run_subprocess",
+    "check_idle",
+    "detect_kitchen_complete",
+    "detect_kitchen_idle",
 ]
 # Note: StatusWriter is available under TYPE_CHECKING for type hints only
