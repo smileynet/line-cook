@@ -153,6 +153,18 @@ BEFORE → AFTER:
 Files: <count> changed
 Commit: <hash>
 Issues filed: <count>
+
+───────────────────────────────────────────
+NEXT STEPS
+───────────────────────────────────────────
+Ready: <count> tasks | Blocked: <count>
+
+  /clear       Clear context before next cycle (recommended)
+  /line:run    Continue with next task
+  /line:prep   Review state first
+  /line:help   See all commands
+
+Tip: Clear context between tasks to prevent accumulation.
 ```
 
 ## Error Handling
