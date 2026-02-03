@@ -173,6 +173,89 @@ class CircuitBreaker:
 
 
 @dataclass
+class LoopError:
+    """Structured error with context for debugging and logging.
+
+    Captures rich context when errors occur during loop execution, making it
+    easier to diagnose issues without losing important details. Follows the
+    patterns from docs/guidance/python-scripting.md.
+
+    Attributes:
+        error_type: Category of error (timeout, json_decode, subprocess, io, unknown)
+        message: Human-readable error description
+        context: Additional context as key-value pairs (task_id, command, etc.)
+        original: The original exception, if any
+        timestamp: When the error occurred
+    """
+    error_type: str
+    message: str
+    context: dict[str, Any] = field(default_factory=dict)
+    original: Optional[Exception] = None
+    timestamp: datetime = field(default_factory=datetime.now)
+
+    def __str__(self) -> str:
+        """Format error for logging."""
+        parts = [f"[{self.error_type}] {self.message}"]
+        if self.context:
+            ctx_str = ", ".join(f"{k}={v}" for k, v in self.context.items())
+            parts.append(f"({ctx_str})")
+        if self.original:
+            parts.append(f"cause: {type(self.original).__name__}: {self.original}")
+        return " ".join(parts)
+
+    @classmethod
+    def from_timeout(cls, cmd: str, timeout: int, task_id: Optional[str] = None) -> "LoopError":
+        """Create error for subprocess timeout."""
+        ctx: dict[str, Any] = {"command": cmd, "timeout_seconds": timeout}
+        if task_id:
+            ctx["task_id"] = task_id
+        return cls(
+            error_type="timeout",
+            message=f"Command timed out after {timeout}s",
+            context=ctx
+        )
+
+    @classmethod
+    def from_json_decode(cls, source: str, exc: json.JSONDecodeError,
+                         task_id: Optional[str] = None) -> "LoopError":
+        """Create error for JSON parsing failure."""
+        ctx: dict[str, Any] = {"source": source, "position": exc.pos}
+        if task_id:
+            ctx["task_id"] = task_id
+        return cls(
+            error_type="json_decode",
+            message=f"Failed to parse JSON from {source}",
+            context=ctx,
+            original=exc
+        )
+
+    @classmethod
+    def from_subprocess(cls, cmd: str, returncode: int, stderr: str,
+                        task_id: Optional[str] = None) -> "LoopError":
+        """Create error for subprocess failure."""
+        ctx: dict[str, Any] = {"command": cmd, "returncode": returncode}
+        if stderr:
+            ctx["stderr"] = stderr[:200]  # Truncate long stderr
+        if task_id:
+            ctx["task_id"] = task_id
+        return cls(
+            error_type="subprocess",
+            message=f"Command failed with exit code {returncode}",
+            context=ctx
+        )
+
+    @classmethod
+    def from_io(cls, operation: str, path: Path, exc: Exception) -> "LoopError":
+        """Create error for file I/O failure."""
+        return cls(
+            error_type="io",
+            message=f"I/O error during {operation}",
+            context={"path": str(path)},
+            original=exc
+        )
+
+
+@dataclass
 class SkipList:
     """Tracks tasks to skip due to repeated failures.
 
@@ -555,6 +638,7 @@ def get_next_ready_task(cwd: Path, skip_ids: Optional[set[str]] = None) -> Optio
         Tuple of (task_id, task_title) or None if no tasks ready
     """
     skip_ids = skip_ids or set()
+    cmd = "bd ready --json"
     try:
         result = run_subprocess(["bd", "ready", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
@@ -568,9 +652,11 @@ def get_next_ready_task(cwd: Path, skip_ids: Optional[set[str]] = None) -> Optio
                     if issue_type != "epic" and issue_id and issue_id not in skip_ids:
                         return (issue_id, issue.get("title", ""))
     except subprocess.TimeoutExpired:
-        logger.warning("Timeout getting next ready task")
+        err = LoopError.from_timeout(cmd, BD_COMMAND_TIMEOUT)
+        logger.warning(str(err))
     except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse ready items JSON: {e}")
+        err = LoopError.from_json_decode("bd ready output", e)
+        logger.warning(str(err))
     except Exception as e:
         logger.debug(f"Error getting next ready task: {e}")
     return None
@@ -581,6 +667,7 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
     snapshot = BeadSnapshot()
 
     # Get all ready items and filter work items (tasks + features, not epics)
+    cmd_ready = "bd ready --json"
     try:
         result = run_subprocess(["bd", "ready", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
@@ -592,35 +679,43 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
                 if isinstance(i, dict) and i.get("type") != "epic"
             ]
     except subprocess.TimeoutExpired:
-        logger.warning("Timeout getting ready items")
+        err = LoopError.from_timeout(cmd_ready, BD_COMMAND_TIMEOUT)
+        logger.warning(str(err))
     except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse ready items JSON: {e}")
+        err = LoopError.from_json_decode("bd ready output", e)
+        logger.warning(str(err))
     except Exception as e:
         logger.debug(f"Error getting ready items: {e}")
 
     # Get in_progress tasks
+    cmd_in_progress = "bd list --status=in_progress --json"
     try:
         result = run_subprocess(["bd", "list", "--status=in_progress", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.in_progress_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
     except subprocess.TimeoutExpired:
-        logger.warning("Timeout getting in_progress tasks")
+        err = LoopError.from_timeout(cmd_in_progress, BD_COMMAND_TIMEOUT)
+        logger.warning(str(err))
     except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse in_progress tasks JSON: {e}")
+        err = LoopError.from_json_decode("bd list in_progress output", e)
+        logger.warning(str(err))
     except Exception as e:
         logger.debug(f"Error getting in_progress tasks: {e}")
 
     # Get recently closed tasks (limited for performance)
+    cmd_closed = f"bd list --status=closed --limit={CLOSED_TASKS_QUERY_LIMIT} --json"
     try:
         result = run_subprocess(["bd", "list", "--status=closed", f"--limit={CLOSED_TASKS_QUERY_LIMIT}", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.closed_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
     except subprocess.TimeoutExpired:
-        logger.warning("Timeout getting closed tasks")
+        err = LoopError.from_timeout(cmd_closed, BD_COMMAND_TIMEOUT)
+        logger.warning(str(err))
     except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse closed tasks JSON: {e}")
+        err = LoopError.from_json_decode("bd list closed output", e)
+        logger.warning(str(err))
     except Exception as e:
         logger.debug(f"Error getting closed tasks: {e}")
 
@@ -1297,13 +1392,18 @@ def run_phase(
 
 def get_task_info(task_id: str, cwd: Path) -> Optional[dict]:
     """Get task info including parent and status."""
+    cmd = f"bd show {task_id} --json"
     try:
         result = run_subprocess(["bd", "show", task_id, "--json"], GIT_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout)
             return parse_bd_json_item(data)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
-        logger.warning(f"Failed to get task info for {task_id}: {e}")
+    except subprocess.TimeoutExpired:
+        err = LoopError.from_timeout(cmd, GIT_COMMAND_TIMEOUT, task_id=task_id)
+        logger.warning(str(err))
+    except json.JSONDecodeError as e:
+        err = LoopError.from_json_decode(f"bd show {task_id} output", e, task_id=task_id)
+        logger.warning(str(err))
     except Exception as e:
         logger.debug(f"Error getting task info for {task_id}: {e}")
     return None
@@ -1311,6 +1411,7 @@ def get_task_info(task_id: str, cwd: Path) -> Optional[dict]:
 
 def get_children(parent_id: str, cwd: Path) -> list[dict]:
     """Get all children of a parent issue."""
+    cmd = f"bd list --parent={parent_id} --all --json"
     try:
         result = run_subprocess(
             ["bd", "list", f"--parent={parent_id}", "--all", "--json"],
@@ -1320,8 +1421,12 @@ def get_children(parent_id: str, cwd: Path) -> list[dict]:
             children = json.loads(result.stdout)
             if isinstance(children, list):
                 return [c for c in children if isinstance(c, dict)]
-    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
-        logger.warning(f"Failed to get children for {parent_id}: {e}")
+    except subprocess.TimeoutExpired:
+        err = LoopError.from_timeout(cmd, BD_COMMAND_TIMEOUT)
+        logger.warning(str(err))
+    except json.JSONDecodeError as e:
+        err = LoopError.from_json_decode(f"bd list --parent={parent_id} output", e)
+        logger.warning(str(err))
     except Exception as e:
         logger.debug(f"Error getting children for {parent_id}: {e}")
     return []
