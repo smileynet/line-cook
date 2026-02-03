@@ -15,3 +15,66 @@ Usage:
 """
 
 __version__ = "0.1.0"
+
+# Re-export config constants for convenience
+from .config import (
+    DEFAULT_MAX_ITERATIONS,
+    DEFAULT_MAX_TASK_FAILURES,
+    DEFAULT_PHASE_TIMEOUTS,
+    DEFAULT_IDLE_TIMEOUT,
+    DEFAULT_IDLE_ACTION,
+    BD_COMMAND_TIMEOUT,
+    GIT_COMMAND_TIMEOUT,
+    GIT_SYNC_TIMEOUT,
+)
+
+# Re-export models for convenience
+from .models import (
+    CircuitBreaker,
+    LoopError,
+    SkipList,
+    LoopMetrics,
+    BeadSnapshot,
+    ServeResult,
+    ServeFeedbackIssue,
+    ServeFeedback,
+    PhaseResult,
+    ActionRecord,
+    IterationResult,
+    LoopReport,
+    ProgressState,
+    summarize_tool_input,
+)
+
+# Type-only export for StatusWriter protocol
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .models import StatusWriter
+
+__all__ = [
+    # Config
+    "DEFAULT_MAX_ITERATIONS",
+    "DEFAULT_MAX_TASK_FAILURES",
+    "DEFAULT_PHASE_TIMEOUTS",
+    "DEFAULT_IDLE_TIMEOUT",
+    "DEFAULT_IDLE_ACTION",
+    "BD_COMMAND_TIMEOUT",
+    "GIT_COMMAND_TIMEOUT",
+    "GIT_SYNC_TIMEOUT",
+    # Models
+    "CircuitBreaker",
+    "LoopError",
+    "SkipList",
+    "LoopMetrics",
+    "BeadSnapshot",
+    "ServeResult",
+    "ServeFeedbackIssue",
+    "ServeFeedback",
+    "PhaseResult",
+    "ActionRecord",
+    "IterationResult",
+    "LoopReport",
+    "ProgressState",
+    "summarize_tool_input",
+]
+# Note: StatusWriter is available under TYPE_CHECKING for type hints only
