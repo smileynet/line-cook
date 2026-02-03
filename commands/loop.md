@@ -76,6 +76,9 @@ Shows live progress with milestones, action counts, and before/after context.
 | Review what happened | `/line:loop history --actions` |
 | Stop gracefully | `/line:loop stop` |
 | Custom iteration limit | `/line:loop start --max-iterations N` |
+| Stop on first blocker | `/line:loop start --stop-on-blocked` |
+| Epic milestone review | `/line:loop start --break-on-epic` |
+| Complex tasks (40min) | `/line:loop start --cook-timeout 2400` |
 
 ---
 
@@ -164,12 +167,20 @@ Start Options:
   --plate-timeout S     Plate phase timeout in seconds (default: 600)
   --idle-timeout S      Seconds without tool actions before idle triggers (default: 180, 0 to disable)
   --idle-action ACTION  Action on idle: warn (log warning) or terminate (stop phase) (default: warn)
+  --max-retries N       Max retries per task on NEEDS_CHANGES (default: 2)
+  --max-task-failures N Skip task after this many failures (default: 3)
+  --stop-on-blocked     Stop if task is BLOCKED (default: continue)
+  --stop-on-crash       Stop on claude crash (default: continue)
+  --break-on-epic       Pause loop when an epic completes (default: continue)
+  --skip-initial-sync   Skip git fetch/pull and bd sync at loop start
 
 Examples:
   /line:loop                          # Start or watch (smart default)
   /line:loop watch                    # Monitor progress with context
   /line:loop start --max-iterations 5 # Quick test run
   /line:loop start --cook-timeout 1800 # Complex tasks (30min cook timeout)
+  /line:loop start --break-on-epic    # Pause for review at epic completion
+  /line:loop start --stop-on-blocked  # Stop immediately on blocked tasks
   /line:loop status                   # One-shot status check
   /line:loop tail --lines 100         # View more log output
   /line:loop history --actions        # View all iterations with actions
