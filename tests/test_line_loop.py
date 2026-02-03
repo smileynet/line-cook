@@ -8,10 +8,8 @@ from pathlib import Path
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
-
-# Import the module
-line_loop = import_module("line-loop")
+# Import the line_loop package
+import line_loop
 
 
 class TestParseServeResult(unittest.TestCase):
