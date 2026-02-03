@@ -1025,3 +1025,47 @@ This skill provides TUI-friendly management of the autonomous loop:
 5. **Project isolation** - Each project gets its own loop directory in `/tmp/line-loop-<project>/`
 
 The loop itself handles all the complex logic (circuit breakers, retries, bead tracking). This skill just provides the management interface.
+
+---
+
+## Developer Reference
+
+The `line-loop.py` script follows patterns from the [Python Scripting Skill](/.claude/skills/python-scripting/python-scripting.md). Developers modifying the loop script should reference that guidance.
+
+### Applied Best Practices
+
+| Pattern | Implementation |
+|---------|----------------|
+| Named constants | `DEFAULT_*`, `*_TIMEOUT`, `*_MAX_*` at module top |
+| Structured errors | `LoopError` dataclass with context and factory methods |
+| Signal handling | Minimal handlers set `_shutdown_requested` flag |
+| Dataclasses | `BeadSnapshot`, `ServeResult`, `IterationResult`, `LoopReport` |
+| Atomic writes | `atomic_write()` for status/history files |
+| Exponential backoff | `calculate_retry_delay()` with jitter |
+| Circuit breaker | `CircuitBreaker` class for failure throttling |
+
+### Key Architecture
+
+```
+line-loop.py
+├── Constants (lines ~43-85)
+├── Signal handling (lines ~90-105)
+├── Utility functions (setup_logging, atomic_write, calculate_retry_delay)
+├── Dataclasses
+│   ├── CircuitBreaker - Failure tracking
+│   ├── LoopError - Structured errors with context
+│   ├── BeadSnapshot - Task state at a point in time
+│   ├── ServeResult - Parsed serve phase output
+│   ├── IterationResult - Single iteration outcome
+│   └── LoopReport - Final loop summary
+├── Phase execution (run_phase)
+├── Iteration logic (run_iteration)
+└── Main loop (run_loop, main)
+```
+
+### Adding New Features
+
+1. Extract magic numbers to named constants at module top
+2. Use `LoopError.from_*()` factory methods for error creation
+3. Follow existing docstring style (Args/Returns/Notes)
+4. Update status.json schema if adding new tracking fields
