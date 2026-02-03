@@ -40,11 +40,41 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-# Constants
+# Constants - Configuration values extracted for clarity and maintainability
+# See docs/guidance/python-scripting.md for naming conventions
+
+# Output and display limits
 OUTPUT_SUMMARY_MAX_LENGTH = 200
-DEFAULT_MAX_TASK_FAILURES = 3  # Skip task after this many failures
-DEFAULT_IDLE_TIMEOUT = 180  # 3 minutes without tool actions triggers idle
-DEFAULT_IDLE_ACTION = "warn"  # "warn" or "terminate"
+INPUT_SUMMARY_FILE_PATH_LENGTH = 100
+INPUT_SUMMARY_COMMAND_LENGTH = 80
+INPUT_SUMMARY_PATTERN_LENGTH = 60
+GOAL_TEXT_MAX_LENGTH = 200
+BANNER_MIN_WIDTH = 62
+
+# Task and iteration defaults
+DEFAULT_MAX_TASK_FAILURES = 3       # Skip task after this many failures
+DEFAULT_MAX_ITERATIONS = 25         # Default loop iterations
+DEFAULT_IDLE_TIMEOUT = 180          # 3 minutes without tool actions triggers idle
+DEFAULT_IDLE_ACTION = "warn"        # "warn" or "terminate"
+
+# Subprocess timeouts (in seconds)
+BD_COMMAND_TIMEOUT = 30             # Standard bd command timeout
+GIT_COMMAND_TIMEOUT = 10            # Short git commands (log, show)
+GIT_SYNC_TIMEOUT = 60               # Longer git operations (fetch, pull)
+DEFAULT_FALLBACK_PHASE_TIMEOUT = 600  # Fallback for unknown phases
+
+# Logging configuration
+LOG_FILE_MAX_BYTES = 10 * 1024 * 1024  # 10MB max per log file
+LOG_FILE_BACKUP_COUNT = 3              # Keep 3 backup files
+
+# Retry and backoff configuration
+MAX_RETRY_DELAY_SECONDS = 60        # Cap for exponential backoff
+CIRCUIT_BREAKER_WINDOW_SIZE = 10    # Sliding window for failure tracking
+
+# History and status tracking
+RECENT_ITERATIONS_LIMIT = 10        # Iterations to consider for analysis
+RECENT_ITERATIONS_DISPLAY = 5       # Iterations to show in status/reports
+CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
 
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
@@ -80,11 +110,10 @@ def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     handlers: list[logging.Handler] = [logging.StreamHandler()]
     if log_file:
         # Use RotatingFileHandler to prevent unbounded disk usage
-        # 10MB max per file, keep 3 backups (loop.log.1, loop.log.2, loop.log.3)
         handlers.append(logging.handlers.RotatingFileHandler(
             log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=3
+            maxBytes=LOG_FILE_MAX_BYTES,
+            backupCount=LOG_FILE_BACKUP_COUNT
         ))
     logging.basicConfig(
         level=level,
@@ -113,8 +142,8 @@ def atomic_write(path: Path, content: str) -> None:
 
 
 def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
-    """Exponential backoff with jitter: 2s, 4s, 8s... capped at 60s."""
-    delay = min(base * (2 ** attempt), 60)
+    """Exponential backoff with jitter: 2s, 4s, 8s... capped at MAX_RETRY_DELAY_SECONDS."""
+    delay = min(base * (2 ** attempt), MAX_RETRY_DELAY_SECONDS)
     return delay * random.uniform(0.8, 1.2)  # ±20% jitter
 
 
@@ -122,7 +151,7 @@ def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
 class CircuitBreaker:
     """Stops loop after too many consecutive failures."""
     failure_threshold: int = 5
-    window_size: int = 10
+    window_size: int = CIRCUIT_BREAKER_WINDOW_SIZE
     window: list = field(default_factory=list)
 
     def record(self, success: bool):
@@ -326,23 +355,23 @@ class ActionRecord:
 def summarize_tool_input(tool_name: str, input_data: dict) -> str:
     """Create concise summary of tool input."""
     if tool_name == "Read":
-        return input_data.get("file_path", "")[:100]
+        return input_data.get("file_path", "")[:INPUT_SUMMARY_FILE_PATH_LENGTH]
     elif tool_name == "Edit":
         path = input_data.get("file_path", "")
-        return f"{path} (edit)"[:100]
+        return f"{path} (edit)"[:INPUT_SUMMARY_FILE_PATH_LENGTH]
     elif tool_name == "Bash":
         cmd = input_data.get("command", "")
-        return cmd[:80] + ("..." if len(cmd) > 80 else "")
+        return cmd[:INPUT_SUMMARY_COMMAND_LENGTH] + ("..." if len(cmd) > INPUT_SUMMARY_COMMAND_LENGTH else "")
     elif tool_name == "Write":
-        return f"{input_data.get('file_path', '')} (new)"[:100]
+        return f"{input_data.get('file_path', '')} (new)"[:INPUT_SUMMARY_FILE_PATH_LENGTH]
     elif tool_name in ("Glob", "Grep"):
-        return input_data.get("pattern", "")[:60]
+        return input_data.get("pattern", "")[:INPUT_SUMMARY_PATTERN_LENGTH]
     elif tool_name == "Task":
         desc = input_data.get("description", "")
-        return f"Task: {desc}"[:80]
+        return f"Task: {desc}"[:INPUT_SUMMARY_COMMAND_LENGTH]
     else:
         summary = str(input_data)
-        return summary[:80] + ("..." if len(summary) > 80 else "")
+        return summary[:INPUT_SUMMARY_COMMAND_LENGTH] + ("..." if len(summary) > INPUT_SUMMARY_COMMAND_LENGTH else "")
 
 
 @dataclass
@@ -527,7 +556,7 @@ def get_next_ready_task(cwd: Path, skip_ids: Optional[set[str]] = None) -> Optio
     """
     skip_ids = skip_ids or set()
     try:
-        result = run_subprocess(["bd", "ready", "--json"], 30, cwd)
+        result = run_subprocess(["bd", "ready", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             for issue in issues:
@@ -553,7 +582,7 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
 
     # Get all ready items and filter work items (tasks + features, not epics)
     try:
-        result = run_subprocess(["bd", "ready", "--json"], 30, cwd)
+        result = run_subprocess(["bd", "ready", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.ready_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
@@ -571,7 +600,7 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
 
     # Get in_progress tasks
     try:
-        result = run_subprocess(["bd", "list", "--status=in_progress", "--json"], 30, cwd)
+        result = run_subprocess(["bd", "list", "--status=in_progress", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.in_progress_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
@@ -582,9 +611,9 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
     except Exception as e:
         logger.debug(f"Error getting in_progress tasks: {e}")
 
-    # Get recently closed tasks (limit 10 for performance)
+    # Get recently closed tasks (limited for performance)
     try:
-        result = run_subprocess(["bd", "list", "--status=closed", "--limit=10", "--json"], 30, cwd)
+        result = run_subprocess(["bd", "list", "--status=closed", f"--limit={CLOSED_TASKS_QUERY_LIMIT}", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
             snapshot.closed_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
@@ -869,7 +898,7 @@ def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[st
 def get_task_title(task_id: str, cwd: Path) -> Optional[str]:
     """Get the title for a task ID."""
     try:
-        result = run_subprocess(["bd", "show", task_id, "--json"], 30, cwd)
+        result = run_subprocess(["bd", "show", task_id, "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout)
             issue = parse_bd_json_item(data)
@@ -933,7 +962,7 @@ def check_task_completed(
     # DEFINITIVE: Check task status directly via bd
     if task_id:
         try:
-            result = run_subprocess(["bd", "show", task_id, "--json"], 10, cwd)
+            result = run_subprocess(["bd", "show", task_id, "--json"], GIT_COMMAND_TIMEOUT, cwd)
             if result.returncode == 0 and result.stdout.strip():
                 task_data = parse_bd_json_item(json.loads(result.stdout))
                 if isinstance(task_data, dict) and task_data.get("status") == "closed":
@@ -1057,7 +1086,7 @@ def update_action_from_result(
 def get_latest_commit(cwd: Path) -> Optional[str]:
     """Get the latest commit hash."""
     try:
-        result = run_subprocess(["git", "log", "-1", "--format=%h"], 10, cwd)
+        result = run_subprocess(["git", "log", "-1", "--format=%h"], GIT_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0:
             return result.stdout.strip()
     except Exception as e:
@@ -1093,7 +1122,7 @@ def run_phase(
     """
     if timeout is None:
         timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
-        timeout = timeouts.get(phase, DEFAULT_PHASE_TIMEOUTS.get(phase, 600))
+        timeout = timeouts.get(phase, DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT))
 
     skill = f"/line:{phase}"
     if args:
@@ -1269,7 +1298,7 @@ def run_phase(
 def get_task_info(task_id: str, cwd: Path) -> Optional[dict]:
     """Get task info including parent and status."""
     try:
-        result = run_subprocess(["bd", "show", task_id, "--json"], 10, cwd)
+        result = run_subprocess(["bd", "show", task_id, "--json"], GIT_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout)
             return parse_bd_json_item(data)
@@ -1285,7 +1314,7 @@ def get_children(parent_id: str, cwd: Path) -> list[dict]:
     try:
         result = run_subprocess(
             ["bd", "list", f"--parent={parent_id}", "--all", "--json"],
-            30, cwd
+            BD_COMMAND_TIMEOUT, cwd
         )
         if result.returncode == 0 and result.stdout.strip():
             children = json.loads(result.stdout)
@@ -1372,8 +1401,8 @@ def generate_epic_closure_report(epic_id: str, cwd: Path) -> str:
     # Extract first sentence or paragraph from description
     if description:
         goal = description.split('\n')[0].strip()
-        if len(goal) > 200:
-            goal = goal[:197] + "..."
+        if len(goal) > GOAL_TEXT_MAX_LENGTH:
+            goal = goal[:GOAL_TEXT_MAX_LENGTH - 3] + "..."
         lines.append(f"  {goal}")
     else:
         lines.append("  (No description provided)")
@@ -1403,7 +1432,7 @@ def get_epic_summary(epic_id: str, cwd: Path) -> dict:
 
     # Get epic details
     try:
-        result = run_subprocess(["bd", "show", epic_id, "--json"], 10, cwd)
+        result = run_subprocess(["bd", "show", epic_id, "--json"], GIT_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             epic = parse_bd_json_item(json.loads(result.stdout))
             if epic:
@@ -1418,7 +1447,7 @@ def get_epic_summary(epic_id: str, cwd: Path) -> dict:
     try:
         result = run_subprocess(
             ["bd", "list", f"--parent={epic_id}", "--all", "--json"],
-            30, cwd
+            BD_COMMAND_TIMEOUT, cwd
         )
         if result.returncode == 0 and result.stdout.strip():
             children = json.loads(result.stdout)
@@ -1443,7 +1472,7 @@ def print_epic_completion(epic: dict):
 
     # Build header
     header = f"EPIC COMPLETE: {epic_id} - {title}"
-    width = max(62, len(header) + 4)
+    width = max(BANNER_MIN_WIDTH, len(header) + 4)
 
     print()
     print("╔" + "═" * width + "╗")
@@ -1489,7 +1518,7 @@ def check_epic_completion(cwd: Path) -> list[dict]:
     try:
         result = run_subprocess(
             ["bd", "epic", "close-eligible", "--dry-run", "--json"],
-            30, cwd
+            BD_COMMAND_TIMEOUT, cwd
         )
         if result.returncode != 0 or not result.stdout.strip():
             return []
@@ -1525,7 +1554,7 @@ def check_epic_completion(cwd: Path) -> list[dict]:
 
     # Close eligible epics
     try:
-        result = run_subprocess(["bd", "epic", "close-eligible"], 30, cwd)
+        result = run_subprocess(["bd", "epic", "close-eligible"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode != 0:
             logger.warning(f"Failed to close eligible epics: {result.stderr}")
             return []
@@ -1972,7 +2001,7 @@ def run_iteration(
 
                     # Close the epic
                     try:
-                        run_subprocess(["bd", "close", epic_id], 30, cwd)
+                        run_subprocess(["bd", "close", epic_id], BD_COMMAND_TIMEOUT, cwd)
                         logger.info(f"Closed epic {epic_id}")
                     except Exception as e:
                         logger.warning(f"Failed to close epic {epic_id}: {e}")
@@ -2208,7 +2237,7 @@ def generate_escalation_report(
     Returns:
         Dict with escalation details for status.json and logging
     """
-    # Get recent failures (last 10 iterations that weren't successful)
+    # Get recent failures from the last N iterations that weren't successful
     recent_failures = [
         {
             "iteration": i.iteration,
@@ -2218,7 +2247,7 @@ def generate_escalation_report(
             "serve_verdict": i.serve_verdict,
             "duration_seconds": i.duration_seconds
         }
-        for i in iterations[-10:]
+        for i in iterations[-RECENT_ITERATIONS_LIMIT:]
         if not i.success
     ]
 
@@ -2276,7 +2305,7 @@ def format_escalation_report(escalation: dict) -> str:
 
     if escalation['recent_failures']:
         lines.append("RECENT FAILURES:")
-        for failure in escalation['recent_failures'][-5:]:  # Last 5
+        for failure in escalation['recent_failures'][-RECENT_ITERATIONS_DISPLAY:]:
             task_info = f"{failure['task_id']}" if failure['task_id'] else "unknown"
             lines.append(f"  - #{failure['iteration']}: {task_info} ({failure['outcome']})")
         lines.append("")
@@ -2350,10 +2379,10 @@ def write_status_file(
     if last_action_time:
         status["last_action_time"] = last_action_time.isoformat()
 
-    # Add recent_iterations (last 5 completed iterations)
+    # Add recent_iterations (limited for display)
     if iterations:
         completed = [i for i in iterations if i.outcome == "completed"]
-        recent = completed[-5:] if len(completed) > 5 else completed
+        recent = completed[-RECENT_ITERATIONS_DISPLAY:] if len(completed) > RECENT_ITERATIONS_DISPLAY else completed
         status["recent_iterations"] = [
             serialize_iteration_for_status(i) for i in recent
         ]
@@ -2386,11 +2415,11 @@ def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
 
     # Git fetch and pull
     try:
-        result = run_subprocess(["git", "fetch"], 60, cwd)
+        result = run_subprocess(["git", "fetch"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
             logger.warning(f"git fetch failed: {result.stderr}")
         else:
-            result = run_subprocess(["git", "pull", "--rebase"], 60, cwd)
+            result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
                 logger.warning(f"git pull --rebase failed: {result.stderr}")
                 # Non-fatal - continue
@@ -2401,7 +2430,7 @@ def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
 
     # Beads sync
     try:
-        result = run_subprocess(["bd", "sync"], 60, cwd)
+        result = run_subprocess(["bd", "sync"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
             logger.warning(f"bd sync failed: {result.stderr}")
     except subprocess.TimeoutExpired:
@@ -2861,8 +2890,8 @@ Examples:
     parser.add_argument(
         "-n", "--max-iterations",
         type=int,
-        default=25,
-        help="Maximum iterations (default: 25)"
+        default=DEFAULT_MAX_ITERATIONS,
+        help=f"Maximum iterations (default: {DEFAULT_MAX_ITERATIONS})"
     )
     parser.add_argument(
         "--json",
