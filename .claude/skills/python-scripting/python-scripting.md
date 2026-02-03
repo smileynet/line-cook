@@ -158,7 +158,208 @@ def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
 
 ## Topics
 
-<!-- lc-hhv.3: Fill in topic sections -->
+### Subprocess Management
+
+**Key principles:**
+- Use list form for commands (avoids shell injection)
+- Always set `timeout` for external commands
+- Use `capture_output=True` for `stdout`/`stderr`
+- Use `text=True` for string output (vs bytes)
+- Check `returncode` - negative values indicate signal termination (POSIX)
+
+```python
+# BAD - vulnerable to shell injection
+subprocess.run(f"ls {user_input}", shell=True)
+
+# GOOD - use list form
+subprocess.run(["ls", user_input])
+
+# Check return codes (assumes logger from Quick Reference above)
+result = subprocess.run(["git", "push"], capture_output=True, text=True)
+if result.returncode != 0:
+    logger.error(f"Push failed: {result.stderr}")
+```
+
+### Signal Handling Details
+
+**Key points:**
+- Handlers run in main thread only
+- Keep handlers minimal - set flag, don't do heavy work
+- Never raise regular exceptions in handlers
+- For threads, main thread catches signal and notifies workers via Event/Queue
+
+```python
+# BAD - heavy work in handler
+def handler(sig, frame):
+    save_all_state()  # May block
+    cleanup_resources()  # May raise
+    sys.exit(0)
+
+# GOOD - set flag, handle in main loop
+def handler(sig, frame):
+    global _shutdown_requested
+    _shutdown_requested = True
+
+# In main loop
+if _shutdown_requested:
+    save_all_state()
+    cleanup_resources()
+    break
+```
+
+### Retry Logic with Backoff
+
+```python
+import random
+import time
+from typing import Callable
+
+def retry_operation(operation: Callable, max_attempts: int = 3):
+    """Retry operation with exponential backoff."""
+    for attempt in range(max_attempts):
+        try:
+            return operation()
+        except Exception:
+            if attempt == max_attempts - 1:
+                raise
+            delay = calculate_retry_delay(attempt)
+            time.sleep(delay)
+```
+
+### Circuit Breaker Pattern
+
+Stop after too many consecutive failures:
+
+```python
+from dataclasses import dataclass, field
+
+@dataclass
+class CircuitBreaker:
+    """Stop after too many consecutive failures."""
+    failure_threshold: int = 5
+    window_size: int = 10
+    window: list[bool] = field(default_factory=list)
+
+    def record(self, success: bool):
+        self.window.append(success)
+        if len(self.window) > self.window_size:
+            self.window.pop(0)
+
+    def is_open(self) -> bool:
+        """True if too many recent failures."""
+        if len(self.window) < self.failure_threshold:
+            return False
+        recent = self.window[-self.failure_threshold:]
+        return sum(1 for s in recent if not s) >= self.failure_threshold
+```
+
+## Anti-Patterns
+
+### Mutable Default Arguments
+
+```python
+# BAD - list is shared across calls
+def add_item(item, items=[]):
+    items.append(item)
+    return items
+
+# GOOD - use None and create new list
+def add_item(item, items=None):
+    if items is None:
+        items = []
+    items.append(item)
+    return items
+
+# BEST - use dataclass field factory
+@dataclass
+class Container:
+    items: list[str] = field(default_factory=list)
+```
+
+### Missing Context Managers
+
+```python
+# BAD - file may not close on exception
+f = open('file.txt')
+data = f.read()
+f.close()
+
+# GOOD - automatic cleanup
+with open('file.txt') as f:
+    data = f.read()
+```
+
+### Bare Exception Handling
+
+```python
+# BAD - catches everything including KeyboardInterrupt
+try:
+    do_something()
+except:
+    pass
+
+# GOOD - catch specific exceptions
+try:
+    do_something()
+except ValueError as e:
+    logger.warning(f"Invalid value: {e}")
+except subprocess.TimeoutExpired:
+    logger.error("Command timed out")
+```
+
+### Wildcard Imports
+
+```python
+# BAD - pollutes namespace, breaks static analysis
+from os import *
+
+# GOOD - explicit imports
+from pathlib import Path
+import os
+```
+
+### String Path Manipulation
+
+```python
+# BAD - error-prone string concatenation
+path = directory + "/" + filename
+
+# GOOD - pathlib handles separators
+from pathlib import Path
+path = Path(directory) / filename
+```
+
+### Print for Logging
+
+```python
+# BAD - no levels, timestamps, or file output
+print(f"Error: {error}")
+
+# GOOD - structured logging
+logger.error(f"Operation failed: {error}", exc_info=True)
+```
+
+### Magic Numbers
+
+```python
+# BAD - unclear meaning
+if retry_count > 5:
+    timeout = 60
+
+# GOOD - named constants
+MAX_RETRIES = 5
+MAX_TIMEOUT_SECONDS = 60
+
+if retry_count > MAX_RETRIES:
+    timeout = MAX_TIMEOUT_SECONDS
+```
+
+## Recommended Tools
+
+- **ruff** - Fast linter and formatter (replaces black, isort, flake8)
+- **mypy** - Static type checking
+- **pytest** - Testing framework
+- **structlog** / **loguru** - Enhanced logging
 
 ## See Also
 
