@@ -436,7 +436,19 @@ class ActionRecord:
 
 
 def summarize_tool_input(tool_name: str, input_data: dict) -> str:
-    """Create concise summary of tool input."""
+    """Create concise summary of tool input for action tracking.
+
+    Generates a human-readable summary of what a tool call is doing,
+    truncated to fit in logs and status displays. Different tools have
+    different relevant fields to summarize.
+
+    Args:
+        tool_name: Name of the tool (Read, Edit, Bash, Write, Glob, Grep, Task, etc.)
+        input_data: The input parameters passed to the tool.
+
+    Returns:
+        Truncated summary string (max ~100 chars depending on tool type).
+    """
     if tool_name == "Read":
         return input_data.get("file_path", "")[:INPUT_SUMMARY_FILE_PATH_LENGTH]
     elif tool_name == "Edit":
@@ -611,7 +623,24 @@ def check_idle(last_action_time: Optional[datetime], idle_timeout: int) -> bool:
 
 
 def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedProcess:
-    """Run subprocess with logging."""
+    """Run subprocess with logging, timeout handling, and structured output.
+
+    Executes an external command as a subprocess with consistent logging,
+    timeout enforcement, and captured output. Used throughout the loop for
+    bd commands, git operations, and other external tools.
+
+    Args:
+        cmd: Command and arguments as a list (e.g., ["bd", "ready", "--json"]).
+             List form is used to prevent shell injection.
+        timeout: Maximum seconds to wait for command completion.
+        cwd: Working directory for the subprocess.
+
+    Returns:
+        CompletedProcess with returncode, stdout, and stderr captured as text.
+
+    Raises:
+        subprocess.TimeoutExpired: If command doesn't complete within timeout.
+    """
     logger.debug(f"Running: {' '.join(cmd)} (timeout={timeout}s)")
     start = time.time()
     try:
@@ -663,7 +692,27 @@ def get_next_ready_task(cwd: Path, skip_ids: Optional[set[str]] = None) -> Optio
 
 
 def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
-    """Capture ready/in_progress/closed issue IDs via bd --json."""
+    """Capture current state of beads (issues) for before/after comparison.
+
+    Queries bd for ready, in_progress, and recently closed issues. The snapshot
+    enables detecting which task was worked on by comparing state before and
+    after a loop iteration.
+
+    Args:
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        BeadSnapshot containing:
+        - ready_ids: All ready issues (tasks, features, and epics)
+        - ready_work_ids: Ready work items only (tasks + features, excluding epics)
+        - in_progress_ids: Issues currently being worked on
+        - closed_ids: Recently closed issues (limited for performance)
+        - timestamp: When the snapshot was captured
+
+    Note:
+        Errors from bd commands are logged but don't raise exceptions.
+        Returns partially-populated snapshot on individual query failures.
+    """
     snapshot = BeadSnapshot()
 
     # Get all ready items and filter work items (tasks + features, not epics)
@@ -723,7 +772,25 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
 
 
 def parse_serve_result(output: str) -> Optional[ServeResult]:
-    """Parse SERVE_RESULT block from claude output."""
+    """Parse SERVE_RESULT block from serve phase output.
+
+    Extracts the structured verdict information that the serve phase emits
+    to communicate code review results back to the loop.
+
+    Expected format in output:
+        SERVE_RESULT
+        verdict: APPROVED|NEEDS_CHANGES|BLOCKED|SKIPPED
+        continue: true|false
+        next_step: /line:tidy (optional)
+        blocking_issues: 0
+
+    Args:
+        output: Raw output from the serve phase (may contain stream-json events).
+
+    Returns:
+        ServeResult with verdict, continue flag, next_step, and blocking_issues.
+        Returns None if SERVE_RESULT block cannot be parsed.
+    """
     # Look for the SERVE_RESULT block
     pattern = r"SERVE_RESULT\s*\n(?:│\s*)?verdict:\s*(\w+).*?(?:│\s*)?continue:\s*(true|false).*?(?:│\s*)?(?:next_step:\s*(\S+))?.*?(?:│\s*)?blocking_issues:\s*(\d+)"
     match = re.search(pattern, output, re.DOTALL | re.IGNORECASE)
@@ -967,7 +1034,22 @@ def parse_bd_json_item(data: Any) -> Optional[dict]:
 
 
 def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[str]:
-    """Detect which task was worked on by state diff."""
+    """Detect which task was worked on by comparing bead state snapshots.
+
+    Uses state transitions to identify the task that was claimed or completed
+    during an iteration. Handles three scenarios:
+    1. Task moved from ready to in_progress (claimed)
+    2. Task moved from ready to closed (completed in one go)
+    3. Task was in_progress and is now closed (completed)
+
+    Args:
+        before: BeadSnapshot captured before the iteration.
+        after: BeadSnapshot captured after the iteration.
+
+    Returns:
+        Task ID that was worked on, or None if no task state change detected.
+        Returns the first matching task if multiple tasks changed (rare).
+    """
     # Check for task that moved from ready to in_progress
     new_in_progress = set(after.in_progress_ids) - set(before.in_progress_ids)
     if new_in_progress:
@@ -991,7 +1073,15 @@ def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[st
 
 
 def get_task_title(task_id: str, cwd: Path) -> Optional[str]:
-    """Get the title for a task ID."""
+    """Get the title for a task ID from bead database.
+
+    Args:
+        task_id: The bead issue ID (e.g., "lc-j6b.3").
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        Task title string, or None if task not found or query fails.
+    """
     try:
         result = run_subprocess(["bd", "show", task_id, "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
@@ -1009,12 +1099,33 @@ def get_task_title(task_id: str, cwd: Path) -> Optional[str]:
 
 
 def detect_kitchen_complete(output: str) -> bool:
-    """Detect KITCHEN_COMPLETE signal in output."""
+    """Detect KITCHEN_COMPLETE signal in cook phase output.
+
+    The cook phase emits this signal when it believes the task is complete.
+    Used as a supporting (not definitive) signal for completion detection.
+
+    Args:
+        output: Raw output from the cook phase.
+
+    Returns:
+        True if KITCHEN_COMPLETE or KITCHEN COMPLETE found in output.
+    """
     return "KITCHEN_COMPLETE" in output or "KITCHEN COMPLETE" in output
 
 
 def detect_kitchen_idle(output: str) -> bool:
-    """Detect KITCHEN_IDLE signal in output."""
+    """Detect KITCHEN_IDLE signal in cook phase output.
+
+    The cook phase emits this signal when no actionable work is found
+    (e.g., all ready tasks are P4 parking lot items). This allows the
+    loop to stop gracefully rather than continuing to run with no work.
+
+    Args:
+        output: Raw output from the cook phase.
+
+    Returns:
+        True if KITCHEN_IDLE or KITCHEN IDLE found in output.
+    """
     return "KITCHEN_IDLE" in output or "KITCHEN IDLE" in output
 
 
@@ -1084,9 +1195,18 @@ def check_task_completed(
 
 
 def parse_stream_json_event(line: str) -> Optional[dict]:
-    """Parse a single line of stream-json output.
+    """Parse a single line of Claude's stream-json output format.
 
-    Returns the parsed event dict or None if not valid JSON.
+    Claude CLI with --output-format stream-json emits one JSON object
+    per line, representing conversation events (assistant messages,
+    tool uses, tool results, etc.).
+
+    Args:
+        line: A single line from stream-json output.
+
+    Returns:
+        Parsed event dict if valid JSON, None otherwise.
+        Empty or whitespace-only lines return None.
     """
     line = line.strip()
     if not line:
@@ -1098,7 +1218,20 @@ def parse_stream_json_event(line: str) -> Optional[dict]:
 
 
 def extract_text_from_event(event: dict) -> str:
-    """Extract text content from assistant message event."""
+    """Extract text content from a stream-json assistant message event.
+
+    Claude's stream-json output format wraps messages in event objects.
+    This extracts the human-readable text from assistant responses,
+    concatenating all text content blocks.
+
+    Args:
+        event: Parsed JSON event from stream-json output.
+               Expected structure: {"type": "assistant", "message": {"content": [...]}}
+
+    Returns:
+        Concatenated text from all text content blocks, or empty string
+        if event is not an assistant message or has no text content.
+    """
     if event.get("type") != "assistant":
         return ""
     content = event.get("message", {}).get("content", [])
@@ -1111,10 +1244,22 @@ def extract_actions_from_event(
     event: dict,
     pending_actions: dict[str, ActionRecord]
 ) -> list[ActionRecord]:
-    """Extract tool_use blocks from an assistant message event.
+    """Extract tool_use blocks from a stream-json assistant message event.
 
-    Also updates pending_actions dict with new tool uses for later correlation.
-    Returns list of new ActionRecords.
+    Parses tool calls from the assistant's response and tracks them in
+    pending_actions for later correlation with tool_result events. This
+    enables action tracking and idle detection during phase execution.
+
+    Args:
+        event: Parsed JSON event from stream-json output.
+               Expected structure for tool calls:
+               {"type": "assistant", "message": {"content": [{"type": "tool_use", ...}]}}
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord.
+                        New tool uses are added here for correlation with results.
+
+    Returns:
+        List of new ActionRecords created from tool_use blocks in this event.
+        Empty list if event is not an assistant message or has no tool calls.
     """
     actions = []
     if event.get("type") != "assistant":
@@ -1137,10 +1282,24 @@ def update_action_from_result(
     event: dict,
     pending_actions: dict[str, ActionRecord]
 ) -> None:
-    """Update a pending action with its tool_result.
+    """Update pending actions with tool_result data from user message events.
 
-    Looks for tool_result content blocks and updates the corresponding
-    ActionRecord with output_summary and success status.
+    In Claude's conversation protocol, tool results are sent as user messages.
+    This function correlates tool_result blocks with previously recorded
+    tool_use actions via tool_use_id, updating the ActionRecord with the
+    outcome (success/error) and a truncated output summary.
+
+    Args:
+        event: Parsed JSON event from stream-json output.
+               Expected structure for tool results:
+               {"type": "user", "message": {"content": [{"type": "tool_result", ...}]}}
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord.
+                        Matching entries are updated and removed after processing.
+
+    Side Effects:
+        - Updates ActionRecord.success based on is_error flag
+        - Updates ActionRecord.output_summary with truncated result content
+        - Removes processed actions from pending_actions dict
     """
     if event.get("type") != "user":
         return
@@ -1179,7 +1338,17 @@ def update_action_from_result(
 
 
 def get_latest_commit(cwd: Path) -> Optional[str]:
-    """Get the latest commit hash."""
+    """Get the short hash of the latest git commit.
+
+    Used to record which commit was created by the tidy phase for
+    traceability in iteration results and status reports.
+
+    Args:
+        cwd: Working directory of the git repository.
+
+    Returns:
+        Short commit hash (e.g., "a1b2c3d"), or None if git command fails.
+    """
     try:
         result = run_subprocess(["git", "log", "-1", "--format=%h"], GIT_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0:
@@ -1391,7 +1560,19 @@ def run_phase(
 
 
 def get_task_info(task_id: str, cwd: Path) -> Optional[dict]:
-    """Get task info including parent and status."""
+    """Get full task information including parent, status, and type.
+
+    Queries bd for detailed issue data used in feature/epic completion
+    checks and status reporting.
+
+    Args:
+        task_id: The bead issue ID (e.g., "lc-j6b.3").
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        Dict with issue fields (id, title, status, type, parent, etc.),
+        or None if task not found or query fails.
+    """
     cmd = f"bd show {task_id} --json"
     try:
         result = run_subprocess(["bd", "show", task_id, "--json"], GIT_COMMAND_TIMEOUT, cwd)
@@ -1410,7 +1591,19 @@ def get_task_info(task_id: str, cwd: Path) -> Optional[dict]:
 
 
 def get_children(parent_id: str, cwd: Path) -> list[dict]:
-    """Get all children of a parent issue."""
+    """Get all child issues of a parent epic or feature.
+
+    Used in feature/epic completion checks to determine if all children
+    are closed (enabling parent auto-closure).
+
+    Args:
+        parent_id: The bead issue ID of the parent (epic or feature).
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        List of child issue dicts with fields (id, title, status, type),
+        or empty list if parent has no children or query fails.
+    """
     cmd = f"bd list --parent={parent_id} --all --json"
     try:
         result = run_subprocess(
@@ -2511,7 +2704,21 @@ def write_status_file(
 def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
     """Sync git and beads at loop start (once, not per-iteration).
 
-    Returns True if sync succeeded, False on error.
+    Performs git fetch + pull --rebase and bd sync to ensure the loop
+    starts with the latest code and bead state. Runs once at startup
+    rather than per-iteration for efficiency.
+
+    Args:
+        cwd: Working directory of the git repository.
+        json_output: If True, suppress human-readable progress messages.
+
+    Returns:
+        True if sync completed (even with warnings), False on fatal error.
+
+    Note:
+        Individual sync failures (git fetch, git pull, bd sync) are logged
+        as warnings but don't fail the overall sync. The loop can proceed
+        with potentially stale state.
     """
     logger.info("Syncing git and beads at loop start")
 
