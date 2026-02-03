@@ -26,6 +26,8 @@ from .config import (
     BD_COMMAND_TIMEOUT,
     GIT_COMMAND_TIMEOUT,
     GIT_SYNC_TIMEOUT,
+    LOG_FILE_MAX_BYTES,
+    LOG_FILE_BACKUP_COUNT,
 )
 
 # Re-export models for convenience
@@ -82,6 +84,7 @@ from .iteration import (
     format_duration,
     print_phase_progress,
     print_human_iteration,
+    atomic_write,
 )
 
 # Re-export loop functions
@@ -112,6 +115,8 @@ __all__ = [
     "BD_COMMAND_TIMEOUT",
     "GIT_COMMAND_TIMEOUT",
     "GIT_SYNC_TIMEOUT",
+    "LOG_FILE_MAX_BYTES",
+    "LOG_FILE_BACKUP_COUNT",
     # Models
     "CircuitBreaker",
     "LoopError",
@@ -156,6 +161,7 @@ __all__ = [
     "format_duration",
     "print_phase_progress",
     "print_human_iteration",
+    "atomic_write",
     # Loop
     "run_loop",
     "sync_at_start",
