@@ -1237,3 +1237,251 @@ Main loop orchestration:
 5. Add new parsing logic to `parsing.py`, phase logic to `phase.py`, etc.
 6. Place new dataclasses in `models.py` with appropriate factory methods
 7. Update `__init__.py` to re-export new public API functions
+
+---
+
+## Troubleshooting
+
+### Loop Won't Start
+
+**Symptom:** `/line:loop start` reports "Loop already running" but nothing is happening.
+
+**Cause:** Stale PID file from a previous run that crashed or was killed.
+
+**Fix:**
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+rm -f "$LOOP_DIR/loop.pid"
+/line:loop start
+```
+
+---
+
+**Symptom:** "Another loop instance is starting. Please wait and try again."
+
+**Cause:** Race condition - multiple start attempts simultaneously.
+
+**Fix:** Wait a few seconds and try again. If it persists:
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+rm -f "$LOOP_DIR/loop.lock"
+```
+
+---
+
+### Loop Stops Unexpectedly
+
+**Symptom:** Loop stops with `stop_reason: circuit_breaker`.
+
+**Cause:** 5+ consecutive failures within 10 iterations tripped the circuit breaker.
+
+**Diagnose:**
+```bash
+/line:loop tail --lines 100
+/line:loop history --actions
+```
+
+**Common causes:**
+- Tasks with unclear requirements (Claude gets stuck in loops)
+- Missing dependencies or environment issues
+- Flaky tests causing serve rejections
+
+**Fix:** Review the escalation report in status.json, fix the underlying issues, then restart.
+
+---
+
+**Symptom:** Loop stops with `stop_reason: all_tasks_skipped`.
+
+**Cause:** Every ready task has failed 3+ times and been added to the skip list.
+
+**Diagnose:**
+```bash
+cat /tmp/line-loop-$(basename "$PWD")/status.json | jq '.skipped_tasks'
+```
+
+**Fix:**
+1. Review skipped tasks: `bd show <task-id>` for each
+2. Fix issues (clarify requirements, fix dependencies)
+3. Restart loop (clears skip list): `/line:loop start`
+
+---
+
+### Phases Timing Out
+
+**Symptom:** Cook phase times out on complex tasks.
+
+**Cause:** Default 20-minute cook timeout too short for large changes.
+
+**Fix:** Increase timeout:
+```bash
+/line:loop start --cook-timeout 2400  # 40 minutes
+```
+
+---
+
+**Symptom:** Serve phase times out.
+
+**Cause:** Large diffs take longer to review.
+
+**Fix:**
+```bash
+/line:loop start --serve-timeout 900  # 15 minutes
+```
+
+---
+
+### Idle Detection Issues
+
+**Symptom:** Loop terminates with "Idle timeout after Ns without tool actions".
+
+**Cause:** Phase went too long without tool calls (possibly waiting for something).
+
+**Fix options:**
+```bash
+# Disable idle detection
+/line:loop start --idle-timeout 0
+
+# Use warning instead of termination
+/line:loop start --idle-action warn
+
+# Increase threshold
+/line:loop start --idle-timeout 300
+```
+
+---
+
+**Symptom:** Phase appears stuck but idle detection doesn't trigger.
+
+**Cause:** Idle detection only triggers AFTER at least one tool action. If a phase never makes a tool call, it won't trigger.
+
+**Diagnose:**
+```bash
+/line:loop watch  # Check "Actions:" count and "Last: Ns ago"
+```
+
+**Fix:** If phase is truly stuck, use `/line:loop stop` to terminate gracefully.
+
+---
+
+### Status File Issues
+
+**Symptom:** `/line:loop watch` shows stale data.
+
+**Cause:** Status file updates are throttled to 1 write per 5 seconds during phases.
+
+**Fix:** This is expected behavior. For real-time logs:
+```bash
+/line:loop tail --lines 50
+```
+
+---
+
+**Symptom:** Status shows "running: true" but process is dead.
+
+**Cause:** Loop crashed or was killed without cleaning up.
+
+**Diagnose:**
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+cat "$LOOP_DIR/loop.pid"  # Get PID
+ps -p <PID>               # Check if alive
+```
+
+**Fix:**
+```bash
+rm -f "$LOOP_DIR/loop.pid"
+/line:loop start
+```
+
+---
+
+### Retry Spiral
+
+**Symptom:** Same task keeps retrying with NEEDS_CHANGES.
+
+**Cause:** Task has issues that can't be fixed automatically (unclear requirements, architectural problems).
+
+**Diagnose:**
+```bash
+/line:loop history --iteration N --actions  # See what happened
+```
+
+**How the loop handles this:**
+- Max 2 retries per iteration (configurable via `--max-retries`)
+- After 3 total failures, task is added to skip list
+- After all tasks skipped, loop stops with escalation report
+
+**Fix:** Manually review the task, clarify requirements, then restart.
+
+---
+
+### Log Files
+
+**Where to look:**
+
+| Issue | File |
+|-------|------|
+| Full execution log | `$LOOP_DIR/loop.log` |
+| Current status | `$LOOP_DIR/status.json` |
+| All iterations | `$LOOP_DIR/history.jsonl` |
+| Final report | `$LOOP_DIR/report.json` |
+
+Where `LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"`.
+
+**Quick debug:**
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+tail -100 "$LOOP_DIR/loop.log"           # Recent logs
+jq '.' "$LOOP_DIR/status.json"           # Current state
+jq -s '.[-3:]' "$LOOP_DIR/history.jsonl" # Last 3 iterations
+```
+
+---
+
+### Common Antipatterns
+
+| Antipattern | Problem | Solution |
+|-------------|---------|----------|
+| Running without `bd ready` work | Loop exits immediately | Create tasks first with `bd create` |
+| Tasks with vague descriptions | Claude gets stuck, timeouts | Write clear acceptance criteria |
+| Dependencies not declared | Tasks attempted out of order | Use `bd dep add` |
+| Complex tasks as single beads | Timeouts, partial completion | Break into smaller tasks |
+| Skipping `/line:run` practice | Don't understand failure modes | Run manual cycles first |
+
+---
+
+### Recovery Checklist
+
+When things go wrong:
+
+1. **Stop the loop** (if running):
+   ```bash
+   /line:loop stop
+   ```
+
+2. **Check what happened**:
+   ```bash
+   /line:loop tail --lines 100
+   /line:loop history --actions
+   ```
+
+3. **Check task status**:
+   ```bash
+   bd ready
+   bd list --status=in_progress
+   ```
+
+4. **Clean up if needed**:
+   ```bash
+   # Reset stuck in_progress tasks
+   bd update <id> --status=open
+
+   # Clear stale loop files
+   rm -rf /tmp/line-loop-$(basename "$PWD")
+   ```
+
+5. **Fix underlying issues** (unclear tasks, missing deps)
+
+6. **Restart**:
+   ```bash
+   /line:loop start
