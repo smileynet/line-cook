@@ -332,6 +332,18 @@ Push: ✓ origin/main | ⚠️ <error> | skipped (no remote)
 
 Session complete.
 
+───────────────────────────────────────────
+NEXT STEPS
+───────────────────────────────────────────
+Ready tasks remaining: <count>
+
+  /clear       Clear context before next cycle (recommended)
+  /line:prep   Start fresh cycle
+  /line:run    Continue automatically
+  /line:help   See all commands
+
+Tip: Clear context between tasks to prevent accumulation.
+
 <phase_complete>DONE</phase_complete>
 ```
 
