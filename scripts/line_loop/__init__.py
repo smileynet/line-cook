@@ -66,6 +66,37 @@ from .phase import (
     detect_kitchen_idle,
 )
 
+# Re-export iteration functions
+from .iteration import (
+    run_iteration,
+    check_task_completed,
+    check_feature_completion,
+    check_epic_completion_after_feature,
+    check_epic_completion,
+    detect_worked_task,
+    get_bead_snapshot,
+    get_task_info,
+    get_task_title,
+    get_children,
+    get_latest_commit,
+    format_duration,
+    print_phase_progress,
+    print_human_iteration,
+)
+
+# Re-export loop functions
+from .loop import (
+    run_loop,
+    sync_at_start,
+    write_status_file,
+    generate_escalation_report,
+    format_escalation_report,
+    get_next_ready_task,
+    calculate_retry_delay,
+    request_shutdown,
+    reset_shutdown_flag,
+)
+
 # Type-only export for StatusWriter protocol
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -110,5 +141,30 @@ __all__ = [
     "check_idle",
     "detect_kitchen_complete",
     "detect_kitchen_idle",
+    # Iteration
+    "run_iteration",
+    "check_task_completed",
+    "check_feature_completion",
+    "check_epic_completion_after_feature",
+    "check_epic_completion",
+    "detect_worked_task",
+    "get_bead_snapshot",
+    "get_task_info",
+    "get_task_title",
+    "get_children",
+    "get_latest_commit",
+    "format_duration",
+    "print_phase_progress",
+    "print_human_iteration",
+    # Loop
+    "run_loop",
+    "sync_at_start",
+    "write_status_file",
+    "generate_escalation_report",
+    "format_escalation_report",
+    "get_next_ready_task",
+    "calculate_retry_delay",
+    "request_shutdown",
+    "reset_shutdown_flag",
 ]
 # Note: StatusWriter is available under TYPE_CHECKING for type hints only
