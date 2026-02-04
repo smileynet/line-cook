@@ -506,6 +506,8 @@ Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
 
 Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:scope`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
 
+Agents: `line:taster`, `line:sous-chef`, `line:maitre`
+
 ### OpenCode
 
 **Online (from GitHub):**
