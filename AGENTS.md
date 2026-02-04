@@ -717,8 +717,8 @@ Line Cook follows the Red-Green-Refactor cycle with automatic quality checks:
 - Verify all tests pass and code builds
 
 **QUALITY GATES**:
-- Tests pass: `go test ./...` (or project-specific test command)
-- Code builds: `go build ./...` (or project-specific build command)
+- Tests pass: `<test command>` (e.g., `go test ./...`, `pytest`, `npm test`, `cargo test`)
+- Code builds: `<build command>` (e.g., `go build ./...`, `npm run build`, `cargo build`)
 - Test quality approved by taster agent
 - Code quality approved by sous-chef agent (in serve phase)
 
