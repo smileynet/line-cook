@@ -1741,7 +1741,7 @@ For contributors debugging loop internals, see the [Architecture Overview](#arch
 | Phase execution | `phase.py` | `run_phase()` |
 | Iteration logic | `iteration.py` | `run_iteration()` |
 | Circuit breaker | `models.py` | `CircuitBreaker.is_open()` |
-| Skip list | `models.py` | `SkipList.should_skip()` |
+| Skip list | `models.py` | `SkipList.is_skipped()` |
 | Status updates | `loop.py` | `write_status_file()` |
 | Serve parsing | `parsing.py` | `parse_serve_result()` |
 
