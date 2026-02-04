@@ -252,7 +252,7 @@ def check_bead_closed(test_dir: Path) -> ValidationResult:
             if isinstance(bead_data, list) and len(bead_data) > 0:
                 bead_data = bead_data[0]
             status = bead_data.get("status", "unknown")
-            if status in ("closed", "done"):
+            if status == "closed":
                 return ValidationResult(
                     name="bead_closed",
                     passed=True,
@@ -291,7 +291,7 @@ def check_bead_closed(test_dir: Path) -> ValidationResult:
                 continue
 
         if status:
-            if status in ("closed", "done"):
+            if status == "closed":
                 return ValidationResult(
                     name="bead_closed",
                     passed=True,

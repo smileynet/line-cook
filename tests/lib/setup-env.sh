@@ -69,14 +69,11 @@ git push -u origin main >/dev/null 2>&1
 # Initialize beads with test prefix
 bd init --prefix=tc >/dev/null 2>&1
 
-# Copy mock beads issues
-mkdir -p .beads/issues
-cp "$FIXTURES_DIR/mock-beads/config.yaml" .beads/config.yaml 2>/dev/null || true
-for issue_file in "$FIXTURES_DIR/mock-beads/issues/"*.yaml; do
-    if [[ -f "$issue_file" ]]; then
-        cp "$issue_file" .beads/issues/
-    fi
-done
+# Import mock beads issues from JSONL
+bd import -i "$FIXTURES_DIR/mock-beads/issues.jsonl" >/dev/null 2>&1
+
+# Add dependency (tc-003 depends on tc-001)
+bd dep add tc-003 tc-001 >/dev/null 2>&1
 
 # Commit beads setup
 git add .beads/

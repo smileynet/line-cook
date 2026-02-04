@@ -278,7 +278,7 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
             # Filter work items (exclude epics) from the same parsed data
             snapshot.ready_work_ids = [
                 i.get("id", "") for i in issues
-                if isinstance(i, dict) and i.get("type") != "epic"
+                if isinstance(i, dict) and i.get("issue_type") != "epic"
             ]
     except subprocess.TimeoutExpired:
         err = LoopError.from_timeout(cmd_ready, BD_COMMAND_TIMEOUT)
@@ -489,7 +489,7 @@ def check_feature_completion(task_id: str, cwd: Path) -> tuple[bool, Optional[st
     parent_info = get_task_info(parent_id, cwd)
 
     # Only proceed if parent is a feature
-    if not parent_info or parent_info.get("type") != "feature":
+    if not parent_info or parent_info.get("issue_type") != "feature":
         return False, None
 
     # Check if all siblings are closed
@@ -514,7 +514,7 @@ def check_epic_completion_after_feature(feature_id: str, cwd: Path) -> tuple[boo
     epic_info = get_task_info(epic_id, cwd)
 
     # Only proceed if parent is an epic
-    if not epic_info or epic_info.get("type") != "epic":
+    if not epic_info or epic_info.get("issue_type") != "epic":
         return False, None
 
     # Check if all children are closed
@@ -536,7 +536,7 @@ def generate_epic_closure_report(epic_id: str, cwd: Path) -> str:
     description = epic_info.get("description", "")
 
     children = get_children(epic_id, cwd)
-    features = [c for c in children if c.get("type") == "feature"]
+    features = [c for c in children if c.get("issue_type") == "feature"]
 
     lines = [
         "",
@@ -601,7 +601,7 @@ def get_epic_summary(epic_id: str, cwd: Path) -> dict:
         if result.returncode == 0 and result.stdout.strip():
             children = json.loads(result.stdout)
             epic_data["children"] = [
-                {"id": c.get("id"), "title": c.get("title"), "type": c.get("type")}
+                {"id": c.get("id"), "title": c.get("title"), "issue_type": c.get("issue_type")}
                 for c in children if isinstance(c, dict)
             ]
     except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
@@ -646,7 +646,7 @@ def print_epic_completion(epic: dict):
     if children:
         types = {}
         for c in children:
-            t = c.get("type", "item")
+            t = c.get("issue_type", "item")
             types[t] = types.get(t, 0) + 1
         type_summary = ", ".join(
             f"{count} {t}" if count == 1 else f"{count} {t}s"
