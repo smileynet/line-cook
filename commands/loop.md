@@ -20,47 +20,20 @@ allowed-tools: Bash, Read, Glob
 
 ## Quick Start
 
-### Learning Path (Recommended)
+### Readiness Checklist
 
-Before using `/line:loop`, familiarize yourself with the individual phases:
+| Ready? | Prerequisite | Why |
+|:------:|--------------|-----|
+| ☐ | Run `/line:prep` → `/line:cook` → `/line:tidy` manually | Understand the workflow |
+| ☐ | Run `/line:run` a few times | Practice single-task cycles |
+| ☐ | Have `bd ready` tasks available | Loop needs work to do |
 
-**1. Start with individual phases:**
-```
-/line:prep       # Check ready tasks, sync state
-/line:cook       # Execute one task interactively
-/line:serve      # Review changes before commit
-/line:tidy       # Commit and push changes
-```
-Run these manually a few times to understand the workflow.
+### First Loop
 
-**2. Then try the combined run:**
-```
-/line:run        # Runs prep → cook → serve → tidy for one task
-```
-This completes a single task cycle with your oversight.
-
-**3. Finally, use loop for autonomous execution:**
-```
-/line:loop       # Runs multiple iterations unattended
-```
-
-### Using /line:loop
-
-**Default (auto-detect):**
-```
-/line:loop
-```
-Starts a loop if none running, or shows watch mode if already running.
-
-**Monitor a running loop:**
-```
-/line:loop watch
-```
-Shows live progress with milestones, action counts, and before/after context.
-
-**Start with limited iterations (good for testing):**
-```
-/line:loop start --max-iterations 5
+```bash
+/line:loop                        # Smart default: start or watch
+/line:loop start --max-iterations 3  # Test run (recommended first time)
+/line:loop watch                  # Monitor progress with context
 ```
 
 ---
@@ -79,6 +52,59 @@ Shows live progress with milestones, action counts, and before/after context.
 | Stop on first blocker | `/line:loop start --stop-on-blocked` |
 | Epic milestone review | `/line:loop start --break-on-epic` |
 | Complex tasks (40min) | `/line:loop start --cook-timeout 2400` |
+
+---
+
+## Timeout Behavior
+
+Timeout behavior differs significantly between running commands standalone vs. through the loop:
+
+### Standalone vs Loop Comparison
+
+| Aspect | Standalone (`/line:cook`) | Loop (`/line:loop start`) |
+|--------|---------------------------|---------------------------|
+| **Cook timeout** | 2 minutes (Claude Code default) | 20 minutes (configurable) |
+| **Serve timeout** | 2 minutes | 10 minutes (configurable) |
+| **Tidy timeout** | 2 minutes | 4 minutes (configurable) |
+| **Plate timeout** | 2 minutes | 10 minutes (configurable) |
+| **Idle detection** | None | 3 minutes (configurable) |
+| **Override method** | Not configurable | CLI flags per phase |
+
+### Why the Difference?
+
+**Standalone execution** uses Claude Code's built-in 2-minute default timeout for all skills. This is sufficient for quick, focused tasks but may be too short for complex work.
+
+**Loop execution** manages its own subprocess timeouts, providing:
+- Phase-appropriate defaults (cook needs more time than tidy)
+- Full configurability via CLI flags
+- Idle detection to catch hung phases
+- Early termination via `<phase_complete>DONE</phase_complete>` signal
+
+### When to Use Each
+
+| Scenario | Recommended Mode |
+|----------|------------------|
+| Quick bug fix or small change | Standalone |
+| Complex feature implementation | Loop with `--cook-timeout 2400` |
+| Large codebase refactoring | Loop with extended timeouts |
+| Learning the workflow | Standalone (see Quick Start) |
+| Batch processing multiple tasks | Loop |
+
+### Configuring Loop Timeouts
+
+```bash
+# Default timeouts (usually sufficient)
+/line:loop start
+
+# Complex tasks (40-minute cook phase)
+/line:loop start --cook-timeout 2400
+
+# Large diffs (15-minute serve phase)
+/line:loop start --serve-timeout 900
+
+# All phases extended
+/line:loop start --cook-timeout 2400 --serve-timeout 900 --tidy-timeout 480
+```
 
 ---
 
