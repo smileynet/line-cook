@@ -515,7 +515,7 @@ git pull --rebase
 
 # Or abandon
 git checkout .  # Discard changes
-bd update lc-042 --status=pending  # Reset task
+bd update lc-042 --status=open  # Reset task
 ```
 
 ### Serve Fails (Issues Found)

@@ -56,7 +56,7 @@ bd list --all
 
 You should see:
 - `src/validation.py` - The file to modify
-- `.beads/issues/smoke-001.yaml` - The task to complete
+- `.beads/issues.jsonl` - The task database (contains smoke-001)
 - `CLAUDE.md` - Project documentation
 
 ### Step 4: Run Line Cook Workflow

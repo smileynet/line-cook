@@ -114,7 +114,7 @@ def get_next_ready_task(cwd: Path, skip_ids: Optional[set[str]] = None) -> Optio
             for issue in issues:
                 if isinstance(issue, dict):
                     issue_id = issue.get("id", "")
-                    issue_type = issue.get("type", "")
+                    issue_type = issue.get("issue_type", "")
                     # Skip epics (they're not directly workable)
                     # Skip issues that are in the skip list
                     if issue_type != "epic" and issue_id and issue_id not in skip_ids:

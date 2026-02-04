@@ -51,16 +51,16 @@ Developers learning Line Cook who want to immediately try commands like `/line:p
 
 | Pattern | Location | Relevance |
 |---------|----------|-----------|
-| Test fixtures with status distribution | `tests/fixtures/mock-beads/` | Shows YAML format and field structure |
-| Parking lot pattern | `tc-retro.yaml`, `tc-005.yaml` | Demonstrates epic filtering |
-| Dependency blocking | `tc-003.yaml` | Shows `depends_on` field usage |
-| Config structure | `config.yaml` | Minimal required configuration |
+| Test fixtures with status distribution | `tests/fixtures/mock-beads/issues.jsonl` | Shows JSONL format and field structure |
+| Parking lot pattern | `tc-retro`, `tc-005` in `issues.jsonl` | Demonstrates epic filtering |
+| Dependency blocking | `tc-003` in `issues.jsonl` | Shows `depends_on` field usage |
+| Config structure | `bd init --prefix=demo` | Minimal required configuration |
 
 ### External Approaches Researched
 N/A - This is an internal tooling concern, not a general software pattern.
 
 ### Constraints from Architecture
-- Beads uses YAML files in `.beads/issues/` directory
+- Beads uses JSONL format in `.beads/issues.jsonl`
 - Config requires `prefix` and `version` fields
 - Parent-child relationships use `parent` field
 - Dependencies use `depends_on` array
@@ -124,7 +124,7 @@ N/A - This is an internal tooling concern, not a general software pattern.
 ### Technical Risks
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| YAML format changes | Low | Medium | Use existing fixture format as reference |
+| JSONL format changes | Low | Medium | Use existing fixture format as reference |
 | Prefix collision | Low | Low | Use unique prefix like `demo` |
 
 ### Dependency Risks
@@ -175,31 +175,26 @@ All questions resolved:
 ## Proposed Demo Structure
 
 ```
-templates/demo/.beads/
-├── config.yaml           # prefix: demo
-└── issues/
-    ├── demo-001.yaml     # Epic: TodoWebApp MVP
-    ├── demo-002.yaml     # Feature: User can manage todos (parent: demo-001)
-    ├── demo-003.yaml     # Task: Add todo item (parent: demo-002) [READY]
-    ├── demo-004.yaml     # Task: Mark todo complete (depends_on: demo-003) [BLOCKED]
-    ├── demo-100.yaml     # Epic: Parking Lot (priority: 4)
-    └── demo-101.yaml     # Task: Consider cloud sync (parent: demo-100) [PARKED]
+templates/demo/
+├── issues.jsonl          # All demo beads (JSONL format, imported via bd import)
+├── CLAUDE.md             # Project context
+└── README.md             # Setup and usage instructions
 ```
 
 ### Ready Work Output
 When user runs `bd ready`:
-- `demo-003` - Add todo item functionality (only ready task)
+- `demo-001.1.1` - Add todo item functionality (only ready task)
 
 When user runs `bd blocked`:
-- `demo-004` - Mark todo complete (blocked by demo-003)
+- `demo-001.1.2` - Mark todo complete (blocked by demo-001.1.1)
 
 ### Demonstrable Workflows
-1. `bd ready` → shows demo-003
-2. `bd show demo-003` → shows full context
-3. `bd show demo-004` → shows blocked status
-4. `/line:prep` → identifies demo-003 as next work
-5. `/line:cook demo-003` → execute the task
-6. After closing demo-003, demo-004 becomes ready
+1. `bd ready` → shows demo-001.1.1
+2. `bd show demo-001.1.1` → shows full context
+3. `bd show demo-001.1.2` → shows blocked status
+4. `/line:prep` → identifies demo-001.1.1 as next work
+5. `/line:cook demo-001.1.1` → execute the task
+6. After closing demo-001.1.1, demo-001.1.2 becomes ready
 
 ---
 

@@ -116,11 +116,9 @@ tests/
 │   └── test-utils.sh         # Common test utilities
 ├── fixtures/
 │   ├── mock-beads/           # Test beads configuration
-│   │   ├── config.yaml
-│   │   └── issues/           # 6 test issues
+│   │   └── issues.jsonl      # 6 test issues (JSONL)
 │   ├── smoke-beads/          # Smoke test bead (smoke-001)
-│   │   ├── config.yaml
-│   │   └── smoke-001.yaml
+│   │   └── issues.jsonl      # smoke-001 task (JSONL)
 │   └── sample-project/       # Minimal project for testing
 ├── results/                  # Smoke test JSON output
 ├── test-getting-started.sh   # Tests /line:getting-started
