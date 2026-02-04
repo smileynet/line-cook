@@ -36,6 +36,7 @@ from .config import (
 )
 from .models import (
     ActionRecord,
+    BeadSnapshot,
     CircuitBreaker,
     IterationResult,
     LoopError,
@@ -46,6 +47,7 @@ from .models import (
 )
 from .iteration import (
     atomic_write,
+    build_hierarchy_chain,
     check_epic_completion,
     format_duration,
     get_bead_snapshot,
@@ -91,34 +93,54 @@ def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
     return delay * random.uniform(0.8, 1.2)  # ±20% jitter
 
 
-def get_next_ready_task(cwd: Path, skip_ids: Optional[set[str]] = None) -> Optional[tuple[str, str]]:
+def get_next_ready_task(
+    cwd: Path,
+    skip_ids: Optional[set[str]] = None,
+    snapshot: Optional[BeadSnapshot] = None
+) -> Optional[tuple[str, str]]:
     """Get the next ready task ID and title before cook runs.
 
     Mimics cook.md selection: highest priority work item (not epic).
-    This allows logging the target task before the cook phase runs,
-    which is useful for debugging when cook fails or times out.
+    Prefers tasks over features when both are available, since tasks
+    are more granular and directly workable.
 
     Args:
         cwd: Working directory
         skip_ids: Optional set of task IDs to skip (due to repeated failures)
+        snapshot: Optional BeadSnapshot to use instead of re-querying bd
 
     Returns:
         Tuple of (task_id, task_title) or None if no tasks ready
     """
     skip_ids = skip_ids or set()
+
+    if snapshot:
+        # Two-pass: prefer tasks over features
+        for bead in snapshot.ready_work:
+            if bead.id not in skip_ids and bead.issue_type == "task":
+                return (bead.id, bead.title)
+        for bead in snapshot.ready_work:
+            if bead.id not in skip_ids:
+                return (bead.id, bead.title)
+        return None
+
+    # Fallback: query bd directly
     cmd = "bd ready --json"
     try:
         result = run_subprocess(["bd", "ready", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
-            for issue in issues:
-                if isinstance(issue, dict):
-                    issue_id = issue.get("id", "")
-                    issue_type = issue.get("issue_type", "")
-                    # Skip epics (they're not directly workable)
-                    # Skip issues that are in the skip list
-                    if issue_type != "epic" and issue_id and issue_id not in skip_ids:
-                        return (issue_id, issue.get("title", ""))
+            # Two-pass: prefer tasks over features
+            work_items = [
+                i for i in issues
+                if isinstance(i, dict) and i.get("issue_type") != "epic"
+                and i.get("id", "") and i.get("id", "") not in skip_ids
+            ]
+            for issue in work_items:
+                if issue.get("issue_type") == "task":
+                    return (issue["id"], issue.get("title", ""))
+            for issue in work_items:
+                return (issue["id"], issue.get("title", ""))
     except subprocess.TimeoutExpired:
         err = LoopError.from_timeout(cmd, BD_COMMAND_TIMEOUT)
         logger.warning(str(err))
@@ -164,7 +186,7 @@ def serialize_action(action: ActionRecord) -> dict:
 
 def serialize_full_iteration(result: IterationResult) -> dict:
     """Serialize an IterationResult with full action details for history.json."""
-    return {
+    data = {
         "iteration": result.iteration,
         "task_id": result.task_id,
         "task_title": result.task_title,
@@ -188,6 +210,18 @@ def serialize_full_iteration(result: IterationResult) -> dict:
         "action_types": result.action_counts,
         "actions": [serialize_action(a) for a in result.actions]
     }
+    if result.delta:
+        data["delta"] = {
+            "newly_closed": [
+                {"id": b.id, "title": b.title, "type": b.issue_type}
+                for b in result.delta.newly_closed
+            ],
+            "newly_filed": [
+                {"id": b.id, "title": b.title, "type": b.issue_type}
+                for b in result.delta.newly_filed
+            ],
+        }
+    return data
 
 
 def append_iteration_to_history(
@@ -559,7 +593,7 @@ def run_loop(
         # Pre-cook task detection: identify target task before running cook
         # This helps correlate failures with specific tasks even if cook times out
         skipped_ids = skip_list.get_skipped_ids()
-        next_task = get_next_ready_task(cwd, skip_ids=skipped_ids)
+        next_task = get_next_ready_task(cwd, skip_ids=skipped_ids, snapshot=snapshot)
 
         if next_task:
             target_task_id, target_task_title = next_task
@@ -583,6 +617,11 @@ def run_loop(
                 skipped_count = len(skipped_ids)
                 skip_note = f" ({skipped_count} skipped)" if skipped_count > 0 else ""
                 print(f"  Target: {target_task_id} - {target_task_title}{skip_note}")
+                # Show hierarchy context (parent feature/epic chain)
+                hierarchy = build_hierarchy_chain(target_task_id, snapshot, cwd)
+                if hierarchy:
+                    chain_parts = [f"{b.id} ({b.title})" if b.title else b.id for b in hierarchy]
+                    print(f"    under: {' > '.join(chain_parts)}")
             print("-" * 44)
 
         # Create progress state for real-time status updates during iteration
@@ -608,7 +647,8 @@ def run_loop(
             progress_state=progress_state,
             phase_timeouts=phase_timeouts,
             idle_timeout=idle_timeout,
-            idle_action=idle_action
+            idle_action=idle_action,
+            before_snapshot=snapshot
         )
         iterations.append(result)
 
@@ -883,7 +923,13 @@ def run_loop(
                     "beads_after": {
                         "ready": i.after_ready,
                         "in_progress": i.after_in_progress
-                    }
+                    },
+                    **({
+                        "delta": {
+                            "newly_closed": [{"id": b.id, "title": b.title, "type": b.issue_type} for b in i.delta.newly_closed],
+                            "newly_filed": [{"id": b.id, "title": b.title, "type": b.issue_type} for b in i.delta.newly_filed],
+                        }
+                    } if i.delta else {})
                 }
                 for i in report.iterations
             ]

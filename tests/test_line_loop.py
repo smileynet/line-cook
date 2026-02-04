@@ -592,5 +592,305 @@ class TestFormatEscalationReport(unittest.TestCase):
         self.assertIn("Review tasks", result)
 
 
+class TestBeadInfo(unittest.TestCase):
+    """Test BeadInfo dataclass."""
+
+    def test_bead_info_creation(self):
+        """BeadInfo can be created with required fields."""
+        info = line_loop.BeadInfo(id="lc-001", title="Test task", issue_type="task")
+        self.assertEqual(info.id, "lc-001")
+        self.assertEqual(info.title, "Test task")
+        self.assertEqual(info.issue_type, "task")
+        self.assertIsNone(info.parent)
+        self.assertIsNone(info.priority)
+        self.assertIsNone(info.status)
+
+    def test_bead_info_with_optional_fields(self):
+        """BeadInfo stores optional fields."""
+        info = line_loop.BeadInfo(
+            id="lc-001.1",
+            title="Sub-task",
+            issue_type="task",
+            parent="lc-001",
+            priority=2,
+            status="open"
+        )
+        self.assertEqual(info.parent, "lc-001")
+        self.assertEqual(info.priority, 2)
+        self.assertEqual(info.status, "open")
+
+
+class TestBeadSnapshotProperties(unittest.TestCase):
+    """Test BeadSnapshot backwards-compatible properties."""
+
+    def _make_snapshot(self):
+        """Create a snapshot with mixed issue types."""
+        return line_loop.BeadSnapshot(
+            ready=[
+                line_loop.BeadInfo(id="e-001", title="Epic", issue_type="epic"),
+                line_loop.BeadInfo(id="f-001", title="Feature", issue_type="feature"),
+                line_loop.BeadInfo(id="t-001", title="Task", issue_type="task"),
+            ],
+            in_progress=[
+                line_loop.BeadInfo(id="t-002", title="In progress", issue_type="task"),
+            ],
+            closed=[
+                line_loop.BeadInfo(id="t-003", title="Done", issue_type="task"),
+            ],
+        )
+
+    def test_ready_ids(self):
+        """ready_ids returns all ready IDs including epics."""
+        s = self._make_snapshot()
+        self.assertEqual(s.ready_ids, ["e-001", "f-001", "t-001"])
+
+    def test_ready_work_ids(self):
+        """ready_work_ids excludes epics."""
+        s = self._make_snapshot()
+        self.assertEqual(s.ready_work_ids, ["f-001", "t-001"])
+
+    def test_ready_work(self):
+        """ready_work returns BeadInfo objects excluding epics."""
+        s = self._make_snapshot()
+        work = s.ready_work
+        self.assertEqual(len(work), 2)
+        self.assertEqual(work[0].id, "f-001")
+        self.assertEqual(work[1].id, "t-001")
+
+    def test_in_progress_ids(self):
+        """in_progress_ids returns IDs of in-progress beads."""
+        s = self._make_snapshot()
+        self.assertEqual(s.in_progress_ids, ["t-002"])
+
+    def test_closed_ids(self):
+        """closed_ids returns IDs of closed beads."""
+        s = self._make_snapshot()
+        self.assertEqual(s.closed_ids, ["t-003"])
+
+    def test_get_by_id_found(self):
+        """get_by_id returns matching BeadInfo."""
+        s = self._make_snapshot()
+        result = s.get_by_id("f-001")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.title, "Feature")
+
+    def test_get_by_id_not_found(self):
+        """get_by_id returns None for unknown ID."""
+        s = self._make_snapshot()
+        self.assertIsNone(s.get_by_id("nonexistent"))
+
+    def test_get_by_id_searches_all_lists(self):
+        """get_by_id searches ready, in_progress, and closed."""
+        s = self._make_snapshot()
+        self.assertIsNotNone(s.get_by_id("t-002"))  # in_progress
+        self.assertIsNotNone(s.get_by_id("t-003"))  # closed
+
+    def test_empty_snapshot(self):
+        """Empty snapshot returns empty lists."""
+        s = line_loop.BeadSnapshot()
+        self.assertEqual(s.ready_ids, [])
+        self.assertEqual(s.ready_work_ids, [])
+        self.assertEqual(s.in_progress_ids, [])
+        self.assertEqual(s.closed_ids, [])
+
+
+class TestBeadDelta(unittest.TestCase):
+    """Test BeadDelta.compute()."""
+
+    def test_task_closed(self):
+        """Detects a task moving from ready to closed."""
+        task = line_loop.BeadInfo(id="t-001", title="Task", issue_type="task")
+        before = line_loop.BeadSnapshot(
+            ready=[task],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[line_loop.BeadInfo(id="t-001", title="Task", issue_type="task")],
+        )
+        delta = line_loop.BeadDelta.compute(before, after)
+        self.assertEqual(len(delta.newly_closed), 1)
+        self.assertEqual(delta.newly_closed[0].id, "t-001")
+        self.assertEqual(len(delta.newly_filed), 0)
+
+    def test_feature_auto_closed(self):
+        """Detects both task and parent feature closing."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                line_loop.BeadInfo(id="t-001", title="Task", issue_type="task"),
+                line_loop.BeadInfo(id="f-001", title="Feature", issue_type="feature"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                line_loop.BeadInfo(id="t-001", title="Task", issue_type="task"),
+                line_loop.BeadInfo(id="f-001", title="Feature", issue_type="feature"),
+            ],
+        )
+        delta = line_loop.BeadDelta.compute(before, after)
+        self.assertEqual(len(delta.newly_closed), 2)
+        closed_ids = {b.id for b in delta.newly_closed}
+        self.assertEqual(closed_ids, {"t-001", "f-001"})
+
+    def test_new_issues_filed(self):
+        """Detects new issues that appear in ready after an iteration."""
+        before = line_loop.BeadSnapshot(
+            ready=[line_loop.BeadInfo(id="t-001", title="Task", issue_type="task")],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[
+                line_loop.BeadInfo(id="t-002", title="New bug", issue_type="task"),
+                line_loop.BeadInfo(id="t-003", title="New issue", issue_type="task"),
+            ],
+            closed=[line_loop.BeadInfo(id="t-001", title="Task", issue_type="task")],
+        )
+        delta = line_loop.BeadDelta.compute(before, after)
+        self.assertEqual(len(delta.newly_filed), 2)
+        filed_ids = {b.id for b in delta.newly_filed}
+        self.assertEqual(filed_ids, {"t-002", "t-003"})
+
+    def test_no_changes(self):
+        """Delta is empty when nothing changed."""
+        task = line_loop.BeadInfo(id="t-001", title="Task", issue_type="task")
+        snapshot = line_loop.BeadSnapshot(ready=[task], closed=[])
+        delta = line_loop.BeadDelta.compute(snapshot, snapshot)
+        self.assertEqual(len(delta.newly_closed), 0)
+        self.assertEqual(len(delta.newly_filed), 0)
+
+    def test_existing_ready_not_counted_as_filed(self):
+        """Tasks that were already ready are not counted as newly filed."""
+        task = line_loop.BeadInfo(id="t-001", title="Task", issue_type="task")
+        before = line_loop.BeadSnapshot(ready=[task])
+        after = line_loop.BeadSnapshot(ready=[task])
+        delta = line_loop.BeadDelta.compute(before, after)
+        self.assertEqual(len(delta.newly_filed), 0)
+
+
+class TestBuildHierarchyChain(unittest.TestCase):
+    """Test build_hierarchy_chain()."""
+
+    def test_with_parent_in_snapshot(self):
+        """Returns parent when parent is in the snapshot."""
+        task = line_loop.BeadInfo(id="t-001", title="Task", issue_type="task", parent="f-001")
+        feature = line_loop.BeadInfo(id="f-001", title="Feature", issue_type="feature", parent="e-001")
+        epic = line_loop.BeadInfo(id="e-001", title="Epic", issue_type="epic")
+        snapshot = line_loop.BeadSnapshot(ready=[task, feature, epic])
+        chain = line_loop.build_hierarchy_chain("t-001", snapshot, Path("/tmp"))
+        self.assertEqual(len(chain), 2)
+        self.assertEqual(chain[0].id, "f-001")
+        self.assertEqual(chain[1].id, "e-001")
+
+    def test_no_parent(self):
+        """Returns empty chain when bead has no parent."""
+        task = line_loop.BeadInfo(id="t-001", title="Task", issue_type="task")
+        snapshot = line_loop.BeadSnapshot(ready=[task])
+        chain = line_loop.build_hierarchy_chain("t-001", snapshot, Path("/tmp"))
+        self.assertEqual(len(chain), 0)
+
+    def test_bead_not_in_snapshot(self):
+        """Returns empty chain when bead is not in snapshot."""
+        snapshot = line_loop.BeadSnapshot()
+        chain = line_loop.build_hierarchy_chain("nonexistent", snapshot, Path("/tmp"))
+        self.assertEqual(len(chain), 0)
+
+    def test_single_parent_level(self):
+        """Returns single parent when only one level deep."""
+        task = line_loop.BeadInfo(id="t-001", title="Task", issue_type="task", parent="f-001")
+        feature = line_loop.BeadInfo(id="f-001", title="Feature", issue_type="feature")
+        snapshot = line_loop.BeadSnapshot(ready=[task, feature])
+        chain = line_loop.build_hierarchy_chain("t-001", snapshot, Path("/tmp"))
+        self.assertEqual(len(chain), 1)
+        self.assertEqual(chain[0].id, "f-001")
+
+
+class TestGetNextReadyTaskPreference(unittest.TestCase):
+    """Test get_next_ready_task() task-over-feature preference."""
+
+    def test_prefers_task_over_feature(self):
+        """When both tasks and features are ready, prefers tasks."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[
+                line_loop.BeadInfo(id="f-001", title="Feature", issue_type="feature"),
+                line_loop.BeadInfo(id="t-001", title="Task", issue_type="task"),
+            ]
+        )
+        result = line_loop.get_next_ready_task(Path("/tmp"), snapshot=snapshot)
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "t-001")
+
+    def test_falls_back_to_feature(self):
+        """When only features are ready, returns a feature."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[
+                line_loop.BeadInfo(id="e-001", title="Epic", issue_type="epic"),
+                line_loop.BeadInfo(id="f-001", title="Feature", issue_type="feature"),
+            ]
+        )
+        result = line_loop.get_next_ready_task(Path("/tmp"), snapshot=snapshot)
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "f-001")
+
+    def test_skips_epics(self):
+        """Epics are never returned."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[
+                line_loop.BeadInfo(id="e-001", title="Epic", issue_type="epic"),
+            ]
+        )
+        result = line_loop.get_next_ready_task(Path("/tmp"), snapshot=snapshot)
+        self.assertIsNone(result)
+
+    def test_respects_skip_ids(self):
+        """Skipped task IDs are excluded."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[
+                line_loop.BeadInfo(id="t-001", title="Task 1", issue_type="task"),
+                line_loop.BeadInfo(id="t-002", title="Task 2", issue_type="task"),
+            ]
+        )
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), skip_ids={"t-001"}, snapshot=snapshot
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "t-002")
+
+    def test_empty_snapshot(self):
+        """Returns None for empty snapshot."""
+        snapshot = line_loop.BeadSnapshot()
+        result = line_loop.get_next_ready_task(Path("/tmp"), snapshot=snapshot)
+        self.assertIsNone(result)
+
+
+class TestPrintFeatureCompletion(unittest.TestCase):
+    """Test print_feature_completion() output."""
+
+    def test_prints_box_banner(self):
+        """print_feature_completion prints a box with feature info."""
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_feature_completion("lc-001", "User authentication", 3)
+        output = buf.getvalue()
+        self.assertIn("FEATURE COMPLETE: lc-001", output)
+        self.assertIn("User authentication", output)
+        self.assertIn("Tasks: 3/3 closed", output)
+        self.assertIn("+-", output)  # Box border
+
+    def test_prints_without_title(self):
+        """print_feature_completion works with empty title."""
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_feature_completion("lc-002", "", 1)
+        output = buf.getvalue()
+        self.assertIn("FEATURE COMPLETE: lc-002", output)
+        self.assertIn("Tasks: 1/1 closed", output)
+
+
 if __name__ == "__main__":
     unittest.main()
