@@ -892,5 +892,135 @@ class TestPrintFeatureCompletion(unittest.TestCase):
         self.assertIn("Tasks: 1/1 closed", output)
 
 
+class TestPrintEpicCompletion(unittest.TestCase):
+    """Test print_epic_completion() output."""
+
+    def test_prints_box_banner(self):
+        """print_epic_completion prints a box with epic info."""
+        import io
+        import contextlib
+        epic = {
+            "id": "lc-040",
+            "title": "Security epic",
+            "children": [
+                {"id": "lc-041", "title": "Auth", "issue_type": "feature"},
+                {"id": "lc-042", "title": "Validation", "issue_type": "feature"},
+            ]
+        }
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_epic_completion(epic)
+        output = buf.getvalue()
+        self.assertIn("EPIC COMPLETE: lc-040", output)
+        self.assertIn("Security epic", output)
+        self.assertIn("Children: 2/2 closed", output)
+        self.assertIn("+", output)  # Box border
+
+    def test_consistent_with_feature_banner_style(self):
+        """Epic banner uses same +---+ border style as feature banner."""
+        import io
+        import contextlib
+        epic = {"id": "e-001", "title": "Epic", "children": []}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_epic_completion(epic)
+        output = buf.getvalue()
+        lines = output.strip().split("\n")
+        # First and last content lines should be +---+ borders
+        self.assertTrue(lines[0].strip().startswith("+"))
+        self.assertTrue(lines[-1].strip().startswith("+"))
+
+
+class TestActionDots(unittest.TestCase):
+    """Test _action_dots() helper."""
+
+    def test_zero_actions(self):
+        """Zero actions returns empty string."""
+        from line_loop.iteration import _action_dots
+        self.assertEqual(_action_dots(0), "")
+
+    def test_small_count(self):
+        """Small action count returns single dot."""
+        from line_loop.iteration import _action_dots
+        result = _action_dots(5)
+        self.assertIn("\u00b7", result)
+        self.assertEqual(result.count("\u00b7"), 1)
+
+    def test_large_count(self):
+        """Larger count returns proportionally more dots."""
+        from line_loop.iteration import _action_dots
+        result = _action_dots(50)
+        self.assertEqual(result.count("\u00b7"), 5)
+
+    def test_negative_count(self):
+        """Negative count returns empty string."""
+        from line_loop.iteration import _action_dots
+        self.assertEqual(_action_dots(-1), "")
+
+
+class TestActionRecordDuration(unittest.TestCase):
+    """Test ActionRecord duration_ms field."""
+
+    def test_default_duration_is_none(self):
+        """ActionRecord duration_ms defaults to None."""
+        record = line_loop.ActionRecord(
+            tool_name="Read",
+            tool_use_id="test-id",
+            input_summary="/path/to/file",
+            output_summary="contents",
+            success=True,
+            timestamp="2026-02-03T10:00:00"
+        )
+        self.assertIsNone(record.duration_ms)
+
+    def test_duration_can_be_set(self):
+        """ActionRecord duration_ms can be set."""
+        record = line_loop.ActionRecord(
+            tool_name="Read",
+            tool_use_id="test-id",
+            input_summary="/path/to/file",
+            output_summary="contents",
+            success=True,
+            timestamp="2026-02-03T10:00:00",
+            duration_ms=42.5
+        )
+        self.assertEqual(record.duration_ms, 42.5)
+
+
+class TestSerializeAction(unittest.TestCase):
+    """Test serialize_action() for history JSONL format."""
+
+    def test_basic_fields(self):
+        """Serialized action has tool and timestamp fields."""
+        from line_loop.loop import serialize_action
+        record = line_loop.ActionRecord(
+            tool_name="Read",
+            tool_use_id="test-id",
+            input_summary="/path",
+            output_summary="ok",
+            success=True,
+            timestamp="2026-02-03T10:00:00"
+        )
+        data = serialize_action(record)
+        self.assertEqual(data["tool"], "Read")
+        self.assertEqual(data["timestamp"], "2026-02-03T10:00:00")
+        self.assertNotIn("duration_ms", data)
+
+    def test_includes_duration_when_set(self):
+        """Serialized action includes duration_ms when present."""
+        from line_loop.loop import serialize_action
+        record = line_loop.ActionRecord(
+            tool_name="Edit",
+            tool_use_id="test-id",
+            input_summary="/path",
+            output_summary="ok",
+            success=True,
+            timestamp="2026-02-03T10:00:00",
+            duration_ms=150.7
+        )
+        data = serialize_action(record)
+        self.assertEqual(data["duration_ms"], 151)  # Rounded
+
+
 if __name__ == "__main__":
     unittest.main()

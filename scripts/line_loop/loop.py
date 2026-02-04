@@ -173,15 +173,14 @@ def serialize_iteration_for_status(result: IterationResult) -> dict:
 
 
 def serialize_action(action: ActionRecord) -> dict:
-    """Serialize an ActionRecord for history.json."""
-    return {
-        "tool_name": action.tool_name,
-        "tool_use_id": action.tool_use_id,
-        "input_summary": action.input_summary,
-        "output_summary": action.output_summary,
-        "success": action.success,
-        "timestamp": action.timestamp
+    """Serialize an ActionRecord for history JSONL."""
+    data: dict = {
+        "tool": action.tool_name,
+        "timestamp": action.timestamp,
     }
+    if action.duration_ms is not None:
+        data["duration_ms"] = round(action.duration_ms)
+    return data
 
 
 def serialize_full_iteration(result: IterationResult) -> dict:
@@ -548,6 +547,7 @@ def run_loop(
     if not json_output:
         print(f"Line Cook Loop starting (max {max_iterations} iterations)")
         print("=" * 44)
+        print()
 
     # Sync git and beads once at loop start
     if not skip_initial_sync:
@@ -612,7 +612,8 @@ def run_loop(
         iteration += 1
 
         if not json_output:
-            print(f"\n[{iteration}/{max_iterations}] {ready_work_count} work items ready")
+            print("=" * 44)
+            print(f"Iteration {iteration}/{max_iterations} | Ready: {ready_work_count}")
             if target_task_id:
                 skipped_count = len(skipped_ids)
                 skip_note = f" ({skipped_count} skipped)" if skipped_count > 0 else ""

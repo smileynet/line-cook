@@ -422,6 +422,7 @@ class ActionRecord:
     output_summary: str      # Truncated output or error message
     success: bool            # True if no error
     timestamp: str           # ISO timestamp
+    duration_ms: Optional[float] = None  # Duration in milliseconds (set on result)
 
     @classmethod
     def from_tool_use(cls, block: dict) -> 'ActionRecord':

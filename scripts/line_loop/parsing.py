@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from typing import Optional
 
 from .config import OUTPUT_SUMMARY_MAX_LENGTH
@@ -332,6 +333,12 @@ def update_action_from_result(
             tool_use_id = block.get("tool_use_id", "")
             if tool_use_id in pending_actions:
                 action = pending_actions[tool_use_id]
+                # Compute duration from start timestamp
+                try:
+                    start = datetime.fromisoformat(action.timestamp)
+                    action.duration_ms = (datetime.now() - start).total_seconds() * 1000
+                except (ValueError, TypeError):
+                    pass
                 # Check for error
                 is_error = block.get("is_error", False)
                 action.success = not is_error
