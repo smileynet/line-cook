@@ -89,6 +89,17 @@ def format_duration(seconds: float) -> str:
     return f"{hours}h {mins}m"
 
 
+def _action_dots(count: int) -> str:
+    """Generate dot indicator scaled to action count.
+
+    Each dot represents ~10 actions, minimum 1 dot for any non-zero count.
+    """
+    if count <= 0:
+        return ""
+    dots = max(1, count // 10)
+    return "\u00b7" * dots + " "
+
+
 def print_phase_progress(phase: str, status: str, duration: float = 0, extra: str = ""):
     """Print phase progress indicator.
 
@@ -98,14 +109,10 @@ def print_phase_progress(phase: str, status: str, duration: float = 0, extra: st
         duration: Phase duration in seconds (for done/error status)
         extra: Additional info to append (e.g., action count, verdict)
     """
-    symbols = {"start": "▶", "done": "✓", "error": "✗"}
-    symbol = symbols.get(status, "?")
     if status == "start":
-        print(f"  {symbol} {phase.upper()} phase...")
+        print(f"  [{phase}] start")
     else:
-        msg = f"  {symbol} {phase.upper()} complete ({format_duration(duration)})"
-        if extra:
-            msg += f" - {extra}"
+        msg = f"  [{phase}] {extra} ({format_duration(duration)})" if extra else f"  [{phase}] done ({format_duration(duration)})"
         print(msg)
 
 
@@ -124,7 +131,7 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
     status = status_map.get(result.outcome, "[?]")
 
     task_info = f"{result.task_id}: {result.task_title}" if result.task_id else "Unknown task"
-    print(f"  {status} {task_info}")
+    print(f"\n{status} {task_info}")
 
     if result.intent:
         print(f"  Intent: {result.intent}")
@@ -133,7 +140,8 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
     if result.after_state:
         print(f"  After:  {result.after_state}")
 
-    # Duration and verdict
+    # Duration and verdict (blank line before for separation)
+    print()
     details = [f"Duration: {format_duration(result.duration_seconds)}"]
     if result.serve_verdict:
         details.append(f"Verdict: {result.serve_verdict}")
@@ -147,8 +155,8 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         print(f"  Actions: {result.total_actions} total ({', '.join(action_parts)})")
 
     # Bead state changes
-    ready_str = f"ready {result.before_ready}→{result.after_ready}"
-    in_prog_str = f"in_progress {result.before_in_progress}→{result.after_in_progress}"
+    ready_str = f"ready {result.before_ready}\u2192{result.after_ready}"
+    in_prog_str = f"in_progress {result.before_in_progress}\u2192{result.after_in_progress}"
     closed_count = len(result.delta.newly_closed) if result.delta else (1 if result.success else 0)
     closed_str = f"+{closed_count}" if closed_count > 0 else ""
     print(f"\n  Beads: {ready_str} | {in_prog_str}" + (f" | closed {closed_str}" if closed_str else ""))
@@ -176,14 +184,14 @@ def print_feature_completion(feature_id: str, feature_title: str, task_count: in
     header = f"FEATURE COMPLETE: {feature_id}"
     subtitle = feature_title or ""
     tasks_line = f"Tasks: {task_count}/{task_count} closed"
-    width = max(BANNER_MIN_WIDTH, len(header) + 4, len(subtitle) + 4, len(tasks_line) + 4)
+    content_width = max(BANNER_MIN_WIDTH, len(header), len(subtitle), len(tasks_line))
     print()
-    print(f"  +-{'-' * width}-+")
-    print(f"  | {header:<{width}} |")
+    print(f"  +{'-' * (content_width + 2)}+")
+    print(f"  | {header:<{content_width}} |")
     if subtitle:
-        print(f"  | {subtitle:<{width}} |")
-    print(f"  | {tasks_line:<{width}} |")
-    print(f"  +-{'-' * width}-+")
+        print(f"  | {subtitle:<{content_width}} |")
+    print(f"  | {tasks_line:<{content_width}} |")
+    print(f"  +{'-' * (content_width + 2)}+")
 
 
 def parse_bd_json_item(data: Any) -> Optional[dict]:
@@ -679,49 +687,22 @@ def get_epic_summary(epic_id: str, cwd: Path) -> dict:
 
 
 def print_epic_completion(epic: dict):
-    """Print epic completion banner."""
+    """Print epic completion banner matching feature banner style."""
     title = epic.get("title", "Unknown")
     epic_id = epic.get("id", "?")
-    description = epic.get("description", "")
     children = epic.get("children", [])
 
-    # Build header
-    header = f"EPIC COMPLETE: {epic_id} - {title}"
-    width = max(BANNER_MIN_WIDTH, len(header) + 4)
+    header = f"EPIC COMPLETE: {epic_id}"
+    subtitle = title
+    children_line = f"Children: {len(children)}/{len(children)} closed"
 
+    content_width = max(BANNER_MIN_WIDTH, len(header), len(subtitle), len(children_line))
     print()
-    print("╔" + "═" * width + "╗")
-    print(f"║  {header:<{width-2}}║")
-    print("╚" + "═" * width + "╝")
-
-    # Intent (from description, first sentence)
-    if description:
-        intent = description.split(".")[0].strip()
-        if intent:
-            print(f"\nIntent: {intent}")
-
-    # Features delivered
-    if children:
-        print(f"\nFeatures delivered ({len(children)}):")
-        for child in children:
-            child_id = child.get("id", "?")
-            child_title = child.get("title", "Unknown")
-            print(f"  [x] {child_id}: {child_title}")
-
-    # Summary line
-    if children:
-        types = {}
-        for c in children:
-            t = c.get("issue_type", "item")
-            types[t] = types.get(t, 0) + 1
-        type_summary = ", ".join(
-            f"{count} {t}" if count == 1 else f"{count} {t}s"
-            for t, count in types.items()
-        )
-        print(f"\nSummary: Completed {type_summary} under this epic.")
-
-    print()
-    print("═" * (width + 2))
+    print(f"  +{'-' * (content_width + 2)}+")
+    print(f"  | {header:<{content_width}} |")
+    print(f"  | {subtitle:<{content_width}} |")
+    print(f"  | {children_line:<{content_width}} |")
+    print(f"  +{'-' * (content_width + 2)}+")
 
 
 def check_epic_completion(cwd: Path) -> list[dict]:
@@ -949,7 +930,7 @@ def run_iteration(
                     logger.info(f"Cook timed out but task {task_id} was closed")
                     if not json_output:
                         print_phase_progress("cook", "done", cook_result.duration_seconds,
-                                           f"{len(cook_result.actions)} actions (timed out but completed)")
+                                           f"{_action_dots(len(cook_result.actions))}{len(cook_result.actions)} actions, timed out but completed")
                     task_completed_despite_timeout = True
                     # Fall through to serve for code review validation
 
@@ -1016,7 +997,7 @@ def run_iteration(
         # Skip if already printed for timeout-but-completed case
         if not json_output and not task_completed_despite_timeout:
             print_phase_progress("cook", "done", cook_result.duration_seconds,
-                               f"{len(cook_result.actions)} actions")
+                               f"{_action_dots(len(cook_result.actions))}{len(cook_result.actions)} actions")
 
         # Cook succeeded, detect task (skip if already detected in timeout path)
         if not task_completed_despite_timeout:
@@ -1061,14 +1042,16 @@ def run_iteration(
 
             if serve_verdict == "APPROVED":
                 if not json_output:
-                    print_phase_progress("serve", "done", serve_result.duration_seconds, "APPROVED")
+                    print_phase_progress("serve", "done", serve_result.duration_seconds,
+                                       f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, APPROVED")
                 # Clear retry context on success
                 clear_retry_context(cwd)
                 cook_succeeded = True
                 break
             elif serve_verdict == "NEEDS_CHANGES":
                 if not json_output:
-                    print_phase_progress("serve", "done", serve_result.duration_seconds, "NEEDS_CHANGES")
+                    print_phase_progress("serve", "done", serve_result.duration_seconds,
+                                       f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, NEEDS_CHANGES")
                 logger.info(f"NEEDS_CHANGES - will retry cook (attempt {cook_attempts}/{max_cook_retries + 1})")
                 # Write structured retry context for cook to read
                 feedback = parse_serve_feedback(
@@ -1085,7 +1068,8 @@ def run_iteration(
                 continue
             elif serve_verdict == "BLOCKED":
                 if not json_output:
-                    print_phase_progress("serve", "done", serve_result.duration_seconds, "BLOCKED")
+                    print_phase_progress("serve", "done", serve_result.duration_seconds,
+                                       f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, BLOCKED")
                 logger.warning("Serve returned BLOCKED verdict")
                 duration = (datetime.now() - start_time).total_seconds()
                 after = get_bead_snapshot(cwd)
@@ -1107,7 +1091,8 @@ def run_iteration(
                 )
             elif serve_verdict == "SKIPPED":
                 if not json_output:
-                    print_phase_progress("serve", "done", serve_result.duration_seconds, "SKIPPED")
+                    print_phase_progress("serve", "done", serve_result.duration_seconds,
+                                       f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, SKIPPED")
                 logger.info("Serve skipped (transient error) - continuing")
                 cook_succeeded = True
                 break
@@ -1116,7 +1101,8 @@ def run_iteration(
             if "serve_approved" in serve_result.signals:
                 serve_verdict = "APPROVED"
                 if not json_output:
-                    print_phase_progress("serve", "done", serve_result.duration_seconds, "APPROVED")
+                    print_phase_progress("serve", "done", serve_result.duration_seconds,
+                                       f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, APPROVED")
                 # Clear retry context on success
                 clear_retry_context(cwd)
                 cook_succeeded = True
@@ -1124,7 +1110,8 @@ def run_iteration(
             elif "serve_needs_changes" in serve_result.signals:
                 serve_verdict = "NEEDS_CHANGES"
                 if not json_output:
-                    print_phase_progress("serve", "done", serve_result.duration_seconds, "NEEDS_CHANGES")
+                    print_phase_progress("serve", "done", serve_result.duration_seconds,
+                                       f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, NEEDS_CHANGES")
                 # Write structured retry context for cook to read
                 feedback = parse_serve_feedback(
                     serve_result.output,
@@ -1140,7 +1127,8 @@ def run_iteration(
             elif "serve_blocked" in serve_result.signals:
                 serve_verdict = "BLOCKED"
                 if not json_output:
-                    print_phase_progress("serve", "done", serve_result.duration_seconds, "BLOCKED")
+                    print_phase_progress("serve", "done", serve_result.duration_seconds,
+                                       f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, BLOCKED")
                 logger.warning("Serve returned BLOCKED verdict (from signal)")
                 duration = (datetime.now() - start_time).total_seconds()
                 after = get_bead_snapshot(cwd)
@@ -1222,7 +1210,9 @@ def run_iteration(
         # Tidy errors are concerning but not fatal
     else:
         if not json_output:
-            extra = f"committed {commit_hash[:7]}" if commit_hash else "done"
+            extra = f"{_action_dots(len(tidy_result.actions))}{len(tidy_result.actions)} actions"
+            if commit_hash:
+                extra += f", committed {commit_hash[:7]}"
             print_phase_progress("tidy", "done", tidy_result.duration_seconds, extra)
 
     # Capture final state
@@ -1270,7 +1260,7 @@ def run_iteration(
             else:
                 if not json_output:
                     print_phase_progress("plate", "done", plate_result.duration_seconds,
-                                       f"feature {feature_id} validated")
+                                       f"{_action_dots(len(plate_result.actions))}{len(plate_result.actions)} actions, feature {feature_id} validated")
                 logger.info(f"Plate phase completed for feature {feature_id}")
                 # Check if completing the feature completes an epic
                 epic_complete, epic_id = check_epic_completion_after_feature(feature_id, cwd)

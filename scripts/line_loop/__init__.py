@@ -88,6 +88,7 @@ from .iteration import (
     print_phase_progress,
     print_human_iteration,
     print_feature_completion,
+    print_epic_completion,
     atomic_write,
 )
 
@@ -169,6 +170,7 @@ __all__ = [
     "print_phase_progress",
     "print_human_iteration",
     "print_feature_completion",
+    "print_epic_completion",
     "atomic_write",
     # Loop
     "run_loop",
