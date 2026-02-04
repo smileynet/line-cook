@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Updated loop command documentation (lc-0da.1)
+  - Architecture overview with package structure, data flow, and module dependency diagrams
+  - Module index with responsibility mapping and key exports
+  - Comprehensive troubleshooting section with quick scan table, decision trees, and recovery checklist
+  - Timeout behavior comparison table (standalone vs loop execution)
+  - ASCII flowcharts for retry, circuit breaker, skip list, and idle detection logic
+  - Restructured quick start with readiness checklist badges
+  - CLI options and help output verified against script
+
+### Fixed
+- Corrected `SkipList.should_skip()` to `SkipList.is_skipped()` in developer debug reference
+
 ## [0.8.6] - 2026-02-01
 ### Changed
 - `sous-chef` agent enhanced with detailed step-by-step review process and proactive invocation examples
