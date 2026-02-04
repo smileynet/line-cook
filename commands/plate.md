@@ -33,13 +33,13 @@ Execute tests to verify feature works end-to-end:
 
 ```bash
 # Run all tests
-go test ./...
+<test command>  # e.g., go test ./..., pytest, npm test, cargo test
 
-# Run feature-specific BDD tests
-go test ./internal/<package> -run TestFeature -v
+# Run feature-specific tests
+<feature test command>  # e.g., go test -run TestFeature, pytest tests/features/, npm test -- --grep "Feature"
 
 # Run smoke tests if available
-./scripts/smoke-test-<feature>.sh
+./scripts/smoke-test-<feature>.sh  # or project-specific smoke test
 ```
 
 **If tests fail:**
@@ -185,7 +185,7 @@ Issue: <description of test failure>
 
 Actions:
   1. Fix the failing tests
-  2. Re-run: go test ./...
+  2. Re-run: <test command>
   3. Retry /line:plate <feature-id>
 
 ───────────────────────────────────────────

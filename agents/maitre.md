@@ -41,7 +41,8 @@ Check that all acceptance criteria have corresponding tests:
 ### 4. Review BDD Test Structure
 
 Verify tests follow Given-When-Then structure:
-- Test function name follows `TestFeature_<FeatureName>` pattern
+- Test function/describe block follows project's naming convention for feature tests
+  - Go: `TestFeature_<FeatureName>`, Python: `test_feature_<name>` or `class TestFeature<Name>`, JS/TS: `describe('Feature: <Name>', ...)`, Rust: `mod tests { fn test_feature_<name> }`
 - Each test has Given-When-Then comments
 - Given section clearly describes initial state
 - When section clearly describes action taken
@@ -71,10 +72,11 @@ Check that error paths are tested:
 
 ### 8. Review Smoke Tests
 
-Verify smoke tests exist for CLI features:
-- Smoke test script exists
-- Smoke tests exercise user-facing CLI
+Verify smoke tests exist for user-facing features:
+- Smoke test script or suite exists
+- Smoke tests exercise the feature's primary interface (CLI commands, API endpoints, UI flows, etc.)
 - Smoke tests validate end-to-end workflows
+- Smoke tests are fast critical-path checks, not exhaustive test suites
 
 ## Quality Assessment Output
 
@@ -109,7 +111,7 @@ Error Scenarios:
   [✓/✗] Error handling verified
 
 Smoke Tests:
-  [✓/✗] CLI smoke tests exist
+  [✓/✗] Smoke tests exist for user-facing features
   [✓/✗] End-to-end workflows validated
 
 Issues Found:
@@ -124,7 +126,7 @@ Summary: [Overall assessment]
 - Missing tests for acceptance criteria
 - No Given-When-Then structure
 - Tests don't validate user perspective
-- Missing smoke tests for CLI features
+- Missing smoke tests for user-facing features
 - No error scenarios tested
 
 **Use NEEDS CHANGES when:**
@@ -136,7 +138,7 @@ Summary: [Overall assessment]
 - All acceptance criteria have tests
 - Given-When-Then structure used correctly
 - Tests validate user outcomes
-- Smoke tests exist and pass
+- Smoke tests exist and pass (where applicable)
 - Error scenarios are tested
 
 ## Your Authority

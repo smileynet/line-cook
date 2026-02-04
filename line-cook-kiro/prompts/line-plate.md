@@ -28,14 +28,13 @@ Execute tests to verify feature works end-to-end:
 
 ```bash
 # Run all tests
-go test ./...
-# or: pytest, npm test, etc.
+<test command>  # e.g., go test ./..., pytest, npm test, cargo test
 
 # Run feature-specific tests
-go test ./internal/<package> -run TestFeature -v
+<feature test command>  # e.g., go test -run TestFeature, pytest tests/features/, npm test -- --grep "Feature"
 
 # Run smoke tests if available
-./scripts/smoke-test-<feature>.sh
+./scripts/smoke-test-<feature>.sh  # or project-specific smoke test
 ```
 
 **If tests fail:**
