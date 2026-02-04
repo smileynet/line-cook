@@ -882,6 +882,39 @@ The loop includes a circuit breaker to prevent runaway failures:
 
 When the circuit breaker trips, the loop stops with a message indicating too many consecutive failures. Check the logs (`/line:loop tail --lines 100`) to understand what's failing.
 
+### Circuit Breaker Flow
+
+```
+        ┌────────────────────┐
+        │ Iteration Complete │
+        └────────┬───────────┘
+                 ▼
+           ┌───────────┐
+           │ Success?  │
+           └─────┬─────┘
+           Yes   │   No
+        ┌────────┼────────┐
+        ▼                 ▼
+  ┌───────────┐   ┌──────────────┐
+  │  Reset    │   │Record failure│
+  │  window   │   │in sliding    │
+  │  (clear   │   │window        │
+  │  all)     │   │(size 10)     │
+  └─────┬─────┘   └──────┬───────┘
+        │                 ▼
+        │         ┌──────────────┐
+        │         │Last 5 entries│
+        │         │all failures? │
+        │         └──────┬───────┘
+        │          No    │   Yes
+        │       ┌────────┼────────┐
+        ▼       ▼                 ▼
+     Continue  Continue    ┌────────────┐
+     loop      loop        │ STOP loop  │
+                           │ + escalate │
+                           └────────────┘
+```
+
 ---
 
 ## Skip List Behavior
@@ -892,6 +925,33 @@ The loop tracks tasks that fail repeatedly and adds them to a skip list:
 - **Triggers on:** Any failed outcome (needs_retry after max retries, blocked, crashed, timeout)
 - **Effect:** Skipped tasks won't be selected for execution until the loop restarts
 - **Reset:** A fresh loop run clears the skip list; successful completion clears a task's failure count
+
+### Skip List Flow
+
+```
+       ┌──────────────────┐
+       │ Get ready tasks  │
+       │ (bd ready)       │
+       └────────┬─────────┘
+                ▼
+       ┌──────────────────┐
+       │ Filter out:      │
+       │  - epics         │
+       │  - skipped IDs   │
+       └────────┬─────────┘
+                ▼
+         ┌────────────┐
+         │ Any left?  │
+         └──────┬─────┘
+          Yes   │   No
+       ┌────────┼──────────────┐
+       ▼                       ▼
+ Select highest       ┌──────────────────┐
+ priority task        │ all_tasks_skipped │
+       │              │ ► STOP + escalate │
+       ▼              └──────────────────┘
+  Run iteration
+```
 
 ### Stop Reason: all_tasks_skipped
 
@@ -1004,6 +1064,70 @@ Some errors are treated as transient and don't count toward retries:
 - Serve phase errors (network issues, claude crashes) → `SKIPPED` verdict, iteration continues
 - These allow the loop to self-heal from temporary infrastructure issues
 
+### Retry Flow
+
+```
+┌─────────────────────────────────────────────────┐
+│ WITHIN ITERATION (iteration.py)                 │
+│                                                 │
+│          ┌──────────────┐                       │
+│     ┌───►│  Cook Phase  │                       │
+│     │    └──────┬───────┘                       │
+│     │           ▼                               │
+│     │    ┌──────────────┐                       │
+│     │    │ Serve Phase  │                       │
+│     │    └──────┬───────┘                       │
+│     │           ▼                               │
+│     │     ┌──────────┐                          │
+│     │     │ Verdict? │                          │
+│     │     └────┬─────┘                          │
+│     │          ├── APPROVED ──► Done (success)  │
+│     │          ├── BLOCKED ───► Done (blocked)  │
+│     │          ├── SKIPPED ───► Done (success)  │
+│     │          │                                │
+│     │     NEEDS_CHANGES                         │
+│     │          ▼                                │
+│     │    ┌──────────────┐                       │
+│     │    │ Attempts     │                       │
+│     │    │ ≤ max? (2)   │── No ──► needs_retry  │
+│     │    └──────┬───────┘             │         │
+│     │       Yes │                     │         │
+│     │           ▼                     │         │
+│     │     Write retry                 │         │
+│     │     context                     │         │
+│     │           │                     │         │
+│     └───────────┘                     │         │
+│                                       │         │
+└───────────────────────────────────────┼─────────┘
+                                        ▼
+┌─────────────────────────────────────────────────┐
+│ ACROSS ITERATIONS (loop.py)                     │
+│                                                 │
+│     ┌────────────────┐                          │
+│     │ Same task as   │                          │
+│     │ last attempt?  │── No ──► counter = 1     │
+│     └───────┬────────┘              │           │
+│         Yes │                       │           │
+│             ▼                       │           │
+│       counter += 1                  │           │
+│             │                       │           │
+│             ▼                       ▼           │
+│     ┌────────────────┐                          │
+│     │ counter ≥      │                          │
+│     │ max_retries?   │── No ──► Backoff         │
+│     │ (default 2)    │         (4s,8s,16s...    │
+│     └───────┬────────┘          cap 60s)        │
+│         Yes │                   then retry      │
+│             ▼                                   │
+│     Record task failure                         │
+│     in skip list                                │
+│             │                                   │
+│             ▼                                   │
+│     Move to next task                           │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
 ---
 
 ## Idle Detection
@@ -1037,6 +1161,39 @@ Idle detection is useful for catching:
 - Network issues preventing tool execution
 
 **Note:** Idle detection only triggers after at least one tool action has occurred. A phase that hasn't started any tool calls yet won't be considered idle.
+
+### Idle Detection Flow
+
+```
+       ┌───────────────────┐
+       │ Phase running     │
+       │ (cook/serve/tidy) │
+       └─────────┬─────────┘
+                 ▼
+       ┌───────────────────┐
+       │ Any tool actions  │
+       │ yet?              │
+       └─────────┬─────────┘
+          Yes    │    No
+       ┌─────────┼──────────┐
+       ▼                    ▼
+ ┌───────────────┐   Not idle (skip
+ │Time since last│   detection until
+ │action >= idle │   first action)
+ │timeout (180s)?│
+ └───────┬───────┘
+   No    │   Yes
+ ┌───────┼────────────┐
+ ▼                    ▼
+Continue       ┌────────────┐
+               │idle_action?│
+               └──────┬─────┘
+              warn    │  terminate
+            ┌─────────┼─────────┐
+            ▼                   ▼
+      Log warning          Stop phase
+      + continue           (error)
+```
 
 ---
 
