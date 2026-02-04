@@ -74,7 +74,7 @@ echo ""
 echo "Installed agents:"
 for f in "$MARKETPLACE_DIR/line/agents/"*.md; do
   name=$(basename "$f" .md)
-  echo "  $name"
+  echo "  line:$name"
 done
 
 # List installed scripts
