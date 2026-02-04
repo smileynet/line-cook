@@ -43,7 +43,11 @@ Each course (task) in this feature has been verified against acceptance criteria
 
 ## Quality Checks (BDD Tests)
 
-### Feature Test: `TestFeature_<!-- FeatureName -->`
+### Feature Test: `<!-- Test suite/describe block name for this feature -->`
+
+<!-- Use your project's naming convention:
+  Go: TestFeature_FeatureName  |  Python: TestFeatureName / test_feature_name
+  JS/TS: describe('Feature: Name')  |  Rust: mod tests { fn test_feature_name } -->
 
 **Purpose:** Validate <!-- aspect being validated -->
 
