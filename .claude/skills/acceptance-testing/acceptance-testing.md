@@ -234,6 +234,6 @@ Every feature should have acceptance tests for:
 
 ## See Also
 
-- [TDD/BDD Workflow](../../docs/guidance/tdd-bdd.md) - Full TDD/BDD guidance
-- [Test Setup](../../docs/guidance/test-setup.md) - Test infrastructure patterns
-- [Feature Acceptance Template](../../docs/templates/feature-acceptance.md) - Acceptance documentation template
+- [TDD/BDD Workflow](../../../docs/guidance/tdd-bdd.md) - Full TDD/BDD guidance
+- [Test Setup](../../../docs/guidance/test-setup.md) - Test infrastructure patterns
+- [Feature Acceptance Template](../../../docs/templates/feature-acceptance.md) - Acceptance documentation template

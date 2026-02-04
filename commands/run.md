@@ -80,8 +80,8 @@ bd show <task-id>
 
 1. Run feature validation:
    ```bash
-   go test ./...
-   go test ./internal/<package> -run TestFeature -v
+   <test command>  # e.g., go test ./..., pytest, npm test, cargo test
+   <feature test command>  # e.g., go test -run TestFeature, pytest tests/features/, npm test -- --grep "Feature"
    ```
 
 2. Delegate to maître (BDD quality) subagent:
