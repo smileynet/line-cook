@@ -10,7 +10,6 @@ Set up a test environment with the demo beads:
 # Create test directory and initialize git
 mkdir /tmp/line-cook-demo && cd /tmp/line-cook-demo
 git init && git commit --allow-empty -m "Initial commit"
-git config user.email "demo@test.com" && git config user.name "Demo"
 
 # Copy CLAUDE.md for project context
 cp ~/code/line-cook/templates/demo/CLAUDE.md .
