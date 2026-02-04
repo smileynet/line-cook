@@ -250,17 +250,86 @@ class LoopMetrics:
 
 
 @dataclass
+class BeadInfo:
+    """Metadata for a single bead (issue).
+
+    Stores the essential fields from bd JSON output so callers
+    don't need to re-query for title, type, or hierarchy info.
+    """
+    id: str
+    title: str
+    issue_type: str  # "epic", "feature", "task"
+    parent: Optional[str] = None
+    priority: Optional[int] = None
+    status: Optional[str] = None
+
+
+@dataclass
 class BeadSnapshot:
-    """State of beads at a point in time."""
-    ready_ids: list[str] = field(default_factory=list)
-    ready_work_ids: list[str] = field(default_factory=list)  # Tasks + features (not epics)
-    in_progress_ids: list[str] = field(default_factory=list)
-    closed_ids: list[str] = field(default_factory=list)
+    """State of beads at a point in time.
+
+    Stores full BeadInfo objects for each bead, with backwards-compatible
+    properties that return ID lists for existing callers.
+    """
+    ready: list[BeadInfo] = field(default_factory=list)
+    in_progress: list[BeadInfo] = field(default_factory=list)
+    closed: list[BeadInfo] = field(default_factory=list)
     timestamp: str = ""
 
     def __post_init__(self):
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
+
+    @property
+    def ready_ids(self) -> list[str]:
+        return [b.id for b in self.ready]
+
+    @property
+    def ready_work_ids(self) -> list[str]:
+        """Ready work items (tasks + features, excluding epics)."""
+        return [b.id for b in self.ready if b.issue_type != "epic"]
+
+    @property
+    def ready_work(self) -> list[BeadInfo]:
+        """Ready work items as BeadInfo objects (tasks + features, excluding epics)."""
+        return [b for b in self.ready if b.issue_type != "epic"]
+
+    @property
+    def in_progress_ids(self) -> list[str]:
+        return [b.id for b in self.in_progress]
+
+    @property
+    def closed_ids(self) -> list[str]:
+        return [b.id for b in self.closed]
+
+    def get_by_id(self, bead_id: str) -> Optional[BeadInfo]:
+        """Look up a BeadInfo by ID across all lists."""
+        for b in self.ready + self.in_progress + self.closed:
+            if b.id == bead_id:
+                return b
+        return None
+
+
+@dataclass
+class BeadDelta:
+    """Diff between two snapshots showing what changed during an iteration."""
+    newly_closed: list[BeadInfo]
+    newly_filed: list[BeadInfo]
+
+    @classmethod
+    def compute(cls, before: "BeadSnapshot", after: "BeadSnapshot") -> "BeadDelta":
+        """Compute the delta between two snapshots.
+
+        newly_closed: beads in after.closed that weren't in before.closed
+        newly_filed: beads in after.ready that weren't in any before list
+        """
+        before_closed = set(before.closed_ids)
+        newly_closed = [b for b in after.closed if b.id not in before_closed]
+
+        before_all = set(before.ready_ids + before.in_progress_ids + before.closed_ids)
+        newly_filed = [b for b in after.ready if b.id not in before_all]
+
+        return cls(newly_closed=newly_closed, newly_filed=newly_filed)
 
 
 @dataclass
@@ -394,6 +463,9 @@ class IterationResult:
 
     # Action tracking (tool calls during iteration)
     actions: list[ActionRecord] = field(default_factory=list)
+
+    # Bead delta (what changed during this iteration)
+    delta: Optional[BeadDelta] = None
 
     @property
     def action_counts(self) -> dict[str, int]:

@@ -32,6 +32,8 @@ from .config import (
 
 # Re-export models for convenience
 from .models import (
+    BeadDelta,
+    BeadInfo,
     CircuitBreaker,
     LoopError,
     SkipList,
@@ -71,6 +73,7 @@ from .phase import (
 # Re-export iteration functions
 from .iteration import (
     run_iteration,
+    build_hierarchy_chain,
     check_task_completed,
     check_feature_completion,
     check_epic_completion_after_feature,
@@ -84,6 +87,7 @@ from .iteration import (
     format_duration,
     print_phase_progress,
     print_human_iteration,
+    print_feature_completion,
     atomic_write,
 )
 
@@ -118,6 +122,8 @@ __all__ = [
     "LOG_FILE_MAX_BYTES",
     "LOG_FILE_BACKUP_COUNT",
     # Models
+    "BeadDelta",
+    "BeadInfo",
     "CircuitBreaker",
     "LoopError",
     "SkipList",
@@ -148,6 +154,7 @@ __all__ = [
     "detect_kitchen_idle",
     # Iteration
     "run_iteration",
+    "build_hierarchy_chain",
     "check_task_completed",
     "check_feature_completion",
     "check_epic_completion_after_feature",
@@ -161,6 +168,7 @@ __all__ = [
     "format_duration",
     "print_phase_progress",
     "print_human_iteration",
+    "print_feature_completion",
     "atomic_write",
     # Loop
     "run_loop",

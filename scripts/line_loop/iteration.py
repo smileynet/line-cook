@@ -34,6 +34,8 @@ from .config import (
 )
 from .models import (
     ActionRecord,
+    BeadDelta,
+    BeadInfo,
     BeadSnapshot,
     IterationResult,
     LoopError,
@@ -145,15 +147,43 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         print(f"  Actions: {result.total_actions} total ({', '.join(action_parts)})")
 
     # Bead state changes
-    ready_delta = result.after_ready - result.before_ready
-    in_prog_delta = result.after_in_progress - result.before_in_progress
     ready_str = f"ready {result.before_ready}→{result.after_ready}"
     in_prog_str = f"in_progress {result.before_in_progress}→{result.after_in_progress}"
-    closed_str = "+1" if result.success else ""
+    closed_count = len(result.delta.newly_closed) if result.delta else (1 if result.success else 0)
+    closed_str = f"+{closed_count}" if closed_count > 0 else ""
     print(f"\n  Beads: {ready_str} | {in_prog_str}" + (f" | closed {closed_str}" if closed_str else ""))
+
+    # Show delta details (what closed, what was filed)
+    if result.delta:
+        if result.delta.newly_closed:
+            closed_items = []
+            for b in result.delta.newly_closed:
+                label = b.id
+                if b.issue_type and b.issue_type != "task":
+                    label += f" ({b.issue_type})"
+                closed_items.append(label)
+            print(f"    closed: {', '.join(closed_items)}")
+        if result.delta.newly_filed:
+            filed_items = [f"{b.id} ({b.title})" if b.title else b.id for b in result.delta.newly_filed]
+            print(f"    filed:  {', '.join(filed_items)}")
 
     if result.outcome == "needs_retry" and retries > 0:
         print(f"\n  Retrying ({retries})...")
+
+
+def print_feature_completion(feature_id: str, feature_title: str, task_count: int):
+    """Print a visible box banner when a feature is completed."""
+    header = f"FEATURE COMPLETE: {feature_id}"
+    subtitle = feature_title or ""
+    tasks_line = f"Tasks: {task_count}/{task_count} closed"
+    width = max(BANNER_MIN_WIDTH, len(header) + 4, len(subtitle) + 4, len(tasks_line) + 4)
+    print()
+    print(f"  +-{'-' * width}-+")
+    print(f"  | {header:<{width}} |")
+    if subtitle:
+        print(f"  | {subtitle:<{width}} |")
+    print(f"  | {tasks_line:<{width}} |")
+    print(f"  +-{'-' * width}-+")
 
 
 def parse_bd_json_item(data: Any) -> Optional[dict]:
@@ -244,23 +274,64 @@ def get_task_title(task_id: str, cwd: Path) -> Optional[str]:
     return None
 
 
+def build_hierarchy_chain(bead_id: str, snapshot: BeadSnapshot, cwd: Path) -> list[BeadInfo]:
+    """Walk parent chain up to 3 levels for display context.
+
+    Returns list of ancestors [parent, grandparent, ...].
+    Looks up parents in the snapshot first, falling back to bd show.
+    """
+    chain: list[BeadInfo] = []
+    current = snapshot.get_by_id(bead_id)
+    if not current or not current.parent:
+        return chain
+
+    parent_id: Optional[str] = current.parent
+    for _ in range(3):
+        if not parent_id:
+            break
+        parent = snapshot.get_by_id(parent_id)
+        if parent:
+            chain.append(parent)
+            parent_id = parent.parent
+        else:
+            # Not in snapshot - query bd for title
+            title = get_task_title(parent_id, cwd)
+            chain.append(BeadInfo(id=parent_id, title=title or "", issue_type="unknown"))
+            break
+    return chain
+
+
+def _parse_bead_info(issue: dict) -> BeadInfo:
+    """Parse a bd JSON issue dict into a BeadInfo object."""
+    priority = issue.get("priority")
+    if priority is not None:
+        try:
+            priority = int(priority)
+        except (ValueError, TypeError):
+            priority = None
+    return BeadInfo(
+        id=issue.get("id", ""),
+        title=issue.get("title", ""),
+        issue_type=issue.get("issue_type", ""),
+        parent=issue.get("parent"),
+        priority=priority,
+        status=issue.get("status"),
+    )
+
+
 def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
     """Capture current state of beads (issues) for before/after comparison.
 
     Queries bd for ready, in_progress, and recently closed issues. The snapshot
     enables detecting which task was worked on by comparing state before and
-    after a loop iteration.
+    after a loop iteration. Stores full BeadInfo metadata from the JSON response.
 
     Args:
         cwd: Working directory containing the .beads project.
 
     Returns:
-        BeadSnapshot containing:
-        - ready_ids: All ready issues (tasks, features, and epics)
-        - ready_work_ids: Ready work items only (tasks + features, excluding epics)
-        - in_progress_ids: Issues currently being worked on
-        - closed_ids: Recently closed issues (limited for performance)
-        - timestamp: When the snapshot was captured
+        BeadSnapshot with BeadInfo lists. Use properties like .ready_ids,
+        .ready_work_ids for backwards-compatible ID lists.
 
     Note:
         Errors from bd commands are logged but don't raise exceptions.
@@ -268,18 +339,13 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
     """
     snapshot = BeadSnapshot()
 
-    # Get all ready items and filter work items (tasks + features, not epics)
+    # Get all ready items (full metadata)
     cmd_ready = "bd ready --json"
     try:
         result = run_subprocess(["bd", "ready", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
-            snapshot.ready_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
-            # Filter work items (exclude epics) from the same parsed data
-            snapshot.ready_work_ids = [
-                i.get("id", "") for i in issues
-                if isinstance(i, dict) and i.get("issue_type") != "epic"
-            ]
+            snapshot.ready = [_parse_bead_info(i) for i in issues if isinstance(i, dict)]
     except subprocess.TimeoutExpired:
         err = LoopError.from_timeout(cmd_ready, BD_COMMAND_TIMEOUT)
         logger.warning(str(err))
@@ -295,7 +361,7 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
         result = run_subprocess(["bd", "list", "--status=in_progress", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
-            snapshot.in_progress_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
+            snapshot.in_progress = [_parse_bead_info(i) for i in issues if isinstance(i, dict)]
     except subprocess.TimeoutExpired:
         err = LoopError.from_timeout(cmd_in_progress, BD_COMMAND_TIMEOUT)
         logger.warning(str(err))
@@ -311,7 +377,7 @@ def get_bead_snapshot(cwd: Path) -> BeadSnapshot:
         result = run_subprocess(["bd", "list", "--status=closed", f"--limit={CLOSED_TASKS_QUERY_LIMIT}", "--json"], BD_COMMAND_TIMEOUT, cwd)
         if result.returncode == 0 and result.stdout.strip():
             issues = json.loads(result.stdout)
-            snapshot.closed_ids = [i.get("id", "") for i in issues if isinstance(i, dict)]
+            snapshot.closed = [_parse_bead_info(i) for i in issues if isinstance(i, dict)]
     except subprocess.TimeoutExpired:
         err = LoopError.from_timeout(cmd_closed, BD_COMMAND_TIMEOUT)
         logger.warning(str(err))
@@ -785,7 +851,8 @@ def run_iteration(
     progress_state: Optional[ProgressState] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
     idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
-    idle_action: str = DEFAULT_IDLE_ACTION
+    idle_action: str = DEFAULT_IDLE_ACTION,
+    before_snapshot: Optional[BeadSnapshot] = None
 ) -> IterationResult:
     """Execute individual phases (cook→serve→tidy) with retry logic.
 
@@ -806,12 +873,13 @@ def run_iteration(
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
         idle_timeout: Seconds without tool actions before triggering idle
         idle_action: Action on idle - "warn" or "terminate"
+        before_snapshot: Optional pre-captured snapshot (avoids redundant bd query)
     """
     start_time = datetime.now()
     logger.info(f"Starting iteration {iteration}/{max_iterations}")
 
-    # Capture before state
-    before = get_bead_snapshot(cwd)
+    # Use provided snapshot or capture fresh one
+    before = before_snapshot or get_bead_snapshot(cwd)
     logger.debug(f"Before state: {len(before.ready_ids)} ready ({len(before.ready_work_ids)} work items), {len(before.in_progress_ids)} in_progress")
 
     # Check for ready work items (tasks + features, not epics - epics can't be executed)
@@ -832,7 +900,8 @@ def run_iteration(
             before_ready=len(before.ready_ids),
             before_in_progress=len(before.in_progress_ids),
             after_ready=len(before.ready_ids),
-            after_in_progress=len(before.in_progress_ids)
+            after_in_progress=len(before.in_progress_ids),
+            delta=BeadDelta(newly_closed=[], newly_filed=[])
         )
 
     # Collect all actions across phases
@@ -904,7 +973,8 @@ def run_iteration(
                         before_in_progress=len(before.in_progress_ids),
                         after_ready=len(after_cook.ready_ids),
                         after_in_progress=len(after_cook.in_progress_ids),
-                        actions=all_actions
+                        actions=all_actions,
+                        delta=BeadDelta.compute(before, after_cook)
                     )
                 continue
 
@@ -938,7 +1008,8 @@ def run_iteration(
                 before_in_progress=len(before.in_progress_ids),
                 after_ready=len(before.ready_ids),
                 after_in_progress=len(before.in_progress_ids),
-                actions=all_actions
+                actions=all_actions,
+                delta=BeadDelta(newly_closed=[], newly_filed=[])
             )
 
         # Cook succeeded - print progress (we'll report actions after serve since we continue to serve)
@@ -1031,7 +1102,8 @@ def run_iteration(
                     before_in_progress=len(before.in_progress_ids),
                     after_ready=len(after.ready_ids),
                     after_in_progress=len(after.in_progress_ids),
-                    actions=all_actions
+                    actions=all_actions,
+                    delta=BeadDelta.compute(before, after)
                 )
             elif serve_verdict == "SKIPPED":
                 if not json_output:
@@ -1085,7 +1157,8 @@ def run_iteration(
                     before_in_progress=len(before.in_progress_ids),
                     after_ready=len(after.ready_ids),
                     after_in_progress=len(after.in_progress_ids),
-                    actions=all_actions
+                    actions=all_actions,
+                    delta=BeadDelta.compute(before, after)
                 )
             else:
                 # No verdict parsed and no signals detected - retry full cook→serve cycle
@@ -1123,7 +1196,8 @@ def run_iteration(
             before_in_progress=len(before.in_progress_ids),
             after_ready=len(after.ready_ids),
             after_in_progress=len(after.in_progress_ids),
-            actions=all_actions
+            actions=all_actions,
+            delta=BeadDelta.compute(before, after)
         )
 
     # ===== PHASE 3: TIDY =====
@@ -1174,7 +1248,11 @@ def run_iteration(
         if feature_complete and feature_id:
             logger.info(f"Feature {feature_id} complete - running plate phase")
             if not json_output:
-                print(f"\n  Feature complete: {feature_id}")
+                feature_info = get_task_info(feature_id, cwd)
+                feature_title = feature_info.get("title", "") if feature_info else ""
+                feature_children = get_children(feature_id, cwd)
+                task_count = len([c for c in feature_children if c.get("issue_type") == "task"])
+                print_feature_completion(feature_id, feature_title, task_count)
                 print_phase_progress("plate", "start")
 
             if progress_state:
@@ -1214,6 +1292,9 @@ def run_iteration(
     success = task_closed or serve_verdict == "APPROVED"
     outcome = "completed" if success else "needs_retry"
 
+    # Compute bead delta for visibility
+    delta = BeadDelta.compute(before, after)
+
     logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s, actions={len(all_actions)}")
 
     return IterationResult(
@@ -1232,5 +1313,6 @@ def run_iteration(
         intent=intent,
         before_state=before_state,
         after_state=after_state,
-        actions=all_actions
+        actions=all_actions,
+        delta=delta
     )
