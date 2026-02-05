@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-02-04
 tags: [architecture, workflow]
-relates-to: [0006]
+relates-to: ["0006"]
 superseded-by: null
 ---
 
