@@ -1,6 +1,6 @@
 # Line Cook Demo Template (Web Dashboard)
 
-A multi-feature demo environment for testing Line Cook's loop, plate, and epic completion across 8 tasks. Builds a Go + Templ + SQLite dashboard that monitors Line Cook operations.
+A multi-feature demo environment for testing Line Cook's loop, plate, and epic completion across 9 tasks. Builds a Go + Templ + SQLite dashboard that monitors Line Cook operations.
 
 ## Prerequisites
 
@@ -105,7 +105,7 @@ demo-100  Epic: Parking Lot (P4)
 | Command | Shows |
 |---------|-------|
 | `bd ready` | demo-001.1.1 only (the one ready task) |
-| `bd blocked` | 7 blocked tasks with their blockers |
+| `bd blocked` | 8 blocked tasks with their blockers |
 | `bd list --status=open` | All 16 beads |
 | `bd show demo-001` | Epic with 4 feature children |
 | `bd show demo-001.1.1` | Full task context with test specs |

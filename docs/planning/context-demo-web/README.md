@@ -14,7 +14,7 @@ Build a Go + Templ + SQLite web dashboard that monitors line-cook workflows. The
 - Go + Templ + SQLite stack (matches observability reference app)
 - Dual data sources: loop files (status.json, history.jsonl) + hook events (POST /events)
 - Build from scratch via beads (not pre-built) to exercise the full cook cycle
-- 8 tasks across 4 features, sequenced so each iteration produces working increments
+- 9 tasks across 4 features, sequenced so each iteration produces working increments
 
 ## Artifacts
 - Brainstorm: docs/planning/brainstorm-demo-web.md
@@ -23,7 +23,7 @@ Build a Go + Templ + SQLite web dashboard that monitors line-cook workflows. The
 - Decisions: docs/planning/context-demo-web/decisions.log
 
 ## Scope
-Phases: 1, Features: 4, Tasks: 8 (+1 parking lot)
+Phases: 1, Features: 4, Tasks: 9 (+1 parking lot)
 
 Features:
 - Real-time loop status display (3 tasks)

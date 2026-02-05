@@ -2,7 +2,7 @@ phases:
   - id: phase-dashboard
     title: "Phase: Line Cook Dashboard MVP"
     description: "Go web dashboard for monitoring Line Cook workflows in real time"
-    duration: "1-2 sessions (8 cook cycles)"
+    duration: "1-2 sessions (9 cook cycles)"
 
     features:
       - id: feature-status

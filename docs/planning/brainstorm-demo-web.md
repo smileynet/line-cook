@@ -35,7 +35,7 @@ Line Cook users and developers testing the full workflow with a realistic projec
 - Need a project domain that produces visible, testable output at each iteration
 
 ### Success Criteria (User's View)
-- Run loop and see 8 tasks complete in dependency order
+- Run loop and see 9 tasks complete in dependency order
 - Each iteration produces a working increment (compilable, testable Go code)
 - Features complete and trigger plate validation
 - Epic closes when all features are done
@@ -128,7 +128,7 @@ N/A - Using established patterns from the observability reference app.
 - Reference app (~/code/observability) should be available for Claude to reference
 
 ### Scope Risks
-- 8 tasks is the sweet spot: enough to test complex dependencies without being overwhelming
+- 9 tasks is the sweet spot: enough to test complex dependencies without being overwhelming
 - Each task must be completable in a single cook cycle
 
 ### Open Questions
@@ -142,18 +142,18 @@ All questions resolved:
 ## Recommended Direction
 
 ### Chosen Approach
-**Option B: Go + Templ + SQLite Dashboard** modeled on ~/code/observability, with 8 tasks across 4 features, plus a parking lot item.
+**Option B: Go + Templ + SQLite Dashboard** modeled on ~/code/observability, with 9 tasks across 4 features, plus a parking lot item.
 
 ### Rationale
 - Matches existing reference app architecture for reliable Claude Code execution
 - Each task produces a testable vertical slice through the application
 - Dependencies enforce a natural build order (server → database → pages → API → realtime)
-- 8 tasks exercise complex dependency resolution including cross-feature blocking
+- 9 tasks exercise complex dependency resolution including cross-feature blocking
 
 ### Suggested Scope
 | Scope | Recommendation |
 |-------|----------------|
-| MVP | 8 tasks across 4 features under 1 epic |
+| MVP | 9 tasks across 4 features under 1 epic |
 | Full Feature | Add parking lot with metrics charts task |
 | Epic | Not applicable - this is a demo template |
 
