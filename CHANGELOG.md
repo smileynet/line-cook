@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-02-04
 ### Added
 - `/line:decision` project command for managing architecture decision records (ADRs)
   - Create, list, view, and supersede decisions with markdown templates
@@ -211,7 +212,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.8.6...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/smileynet/line-cook/compare/v0.8.6...v0.9.0
 [0.8.6]: https://github.com/smileynet/line-cook/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/smileynet/line-cook/compare/v0.8.4...v0.8.5
 [0.8.3]: https://github.com/smileynet/line-cook/compare/v0.8.2...v0.8.3
