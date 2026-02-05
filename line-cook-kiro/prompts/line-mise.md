@@ -11,34 +11,25 @@ Like @line-run orchestrates the execution cycle (prep→cook→serve→tidy), @l
 
 ## Process
 
-### Step 1: Run @line-brainstorm
+**Arguments:** `$ARGUMENTS` (optional)
+- `skip-brainstorm` - Skip directly to scoping (when requirements are clear)
 
-**Unless requirements are crystal clear:**
+### Step 1: Start Planning Chain
 
-Run the brainstorm phase to explore the problem space.
+**If `skip-brainstorm` in $ARGUMENTS or requirements are crystal clear:**
+  Run `@line-scope`.
 
-Output: `docs/planning/brainstorm-<name>.md`
+**Otherwise:**
+  Run `@line-brainstorm`.
 
-**Pause for review.** Ask user if they want to proceed to scoping.
+Each command will ask the user how to proceed and chain to the next command automatically if the user chooses to continue. The full chain is: brainstorm -> scope -> finalize.
 
-### Step 2: Run @line-scope
+If the chain completes (finalize runs), proceed to Step 2.
+If the user stopped at any phase, output what was completed and stop.
 
-Run the scope phase to create structured breakdown.
+### Step 2: Mise Complete Summary
 
-Output: `docs/planning/menu-plan.yaml`
-
-**Pause for review.** Ask user if they want to proceed to finalizing.
-
-### Step 3: Run @line-finalize
-
-Run the finalize phase to create beads and test specs.
-
-Outputs:
-- Beads in `.beads/`
-- BDD specs in `tests/features/`
-- TDD specs in `tests/specs/`
-
-### Step 4: Mise Complete Summary
+After all phases complete, output summary:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
@@ -52,11 +43,10 @@ Outputs:
 Artifacts:
   - docs/planning/brainstorm-<name>.md
   - docs/planning/menu-plan.yaml
+  - docs/planning/context-<name>/ (planning context)
   - .beads/ (<N> beads)
   - tests/features/ (<N> .feature files)
   - tests/specs/ (<N> .md files)
-
-NEXT STEP: Run @line-prep to start working on tasks
 ```
 
 ---

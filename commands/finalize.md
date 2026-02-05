@@ -1,6 +1,6 @@
 ---
 description: Convert plan to beads and create test specifications (execution)
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill
 ---
 
 ## Summary
@@ -162,11 +162,30 @@ bd show <feature-id>
 #     - Task: Implement session creation/destruction
 ```
 
+### Step 5b: Update Planning Context
+
+If a planning context folder exists (`docs/planning/context-<name>/`):
+
+1. **Update README.md:**
+   - Set status to `finalized`
+   - Add epic bead ID
+   - Add finalize summary (beads created, test specs)
+
+2. **Link context from epic bead description:**
+   ```bash
+   DESC=$(bd show <epic-id> --json | jq -r '.[0].description')
+   bd update <epic-id> --body-file=- <<EOF
+   $DESC
+
+   Planning context: docs/planning/context-<name>/
+   EOF
+   ```
+
 ### Step 6: Sync and Commit
 
 ```bash
 bd sync
-git add docs/planning/menu-plan.yaml .beads/ tests/features/ tests/specs/
+git add docs/planning/menu-plan.yaml .beads/ tests/features/ tests/specs/ docs/planning/context-*/
 git commit -m "plan: Create menu plan for <phase>
 
 - <N> phases planned
@@ -192,12 +211,12 @@ Tracer approach:
 git push
 ```
 
-### Step 7: Output Commit Summary
+### Step 7: Handoff
 
-After committing, output:
+Output the commit summary:
 
 ```
-MISE COMPLETE
+FINALIZE COMPLETE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Menu plan committed to beads and test specs created.
@@ -219,17 +238,20 @@ Files committed:
 
 Commit: <hash>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-READY TO WORK
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 Available tasks:
   <id> - <title>
   <id> - <title>
-
-NEXT STEP: Run /line:prep to start working on tasks
 ```
+
+Then **use AskUserQuestion** to ask:
+
+**Question:** "Planning complete. Beads and test specs committed. How would you like to proceed?"
+**Options:**
+  - "Start working -- /line:prep" — Begin the execution cycle
+  - "Done for now" — End the session
+
+If user chooses "Start working", invoke `Skill(skill="line:prep")`.
+Otherwise, stop and output the summary.
 
 ---
 

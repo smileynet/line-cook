@@ -74,6 +74,21 @@ Close the feature bead to mark completion:
 bd close <feature-id>
 ```
 
+### Step 5b: Archive Planning Context (If Epic Complete)
+
+After closing the feature, check if all sibling features under the parent epic are now closed:
+
+```bash
+PARENT=$(bd show <feature-id> --json | jq -r '.[0].parent // empty')
+```
+
+If parent exists and all children are closed:
+1. Read epic description, find `Planning context:` path
+2. Update context README status to `archived`
+3. Include in commit
+
+Graceful no-op if no parent epic, no context link, or siblings still open.
+
 ### Step 6: Commit and Push
 
 ```bash

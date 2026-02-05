@@ -283,6 +283,31 @@ for feature in $FEATURES; do
 done
 ```
 
+### Step 5d: Planning Context Hygiene (Info)
+
+Check planning context folder status:
+
+```bash
+for epic in $EPICS; do
+  desc=$(bd show $epic --json | jq -r '.[0].description')
+  context_path=$(echo "$desc" | grep -oP 'Planning context: \K.*' || echo "")
+  status=$(bd show $epic --json | jq -r '.[0].status')
+
+  if [ "$status" != "closed" ] && [ -z "$context_path" ]; then
+    echo "INFO: NO_CONTEXT $epic (active epic) has no planning context folder"
+    echo "  Suggestion: Run planning commands to create context"
+  fi
+
+  if [ "$status" = "closed" ] && [ -n "$context_path" ] && [ -f "$context_path/README.md" ]; then
+    ctx_status=$(grep -oP '^\*\*Status:\*\* \K.*' "$context_path/README.md" || echo "")
+    if [ "$ctx_status" != "archived" ]; then
+      echo "INFO: STALE_CONTEXT $epic (closed epic) has non-archived planning context"
+      echo "  Expected: status=archived in $context_path/README.md"
+    fi
+  fi
+done
+```
+
 ### Step 6: Work Verification (Full Scope Only)
 
 Only run for `full` scope - validates closed work:

@@ -1,6 +1,6 @@
 ---
 description: Explore problem space before planning (divergent thinking)
-allowed-tools: Bash, Read, Write, Glob, Grep, Task, AskUserQuestion, WebFetch, WebSearch
+allowed-tools: Bash, Read, Write, Glob, Grep, Task, AskUserQuestion, Skill, WebFetch, WebSearch
 ---
 
 ## Summary
@@ -83,15 +83,45 @@ The document should include:
 - Recommended direction
 - Open questions (if any)
 
-### Step 6: Output Summary
+### Step 5b: Create Planning Context Folder
 
-After creating the brainstorm document, output:
+Create `docs/planning/context-<name>/` with initial context files:
+
+1. **Copy templates:**
+   ```bash
+   mkdir -p docs/planning/context-<name>
+   cp docs/templates/planning-context/README.md docs/planning/context-<name>/README.md
+   cp docs/templates/planning-context/architecture.md docs/planning/context-<name>/architecture.md
+   cp docs/templates/planning-context/decisions.log docs/planning/context-<name>/decisions.log
+   ```
+
+2. **Populate README.md** — Fill in from brainstorm results:
+   - Problem (2-3 sentences from problem statement)
+   - Approach (chosen approach + rationale)
+   - Key Decisions (major decisions made during brainstorm)
+   - Set status to `brainstormed`
+   - Set created date
+   - Remove the "Usage Instructions" section from the copied template
+
+3. **Populate architecture.md** — Fill in any technical patterns/constraints discovered during exploration
+
+4. **Seed decisions.log** — Add brainstorm decisions:
+   ```
+   YYYY-MM-DD | brainstorm | <decision> | <rationale>
+   ```
+
+**Graceful fallback:** If `docs/templates/planning-context/` doesn't exist, create the files directly with minimal content.
+
+### Step 6: Handoff
+
+Output the brainstorm summary:
 
 ```
 BRAINSTORM COMPLETE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 File: docs/planning/brainstorm-<name>.md
+Context: docs/planning/context-<name>/
 
 Problem: <1-sentence summary>
 User: <who benefits>
@@ -104,12 +134,18 @@ Key decisions:
 Open questions: <N> (if any)
   - <question 1>
   - <question 2>
-
-NEXT STEP: Run /line:scope to create structured work breakdown
-  (or /line:mise to continue with full orchestration)
-
-If open questions remain, resolve them before planning.
 ```
+
+Then **use AskUserQuestion** to ask:
+
+**Question:** "Brainstorm complete. How would you like to proceed?"
+**Options:**
+  - "Continue to /line:scope" — Create structured work breakdown now
+  - "Review brainstorm first" — Stop here, review docs/planning/brainstorm-<name>.md
+  - "Done for now" — End the planning session
+
+If user chooses "Continue to /line:scope", invoke `Skill(skill="line:scope")`.
+Otherwise, stop and output the artifact file paths.
 
 ---
 

@@ -67,19 +67,28 @@ bd ready
 bd show <epic-id>
 ```
 
+### Step 5b: Update Planning Context
+
+If a planning context folder exists:
+
+1. Update README.md: status -> `finalized`, add epic bead ID
+2. Link context from epic bead description (`Planning context: docs/planning/context-<name>/`)
+
 ### Step 6: Sync and Commit
 
 ```bash
 bd sync
-git add docs/planning/menu-plan.yaml .beads/ tests/
+git add docs/planning/menu-plan.yaml .beads/ tests/ docs/planning/context-*/
 git commit -m "plan: Create menu plan"
 git push
 ```
 
-### Step 7: Output Summary
+### Step 7: Handoff
+
+Output the commit summary:
 
 ```
-MISE COMPLETE
+FINALIZE COMPLETE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Beads Created:
@@ -91,5 +100,13 @@ Test Specs Created:
   BDD: <N> .feature files
   TDD: <M> .md files
 
-NEXT STEP: Run @line-prep to start working on tasks
+Available tasks:
+  <id> - <title>
 ```
+
+Then ask the user how they'd like to proceed:
+
+- **Start working -- @line-prep** — Begin the execution cycle
+- **Done for now** — End the session
+
+Wait for the user's response before continuing. If user chooses to start working, run `@line-prep`.

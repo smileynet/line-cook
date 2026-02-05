@@ -170,6 +170,11 @@ Load relevant context files and documentation (the ingredients):
 2. **Kitchen manual** - Review AGENTS.md for conventions
 3. **Related code** - Read files relevant to the task
 4. **Dependencies** - Check what this task builds on
+5. **Planning context** - Check for design rationale:
+   - Get task's parent chain: `bd show <id> --json` -> parent -> epic
+   - Read epic description, look for `Planning context:` line
+   - If found, read `README.md` (always) and `architecture.md` (for patterns/constraints)
+   - Graceful no-op if no context folder exists
 
 Use Read, Glob, and Grep tools to gather necessary context before starting implementation.
 

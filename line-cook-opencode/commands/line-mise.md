@@ -17,31 +17,25 @@ Like `/line-run` orchestrates the execution cycle (prep→cook→serve→tidy), 
 
 ## Process
 
-### Step 1: Run /brainstorm
+**Arguments:** `$ARGUMENTS` (optional)
+- `skip-brainstorm` - Skip directly to scoping (when requirements are clear)
 
-**Unless requirements are crystal clear:**
+### Step 1: Start Planning Chain
 
-Run the brainstorm phase to explore the problem space.
+**If `skip-brainstorm` in $ARGUMENTS or requirements are crystal clear:**
+  Run `/line-scope`.
 
-Output is `docs/planning/brainstorm-<name>.md`.
+**Otherwise:**
+  Run `/line-brainstorm`.
 
-**Pause for review.** Ask user if they want to proceed to planning.
+Each command will ask the user how to proceed and chain to the next command automatically if the user chooses to continue. The full chain is: brainstorm -> scope -> finalize.
 
-### Step 2: Run /scope
+If the chain completes (finalize runs), proceed to Step 2.
+If the user stopped at any phase, output what was completed and stop.
 
-Run the scope phase to create structured breakdown.
+### Step 2: Mise Complete Summary
 
-Output is `docs/planning/menu-plan.yaml`.
-
-**Pause for review.** Ask user if they want to proceed to committing.
-
-### Step 3: Run /finalize
-
-Run the finalize phase to create beads and test specs.
-
-Beads and test specs are created.
-
-### Step 4: Mise Complete Summary
+After all phases complete, output summary:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
@@ -58,18 +52,10 @@ PLANNING CYCLE: Complete
 Artifacts:
   - docs/planning/brainstorm-<name>.md
   - docs/planning/menu-plan.yaml
+  - docs/planning/context-<name>/ (planning context)
   - .beads/ (<N> beads)
   - tests/features/ (<N> .feature files)
   - tests/specs/ (<N> .md files)
-
-──────────────────────────────────────────
-
-READY TO WORK
-
-Available tasks:
-  <id> - <title>
-
-NEXT STEP: Run /line-prep to start working on tasks
 ```
 
 ---
@@ -114,5 +100,3 @@ Planning creates the work. Execution completes the work.
 ```
 /line-mise                    # Full planning cycle with pauses
 ```
-
-**NEXT STEP: @line-prep (after beads created)**
