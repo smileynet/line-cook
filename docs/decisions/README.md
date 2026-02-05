@@ -13,3 +13,8 @@ Run `/decision` to create, list, or supersede decisions.
 | [0002](0002-kitchen-metaphor-for-commands.md) | Kitchen metaphor for workflow commands | accepted | 2026-01-18 | commands, naming |
 | [0003](0003-template-synced-multi-platform-commands.md) | Template-synced multi-platform commands | accepted | 2026-01-22 | architecture, commands |
 | [0004](0004-commands-vs-skills-directory-convention.md) | Commands vs skills directory convention | accepted | 2026-02-04 | commands, architecture |
+| [0005](0005-three-tier-bead-hierarchy.md) | Three-tier bead hierarchy | accepted | 2026-02-04 | workflow, architecture |
+| [0006](0006-phase-specialized-review-agents.md) | Phase-specialized review agents | accepted | 2026-02-04 | architecture, agents |
+| [0007](0007-fresh-context-review.md) | Fresh-context review via subagent | accepted | 2026-02-04 | architecture, workflow |
+| [0008](0008-three-phase-mise-with-pause-points.md) | Three-phase mise with cognitive mode separation | accepted | 2026-02-04 | commands, workflow |
+| [0009](0009-autonomous-loop-as-external-package.md) | Autonomous loop as external Python package | accepted | 2026-02-04 | architecture |
