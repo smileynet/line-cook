@@ -91,7 +91,7 @@ superseded-by: null
 Read `docs/decisions/README.md` and append a new row to the table:
 
 ```
-| [NNNN](NNNN-slug.md) | Decision title | accepted | YYYY-MM-DD | tags |
+| NNNN | Decision title | accepted | YYYY-MM-DD | tags |
 ```
 
 ### Step 6: Output confirmation
