@@ -72,13 +72,25 @@ Write the brainstorm document to `docs/planning/brainstorm-<name>.md`.
 
 **Use the template at `docs/templates/brainstorm.md`** as the starting point.
 
-### Step 6: Output Summary
+### Step 5b: Create Planning Context Folder
+
+Create `docs/planning/context-<name>/` with initial context files:
+
+1. Copy templates from `docs/templates/planning-context/` (or create directly)
+2. Populate README.md with Problem, Approach, Key Decisions from brainstorm
+3. Populate architecture.md with technical patterns/constraints discovered
+4. Seed decisions.log with brainstorm decisions
+
+### Step 6: Handoff
+
+Output the brainstorm summary:
 
 ```
 BRAINSTORM COMPLETE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 File: docs/planning/brainstorm-<name>.md
+Context: docs/planning/context-<name>/
 
 Problem: <1-sentence summary>
 User: <who benefits>
@@ -89,9 +101,15 @@ Key decisions:
   - <decision 2>
 
 Open questions: <N> (if any)
-
-NEXT STEP: Run /line-scope to create structured work breakdown
 ```
+
+Then ask the user how they'd like to proceed:
+
+- **Continue to /line-scope** — Create structured work breakdown now
+- **Review brainstorm first** — Stop here, review docs/planning/brainstorm-<name>.md
+- **Done for now** — End the planning session
+
+Wait for the user's response before continuing. If user chooses to continue, run `/line-scope`.
 
 ---
 
@@ -111,5 +129,3 @@ In these cases, proceed directly to `/line-scope`.
 ```
 /line-brainstorm
 ```
-
-**NEXT STEP: @line-scope (after brainstorm review)**

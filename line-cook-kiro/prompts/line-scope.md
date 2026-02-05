@@ -13,9 +13,12 @@ This phase transforms exploration into a structured, reviewable plan.
 
 ### Step 1: Load Context
 
-Check for brainstorm: `ls docs/planning/brainstorm-*.md`
+Look for planning context:
 
-If exists, read it. If not, ask for requirements.
+1. Check for context folders: `ls docs/planning/context-*/README.md`
+2. If found, read non-archived README(s) for problem, approach, decisions
+3. If no context folder, check for brainstorm: `ls docs/planning/brainstorm-*.md`
+4. If neither exists, ask for requirements
 
 ### Step 2: Determine Scope
 
@@ -66,7 +69,17 @@ Epic (Phase)
     └── Task 2.1 (Implementation step)
 ```
 
-### Step 5: Output Summary
+### Step 4b: Update Planning Context
+
+If a planning context folder exists:
+
+1. Update README.md: status -> `scoped`, add Scope section
+2. Update architecture.md with new constraints
+3. Append scope decisions to decisions.log
+
+### Step 5: Handoff
+
+Output the menu plan summary:
 
 ```
 MENU PLAN CREATED
@@ -79,9 +92,15 @@ Features: <M>
 Tasks: <L>
 
 REVIEW THE PLAN before proceeding.
-
-NEXT STEP: Run @line-finalize to convert to beads and create test specs
 ```
+
+Then ask the user how they'd like to proceed:
+
+- **Continue to @line-finalize** — Convert plan to beads and test specs
+- **Review menu plan first** — Stop here, review docs/planning/menu-plan.yaml
+- **Done for now** — End the planning session
+
+Wait for the user's response before continuing. If user chooses to continue, run `@line-finalize`.
 
 ## Task Sizing
 

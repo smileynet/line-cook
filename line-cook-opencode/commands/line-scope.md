@@ -19,14 +19,28 @@ This phase transforms exploration into a structured, reviewable plan. Output is 
 
 ### Step 1: Load Context
 
-Check for existing brainstorm document:
+Look for planning context:
 
-```bash
-ls docs/planning/brainstorm-*.md 2>/dev/null
-```
+1. Check for context folders:
+   ```bash
+   ls docs/planning/context-*/README.md 2>/dev/null
+   ```
 
-**If brainstorm exists:** Read it and use as input for planning.
-**If no brainstorm:** Ask user for requirements directly.
+2. **If context folder(s) found:**
+   - Read README.md files, find non-archived ones
+   - If multiple, ask the user which one to use
+   - Read context README for problem, approach, key decisions
+   - Read `decisions.log` for rationale history
+
+3. **If no context folder but brainstorm exists:**
+   ```bash
+   ls docs/planning/brainstorm-*.md 2>/dev/null
+   ```
+   - Read the brainstorm document and use as input
+   - Create a context folder from brainstorm content
+
+4. **If neither exists:**
+   - Ask user for requirements directly
 
 ### Step 2: Determine Scope
 
@@ -80,7 +94,17 @@ Epic (Phase)
     └── Task 2.2 (Implementation step)
 ```
 
-### Step 5: Output Menu Plan Summary
+### Step 4b: Update Planning Context
+
+If a planning context folder exists (`docs/planning/context-<name>/`):
+
+1. Update README.md: status -> `scoped`, add Scope section with counts and feature list
+2. Update architecture.md with any new layer/constraint info
+3. Append scope decisions to decisions.log
+
+### Step 5: Handoff
+
+Output the menu plan summary:
 
 ```
 MENU PLAN CREATED
@@ -107,9 +131,15 @@ REVIEW THE PLAN:
   3. Verify each task has:
      [ ] Tracer explanation
      [ ] Clear deliverable
-
-NEXT STEP: Run /line-finalize to convert to beads and create test specs
 ```
+
+Then ask the user how they'd like to proceed:
+
+- **Continue to /line-finalize** — Convert plan to beads and test specs
+- **Review menu plan first** — Stop here, review docs/planning/menu-plan.yaml
+- **Done for now** — End the planning session
+
+Wait for the user's response before continuing. If user chooses to continue, run `/line-finalize`.
 
 ---
 
@@ -135,5 +165,3 @@ NEXT STEP: Run /line-finalize to convert to beads and create test specs
 ```
 /line-scope
 ```
-
-**NEXT STEP: @line-finalize (after scope approval)**

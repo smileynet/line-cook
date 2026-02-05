@@ -79,6 +79,11 @@ Load relevant context files:
 1. **Project structure** - Understand codebase layout
 2. **Related code** - Read files relevant to the task
 3. **Dependencies** - Check what this task builds on
+4. **Planning context** - Check for design rationale:
+   - Get task's parent chain: `bd show <id> --json` -> parent -> epic
+   - Read epic description, look for `Planning context:` line
+   - If found, read `README.md` (always) and `architecture.md` (for patterns/constraints)
+   - Graceful no-op if no context folder exists
 
 ### Step 3: Plan the Task
 

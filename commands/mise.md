@@ -22,85 +22,22 @@ Like `/line:run` orchestrates the execution cycle (prep→cook→serve→tidy), 
 
 ## Process
 
-### Step 1: Run /brainstorm
+### Step 1: Start Planning Chain
 
-**Unless user provides `skip-brainstorm` or requirements are crystal clear:**
+**If `skip-brainstorm` in $ARGUMENTS or requirements are crystal clear:**
+  Invoke `Skill(skill="line:scope")`.
 
-Invoke the brainstorm command to explore the problem space:
+**Otherwise:**
+  Invoke `Skill(skill="line:brainstorm", args="$ARGUMENTS")`.
 
-```
-Skill(skill="line:brainstorm")
-```
+Each command will ask the user how to proceed and chain to the next command automatically if the user chooses to continue. The full chain is: brainstorm -> scope -> finalize.
 
-Wait for brainstorm to complete. Output is `docs/planning/brainstorm-<name>.md`.
+If the chain completes (finalize runs), proceed to Step 2.
+If the user stopped at any phase, output what was completed and stop.
 
-**Pause for review.** Ask user if they want to proceed to planning:
+### Step 2: Mise Complete Summary
 
-```
-BRAINSTORM COMPLETE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-File: docs/planning/brainstorm-<name>.md
-
-<summary of exploration>
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Ready to proceed to planning phase?
-- Review the brainstorm document
-- Resolve any open questions
-- Then continue to create structured plan
-
-Continue to /line:scope? [Y/n]
-```
-
-Wait for user confirmation before proceeding.
-
-### Step 2: Run /scope
-
-Invoke the scope command to create structured breakdown:
-
-```
-Skill(skill="line:scope")
-```
-
-Wait for plan to complete. Output is `docs/planning/menu-plan.yaml`.
-
-**Pause for review.** Ask user if they want to proceed to finalizing:
-
-```
-MENU PLAN CREATED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-File: docs/planning/menu-plan.yaml
-
-<summary of plan>
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Ready to finalize beads and create test specs?
-- Review the menu plan
-- Make any edits to the YAML file
-- Then continue to create beads
-
-Continue to /line:finalize? [Y/n]
-```
-
-Wait for user confirmation before proceeding.
-
-### Step 3: Run /finalize
-
-Invoke the finalize command to create beads and test specs:
-
-```
-Skill(skill="line:finalize")
-```
-
-Wait for finalize to complete. Beads and test specs are created.
-
-### Step 4: Mise Complete Summary
-
-After all steps complete, output summary:
+After all phases complete, output summary:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
@@ -117,21 +54,10 @@ PLANNING CYCLE: Complete
 Artifacts:
   - docs/planning/brainstorm-<name>.md
   - docs/planning/menu-plan.yaml
+  - docs/planning/context-<name>/ (planning context)
   - .beads/ (<N> beads)
   - tests/features/ (<N> .feature files)
   - tests/specs/ (<N> .md files)
-
-──────────────────────────────────────────
-
-READY TO WORK
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Available tasks:
-  <id> - <title>
-  <id> - <title>
-
-NEXT STEP: Run /line:prep to start working on tasks
-  (or /line:run for full execution cycle)
 ```
 
 ---

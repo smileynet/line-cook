@@ -81,7 +81,23 @@ bd comments add <id> "PHASE: COOK
 Status: started"
 ```
 
-### Step 2: Plan the Task
+### Step 2: Load Ingredients
+
+Load relevant context files and documentation (the ingredients):
+
+1. **Project structure** - Understand codebase layout
+2. **Kitchen manual** - Review AGENTS.md for conventions
+3. **Related code** - Read files relevant to the task
+4. **Dependencies** - Check what this task builds on
+5. **Planning context** - Check for design rationale:
+   - Get task's parent chain: `bd show <id> --json` -> parent -> epic
+   - Read epic description, look for `Planning context:` line
+   - If found, read `README.md` (always) and `architecture.md` (for patterns/constraints)
+   - Graceful no-op if no context folder exists
+
+Use Read, Glob, and Grep tools to gather necessary context before starting implementation.
+
+### Step 3: Plan the Task
 
 Break the task into steps using TodoWrite:
 
@@ -92,7 +108,7 @@ Break the task into steps using TodoWrite:
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
-### Step 3: Execute TDD Cycle
+### Step 4: Execute TDD Cycle
 
 Process TodoWrite items systematically with TDD guardrails:
 
@@ -157,7 +173,7 @@ TDD Phase: RED/GREEN/REFACTOR
 
 These will be filed as beads in `/line-tidy`.
 
-### Step 4: Verify Kitchen Equipment
+### Step 5: Verify Kitchen Equipment
 
 Before marking the task done, verify ALL guardrails pass:
 
@@ -180,7 +196,7 @@ Before marking the task done, verify ALL guardrails pass:
 - Keep task as `in_progress`
 - Ask user how to proceed
 
-### Step 5: Complete Task
+### Step 6: Complete Task
 
 Only after all guardrails pass:
 

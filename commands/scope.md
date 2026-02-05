@@ -1,6 +1,6 @@
 ---
 description: Create structured work breakdown (convergent thinking)
-allowed-tools: Bash, Read, Write, Glob, Grep, Task, AskUserQuestion
+allowed-tools: Bash, Read, Write, Glob, Grep, Task, AskUserQuestion, Skill
 ---
 
 ## Summary
@@ -20,20 +20,30 @@ This phase transforms exploration into a structured, reviewable plan. Output is 
 
 ### Step 1: Load Context
 
-Check for existing brainstorm document:
+Look for planning context:
 
-```bash
-ls docs/planning/brainstorm-*.md 2>/dev/null
-```
+1. Check for context folders:
+   ```bash
+   ls docs/planning/context-*/README.md 2>/dev/null
+   ```
 
-**If brainstorm exists:**
-- Read the brainstorm document
-- Use it as input for planning
-- Verify open questions are resolved
+2. **If context folder(s) found:**
+   - Read README.md files, find non-archived ones
+   - If multiple non-archived contexts, **use AskUserQuestion** to ask which one to use
+   - Read the context README for problem, approach, and key decisions
+   - Read `decisions.log` for rationale history
 
-**If no brainstorm:**
-- Ask user for requirements directly
-- Consider if brainstorm phase would be valuable first
+3. **If no context folder but brainstorm exists:**
+   ```bash
+   ls docs/planning/brainstorm-*.md 2>/dev/null
+   ```
+   - Read the brainstorm document
+   - Use it as input for planning
+   - Create a context folder from brainstorm content (see brainstorm Step 5b)
+
+4. **If neither exists:**
+   - Ask user for requirements directly
+   - Consider if brainstorm phase would be valuable first
 
 ### Step 2: Determine Scope
 
@@ -136,9 +146,25 @@ Every feature MUST be user-facing. Validate:
 
 **If you can't write smoke tests, it's not a feature** - it's infrastructure that should be tasks under a real feature.
 
-### Step 6: Output Menu Plan Summary
+### Step 5b: Update Planning Context
 
-After creating the menu plan, output:
+If a planning context folder exists (`docs/planning/context-<name>/`):
+
+1. **Update README.md:**
+   - Set status to `scoped`
+   - Add Scope section with phase/feature/task counts and feature list
+
+2. **Update architecture.md:**
+   - Add any new layer/constraint info discovered during scoping
+
+3. **Append to decisions.log:**
+   ```
+   YYYY-MM-DD | scope | <decision> | <rationale>
+   ```
+
+### Step 6: Handoff
+
+Output the menu plan summary:
 
 ```
 MENU PLAN CREATED
@@ -175,10 +201,18 @@ REVIEW THE PLAN:
      [ ] Clear deliverable
      [ ] Dependencies listed
      [ ] TDD flag if applicable
-
-NEXT STEP: Run /line:finalize to convert to beads and create test specs
-  (or /line:mise to continue with full orchestration)
 ```
+
+Then **use AskUserQuestion** to ask:
+
+**Question:** "Menu plan created. How would you like to proceed?"
+**Options:**
+  - "Continue to /line:finalize" — Convert plan to beads and test specs
+  - "Review menu plan first" — Stop here, review docs/planning/menu-plan.yaml
+  - "Done for now" — End the planning session
+
+If user chooses "Continue to /line:finalize", invoke `Skill(skill="line:finalize")`.
+Otherwise, stop and output the artifact file paths.
 
 ---
 
