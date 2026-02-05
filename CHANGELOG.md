@@ -8,17 +8,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Updated loop command documentation (lc-0da.1)
-  - Architecture overview with package structure, data flow, and module dependency diagrams
-  - Module index with responsibility mapping and key exports
-  - Comprehensive troubleshooting section with quick scan table, decision trees, and recovery checklist
-  - Timeout behavior comparison table (standalone vs loop execution)
-  - ASCII flowcharts for retry, circuit breaker, skip list, and idle detection logic
-  - Restructured quick start with readiness checklist badges
-  - CLI options and help output verified against script
+- `/line:decision` project command for managing architecture decision records (ADRs)
+  - Create, list, view, and supersede decisions with markdown templates
+  - Initial set of ADRs (0001-0009) documenting existing project conventions
+- `demo-web` project template with 16 beads (9 tasks across 4 features) for building a Go + Templ + SQLite dashboard
+  - Includes planning context artifacts (brainstorm, architecture, decisions log, menu plan)
+- Interactive handoff prompts in planning commands (brainstorm → scope → finalize → prep)
+  - Each phase prompts the user to continue, review, or stop instead of passive NEXT STEP text
+  - Planning context persists across sessions in `docs/planning/context-<name>/` folders
+- `/line:help` command for contextual command discovery
+  - Detects workspace state (beads present, task counts, git status)
+  - Suggests the most relevant next command based on context
+- Language-agnostic `/line:plate` and testing documentation
+  - Multi-language examples (Go, Python, JS/TS, Rust) with progressive disclosure
+  - New `acceptance-testing` skill with cross-language BDD patterns
+- Line-loop daemon enhancements:
+  - Real-time progress tracking in status.json (current phase, action counts during long iterations)
+  - Idle detection with `--idle-timeout` and `--idle-action` flags
+  - `KITCHEN_IDLE` signal when no actionable work remains (clean exit)
+  - Configurable per-phase timeouts (`--cook-timeout`, `--serve-timeout`, `--tidy-timeout`, `--plate-timeout`)
+  - Skip list to prevent retry spirals on repeatedly failing tasks
+  - Cook phase receives structured feedback from failed reviews for targeted rework
+- Loop UX overhaul with improved terminal output:
+  - Iteration headers with progress counters and ready-task counts
+  - Phase dot indicators showing action density and duration
+  - Bead delta tracking (newly closed/filed items after each iteration)
+  - Task hierarchy display (parent feature/epic context)
+  - Feature completion banners
+- Enhanced `/line:loop` documentation with architecture diagrams, troubleshooting guides, and module reference
+
+### Changed
+- `/line:mise` now uses interactive handoff chain instead of running all phases sequentially
+- Existing `demo` template renamed to `demo-simple`
 
 ### Fixed
-- Corrected `SkipList.should_skip()` to `SkipList.is_skipped()` in developer debug reference
+- Serve phase now runs after cook timeout when the task was actually completed (code review was being incorrectly skipped)
+- Corrected invalid status values in documentation (`--status=pending` → `--status=open`)
 
 ## [0.8.6] - 2026-02-01
 ### Changed
