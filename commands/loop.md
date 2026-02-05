@@ -1226,7 +1226,7 @@ The loop itself handles all the complex logic (circuit breakers, retries, bead t
 
 ## Developer Reference
 
-The loop implementation follows patterns from the [Python Scripting Skill](/.claude/skills/python-scripting/python-scripting.md). Developers modifying the loop script should reference that guidance.
+The loop implementation follows patterns from the [Python Scripting Skill](../.claude/skills/python-scripting/python-scripting.md). Developers modifying the loop script should reference that guidance.
 
 ### Applied Best Practices
 
