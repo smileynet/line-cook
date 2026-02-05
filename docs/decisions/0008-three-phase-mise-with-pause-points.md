@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-02-04
 tags: [commands, workflow]
-relates-to: [0002]
+relates-to: ["0002"]
 superseded-by: null
 ---
 
