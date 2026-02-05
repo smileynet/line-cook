@@ -434,9 +434,10 @@ line-cook/
 │       └── taster.md
 ├── tests/                 # Test files
 ├── docs/                  # Documentation
+│   ├── decisions/         # Architecture decision records (ADRs)
 │   ├── guidance/          # Workflow guidance docs
 │   ├── planning/          # Planning methodology
-│   ├── templates/         # Feature templates
+│   ├── templates/         # Document templates
 │   └── dev/               # Developer docs
 ├── .github/
 │   └── workflows/         # CI/CD automation
