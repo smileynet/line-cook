@@ -1,117 +1,232 @@
 phases:
-  - id: phase-loop
-    title: "Phase: Loop Automation"
-    description: "Add /line:loop command for autonomous multi-task execution"
-    duration: "1-2 sessions"
+  - id: phase-dashboard
+    title: "Phase: Line Cook Dashboard MVP"
+    description: "Go web dashboard for monitoring Line Cook workflows in real time"
+    duration: "1-2 sessions (8 cook cycles)"
 
     features:
-      - id: feature-loop
-        title: "Feature: Execute multiple tasks autonomously"
+      - id: feature-status
+        title: "Feature: Real-time loop status display"
         priority: 2
-        user_story: "As a developer using Line Cook, I want to execute multiple ready tasks in sequence so that I can batch work without manual restarts"
+        user_story: "As a developer using Line Cook, I want to see the current loop status on a web dashboard so that I can monitor progress without checking the terminal"
         acceptance_criteria:
-          - "Can start loop that processes all ready tasks"
-          - "Loop stops when no tasks remain (bd ready empty)"
-          - "Loop stops on first task failure (stop-on-failure behavior)"
-          - "Shows task-by-task progress as each task completes"
-          - "Outputs final summary with completed/failed counts"
+          - "HTTP server starts on configurable port with health/ready endpoints"
+          - "SQLite database stores events and loop status"
+          - "Dashboard page shows current loop status (running/stopped, iteration count, current phase, current task, last update)"
+          - "Status updates when loop state changes"
         tracer_strategy:
-          minimal_flow: "Check bd ready → Run /line:run → Check result → Repeat or stop"
-          layers: "Loop orchestration → /line:run invocation → Progress tracking → Summary output"
-          expansion: "--max-iterations flag, stop hook for overnight runs, cost tracking"
+          minimal_flow: "Start server → Check health → Store event → Render dashboard"
+          layers: "Config → HTTP server → SQLite → Templ templates → Page handler"
+          expansion: "Live updates, history ingestion, event filtering (separate features)"
+        blocks: ["feature-timeline", "feature-events", "feature-realtime"]
         bdd_tests:
-          - test: "TestFeature_ExecuteMultipleTasksAutonomously"
+          - test: "TestFeature_RealtimeLoopStatusDisplay"
             scenarios:
-              - "Acceptance_Criterion_1_Process_all_ready_tasks"
-              - "Acceptance_Criterion_2_Stop_when_no_tasks_remain"
-              - "Acceptance_Criterion_3_Stop_on_first_failure"
-              - "Acceptance_Criterion_4_Task_by_task_progress"
-              - "Acceptance_Criterion_5_Final_summary"
+              - "Acceptance_Criterion_1_HTTP_server_with_health_ready"
+              - "Acceptance_Criterion_2_SQLite_stores_events_and_status"
+              - "Acceptance_Criterion_3_Dashboard_shows_loop_status"
+              - "Acceptance_Criterion_4_Status_updates_on_change"
         smoke_tests:
-          - "/line:loop executes first ready task"
-          - "/line:loop continues to second task after first completes"
-          - "/line:loop stops when bd ready returns empty"
-          - "/line:loop stops on task failure"
-          - "/line:loop shows progress after each task"
+          - "curl /health returns 200 with status ok"
+          - "curl /ready returns 200 with ready true"
+          - "Dashboard page renders loop status panel"
+          - "Event storage persists across restarts"
 
         tasks:
-          - title: "Create /line:loop command skeleton"
+          - title: "Go HTTP server with health endpoint"
             priority: 1
-            tracer: "Foundation - proves command structure works"
+            tracer: "Foundation - proves server lifecycle and config work"
             description: |
-              - Create commands/loop.md with YAML frontmatter
-              - Define allowed-tools (same as run.md)
-              - Add summary and process sections
-              - Document arguments ($ARGUMENTS for --max-iterations)
-            deliverable: "commands/loop.md skeleton with basic structure"
-            reference: "commands/run.md"
+              - cmd/server/main.go: HTTP server on configurable port (default 4000)
+              - GET /health returns {"status":"ok"} with 200
+              - GET /ready returns {"ready":true} with 200
+              - Graceful shutdown on SIGINT/SIGTERM (30s timeout)
+              - internal/config/config.go: read PORT, DB_PATH, LOOP_DATA_DIR from env
+              - go.mod initialized (module: line-cook-dashboard)
+            deliverable: "Running HTTP server with health/ready endpoints and config"
+            reference: "~/code/observability/cmd/server/main.go"
             tdd: true
 
-          - title: "Implement loop logic with bd ready check"
+          - title: "SQLite schema and event storage"
             priority: 1
-            depends_on: ["Create /line:loop command skeleton"]
-            tracer: "Core loop - proves iteration and termination work"
+            depends_on: ["Go HTTP server with health endpoint"]
+            tracer: "Persistence layer - proves database and query patterns work"
             description: |
-              - Step 1: Check bd ready for available tasks
-              - Step 2: If empty, output final summary and exit
-              - Step 3: Call Skill("line:run")
-              - Step 4: Parse result status (success/failure)
-              - Step 5: If failure, stop with error summary
-              - Step 6: Output task progress, goto Step 1
-            deliverable: "Working loop that executes until done or failure"
+              - internal/db/db.go: Open SQLite with WAL mode, auto-migrations
+              - events table: id, source, event_type, payload (JSON), timestamp
+              - loop_status table: key-value for latest loop state
+              - internal/db/queries.go: InsertEvent, GetRecentEvents, UpsertLoopStatus
+              - internal/models/models.go: HookEvent, LoopStatus structs
+            deliverable: "SQLite database with schema, query functions, and model types"
+            reference: "~/code/observability/internal/db/"
             tdd: true
 
-          - title: "Add task-by-task progress output"
+          - title: "Dashboard page showing loop status"
             priority: 2
-            depends_on: ["Implement loop logic with bd ready check"]
-            tracer: "UX - proves progress tracking works"
+            depends_on: ["SQLite schema and event storage"]
+            tracer: "View layer - proves Templ rendering and page handler pattern"
             description: |
-              - Track iteration count
-              - After each /line:run, output progress block:
-                - Task N: <id> - <title>
-                - Status: completed/failed
-                - Time: (optional, if available)
-              - Running totals: completed X, remaining Y
-            deliverable: "Progress output after each task completion"
+              - GET / renders dashboard with current loop status
+              - internal/web/templates/layout.templ: base HTML shell (Tailwind CDN, HTMX CDN)
+              - internal/web/templates/dashboard.templ: loop status panel
+              - internal/handlers/pages.go: page handler reading from db
+              - Shows: running/stopped, iteration count, current phase, current task, last update
+            deliverable: "Dashboard page with loop status panel rendered via Templ"
+            reference: "~/code/observability/internal/web/templates/"
             tdd: true
 
-          - title: "Add final summary output"
+      - id: feature-timeline
+        title: "Feature: Iteration history timeline"
+        priority: 2
+        user_story: "As a developer using Line Cook, I want to see past iterations as a visual timeline so that I can review what the loop accomplished"
+        acceptance_criteria:
+          - "History.jsonl data ingested into SQLite iterations table"
+          - "Timeline page shows iteration cards with task ID, title, verdict, duration, commit hash"
+          - "Color coding: green=completed, yellow=retry, red=failed"
+          - "Commit hashes are clickable links"
+        tracer_strategy:
+          minimal_flow: "POST history data → Store in iterations table → Render timeline"
+          layers: "API handler → SQLite → Templ timeline component"
+          expansion: "Pagination, search/filter, expandable card details"
+        bdd_tests:
+          - test: "TestFeature_IterationHistoryTimeline"
+            scenarios:
+              - "Acceptance_Criterion_1_Ingest_history_into_SQLite"
+              - "Acceptance_Criterion_2_Timeline_shows_iteration_cards"
+              - "Acceptance_Criterion_3_Color_coding_by_verdict"
+              - "Acceptance_Criterion_4_Clickable_commit_hashes"
+        smoke_tests:
+          - "POST /ingest/history stores iteration data"
+          - "GET /history renders timeline with cards"
+          - "Verdict badges have correct colors"
+
+        tasks:
+          - title: "Ingest history.jsonl into SQLite"
+            priority: 1
+            depends_on: ["SQLite schema and event storage"]
+            tracer: "Data pipeline - proves history ingestion and iteration storage"
+            description: |
+              - internal/handlers/api.go: POST /ingest/history endpoint
+              - Reads history.jsonl, parses each line, stores in iterations table
+              - iterations table: iteration, task_id, task_title, outcome, verdict,
+                duration_seconds, action_count, commit_hash, intent, recorded_at
+              - Idempotent: skip already-ingested iterations
+            deliverable: "History ingestion endpoint with iterations table"
+            tdd: true
+
+          - title: "Timeline component with iteration cards"
             priority: 2
-            depends_on: ["Add task-by-task progress output"]
-            tracer: "UX - proves summary formatting works"
+            depends_on: ["Ingest history.jsonl into SQLite"]
+            tracer: "View layer - proves Templ card component and color coding"
             description: |
-              - LOOP COMPLETE header
-              - Total tasks executed
-              - Success count
-              - Failure count (if any)
-              - Remaining tasks (if stopped early)
-              - Elapsed time (if tracked)
-              - Git status (commits made)
-            deliverable: "Comprehensive final summary block"
+              - GET /history renders timeline page
+              - internal/web/templates/timeline.templ: iteration cards
+              - Each card: task ID, title, verdict badge, duration, commit hash, action count
+              - Color coding: green=completed, yellow=retry, red=failed
+            deliverable: "Timeline page with colored iteration cards"
+            reference: "~/code/observability/internal/web/templates/"
             tdd: true
 
-          - title: "Add --max-iterations safety limit"
-            priority: 3
-            depends_on: ["Implement loop logic with bd ready check"]
-            tracer: "Safety - proves iteration limits work"
+      - id: feature-events
+        title: "Feature: Hook event receiver"
+        priority: 2
+        user_story: "As a developer using Line Cook, I want to send hook events to the dashboard so that I can see what Claude Code is doing"
+        acceptance_criteria:
+          - "POST /events endpoint accepts JSON hook event payload and returns 201"
+          - "Events stored in SQLite events table"
+          - "Event feed page with type filtering via HTMX"
+          - "Event type badges for visual distinction"
+        tracer_strategy:
+          minimal_flow: "POST event JSON → Store in db → Render event feed → Filter by type"
+          layers: "API handler → SQLite → Templ events component → HTMX filtering"
+          expansion: "Event search, event details modal, export"
+        bdd_tests:
+          - test: "TestFeature_HookEventReceiver"
+            scenarios:
+              - "Acceptance_Criterion_1_POST_events_returns_201"
+              - "Acceptance_Criterion_2_Events_stored_in_SQLite"
+              - "Acceptance_Criterion_3_Event_feed_with_type_filtering"
+              - "Acceptance_Criterion_4_Event_type_badges"
+        smoke_tests:
+          - "curl POST /events returns 201 with event ID"
+          - "GET /events renders event feed"
+          - "Filter dropdown updates list via HTMX"
+
+        tasks:
+          - title: "POST /events endpoint for hook data"
+            priority: 1
+            depends_on: ["SQLite schema and event storage"]
+            tracer: "API layer - proves event ingestion and validation"
             description: |
-              - Parse $ARGUMENTS for --max-iterations N or -n N
-              - Default to 25 if not specified
-              - Track iteration count
-              - Stop loop when limit reached
-              - Include limit status in final summary
-            deliverable: "--max-iterations flag with default of 25"
+              - POST /events accepts JSON hook event payload
+              - Stores in events table via db.InsertEvent
+              - Returns 201 with event ID
+              - Validates required fields (event_type, payload)
+              - Returns 400 for invalid payloads
+            deliverable: "Event ingestion API endpoint with validation"
+            reference: "~/code/observability/internal/handlers/api.go"
             tdd: true
 
-          - title: "Add documentation to getting-started.md"
-            priority: 3
-            depends_on: ["Add final summary output"]
-            tracer: "Documentation - proves feature is discoverable"
+          - title: "Event feed with type filtering"
+            priority: 2
+            depends_on: ["POST /events endpoint for hook data"]
+            tracer: "View + interactivity - proves HTMX partial rendering"
             description: |
-              - Add /line:loop to command reference
-              - Add example usage
-              - Document when to use loop vs run
-              - Document safety limits
-            deliverable: "Updated getting-started.md with loop docs"
-            reference: "commands/getting-started.md"
-            tdd: false
+              - GET /events page with filterable event list
+              - Filter by event_type dropdown
+              - internal/web/templates/events.templ: event feed with type badges
+              - HTMX-based filtering (no full page reload)
+            deliverable: "Event feed page with HTMX-based type filtering"
+            reference: "~/code/observability/internal/web/templates/"
+            tdd: true
+
+      - id: feature-realtime
+        title: "Feature: Live updates via WebSocket"
+        priority: 2
+        user_story: "As a developer using Line Cook, I want to see dashboard updates in real time so that I don't need to manually refresh the page"
+        acceptance_criteria:
+          - "WebSocket hub manages connected clients with register/unregister/broadcast"
+          - "New events broadcast JSON to all connected WebSocket clients"
+          - "Dashboard auto-updates status panel and timeline via HTMX SSE"
+          - "No polling required for updates"
+        tracer_strategy:
+          minimal_flow: "Connect WebSocket → Receive broadcast → Update DOM via HTMX SSE"
+          layers: "WebSocket hub → Client management → SSE endpoint → HTMX swap"
+          expansion: "Reconnection handling, connection status indicator, selective subscriptions"
+        bdd_tests:
+          - test: "TestFeature_LiveUpdatesViaWebSocket"
+            scenarios:
+              - "Acceptance_Criterion_1_WebSocket_hub_manages_clients"
+              - "Acceptance_Criterion_2_Events_broadcast_to_clients"
+              - "Acceptance_Criterion_3_Dashboard_auto_updates_via_SSE"
+              - "Acceptance_Criterion_4_No_polling_required"
+        smoke_tests:
+          - "WebSocket connection to /ws succeeds"
+          - "Posted event appears on connected client"
+          - "Dashboard updates without manual refresh"
+
+        tasks:
+          - title: "WebSocket hub and client management"
+            priority: 1
+            depends_on: ["Dashboard page showing loop status"]
+            tracer: "Realtime foundation - proves WebSocket lifecycle works"
+            description: |
+              - internal/ws/hub.go: broadcast-only WebSocket hub
+              - GET /ws endpoint upgrades to WebSocket
+              - Hub.Run() goroutine manages register/unregister/broadcast
+              - On new event: broadcast JSON to all connected clients
+            deliverable: "WebSocket hub with client management and broadcast"
+            reference: "~/code/observability/internal/ws/"
+            tdd: true
+
+          - title: "HTMX streaming for real-time updates"
+            priority: 2
+            depends_on: ["WebSocket hub and client management"]
+            tracer: "Frontend integration - proves SSE + HTMX swap works"
+            description: |
+              - GET /stream endpoint for HTMX EventSource (SSE)
+              - On new event/status change: push HTML fragment via SSE
+              - Dashboard auto-updates without polling
+              - Status panel refreshes, timeline appends, event feed appends
+            deliverable: "SSE streaming with HTMX-based DOM updates"
+            tdd: true
