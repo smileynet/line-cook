@@ -4,5 +4,5 @@
 2026-02-04 | brainstorm | Go + Templ + SQLite stack | Matches observability reference app, user confirmed
 2026-02-04 | brainstorm | Dual data sources (loop files + hooks) | Loop files for loop-specific data, hooks for broader command coverage
 2026-02-04 | brainstorm | Build from scratch via beads | Exercises full cook cycle, more realistic demo than pre-built
-2026-02-04 | scope | 8 tasks across 4 features | Each task completable in single cook cycle, dependencies enforce build order
+2026-02-04 | scope | 9 tasks across 4 features | Each task completable in single cook cycle, dependencies enforce build order
 2026-02-04 | scope | WebSocket for live updates | Matches observability pattern, HTMX SSE for HTML fragment streaming
