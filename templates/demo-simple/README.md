@@ -1,4 +1,4 @@
-# Line Cook Demo Template
+# Line Cook Demo Template (Simple)
 
 A pre-staged demo environment for testing Line Cook commands and onboarding new users.
 
@@ -12,13 +12,13 @@ mkdir /tmp/line-cook-demo && cd /tmp/line-cook-demo
 git init && git commit --allow-empty -m "Initial commit"
 
 # Copy CLAUDE.md for project context
-cp ~/code/line-cook/templates/demo/CLAUDE.md .
+cp ~/code/line-cook/templates/demo-simple/CLAUDE.md .
 
 # Initialize beads with demo prefix
 bd init --prefix=demo
 
 # Import demo issues from JSONL
-cat ~/code/line-cook/templates/demo/issues.jsonl | bd import
+cat ~/code/line-cook/templates/demo-simple/issues.jsonl | bd import
 
 # Set up dependency (demo-001.1.2 depends on demo-001.1.1)
 bd dep add demo-001.1.2 demo-001.1.1
