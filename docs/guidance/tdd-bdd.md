@@ -507,6 +507,12 @@ The **sous-chef** agent reviews (during serve):
 - Style (naming, consistency)
 - Completeness (task fully addressed)
 
+### After Feature/Epic Completion
+
+See [Workflow Quality Gates](./workflow.md#quality-gates) for plate-phase gates:
+- **Maître** reviews feature BDD tests
+- **Critic** reviews epic E2E coverage
+
 ## When to Use TDD vs BDD
 
 | Situation | Use | Why |
