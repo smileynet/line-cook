@@ -122,7 +122,7 @@ Close the feature bead to mark completion:
 bd close <feature-id>
 ```
 
-### Step 6b: Archive Planning Context (If Epic Complete)
+### Step 6b: Epic Plate Phase (If Last Feature)
 
 After closing the feature, check if all sibling features under the parent epic are now closed:
 
@@ -136,26 +136,99 @@ if [ -n "$PARENT" ]; then
   CLOSED=$(bd list --parent=$PARENT --json | jq '[.[] | select(.status == "closed")] | length')
 
   if [ "$TOTAL" -eq "$CLOSED" ]; then
-    # All children closed — archive the planning context
-    EPIC_DESC=$(bd show $PARENT --json | jq -r '.[0].description')
-    CONTEXT_PATH=$(echo "$EPIC_DESC" | grep -oP 'Planning context: \K.*')
-
-    if [ -n "$CONTEXT_PATH" ]; then
-      # Update context README status to archived
-      sed -i 's/^**Status:** .*/\*\*Status:\*\* archived/' "$CONTEXT_PATH/README.md"
-      git add "$CONTEXT_PATH/README.md"
-    fi
+    echo "All features complete — triggering epic plate phase"
+    # Continue to Step 6c for epic validation
   fi
 fi
 ```
 
-**Graceful no-op:** If no parent epic, no planning context link, or siblings still open — skip this step.
+**Graceful no-op:** If no parent epic or siblings still open — skip epic plate steps.
+
+### Step 6c: Epic E2E Review with Critic (If Epic Complete)
+
+When all features of an epic are closed, invoke the critic agent for E2E review:
+
+```
+Use Task tool to invoke critic subagent:
+Task(description="Review epic E2E coverage", prompt="Review E2E test coverage for epic <epic-id>
+
+Epic: <epic-title>
+Features completed:
+- <feature-1>
+- <feature-2>
+- <feature-3>
+
+Verify:
+- Critical user journeys are tested end-to-end
+- Cross-feature integration points are validated
+- Smoke tests exist for critical paths
+- Testing approach fits project type
+- No major antipatterns
+
+Report any critical issues before closing the epic.", subagent_type="critic")
+```
+
+**Wait for E2E coverage assessment.**
+
+**If FAIL or NEEDS_WORK with critical issues:**
+- Address issues
+- Re-run E2E review
+- Do NOT close epic until coverage is adequate
+
+### Step 6d: Create Epic Acceptance Documentation (If Epic Complete)
+
+Create epic acceptance documentation using the full service template:
+
+1. Copy the template to `docs/features/<epic-id>-acceptance.md`:
+   ```bash
+   mkdir -p docs/features
+   cp docs/templates/epic-acceptance.md docs/features/<epic-id>-acceptance.md
+   ```
+
+2. Fill in the template sections:
+   - **Service Overview** - Epic capability and features included
+   - **Guest Journey Validation** - E2E user journeys tested
+   - **Smoke Test Results** - Critical path validation
+   - **Cross-Feature Integration** - How features work together
+   - **Kitchen Staff Sign-Off** - All agent approvals
+   - **Guest Experience** - How users can use the capability
+   - **Related Work** - Links to feature acceptance reports
+
+3. Remove the "Usage Instructions" section from the filled template
+
+See [`docs/templates/epic-acceptance.md`](../docs/templates/epic-acceptance.md) for the full template.
+
+### Step 6e: Archive Planning Context (If Epic Complete)
+
+Archive the planning context if one exists:
+
+```bash
+EPIC_DESC=$(bd show $PARENT --json | jq -r '.[0].description')
+CONTEXT_PATH=$(echo "$EPIC_DESC" | grep -oP 'Planning context: \K.*')
+
+if [ -n "$CONTEXT_PATH" ]; then
+  # Update context README status to archived
+  sed -i 's/^**Status:** .*/\*\*Status:\*\* archived/' "$CONTEXT_PATH/README.md"
+  git add "$CONTEXT_PATH/README.md"
+fi
+```
+
+**Graceful no-op:** If no planning context link — skip this step.
+
+### Step 6f: Close Epic (If Epic Complete)
+
+Close the parent epic bead:
+
+```bash
+bd close $PARENT
+```
 
 ### Step 7: Commit and Push
 
 Commit acceptance documentation and CHANGELOG:
 
 ```bash
+# For feature-only plate:
 git add docs/features/<feature-id>-acceptance.md CHANGELOG.md
 git commit -m "feat: complete <feature-title> (<feature-id>)
 
@@ -166,11 +239,25 @@ Feature validation complete:
 
 Acceptance report: docs/features/<feature-id>-acceptance.md"
 
+# For epic plate (include epic artifacts):
+git add docs/features/<feature-id>-acceptance.md docs/features/<epic-id>-acceptance.md CHANGELOG.md
+git commit -m "feat: complete <epic-title> (<epic-id>)
+
+Epic validation complete:
+- All features plated and accepted
+- Critical user journeys validated by critic
+- E2E and smoke tests passing
+- Cross-feature integration verified
+
+Epic report: docs/features/<epic-id>-acceptance.md"
+
 bd sync
 git push
 ```
 
 ### Step 8: Output Summary
+
+**For feature-only plate:**
 
 ```
 PLATE PHASE COMPLETE
@@ -198,6 +285,41 @@ Commit: <hash>
 ───────────────────────────────────────────
 
 NEXT STEP: Continue with next feature or task
+```
+
+**For epic plate (last feature triggers epic completion):**
+
+```
+EPIC PLATE COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Epic: <epic-id> - <epic-title>
+Status: ✅ Full service validated
+
+Features Plated:
+  [✓] <feature-1>
+  [✓] <feature-2>
+  [✓] <feature-3>
+
+User Journey Validation:
+  [✓] <Journey 1> - tested end-to-end
+  [✓] <Journey 2> - tested end-to-end
+
+Quality Assurance:
+  [✓] All smoke tests passing
+  [✓] E2E coverage approved (critic)
+  [✓] Cross-feature integration verified
+
+Deliverables:
+  - Feature report: docs/features/<feature-id>-acceptance.md
+  - Epic report: docs/features/<epic-id>-acceptance.md
+  - CHANGELOG.md updated
+  - Feature and epic beads closed
+
+Commit: <hash>
+───────────────────────────────────────────
+
+NEXT STEP: Continue with next epic or feature
 ```
 
 ## Error Handling

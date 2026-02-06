@@ -140,7 +140,8 @@ Claude Code subagents are specialized review agents invoked during workflow phas
 |-------|-------|---------|
 | **taster** | Cook (RED) | Reviews test quality |
 | **sous-chef** | Serve | Reviews code changes |
-| **maître** | Plate | Reviews feature acceptance |
+| **maître** | Plate (Feature) | Reviews feature acceptance |
+| **critic** | Plate (Epic) | Reviews E2E and user journey coverage |
 
 ### Project-Specific Agents (.claude/agents/)
 
@@ -205,6 +206,19 @@ OpenCode plugin uses OpenCode's built-in agent system:
   - Check error scenarios included
 - **Trigger**: Automatically before plate phase (feature completion)
 - **Output**: BDD quality assessment with critical issue blocking if needed
+
+### critic
+
+- **Purpose**: Review epic-level E2E and smoke test coverage
+- **Responsibilities**:
+  - Validate critical user journeys are tested
+  - Check cross-feature integration points
+  - Verify smoke tests exist for critical paths
+  - Ensure testing approach fits project type
+  - Identify antipatterns (ice cream cone, flaky tests)
+- **Trigger**: Automatically during epic plate (when last feature completes)
+- **Output**: E2E coverage assessment (PASS, NEEDS_WORK, or FAIL)
+- **Documentation**: See [Epic-Level Testing](docs/guidance/epic-testing.md)
 
 ### kitchen-manager (expeditor)
 
@@ -372,7 +386,8 @@ line-cook/
 ├── agents/                # Claude Code subagent definitions (shipped)
 │   ├── taster.md          # Test quality review (cook RED phase)
 │   ├── sous-chef.md       # Code review (serve phase)
-│   └── maitre.md          # BDD test review (plate phase)
+│   ├── maitre.md          # BDD test review (plate phase)
+│   └── critic.md          # E2E test review (epic plate phase)
 ├── commands/              # Claude Code command definitions
 │   ├── getting-started.md # → /line:getting-started
 │   ├── mise.md            # → /line:mise (planning orchestrator)
