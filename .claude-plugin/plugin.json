@@ -1,7 +1,7 @@
 {
   "name": "line",
   "description": "Simple workflow orchestration for Claude Code sessions - mise, prep, cook, serve, tidy, plate, run",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "author": {
     "name": "smileynet",
     "url": "https://github.com/smileynet"
