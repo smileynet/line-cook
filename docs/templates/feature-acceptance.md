@@ -80,7 +80,7 @@ Quality assurance by Line Cook agents:
 | Agent | Role | Status |
 |-------|------|--------|
 | **Sous-Chef** | Code review | Approved |
-| **Quality-Control** | Test quality | Approved |
+| **Taster** | Test quality | Approved |
 | **Maître** | BDD test quality | Approved |
 
 ---

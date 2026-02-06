@@ -595,10 +595,22 @@ Testing integrates with the work hierarchy:
 - Validate the complete dish works together
 - Guest perspective: does the course deliver?
 
-**Epic = Multi-course Meal**
+**Epic = Multi-course Meal (Full Service)**
 - Multiple courses (features) compose the meal
 - Each course validated independently
-- Full meal validated at service
+- Full meal validated at service (E2E/smoke tests)
+- Critic agent reviews cross-feature integration
+
+### Epic Validation
+
+When the last feature of an epic completes, epic-level validation triggers:
+
+1. **Run smoke tests** - Critical paths work end-to-end
+2. **Invoke critic agent** - Reviews E2E test coverage
+3. **Generate acceptance report** - `docs/features/<epic-id>-acceptance.md`
+4. **Close epic** - After validation passes
+
+See [Epic-Level Testing](./epic-testing.md) for project-type-specific guidance.
 
 ### Quality Gates
 
@@ -607,13 +619,15 @@ Testing integrates with the work hierarchy:
 | **RED** | Taster | Test isolation, naming, structure |
 | **GREEN** | Automatic | Tests pass, builds, no lint errors |
 | **REFACTOR** | Sous-chef | Correctness, security, style, completeness |
-| **PLATE** | Maître | Acceptance criteria, BDD structure |
+| **PLATE (Feature)** | Maître | Acceptance criteria, BDD structure |
+| **PLATE (Epic)** | Critic | User journeys, E2E coverage, integration |
 
 See [TDD/BDD Workflow](./tdd-bdd.md) for detailed testing guidance.
 
 ## Related
 
 - [TDD/BDD Workflow](./tdd-bdd.md) - Testing cycle in cook phase
+- [Epic-Level Testing](./epic-testing.md) - E2E and smoke test guidance
 - [Context Management](./context-management.md) - Managing context
 - [Priority and Dependencies](./priorities.md) - What to work on next
 - [Scope Management](./scope-management.md) - Handling scope changes
