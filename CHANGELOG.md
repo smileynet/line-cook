@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `/line:architecture-audit` command for codebase structure and quality analysis
+  - Validates project health via scripts, detects code smells, and generates optional reports
+  - Scopes: `quick` (validation scripts only), `full` (includes metrics), or specific path
+  - Complements `/line:plan-audit` (beads/plans) with codebase-level hygiene checks
+- `critic` agent for epic-level end-to-end and smoke test review
+  - Completes testing review hierarchy: `taster` (unit) → `maître` (acceptance) → `critic` (epic)
+  - Validates test coverage across features and integration points
+  - Architecture Decision Record 0010 documents epic-level testing guidance
+
+### Changed
+- Renamed `/line:audit` → `/line:plan-audit` to clarify scope (audits beads and plans, not code)
+- README restructured following Diataxis framework for better navigation
+  - Tutorials, how-to guides, reference, and explanation sections clearly separated
+  - Condensed content with improved discoverability
+
 ## [0.9.0] - 2026-02-04
 ### Added
 - `/line:decision` project command for managing architecture decision records (ADRs)
