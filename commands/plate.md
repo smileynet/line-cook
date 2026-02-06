@@ -47,7 +47,7 @@ Execute tests to verify feature works end-to-end:
 - Re-run tests
 - Do NOT proceed with plate phase until tests pass
 
-### Step 3: Review BDD Test Quality with Sommelier
+### Step 3: Review BDD Test Quality with Maître
 
 Delegate BDD test quality review to maître subagent:
 
