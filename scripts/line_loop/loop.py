@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import re
 import subprocess
 import time
 from datetime import datetime
@@ -568,7 +569,7 @@ def auto_commit_wip(current_branch: str, cwd: Path) -> bool:
         return False
 
 
-def ensure_epic_branch(task_id: str, cwd: Path) -> Optional[str]:
+def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
     """Ensure we're on the correct branch for the task's epic.
 
     If the task belongs to an epic, ensures we're on the epic's branch.
@@ -580,24 +581,32 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> Optional[str]:
         cwd: Working directory of the git repository.
 
     Returns:
-        Branch name if switched/created, None if no change needed or error.
+        Tuple of (branch_name, was_created):
+        - (branch_name, True) if a new branch was created
+        - (branch_name, False) if switched to existing branch
+        - (None, False) if no change needed or error occurred
     """
     epic_id = get_epic_for_task(task_id, cwd)
     if not epic_id:
-        return None
+        return (None, False)
+
+    # Validate epic_id contains only valid git branch characters
+    if not re.match(r'^[a-zA-Z0-9._-]+$', epic_id):
+        logger.warning(f"Epic ID '{epic_id}' contains invalid branch characters, skipping branch switch")
+        return (None, False)
 
     expected_branch = f"epic/{epic_id}"
     current_branch = get_current_branch(cwd)
 
     if current_branch == expected_branch:
-        return None
+        return (None, False)
 
     # Auto-commit WIP if switching from another epic branch
     if current_branch and current_branch.startswith("epic/"):
         if has_uncommitted_changes(cwd):
             if not auto_commit_wip(current_branch, cwd):
                 logger.warning(f"Failed to commit WIP on {current_branch}, aborting branch switch to preserve work")
-                return None
+                return (None, False)
 
     try:
         if is_first_epic_work(epic_id, cwd):
@@ -605,7 +614,7 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> Optional[str]:
             result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
                 logger.warning(f"Failed to checkout main: {result.stderr}")
-                return None
+                return (None, False)
             result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
                 # Pull failed but we're on main - continue with possibly stale state
@@ -613,8 +622,9 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> Optional[str]:
             result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
                 logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
-                return None
+                return (None, False)
             logger.info(f"Created epic branch: {expected_branch}")
+            return (expected_branch, True)
         else:
             # Try to checkout existing branch (may be local or remote)
             result = run_subprocess(["git", "checkout", expected_branch], GIT_SYNC_TIMEOUT, cwd)
@@ -630,18 +640,20 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> Optional[str]:
                     result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
                     if result.returncode != 0:
                         logger.warning(f"Failed to checkout main: {result.stderr}")
-                        return None
+                        return (None, False)
                     run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
                     result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
                     if result.returncode != 0:
                         logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
-                        return None
+                        return (None, False)
+                    # Created fresh branch in this fallback path
+                    logger.info(f"Created epic branch: {expected_branch}")
+                    return (expected_branch, True)
             logger.info(f"Switched to epic branch: {expected_branch}")
-
-        return expected_branch
+            return (expected_branch, False)
     except Exception as e:
         logger.warning(f"Failed to ensure epic branch {expected_branch}: {e}")
-        return None
+        return (None, False)
 
 
 def merge_epic_on_close(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool, Optional[str]]:
@@ -848,12 +860,10 @@ def run_loop(
             print("-" * 44)
 
         # Pre-cook: ensure correct branch for epic work
-        branch_switched = None
         if target_task_id:
-            branch_switched = ensure_epic_branch(target_task_id, cwd)
+            branch_switched, was_created = ensure_epic_branch(target_task_id, cwd)
             if branch_switched and not json_output:
-                current = get_current_branch(cwd)
-                if is_first_epic_work(get_epic_for_task(target_task_id, cwd) or "", cwd):
+                if was_created:
                     print(f"  Branch: main → {branch_switched} (new)")
                 else:
                     print(f"  Branch: → {branch_switched}")
