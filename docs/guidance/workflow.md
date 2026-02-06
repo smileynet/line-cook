@@ -28,7 +28,7 @@ cat docs/guidance/context-management.md # Managing AI context
    ↓       ↓       ↓       ↓        ↓        ↓
  plan    sync   execute  review   commit  validate
 
-Hygiene: /audit (run periodically)
+Hygiene: /plan-audit (run periodically)
 ```
 
 Or run the full cycle:
@@ -204,9 +204,9 @@ This allows you to:
 
 See [Menu Plan Format](../planning/menu-plan-format.md) for YAML structure details.
 
-## Phase: Audit
+## Phase: Plan Audit
 
-**Command:** `/line:audit [scope] [--fix]`
+**Command:** `/line:plan-audit [scope] [--fix]`
 
 **Purpose:** Optional hygiene check for bead structure and quality.
 

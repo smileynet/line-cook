@@ -682,9 +682,9 @@ For the next task, start a new conversation or use the `/compact` command. Each 
 
 ---
 
-## Part 10: Mid-Project Hygiene with /audit
+## Part 10: Mid-Project Hygiene with /plan-audit
 
-While the prep → cook → serve → tidy cycle handles individual tasks, `/line:audit` is your tool for stepping back and checking overall project health. It's not part of the execution loop—it's a hygiene tool you reach for periodically.
+While the prep → cook → serve → tidy cycle handles individual tasks, `/line:plan-audit` is your tool for stepping back and checking overall project health. It's not part of the execution loop—it's a hygiene tool you reach for periodically.
 
 ### When Things Get Messy
 
@@ -711,7 +711,7 @@ Audit examines your beads across four categories:
 ### Run a Quick Hygiene Check
 
 ```
-/line:audit
+/line:plan-audit
 ```
 
 Sample output:
@@ -749,7 +749,7 @@ SUGGESTIONS (consider):
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Run /line:audit --fix to auto-fix safe issues.
+Run /line:plan-audit --fix to auto-fix safe issues.
 ```
 
 ### Understanding Findings
@@ -769,7 +769,7 @@ Critical issues block work—fix them immediately. Warnings indicate quality dri
 Some issues have obvious, safe fixes:
 
 ```
-/line:audit --fix
+/line:plan-audit --fix
 ```
 
 What auto-fix handles:
@@ -786,9 +786,9 @@ What needs manual review:
 
 | Scope | Command | Use Case |
 |-------|---------|----------|
-| `active` | `/line:audit` | Quick check of open items |
-| `full` | `/line:audit full` | Comprehensive audit including work verification |
-| `<id>` | `/line:audit lc-001` | Check a specific epic/feature and its children |
+| `active` | `/line:plan-audit` | Quick check of open items |
+| `full` | `/line:plan-audit full` | Comprehensive audit including work verification |
+| `<id>` | `/line:plan-audit lc-001` | Check a specific epic/feature and its children |
 
 The `full` scope also verifies:
 - Closed features have acceptance documentation
@@ -812,9 +812,9 @@ These tools check different things:
 | Tool | Level | What It Checks |
 |------|-------|----------------|
 | `bd doctor` | System | Installation, hooks, git sync, permissions |
-| `/line:audit` | Content | Hierarchy, quality, health, verification |
+| `/line:plan-audit` | Content | Hierarchy, quality, health, verification |
 
-Run `bd doctor` when beads commands fail. Run `/line:audit` when your project structure needs a checkup.
+Run `bd doctor` when beads commands fail. Run `/line:plan-audit` when your project structure needs a checkup.
 
 ---
 
@@ -850,7 +850,7 @@ Periodically check your project health:
 bd stats        # Overall counts
 bd blocked      # What's waiting on what
 bd ready        # What you can work on
-/line:audit     # Bead health and quality
+/line:plan-audit     # Bead health and quality
 ```
 
 ### The Parking Lot
@@ -975,7 +975,8 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 
 | Hygiene Commands | Purpose |
 |------------------|---------|
-| `/line:audit` | Validate bead structure and quality |
+| `/line:plan-audit` | Validate bead structure and quality |
+| `/line:architecture-audit` | Analyze code structure and smells |
 
 | Execution Commands | Purpose |
 |--------------------|---------|
