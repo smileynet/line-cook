@@ -594,7 +594,10 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> Optional[str]:
 
     # Auto-commit WIP if switching from another epic branch
     if current_branch and current_branch.startswith("epic/"):
-        auto_commit_wip(current_branch, cwd)
+        if has_uncommitted_changes(cwd):
+            if not auto_commit_wip(current_branch, cwd):
+                logger.warning(f"Failed to commit WIP on {current_branch}, aborting branch switch to preserve work")
+                return None
 
     try:
         if is_first_epic_work(epic_id, cwd):
@@ -1017,8 +1020,8 @@ def run_loop(
                         if merged:
                             print(f"  Branch: epic/{epic_id} merged to main")
                         elif merge_error == "merge_conflict":
-                            print(f"  ⚠️ Merge conflict: epic/{epic_id} could not be merged")
-                            print(f"     Bug bead created for manual resolution")
+                            print(f"  WARNING: Merge conflict: epic/{epic_id} could not be merged")
+                            print(f"           Bug bead created for manual resolution")
 
                 # Update status file with epic completions
                 if status_file:
