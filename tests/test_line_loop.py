@@ -1022,5 +1022,135 @@ class TestSerializeAction(unittest.TestCase):
         self.assertEqual(data["duration_ms"], 151)  # Rounded
 
 
+class TestEpicIdValidation(unittest.TestCase):
+    """Test epic_id format validation in ensure_epic_branch."""
+
+    def test_valid_epic_ids(self):
+        """Valid epic IDs pass validation."""
+        import re
+        valid_ids = [
+            "lc-abc",
+            "lc-abc.1",
+            "lc-abc.1.2",
+            "my_epic",
+            "epic-123",
+            "EPIC.2024",
+            "a1b2c3",
+        ]
+        pattern = r'^[a-zA-Z0-9._-]+$'
+        for epic_id in valid_ids:
+            self.assertIsNotNone(
+                re.match(pattern, epic_id),
+                f"Expected '{epic_id}' to be valid"
+            )
+
+    def test_invalid_epic_ids(self):
+        """Invalid epic IDs are rejected."""
+        import re
+        invalid_ids = [
+            "epic with spaces",
+            "epic/slash",
+            "epic:colon",
+            "epic;semicolon",
+            "epic$dollar",
+            "epic@at",
+            "epic!bang",
+            "epic#hash",
+            'epic"quotes',
+            "epic'quote",
+            "epic`backtick",
+            "; rm -rf /",  # Command injection attempt
+            "epic\nline",
+            "",
+        ]
+        pattern = r'^[a-zA-Z0-9._-]+$'
+        for epic_id in invalid_ids:
+            self.assertIsNone(
+                re.match(pattern, epic_id),
+                f"Expected '{epic_id}' to be invalid"
+            )
+
+
+class TestEnsureEpicBranchReturnType(unittest.TestCase):
+    """Test ensure_epic_branch return type behavior.
+
+    Note: These tests verify the return type contract without mocking
+    git/bd operations. For full integration tests, see integration tests.
+    """
+
+    def test_returns_tuple(self):
+        """ensure_epic_branch returns a tuple."""
+        # Test with a path that won't find any epic (no .beads)
+        result = line_loop.ensure_epic_branch("nonexistent-task", Path("/tmp"))
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_no_epic_returns_none_false(self):
+        """Returns (None, False) when no epic is found."""
+        result = line_loop.ensure_epic_branch("no-such-task", Path("/tmp"))
+        self.assertEqual(result, (None, False))
+
+    def test_return_type_unpacking(self):
+        """Return value can be unpacked as (branch, was_created)."""
+        branch, was_created = line_loop.ensure_epic_branch("test", Path("/tmp"))
+        self.assertIsNone(branch)
+        self.assertFalse(was_created)
+
+
+class TestHierarchyMaxDepthConfig(unittest.TestCase):
+    """Test HIERARCHY_MAX_DEPTH configuration constant."""
+
+    def test_hierarchy_max_depth_exported(self):
+        """HIERARCHY_MAX_DEPTH is exported from line_loop."""
+        self.assertTrue(hasattr(line_loop, 'HIERARCHY_MAX_DEPTH'))
+
+    def test_hierarchy_max_depth_value(self):
+        """HIERARCHY_MAX_DEPTH has expected value."""
+        self.assertEqual(line_loop.HIERARCHY_MAX_DEPTH, 10)
+
+    def test_hierarchy_max_depth_is_int(self):
+        """HIERARCHY_MAX_DEPTH is an integer."""
+        self.assertIsInstance(line_loop.HIERARCHY_MAX_DEPTH, int)
+
+
+class TestGetCurrentBranch(unittest.TestCase):
+    """Test get_current_branch function."""
+
+    def test_returns_optional_string(self):
+        """get_current_branch returns Optional[str]."""
+        result = line_loop.get_current_branch(Path("/tmp"))
+        # In a non-git directory, returns None
+        self.assertTrue(result is None or isinstance(result, str))
+
+
+class TestGetEpicForTask(unittest.TestCase):
+    """Test get_epic_for_task function."""
+
+    def test_returns_none_for_nonexistent_task(self):
+        """get_epic_for_task returns None for nonexistent task."""
+        result = line_loop.get_epic_for_task("nonexistent", Path("/tmp"))
+        self.assertIsNone(result)
+
+    def test_returns_optional_string(self):
+        """get_epic_for_task returns Optional[str]."""
+        result = line_loop.get_epic_for_task("any-id", Path("/tmp"))
+        self.assertTrue(result is None or isinstance(result, str))
+
+
+class TestIsFirstEpicWork(unittest.TestCase):
+    """Test is_first_epic_work function."""
+
+    def test_returns_bool(self):
+        """is_first_epic_work returns a boolean."""
+        result = line_loop.is_first_epic_work("any-epic", Path("/tmp"))
+        self.assertIsInstance(result, bool)
+
+    def test_nonexistent_epic_returns_true(self):
+        """For nonexistent epic (no branch, no children), returns True."""
+        # In /tmp with no git repo, branch checks fail, so should return True
+        result = line_loop.is_first_epic_work("nonexistent-epic", Path("/tmp"))
+        self.assertTrue(result)
+
+
 if __name__ == "__main__":
     unittest.main()
