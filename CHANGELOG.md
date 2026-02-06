@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed duplicate bundling bug in release.py that caused line-loop.py to be ~7000 lines instead of ~3600
+
 ## [0.9.2] - 2026-02-06
 ### Fixed
 - `/line:loop` now works after marketplace installation
