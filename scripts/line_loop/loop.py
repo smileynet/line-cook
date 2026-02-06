@@ -483,7 +483,10 @@ def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
         else:
             result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
-                logger.warning(f"git pull --rebase failed: {result.stderr}")
+                if "no tracking information" in result.stderr.lower():
+                    logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+                else:
+                    logger.warning(f"git pull --rebase failed: {result.stderr}")
                 # Non-fatal - continue
     except subprocess.TimeoutExpired:
         logger.warning("git fetch/pull timed out")

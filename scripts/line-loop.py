@@ -1448,14 +1448,16 @@ def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[st
     disappeared_ready = set(before.ready_ids) - set(after.ready_ids)
     worked = new_closed & disappeared_ready
     if worked:
-        return next(iter(worked))
+        # Prefer leaf nodes (more dots = deeper in hierarchy)
+        return max(worked, key=lambda x: x.count('.'))
 
     # Check for any task that was in_progress and is now closed
     was_in_progress = set(before.in_progress_ids)
     now_closed = set(after.closed_ids)
     completed = was_in_progress & now_closed
     if completed:
-        return next(iter(completed))
+        # Prefer leaf nodes (more dots = deeper in hierarchy)
+        return max(completed, key=lambda x: x.count('.'))
 
     return None
 
@@ -2423,7 +2425,7 @@ def run_iteration(
     after = get_bead_snapshot(cwd)
 
     # Determine final outcome
-    task_id = detect_worked_task(before, after) or task_id
+    task_id = task_id or detect_worked_task(before, after)
     task_title = get_task_title(task_id, cwd) if task_id else None
     commit_hash = get_latest_commit(cwd)
 
@@ -2936,7 +2938,10 @@ def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
         else:
             result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
-                logger.warning(f"git pull --rebase failed: {result.stderr}")
+                if "no tracking information" in result.stderr.lower():
+                    logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+                else:
+                    logger.warning(f"git pull --rebase failed: {result.stderr}")
                 # Non-fatal - continue
     except subprocess.TimeoutExpired:
         logger.warning("git fetch/pull timed out")
