@@ -467,22 +467,19 @@ def collect_stdlib_imports(modules: list[tuple[str, str]], cli_content: str) -> 
 
 
 def get_original_cli_wrapper(repo_root: Path) -> str:
-    """Get the original thin CLI wrapper content from git HEAD.
+    """Get the original thin CLI wrapper content.
 
-    Since bundling overwrites line-loop.py, we need to read the original
-    thin wrapper from git to preserve the CLI entry point code.
+    The thin CLI wrapper is stored separately in line-loop-cli.py to avoid
+    the chicken-and-egg problem where bundling overwrites line-loop.py,
+    which would then be read as the source for the next bundle.
     """
-    result = subprocess.run(
-        ["git", "show", "HEAD:scripts/line-loop.py"],
-        capture_output=True,
-        text=True,
-        cwd=repo_root
-    )
-    if result.returncode != 0:
-        # Fall back to reading from file if git fails
-        # (e.g., first bundle or file matches HEAD)
-        return (repo_root / "scripts" / "line-loop.py").read_text()
-    return result.stdout
+    cli_file = repo_root / "scripts" / "line-loop-cli.py"
+    if not cli_file.exists():
+        raise FileNotFoundError(
+            f"CLI wrapper not found: {cli_file}\n"
+            "This file contains the thin wrapper that imports from line_loop package."
+        )
+    return cli_file.read_text()
 
 
 def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
