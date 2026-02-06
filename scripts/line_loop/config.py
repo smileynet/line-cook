@@ -37,6 +37,9 @@ RECENT_ITERATIONS_LIMIT = 10        # Iterations to consider for analysis
 RECENT_ITERATIONS_DISPLAY = 5       # Iterations to show in status/reports
 CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
 
+# Hierarchy traversal
+HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks
+
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
     'cook': 1200,   # 20 min - Main work phase: TDD cycle, file edits, test runs

@@ -31,6 +31,7 @@ from .config import (
     DEFAULT_IDLE_TIMEOUT,
     GIT_COMMAND_TIMEOUT,
     GOAL_TEXT_MAX_LENGTH,
+    HIERARCHY_MAX_DEPTH,
 )
 from .models import (
     ActionRecord,
@@ -520,9 +521,8 @@ def get_epic_for_task(task_id: str, cwd: Path) -> Optional[str]:
     """
     current_id: Optional[str] = task_id
     visited: set[str] = set()
-    max_depth = 10  # Reasonable limit for hierarchy depth
 
-    while current_id and len(visited) < max_depth:
+    while current_id and len(visited) < HIERARCHY_MAX_DEPTH:
         if current_id in visited:
             logger.warning(f"Cycle detected in bead hierarchy at {current_id}")
             return None
