@@ -487,6 +487,126 @@ def get_latest_commit(cwd: Path) -> Optional[str]:
     return None
 
 
+def get_current_branch(cwd: Path) -> Optional[str]:
+    """Get current git branch name.
+
+    Args:
+        cwd: Working directory of the git repository.
+
+    Returns:
+        Branch name (e.g., "main", "epic/lc-abc"), or None if git command fails.
+    """
+    try:
+        result = run_subprocess(["git", "branch", "--show-current"], GIT_COMMAND_TIMEOUT, cwd)
+        if result.returncode == 0:
+            return result.stdout.strip() or None
+    except Exception as e:
+        logger.debug(f"Error getting current branch: {e}")
+    return None
+
+
+def get_epic_for_task(task_id: str, cwd: Path) -> Optional[str]:
+    """Walk hierarchy to find epic ancestor of a task.
+
+    Traverses the parent chain from task up to find the first epic.
+    This is used to determine which epic branch a task belongs to.
+
+    Args:
+        task_id: The bead issue ID (e.g., "lc-abc.1.1").
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        Epic ID if found, or None if task has no epic ancestor.
+    """
+    current_id: Optional[str] = task_id
+    visited: set[str] = set()
+    max_depth = 10  # Reasonable limit for hierarchy depth
+
+    while current_id and len(visited) < max_depth:
+        if current_id in visited:
+            logger.warning(f"Cycle detected in bead hierarchy at {current_id}")
+            return None
+        visited.add(current_id)
+
+        try:
+            result = run_subprocess(["bd", "show", current_id, "--json"], BD_COMMAND_TIMEOUT, cwd)
+            if result.returncode != 0:
+                return None
+            data = json.loads(result.stdout)
+            issue = parse_bd_json_item(data)
+            if not issue:
+                return None
+            if issue.get("issue_type") == "epic":
+                return current_id
+            current_id = issue.get("parent")
+        except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+            logger.debug(f"Error traversing hierarchy for {current_id}: {e}")
+            return None
+        except Exception as e:
+            logger.debug(f"Error getting epic for task {task_id}: {e}")
+            return None
+    return None
+
+
+def is_first_epic_work(epic_id: str, cwd: Path) -> bool:
+    """Check if this is the first work on an epic.
+
+    An epic is considered to have no prior work if:
+    1. The epic branch doesn't exist locally or on remote
+    2. None of its children are in_progress or closed
+
+    This determines whether we need to create a new epic branch
+    or switch to an existing one.
+
+    Args:
+        epic_id: The epic bead issue ID.
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        True if no prior work (branch should be created), False otherwise.
+    """
+    expected_branch = f"epic/{epic_id}"
+
+    # First check if branch already exists locally
+    try:
+        result = run_subprocess(
+            ["git", "show-ref", "--verify", f"refs/heads/{expected_branch}"],
+            GIT_COMMAND_TIMEOUT, cwd
+        )
+        if result.returncode == 0:
+            return False  # Branch exists locally
+    except Exception:
+        pass  # Fall through to remote check
+
+    # Check if branch exists on remote
+    try:
+        result = run_subprocess(
+            ["git", "ls-remote", "--heads", "origin", expected_branch],
+            GIT_COMMAND_TIMEOUT, cwd
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return False  # Branch exists on remote
+    except Exception:
+        pass  # Fall through to bead-based check
+
+    # Check bead status as fallback
+    for status in ["in_progress", "closed"]:
+        try:
+            result = run_subprocess(
+                ["bd", "list", f"--parent={epic_id}", f"--status={status}", "--json"],
+                BD_COMMAND_TIMEOUT, cwd
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                data = json.loads(result.stdout)
+                if data:
+                    return False
+        except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+            logger.debug(f"Error checking epic work status for {epic_id}: {e}")
+        except Exception as e:
+            logger.debug(f"Error checking if first epic work for {epic_id}: {e}")
+    return True
+
+
 def check_task_completed(
     task_id: Optional[str],
     before: BeadSnapshot,

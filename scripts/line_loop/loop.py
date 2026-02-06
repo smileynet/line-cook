@@ -51,7 +51,10 @@ from .iteration import (
     check_epic_completion,
     format_duration,
     get_bead_snapshot,
+    get_current_branch,
+    get_epic_for_task,
     get_task_title,
+    is_first_epic_work,
     print_human_iteration,
     run_iteration,
 )
@@ -509,6 +512,219 @@ def sync_at_start(cwd: Path, json_output: bool = False) -> bool:
     return True
 
 
+def has_uncommitted_changes(cwd: Path) -> bool:
+    """Check if there are uncommitted changes in the working directory.
+
+    Args:
+        cwd: Working directory of the git repository.
+
+    Returns:
+        True if there are uncommitted changes, False otherwise.
+    """
+    try:
+        result = run_subprocess(["git", "status", "--porcelain"], GIT_SYNC_TIMEOUT, cwd)
+        return bool(result.stdout.strip()) if result.returncode == 0 else False
+    except Exception as e:
+        logger.debug(f"Error checking uncommitted changes: {e}")
+        return False
+
+
+def auto_commit_wip(current_branch: str, cwd: Path) -> bool:
+    """Auto-commit work in progress when switching epics.
+
+    Commits any uncommitted changes with a WIP message before
+    switching to a different epic branch.
+
+    Args:
+        current_branch: Current branch name for the commit message.
+        cwd: Working directory of the git repository.
+
+    Returns:
+        True if WIP was committed, False if no changes or commit failed.
+    """
+    if not has_uncommitted_changes(cwd):
+        return False
+
+    try:
+        result = run_subprocess(["git", "add", "-A"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"git add failed: {result.stderr}")
+            return False
+        result = run_subprocess(
+            ["git", "commit", "-m", f"WIP: work in progress on {current_branch}"],
+            GIT_SYNC_TIMEOUT, cwd
+        )
+        if result.returncode != 0:
+            logger.warning(f"git commit failed: {result.stderr}")
+            return False
+        result = run_subprocess(["git", "push", "origin", current_branch], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            # Commit succeeded locally, push failed - log warning but return True
+            logger.warning(f"git push failed (commit succeeded locally): {result.stderr}")
+        logger.info(f"Auto-committed WIP on {current_branch}")
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to auto-commit WIP on {current_branch}: {e}")
+        return False
+
+
+def ensure_epic_branch(task_id: str, cwd: Path) -> Optional[str]:
+    """Ensure we're on the correct branch for the task's epic.
+
+    If the task belongs to an epic, ensures we're on the epic's branch.
+    Creates the branch if this is the first work on the epic.
+    If switching between epics, auto-commits any uncommitted work first.
+
+    Args:
+        task_id: The bead issue ID of the task.
+        cwd: Working directory of the git repository.
+
+    Returns:
+        Branch name if switched/created, None if no change needed or error.
+    """
+    epic_id = get_epic_for_task(task_id, cwd)
+    if not epic_id:
+        return None
+
+    expected_branch = f"epic/{epic_id}"
+    current_branch = get_current_branch(cwd)
+
+    if current_branch == expected_branch:
+        return None
+
+    # Auto-commit WIP if switching from another epic branch
+    if current_branch and current_branch.startswith("epic/"):
+        auto_commit_wip(current_branch, cwd)
+
+    try:
+        if is_first_epic_work(epic_id, cwd):
+            # Create new branch from main
+            result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
+            if result.returncode != 0:
+                logger.warning(f"Failed to checkout main: {result.stderr}")
+                return None
+            result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+            if result.returncode != 0:
+                # Pull failed but we're on main - continue with possibly stale state
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
+            if result.returncode != 0:
+                logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
+                return None
+            logger.info(f"Created epic branch: {expected_branch}")
+        else:
+            # Try to checkout existing branch (may be local or remote)
+            result = run_subprocess(["git", "checkout", expected_branch], GIT_SYNC_TIMEOUT, cwd)
+            if result.returncode != 0:
+                # Branch might exist on remote but not locally
+                run_subprocess(["git", "fetch", "origin", expected_branch], GIT_SYNC_TIMEOUT, cwd)
+                result = run_subprocess(
+                    ["git", "checkout", "-b", expected_branch, f"origin/{expected_branch}"],
+                    GIT_SYNC_TIMEOUT, cwd
+                )
+                if result.returncode != 0:
+                    # Remote doesn't have it either, create fresh from main
+                    result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
+                    if result.returncode != 0:
+                        logger.warning(f"Failed to checkout main: {result.stderr}")
+                        return None
+                    run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
+                    if result.returncode != 0:
+                        logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
+                        return None
+            logger.info(f"Switched to epic branch: {expected_branch}")
+
+        return expected_branch
+    except Exception as e:
+        logger.warning(f"Failed to ensure epic branch {expected_branch}: {e}")
+        return None
+
+
+def merge_epic_on_close(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool, Optional[str]]:
+    """Merge epic branch to main when epic closes.
+
+    Performs a --no-ff merge to main, deletes the epic branch locally
+    and remotely, and pushes main. On merge conflict, aborts the merge
+    and creates a bug bead for follow-up.
+
+    Args:
+        epic_id: The epic bead issue ID.
+        epic_title: The epic title for commit message.
+        cwd: Working directory of the git repository.
+
+    Returns:
+        Tuple of (success, error_type). error_type values:
+        - None: No error (success=True) or generic failure (success=False)
+        - "merge_conflict": Merge failed due to conflicts
+        - "merge_abort_failed": Failed to abort merge after conflict
+        - "checkout_failed": Failed to return to epic branch after abort
+    """
+    epic_branch = f"epic/{epic_id}"
+    current = get_current_branch(cwd)
+
+    if current != epic_branch:
+        logger.debug(f"Not on epic branch {epic_branch}, skipping merge")
+        return (False, None)
+
+    try:
+        # Checkout main and pull
+        result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"Failed to checkout main for merge: {result.stderr}")
+            return (False, None)
+        result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            # Pull failed but continue - merge might still work
+            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+
+        # Attempt merge
+        merge_result = run_subprocess(
+            ["git", "merge", "--no-ff", epic_branch, "-m", f"Merge epic {epic_id}: {epic_title}"],
+            GIT_SYNC_TIMEOUT, cwd
+        )
+
+        if merge_result.returncode != 0:
+            # Merge conflict - abort and restore state
+            abort_result = run_subprocess(["git", "merge", "--abort"], GIT_SYNC_TIMEOUT, cwd)
+            if abort_result.returncode != 0:
+                logger.error(f"Failed to abort merge for epic {epic_id}: {abort_result.stderr}")
+                return (False, "merge_abort_failed")
+
+            checkout_result = run_subprocess(["git", "checkout", epic_branch], GIT_SYNC_TIMEOUT, cwd)
+            if checkout_result.returncode != 0:
+                logger.error(f"Failed to return to epic branch {epic_branch}: {checkout_result.stderr}")
+                return (False, "checkout_failed")
+
+            # Create bug bead for follow-up
+            run_subprocess(
+                [
+                    "bd", "create",
+                    "--title", f"Resolve merge conflict for epic {epic_id}",
+                    "--type", "bug",
+                    "--priority", "1",
+                    "--description", f"Epic {epic_id} ({epic_title}) completed but merge to main failed due to conflicts."
+                ],
+                BD_COMMAND_TIMEOUT, cwd
+            )
+
+            logger.warning(f"Merge conflict for epic {epic_id}, created bug bead")
+            return (False, "merge_conflict")
+
+        # Success - delete branch and push
+        run_subprocess(["git", "branch", "-d", epic_branch], GIT_SYNC_TIMEOUT, cwd)
+        run_subprocess(["git", "push", "origin", "main"], GIT_SYNC_TIMEOUT, cwd)
+
+        # Try to delete remote branch (may not exist)
+        run_subprocess(["git", "push", "origin", "--delete", epic_branch], GIT_SYNC_TIMEOUT, cwd)
+
+        logger.info(f"Merged and deleted epic branch: {epic_branch}")
+        return (True, None)
+    except Exception as e:
+        logger.warning(f"Failed to merge epic branch {epic_branch}: {e}")
+        return (False, None)
+
+
 def run_loop(
     max_iterations: int,
     stop_on_blocked: bool,
@@ -627,6 +843,17 @@ def run_loop(
                     chain_parts = [f"{b.id} ({b.title})" if b.title else b.id for b in hierarchy]
                     print(f"    under: {' > '.join(chain_parts)}")
             print("-" * 44)
+
+        # Pre-cook: ensure correct branch for epic work
+        branch_switched = None
+        if target_task_id:
+            branch_switched = ensure_epic_branch(target_task_id, cwd)
+            if branch_switched and not json_output:
+                current = get_current_branch(cwd)
+                if is_first_epic_work(get_epic_for_task(target_task_id, cwd) or "", cwd):
+                    print(f"  Branch: main → {branch_switched} (new)")
+                else:
+                    print(f"  Branch: → {branch_switched}")
 
         # Create progress state for real-time status updates during iteration
         progress_state = None
@@ -781,6 +1008,18 @@ def run_loop(
         if result.success and not json_output:
             epic_summaries = check_epic_completion(cwd)
             if epic_summaries:
+                # Merge epic branches to main for each completed epic
+                for epic in epic_summaries:
+                    epic_id = epic.get("id")
+                    epic_title = epic.get("title", "")
+                    if epic_id:
+                        merged, merge_error = merge_epic_on_close(epic_id, epic_title, cwd)
+                        if merged:
+                            print(f"  Branch: epic/{epic_id} merged to main")
+                        elif merge_error == "merge_conflict":
+                            print(f"  ⚠️ Merge conflict: epic/{epic_id} could not be merged")
+                            print(f"     Bug bead created for manual resolution")
+
                 # Update status file with epic completions
                 if status_file:
                     try:

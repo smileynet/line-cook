@@ -56,12 +56,48 @@ bd blocked                    # Blocked orders (for awareness)
 
 Before selecting a task, check branching context:
 
-| Task Type | Branching | Rationale |
+| Work Type | Branching | Rationale |
 |-----------|-----------|-----------|
-| **Feature** | Create branch: `git checkout -b feature/<feature-id>` | Multi-task work, isolation |
-| **Task** | Stay on main | Small, atomic changes |
+| **Epic (first work)** | Create: `git checkout -b epic/<epic-id>` | Multi-feature isolation |
+| **Epic (continuing)** | Switch: `git checkout epic/<epic-id>` | Resume work |
+| **Feature (standalone)** | Create: `git checkout -b feature/<feature-id>` | Multi-task isolation |
+| **Task** | Stay on current branch | Atomic changes |
 
-If preparing to work on a feature (has `--type=feature`), create a feature branch first:
+**Epic branch detection** (after identifying next task in Step 5a):
+```bash
+# Walk up to find epic ancestor
+PARENT_ID=$(bd show <task-id> --json | jq -r '.[0].parent // empty')
+EPIC_ID=""
+while [ -n "$PARENT_ID" ]; do
+  PARENT_TYPE=$(bd show $PARENT_ID --json | jq -r '.[0].issue_type')
+  if [ "$PARENT_TYPE" = "epic" ]; then
+    EPIC_ID=$PARENT_ID
+    break
+  fi
+  PARENT_ID=$(bd show $PARENT_ID --json | jq -r '.[0].parent // empty')
+done
+
+if [ -n "$EPIC_ID" ]; then
+  EXPECTED="epic/$EPIC_ID"
+  CURRENT=$(git branch --show-current)
+
+  if [ "$CURRENT" != "$EXPECTED" ]; then
+    # Check if first work on epic (no children in_progress or closed)
+    IN_PROGRESS=$(bd list --parent=$EPIC_ID --status=in_progress --json 2>/dev/null | jq 'length' || echo 0)
+    CLOSED=$(bd list --parent=$EPIC_ID --status=closed --json 2>/dev/null | jq 'length' || echo 0)
+
+    if [ "$IN_PROGRESS" = "0" ] && [ "$CLOSED" = "0" ]; then
+      # First work on epic - create new branch from main
+      git checkout main && git pull --rebase && git checkout -b $EXPECTED
+    else
+      # Continuing work - switch to existing branch
+      git checkout $EXPECTED || git checkout -b $EXPECTED origin/$EXPECTED
+    fi
+  fi
+fi
+```
+
+If preparing to work on a standalone feature (has `--type=feature` with no epic parent):
 ```bash
 bd show <feature-id>  # Confirm it's a feature
 git checkout -b feature/<feature-id>
@@ -126,6 +162,7 @@ Output a focused, scannable summary with hierarchical context:
 **Standard output (task with full hierarchy):**
 ```
 SESSION: <project-name> @ <branch>
+Branch: <branch-status>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Sync: ✓ up to date | ⚠️ <issue>
@@ -259,7 +296,8 @@ Options:
 
 **Task with full hierarchy (epic → feature → task):**
 ```
-SESSION: line-cook @ main
+SESSION: line-cook @ epic/lc-abc
+Branch: main → epic/lc-abc (first epic work)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Sync: ✓ up to date
@@ -304,6 +342,7 @@ NEXT STEP: /line:cook lc-abc.1.4
 **Standalone task:**
 ```
 SESSION: line-cook @ main
+Branch: ✓ on main (standalone task)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Sync: ✓ up to date
@@ -326,6 +365,24 @@ INTENDED CHANGE:
   Increase timeout for bd sync to handle large repos.
 
 NEXT STEP: /line:cook lc-042
+```
+
+**Continuing epic work:**
+```
+SESSION: line-cook @ epic/lc-abc
+Branch: ✓ already on epic branch
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+...
+```
+
+**Switching between epics (with uncommitted changes):**
+```
+SESSION: line-cook @ epic/lc-xyz
+Branch: epic/lc-abc → epic/lc-xyz (auto-committed WIP)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+...
 ```
 
 ## Example Usage
