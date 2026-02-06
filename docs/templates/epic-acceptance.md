@@ -158,8 +158,8 @@ How users can experience this capability:
 
 | Bead | Title | Acceptance Report |
 |------|-------|-------------------|
-| <!-- lc-xxx.1 --> | <!-- feature title --> | [docs/features/xxx.1-acceptance.md](../features/xxx.1-acceptance.md) |
-| <!-- lc-xxx.2 --> | <!-- feature title --> | [docs/features/xxx.2-acceptance.md](../features/xxx.2-acceptance.md) |
+| <!-- lc-xxx.1 --> | <!-- feature title --> | <!-- ../features/xxx.1-acceptance.md --> |
+| <!-- lc-xxx.2 --> | <!-- feature title --> | <!-- ../features/xxx.2-acceptance.md --> |
 
 ### Related Epics
 
