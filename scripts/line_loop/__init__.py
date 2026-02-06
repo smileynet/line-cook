@@ -84,6 +84,9 @@ from .iteration import (
     get_task_title,
     get_children,
     get_latest_commit,
+    get_current_branch,
+    get_epic_for_task,
+    is_first_epic_work,
     format_duration,
     print_phase_progress,
     print_human_iteration,
@@ -103,6 +106,10 @@ from .loop import (
     calculate_retry_delay,
     request_shutdown,
     reset_shutdown_flag,
+    has_uncommitted_changes,
+    auto_commit_wip,
+    ensure_epic_branch,
+    merge_epic_on_close,
 )
 
 # Type-only export for StatusWriter protocol
@@ -166,6 +173,9 @@ __all__ = [
     "get_task_title",
     "get_children",
     "get_latest_commit",
+    "get_current_branch",
+    "get_epic_for_task",
+    "is_first_epic_work",
     "format_duration",
     "print_phase_progress",
     "print_human_iteration",
@@ -182,5 +192,9 @@ __all__ = [
     "calculate_retry_delay",
     "request_shutdown",
     "reset_shutdown_flag",
+    "has_uncommitted_changes",
+    "auto_commit_wip",
+    "ensure_epic_branch",
+    "merge_epic_on_close",
 ]
 # Note: StatusWriter is available under TYPE_CHECKING for type hints only

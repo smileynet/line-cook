@@ -145,7 +145,7 @@ For each **in-progress** issue:
 
 **Do NOT ask the user** - make a reasonable judgment or file a bead.
 
-### Step 3: Check for Epic Closures
+### Step 3: Check for Epic Closures and Branch Merges
 
 After closing issues, check if any epics are now eligible for closure (all children complete):
 
@@ -155,7 +155,40 @@ bd epic close-eligible --dry-run
 
 If epics are eligible:
 1. Close them: `bd epic close-eligible`
-2. For each closed epic, get its children for the summary:
+2. For each closed epic, **merge the epic branch to main**:
+   ```bash
+   for EPIC_ID in $(bd epic close-eligible --dry-run --json 2>/dev/null | jq -r '.[].id' || true); do
+     EPIC_BRANCH="epic/$EPIC_ID"
+     CURRENT=$(git branch --show-current)
+
+     if [ "$CURRENT" = "$EPIC_BRANCH" ]; then
+       EPIC_TITLE=$(bd show $EPIC_ID --json | jq -r '.[0].title')
+
+       # Checkout main and merge
+       git checkout main
+       git pull --rebase
+
+       if git merge --no-ff $EPIC_BRANCH -m "Merge epic $EPIC_ID: $EPIC_TITLE"; then
+         # Success - delete branch and push
+         git branch -d $EPIC_BRANCH
+         git push origin main
+         git push origin --delete $EPIC_BRANCH 2>/dev/null || true
+       else
+         # Merge conflict - abort and create bug bead
+         git merge --abort
+         git checkout $EPIC_BRANCH
+
+         bd create --title="Resolve merge conflict for epic $EPIC_ID" \
+           --type=bug --priority=1 \
+           --description="Epic $EPIC_ID ($EPIC_TITLE) completed but merge to main failed due to conflicts."
+
+         echo "⚠️ MERGE CONFLICT - manual resolution required"
+       fi
+     fi
+   done
+   ```
+
+3. Get children for the summary:
    ```bash
    bd list --parent=<epic-id> --all --json
    ```
@@ -269,6 +302,7 @@ Push: <success|failed>"
 ```
 ════════════════════════════════════════════
   EPIC COMPLETE: <epic-id> - <epic-title>
+  Branch: epic/<epic-id> merged to main
 ════════════════════════════════════════════
 
 Children completed (<count>):
@@ -280,6 +314,28 @@ Children completed (<count>):
 Impact:
   <1-2 sentence description of what capability/improvement is now complete,
    derived from the epic description>
+
+════════════════════════════════════════════
+```
+
+**If merge failed (conflict):**
+
+```
+════════════════════════════════════════════
+  EPIC COMPLETE: <epic-id> - <epic-title>
+════════════════════════════════════════════
+
+⚠️ MERGE CONFLICT
+Epic branch could not be merged to main.
+
+Conflicts require manual resolution:
+  1. Resolve conflicts manually
+  2. git add <resolved-files>
+  3. git commit
+  4. git push origin main
+  5. git branch -d epic/<epic-id>
+
+Bug bead created: <new-bead-id>
 
 ════════════════════════════════════════════
 ```
