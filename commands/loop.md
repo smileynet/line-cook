@@ -332,7 +332,7 @@ Use the Bash tool with `run_in_background: true` to start the loop:
 ```bash
 LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
 mkdir -p "$LOOP_DIR"
-python <path-to-line-loop.py> \
+python3 <path-to-line-loop.py> \
   --max-iterations ${MAX_ITERATIONS:-25} \
   --json \
   --output "$LOOP_DIR/report.json" \
@@ -1035,7 +1035,7 @@ Summary: Completed 3 features under this epic.
 Use `--break-on-epic` flag to pause the loop when an epic completes:
 
 ```bash
-python scripts/line-loop.py --break-on-epic
+python3 scripts/line-loop.py --break-on-epic
 ```
 
 This gives you a natural checkpoint to review progress before continuing.
@@ -1748,7 +1748,7 @@ For contributors debugging loop internals, see the [Architecture Overview](#arch
 **Enable verbose logging:**
 ```bash
 # Set VERBOSE=1 to see debug output
-VERBOSE=1 python scripts/line-loop.py --max-iterations 1
+VERBOSE=1 python3 scripts/line-loop.py --max-iterations 1
 ```
 
 **Inspect internal state:**

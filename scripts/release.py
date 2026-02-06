@@ -16,8 +16,10 @@ Exit codes:
     1: Pre-flight check failed
     2: Version update failed
     3: CHANGELOG update failed
-    4: Validation failed
-    5: Commit failed
+    4: Bundling failed
+    5: Validation failed
+    6: Commit failed
+    7: Push failed
 """
 
 import argparse
@@ -29,6 +31,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Optional
+
+# Module dependency order for bundling line_loop package
+LINE_LOOP_MODULES = ["config", "models", "parsing", "phase", "iteration", "loop"]
 
 
 # ANSI colors for terminal output
@@ -296,6 +301,293 @@ def update_changelog(config: ReleaseConfig) -> bool:
         return False
 
 
+def strip_all_imports(content: str) -> str:
+    """Strip all import statements and module-level boilerplate from content.
+
+    Since imports are consolidated at the top of the bundled file,
+    we strip them from individual module sections to avoid duplication.
+    Also strips logger assignments since the CLI entry point sets up logging.
+    """
+    lines = content.split('\n')
+    filtered_lines = []
+    in_multiline_import = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Handle multiline imports (with parentheses)
+        if in_multiline_import:
+            if ')' in line:
+                in_multiline_import = False
+            continue
+
+        # Skip all import statements
+        if stripped.startswith('from ') or stripped.startswith('import '):
+            if '(' in line and ')' not in line:
+                in_multiline_import = True
+            continue
+
+        # Skip logger assignments (will be set up in CLI entry point)
+        if stripped.startswith('logger = logging.getLogger'):
+            continue
+
+        filtered_lines.append(line)
+
+    return '\n'.join(filtered_lines)
+
+
+def extract_cli_main(cli_content: str) -> str:
+    """Extract the CLI portion from line-loop.py.
+
+    Gets everything after the line_loop imports through to the end,
+    skipping the shebang, module docstring, and all import statements.
+    """
+    lines = cli_content.split('\n')
+    result_lines = []
+
+    # State tracking
+    skip_until_import_close = False
+    in_module_docstring = False
+    past_imports = False
+    skip_header = True  # Skip shebang and module docstring
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Skip shebang
+        if stripped.startswith('#!'):
+            continue
+
+        # Track module-level docstring (first triple-quoted block at start)
+        if skip_header and not in_module_docstring:
+            if stripped.startswith('"""') or stripped.startswith("'''"):
+                quote = stripped[:3]
+                # Single-line docstring
+                if stripped.count(quote) >= 2:
+                    continue
+                # Start of multi-line docstring
+                in_module_docstring = True
+                continue
+            # Skip comments before docstring (like the Python version comment)
+            if stripped.startswith('#'):
+                continue
+
+        if in_module_docstring:
+            if '"""' in stripped or "'''" in stripped:
+                in_module_docstring = False
+                skip_header = False
+            continue
+
+        # Skip all import statements (both stdlib and line_loop package)
+        if stripped.startswith('import ') or stripped.startswith('from '):
+            if 'from line_loop import' in line:
+                skip_until_import_close = True
+            elif '(' in line and ')' not in line:
+                skip_until_import_close = True
+            continue
+
+        if skip_until_import_close:
+            if ')' in line:
+                skip_until_import_close = False
+                past_imports = True
+            continue
+
+        # Once we've seen content after imports, we're in CLI code
+        if stripped and not past_imports:
+            past_imports = True
+
+        if past_imports:
+            # Skip comments that reference the package structure (not applicable in bundled version)
+            if '# Import everything from the line_loop package' in line:
+                continue
+            result_lines.append(line)
+
+    return '\n'.join(result_lines)
+
+
+def collect_stdlib_imports(modules: list[tuple[str, str]], cli_content: str) -> list[str]:
+    """Collect all stdlib/external imports from modules and CLI wrapper.
+
+    Returns deduplicated and merged list of import statements.
+    Merges 'from X import a, b' statements for the same module.
+    """
+    # Track simple imports and from imports separately
+    simple_imports = set()  # import X
+    from_imports: dict[str, set[str]] = {}  # from X import -> set of names
+
+    all_content = [content for _, content in modules] + [cli_content]
+
+    for content in all_content:
+        for line in content.split('\n'):
+            stripped = line.strip()
+            # Skip internal imports (from .xxx)
+            if stripped.startswith('from .'):
+                continue
+            # Skip line_loop package imports
+            if 'line_loop' in stripped:
+                continue
+            # Skip TYPE_CHECKING imports for now, handle specially
+            if 'TYPE_CHECKING' in stripped:
+                continue
+            # Skip __future__ imports, we don't need them with Python 3.9+
+            if '__future__' in stripped:
+                continue
+
+            if stripped.startswith('import '):
+                # Simple import: import X or import X, Y
+                modules_part = stripped[7:].strip()
+                for mod in modules_part.split(','):
+                    simple_imports.add(mod.strip())
+            elif stripped.startswith('from '):
+                # From import: from X import a, b, c
+                match = re.match(r'from\s+(\S+)\s+import\s+(.+)', stripped)
+                if match:
+                    module = match.group(1)
+                    names = match.group(2)
+                    if module not in from_imports:
+                        from_imports[module] = set()
+                    for name in names.split(','):
+                        name = name.strip()
+                        if name:
+                            from_imports[module].add(name)
+
+    # Build output: simple imports first, then from imports
+    result = []
+
+    # Simple imports sorted
+    for mod in sorted(simple_imports):
+        result.append(f"import {mod}")
+
+    # From imports sorted by module, names sorted within
+    for module in sorted(from_imports.keys()):
+        names = sorted(from_imports[module])
+        result.append(f"from {module} import {', '.join(names)}")
+
+    return result
+
+
+def get_original_cli_wrapper(repo_root: Path) -> str:
+    """Get the original thin CLI wrapper content from git HEAD.
+
+    Since bundling overwrites line-loop.py, we need to read the original
+    thin wrapper from git to preserve the CLI entry point code.
+    """
+    result = subprocess.run(
+        ["git", "show", "HEAD:scripts/line-loop.py"],
+        capture_output=True,
+        text=True,
+        cwd=repo_root
+    )
+    if result.returncode != 0:
+        # Fall back to reading from file if git fails
+        # (e.g., first bundle or file matches HEAD)
+        return (repo_root / "scripts" / "line-loop.py").read_text()
+    return result.stdout
+
+
+def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
+    """Bundle line_loop package into line-loop.py for distribution.
+
+    The Claude Code plugin sync only copies individual .py files from scripts/,
+    not package directories. This function bundles the modular line_loop package
+    into a single self-contained line-loop.py that works after sync.
+
+    Args:
+        repo_root: Path to repository root
+        dry_run: If True, don't actually write the bundled file
+
+    Returns:
+        True if bundling succeeded, False otherwise
+    """
+    scripts_dir = repo_root / "scripts"
+    package_dir = scripts_dir / "line_loop"
+    output_file = scripts_dir / "line-loop.py"
+
+    # Read all module contents
+    modules: list[tuple[str, str]] = []
+    for module_name in LINE_LOOP_MODULES:
+        module_path = package_dir / f"{module_name}.py"
+        if not module_path.exists():
+            print(f"  {color('✗', Colors.RED)} Module not found: {module_path}")
+            return False
+        modules.append((module_name, module_path.read_text()))
+
+    # Read CLI wrapper from git HEAD (since bundling overwrites it)
+    cli_content = get_original_cli_wrapper(repo_root)
+
+    # Collect all stdlib imports
+    stdlib_imports = collect_stdlib_imports(modules, cli_content)
+
+    # Build bundled content
+    bundled_lines = [
+        "#!/usr/bin/env python3",
+        "# Requires Python 3.9+ for dataclasses and type hints (list[str] syntax)",
+        '"""Line Cook autonomous loop - runs individual phase skills until no tasks remain.',
+        "",
+        "This file is auto-generated by scripts/release.py from the line_loop package.",
+        "Do not edit directly - edit the source modules in scripts/line_loop/ instead.",
+        "",
+        "Platform Support:",
+        "    Linux, macOS, WSL - Fully supported",
+        "    Windows - NOT supported (select.select() requires Unix file descriptors)",
+        '"""',
+        "",
+        "# === Standard library imports ===",
+    ]
+
+    # Add collected imports
+    for imp in stdlib_imports:
+        bundled_lines.append(imp)
+
+    # Add typing TYPE_CHECKING import for Protocol (used in models.py)
+    bundled_lines.append("")
+    bundled_lines.append("from typing import TYPE_CHECKING")
+    bundled_lines.append("if TYPE_CHECKING:")
+    bundled_lines.append("    from typing import Protocol")
+    bundled_lines.append("")
+
+    # Add module contents
+    bundled_lines.append("# === Bundled from line_loop package ===")
+
+    for module_name, content in modules:
+        bundled_lines.append("")
+        bundled_lines.append(f"# --- {module_name}.py ---")
+        bundled_lines.append("")
+
+        # Strip all imports (consolidated at top) and module docstring
+        stripped = strip_all_imports(content)
+
+        # Remove module-level docstring (first triple-quoted string)
+        stripped = re.sub(r'^""".*?"""\s*\n', '', stripped, count=1, flags=re.DOTALL)
+
+        # Remove __future__ imports (we'll put one at the top if needed)
+        stripped = re.sub(r'^from __future__ import annotations\s*\n', '', stripped, flags=re.MULTILINE)
+
+        bundled_lines.append(stripped)
+
+    # Add CLI entry point
+    bundled_lines.append("")
+    bundled_lines.append("# === CLI Entry Point ===")
+    bundled_lines.append("")
+
+    cli_portion = extract_cli_main(cli_content)
+    bundled_lines.append(cli_portion)
+
+    # Join and write
+    bundled_content = '\n'.join(bundled_lines)
+
+    # Clean up excessive blank lines
+    bundled_content = re.sub(r'\n{4,}', '\n\n\n', bundled_content)
+
+    if not dry_run:
+        output_file.write_text(bundled_content)
+        print(f"  {color('✓', Colors.GREEN)} Bundled line_loop package into line-loop.py")
+    else:
+        print(f"  {color('○', Colors.BLUE)} Would bundle line_loop package into line-loop.py")
+
+    return True
+
+
 def run_validation_scripts(config: ReleaseConfig) -> bool:
     """Run validation scripts and report results."""
     scripts = [
@@ -347,7 +639,8 @@ def create_commit(config: ReleaseConfig) -> bool:
     files_to_stage = [
         ".claude-plugin/plugin.json",
         "line-cook-opencode/package.json",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "scripts/line-loop.py"  # Bundled for distribution
     ]
 
     for file in files_to_stage:
@@ -613,19 +906,26 @@ def main():
         print(color("CHANGELOG update failed.", Colors.RED))
         return 3
 
+    # Bundle line_loop package
+    print()
+    print("Bundling line_loop package:")
+    if not bundle_line_loop(config.repo_root, config.dry_run):
+        print(color("Bundling failed.", Colors.RED))
+        return 4
+
     # Run validation
     print()
     print("Validation:")
     if not run_validation_scripts(config):
         print(color("Validation failed.", Colors.RED))
-        return 4
+        return 5
 
     # Create commit
     print()
     print("Commit:")
     if not create_commit(config):
         print(color("Commit failed.", Colors.RED))
-        return 5
+        return 6
 
     # Push if requested
     if config.push:
@@ -633,7 +933,7 @@ def main():
         print("Push:")
         if not push_to_remote(config):
             print(color("Push failed.", Colors.RED))
-            return 6
+            return 7
 
     # Success summary
     print()
