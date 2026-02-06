@@ -1,5 +1,5 @@
 ---
-description: Audit beads structure, dependencies, and quality with auto-fix
+description: Audit bead/plan structure, dependencies, and quality with auto-fix
 allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ---
 
@@ -14,7 +14,7 @@ allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ## Arguments
 
 ```
-/line:audit [scope] [--fix] [--interactive]
+/line:plan-audit [scope] [--fix] [--interactive]
 
 scope:
   active    - Open/in_progress beads only (default)
@@ -499,7 +499,7 @@ NEXT STEP: <action based on findings>
 
 **NEXT STEP logic:**
 - If critical issues: "Fix critical issues before proceeding"
-- If auto-fixable + no --fix: "Run /line:audit --fix to auto-fix <count> issues"
+- If auto-fixable + no --fix: "Run /line:plan-audit --fix to auto-fix <count> issues"
 - If warnings only: "Review warnings, then /line:prep"
 - If clean: "/line:prep - workspace is healthy"
 
@@ -558,20 +558,20 @@ NEXT STEP: <action based on findings>
 
 ```bash
 # Check active work hygiene (default)
-/line:audit
+/line:plan-audit
 
 # Full audit with work verification
-/line:audit full
+/line:plan-audit full
 
 # Audit specific bead hierarchy
-/line:audit lc-abc.1
+/line:plan-audit lc-abc.1
 
 # Auto-fix safe issues
-/line:audit --fix
+/line:plan-audit --fix
 
 # Interactive fixes (prompts for each)
-/line:audit --fix --interactive
+/line:plan-audit --fix --interactive
 
 # Full audit with auto-fix
-/line:audit full --fix
+/line:plan-audit full --fix
 ```

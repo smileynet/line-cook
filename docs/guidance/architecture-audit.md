@@ -7,7 +7,7 @@ Architecture audits identify structural issues, code smells, and refactoring opp
 ## Quick Reference
 
 ```
-Architecture Audit (Code)          Plan Audit (/line:audit)
+Architecture Audit (/line:architecture-audit)   Plan Audit (/line:plan-audit)
 ├── Coupling analysis              ├── Bead hierarchy checks
 ├── Complexity metrics             ├── Content quality
 ├── Code smell detection           ├── Work hygiene
@@ -351,7 +351,7 @@ grep -l "deprecated\|superseded" docs/decisions/*.md
 
 ## Audit Types Comparison
 
-| Aspect | Architecture Audit | Plan Audit (/line:audit) |
+| Aspect | Architecture Audit (/line:architecture-audit) | Plan Audit (/line:plan-audit) |
 |--------|-------------------|--------------------------|
 | **Focus** | Code structure, quality | Work item content |
 | **Checks** | Coupling, complexity, smells | Hierarchy, criteria, hygiene |
@@ -425,4 +425,4 @@ git log --format='' --name-only | sort | uniq -c | sort -rn | head -10  # Churn
 - [Workflow](./workflow.md) - How audits fit in the development cycle
 - [Epic-Level Testing](./epic-testing.md) - Quality validation at epic completion
 - [TDD/BDD Workflow](./tdd-bdd.md) - Test-driven quality practices
-- [Plan Audit](../../commands/audit.md) - Bead content quality checks
+- [Plan Audit](../../commands/plan-audit.md) - Bead content quality checks

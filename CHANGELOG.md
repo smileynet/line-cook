@@ -60,10 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `tail` - View recent log output
   - Project-specific temp directories (`/tmp/line-loop-<project>/`) for isolation
 - `line-loop.py` now supports `--pid-file` and `--status-file` for external process management
-- `/line:audit` command for bead hygiene checks
+- `/line:plan-audit` command for bead hygiene checks (renamed from `/line:audit`)
   - Validates bead structure, quality, and health
   - Scopes: `active` (default), `full`, or specific bead ID
   - Optional `--fix` flag for auto-fixable issues
+- `/line:architecture-audit` command for codebase quality analysis
+  - Runs validation scripts and detects code smells
+  - Scopes: `quick` (scripts only), `full` (metrics + smells), or specific path
+  - Optional `--report` flag to generate dated report
 - `watch` subcommand for live progress with milestones and context
 - `history` subcommand for viewing iteration history with action details
 - Smart default behavior (no args: watch if running, start if not)

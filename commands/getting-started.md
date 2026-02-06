@@ -53,7 +53,7 @@ For autonomous execution of multiple tasks, use the `scripts/line-loop.sh` wrapp
 4. **Guardrails on completion** - Verify before marking done
 5. **Push before stop** - Session isn't done until pushed
 
-> **Tip:** Run `/line:audit` periodically to check bead health and structure.
+> **Tip:** Run `/line:plan-audit` periodically to check bead health and structure.
 
 ---
 

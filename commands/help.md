@@ -80,7 +80,8 @@ PLANNING (create work)
 /line:brainstorm   Explore problem space (divergent thinking)
 /line:scope        Create work breakdown (convergent thinking)
 /line:finalize     Convert plan to beads and test specs
-/line:audit        Check bead health and structure
+/line:plan-audit   Check bead health and structure
+/line:architecture-audit  Analyze code structure and smells
 
 EXECUTION (do work)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -189,7 +190,8 @@ Quick reference for all commands:
 | `/line:brainstorm` | Planning | Explore problem space (divergent thinking) |
 | `/line:scope` | Planning | Create work breakdown (convergent thinking) |
 | `/line:finalize` | Planning | Convert plan to beads and test specs |
-| `/line:audit` | Planning | Check bead health and structure |
+| `/line:plan-audit` | Planning | Check bead health and structure |
+| `/line:architecture-audit` | Planning | Analyze code structure and smells |
 | `/line:run` | Execution | Full cycle (orchestrates prep→cook→serve→tidy) |
 | `/line:prep` | Execution | Sync state, show ready tasks |
 | `/line:cook` | Execution | Execute task with TDD guardrails |
