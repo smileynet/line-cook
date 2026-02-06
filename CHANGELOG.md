@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `/line:loop` now works after marketplace installation
+  - The `line_loop/` package was not being synced by Claude Code's plugin system
+  - Added bundling step to `release.py` that creates a self-contained `line-loop.py`
+- Changed `python` to `python3` in loop.md for Linux compatibility
+
 ## [0.9.1] - 2026-02-05
 ### Added
 - `/line:architecture-audit` command for codebase structure and quality analysis
