@@ -244,7 +244,7 @@ From `doctor-docs.py`:
 
 1. `docs/templates/epic-acceptance.md` → `../features/xxx.1-acceptance.md` (placeholder)
 2. `docs/templates/epic-acceptance.md` → `../features/xxx.2-acceptance.md` (placeholder)
-3. `docs/guidance/architecture-audit.md` → `../commands/audit.md` (fixed during audit)
+3. `docs/guidance/architecture-audit.md` → was `../commands/audit.md`, corrected to `../../commands/audit.md`
 
 ### ADR Currency
 

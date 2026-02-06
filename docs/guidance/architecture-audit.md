@@ -61,16 +61,16 @@ grep -r "^import\|^from" --include="*.py" | cut -d: -f2 | sort | uniq -c | sort 
 
 Collect quantitative measurements:
 
-| Metric | Good | Moderate | Refactor | Critical |
-|--------|------|----------|----------|----------|
-| **Cyclomatic Complexity** | 1-4 | 5-7 | 8-10 | >10 |
-| **Lines per Method** | <20 | 20-30 | 30-50 | >50 |
-| **Lines per Class/Module** | <200 | 200-400 | 400-500 | >500 |
-| **Parameters per Method** | 1-3 | 4 | 5-6 | >6 |
-| **CBO (Coupling)** | <3 | 3-5 | 5-7 | >7 |
-| **WMC (Weighted Methods)** | <30 | 30-50 | 50-80 | >80 |
-| **Test Coverage (Line)** | >80% | 60-80% | 40-60% | <40% |
-| **Duplicate Code** | <1% | 1-3% | 3-5% | >5% |
+| Metric | Good | Moderate | Refactor | Warning | Critical |
+|--------|------|----------|----------|---------|----------|
+| **Cyclomatic Complexity** | 1-4 | 5-7 | 8-10 | 10-15 | >15 |
+| **Lines per Method** | <20 | 20-30 | 30-50 | 50-100 | >100 |
+| **Lines per Class/Module** | <200 | 200-400 | 400-500 | 500-1000 | >1000 |
+| **Parameters per Method** | 1-3 | 4 | 5-6 | 7-8 | >8 |
+| **CBO (Coupling)** | <3 | 3-5 | 5-7 | 7-10 | >10 |
+| **WMC (Weighted Methods)** | <30 | 30-50 | 50-80 | 80-120 | >120 |
+| **Test Coverage (Line)** | >80% | 60-80% | 40-60% | 20-40% | <20% |
+| **Duplicate Code** | <1% | 1-3% | 3-5% | 5-10% | >10% |
 
 **Tools:**
 - Python: `radon cc`, `radon mi`, `flake8`, `pylint`
