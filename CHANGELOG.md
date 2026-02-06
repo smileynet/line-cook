@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-02-05
 ### Added
 - `/line:architecture-audit` command for codebase structure and quality analysis
   - Validates project health via scripts, detects code smells, and generates optional reports
@@ -232,7 +233,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/smileynet/line-cook/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/smileynet/line-cook/compare/v0.8.6...v0.9.0
 [0.8.6]: https://github.com/smileynet/line-cook/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/smileynet/line-cook/compare/v0.8.4...v0.8.5
