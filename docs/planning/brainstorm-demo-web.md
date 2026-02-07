@@ -53,7 +53,7 @@ Line Cook users and developers testing the full workflow with a realistic projec
 | WebSocket broadcast hub | ~/code/observability/internal/ws/ | Pattern for live updates |
 | Templ HTML templating | ~/code/observability/internal/web/templates/ | Component patterns |
 | HTMX interactivity | ~/code/observability | CDN-based, no build step |
-| Demo template structure | templates/demo-simple/ | JSONL + CLAUDE.md + README format |
+| Demo template structure | docs/demos/demo-simple/ | JSONL + CLAUDE.md + README format |
 
 ### External Approaches Researched
 N/A - Using established patterns from the observability reference app.

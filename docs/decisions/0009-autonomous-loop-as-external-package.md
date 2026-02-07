@@ -19,7 +19,7 @@ Options considered:
 
 ## Decision
 
-We will implement the autonomous loop as an external Python package (`scripts/line_loop/`) in the same repository. It manages Claude CLI as a subprocess — starting sessions, streaming output, parsing structured signals (SERVE_RESULT verdicts, COOK_INTENT blocks), and controlling lifecycle. The package implements exponential backoff with jitter for retries, a circuit breaker (5 consecutive failures in a 10-iteration window trips the breaker), and a skip list (3 failures per task before skipping) to prevent retry spirals.
+We will implement the autonomous loop as an external Python package (`core/line_loop/`) in the same repository. It manages Claude CLI as a subprocess — starting sessions, streaming output, parsing structured signals (SERVE_RESULT verdicts, COOK_INTENT blocks), and controlling lifecycle. The package implements exponential backoff with jitter for retries, a circuit breaker (5 consecutive failures in a 10-iteration window trips the breaker), and a skip list (3 failures per task before skipping) to prevent retry spirals.
 
 The `/loop` command provides a TUI interface for starting, watching, and stopping the loop from within Claude Code.
 

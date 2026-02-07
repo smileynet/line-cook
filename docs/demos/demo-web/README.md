@@ -17,13 +17,13 @@ mkdir /tmp/line-cook-demo-web && cd /tmp/line-cook-demo-web
 git init && git commit --allow-empty -m "Initial commit"
 
 # Copy CLAUDE.md for project context
-cp ~/code/line-cook/templates/demo-web/CLAUDE.md .
+cp ~/code/line-cook/docs/demos/demo-web/CLAUDE.md .
 
 # Initialize beads with demo prefix
 bd init --prefix=demo
 
 # Import demo issues from JSONL
-cat ~/code/line-cook/templates/demo-web/issues.jsonl | bd import
+cat ~/code/line-cook/docs/demos/demo-web/issues.jsonl | bd import
 
 # Set up dependencies
 bd dep add demo-001.1.2 demo-001.1.1

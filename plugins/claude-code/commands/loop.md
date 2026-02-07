@@ -1043,7 +1043,7 @@ Summary: Completed 3 features under this epic.
 Use `--break-on-epic` flag to pause the loop when an epic completes:
 
 ```bash
-python3 scripts/line-loop.py --break-on-epic
+python3 plugins/claude-code/scripts/line-loop.py --break-on-epic
 ```
 
 This gives you a natural checkpoint to review progress before continuing.
@@ -1257,8 +1257,8 @@ The loop is implemented as a modular Python package with clear separation of con
 ### Package Structure
 
 ```
-scripts/
-├── line-loop.py          # Thin CLI wrapper (imports from line_loop)
+core/
+├── line-loop-cli.py      # CLI wrapper source (bundled into line-loop.py)
 └── line_loop/            # Core package
     ├── __init__.py       # Re-exports public API
     ├── config.py         # Constants: DEFAULT_*, timeouts, limits
@@ -1268,6 +1268,9 @@ scripts/
     ├── phase.py          # Phase execution: run_phase, streaming, idle detection
     ├── iteration.py      # Single iteration: run_iteration, completion checks
     └── loop.py           # Main orchestration: run_loop, sync, status writing
+
+plugins/claude-code/scripts/
+└── line-loop.py          # Bundled script (auto-generated from core/)
 ```
 
 ### Data Flow
@@ -1756,7 +1759,7 @@ For contributors debugging loop internals, see the [Architecture Overview](#arch
 **Enable verbose logging:**
 ```bash
 # Set VERBOSE=1 to see debug output
-VERBOSE=1 python3 scripts/line-loop.py --max-iterations 1
+VERBOSE=1 python3 plugins/claude-code/scripts/line-loop.py --max-iterations 1
 ```
 
 **Inspect internal state:**

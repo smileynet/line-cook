@@ -19,7 +19,7 @@ Options considered:
 
 ## Decision
 
-We will use a template system with a sync script (`scripts/sync-commands.sh`) because it maintains a single source of truth while accommodating platform differences through placeholder substitution. Templates live in `commands/templates/`, and the sync script generates Claude Code, OpenCode, and Kiro versions. Platform-specific additions (like OpenCode's `/line-run` instruction) are handled as template conditionals. A pre-commit hook enforces that generated files stay in sync with templates.
+We will use a template system with a sync script (`dev/sync-commands.sh`) because it maintains a single source of truth while accommodating platform differences through placeholder substitution. Templates live in `core/templates/commands/`, and the sync script generates Claude Code, OpenCode, and Kiro versions. Platform-specific additions (like OpenCode's `/line-run` instruction) are handled as template conditionals. A pre-commit hook enforces that generated files stay in sync with templates.
 
 ## Consequences
 
