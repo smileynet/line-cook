@@ -1,4 +1,6 @@
-Review changes before committing. Part of prep → cook → serve → tidy.
+## Summary
+
+**Review changes via headless Claude.** Part of prep → cook → serve → tidy.
 
 After cooking (executing a task), you "serve" it for review before tidying up.
 
@@ -37,49 +39,70 @@ git status --porcelain      # File list
 git diff HEAD~1
 ```
 
-### Step 3: Review Changes
+**Load project context for context-aware review:**
+```bash
+# Check for CLAUDE.md
+cat CLAUDE.md 2>/dev/null | head -50
+```
 
-Review the code changes for:
+This gives the reviewer awareness of project patterns and conventions.
 
-**Correctness:**
-- Logic errors
-- Edge cases
-- Error handling
+### Step 3: Perform Code Review
 
-**Security:**
-- Input validation
-- Secrets exposure
-- Injection risks
+Review the changes with focus on:
 
-**Style:**
-- Naming consistency
-- Code patterns
-- Documentation
-
-**Completeness:**
-- Does it fully address the task?
-- Any missing pieces?
-
-### Step 4: Categorize Issues
+1. **Correctness** - Logic errors, edge cases, error handling
+2. **Security** - Input validation, secrets exposure, injection risks
+3. **Style** - Naming, consistency with codebase patterns
+4. **Completeness** - Does it fully address the task?
 
 For each issue found, categorize:
+- **Severity**: critical | major | minor | nit
+- **File/line**: Location
+- **Issue**: Description
+- **Suggestion**: How to fix
+- **Auto-fixable**: true | false
 
-**Severity levels:**
-- **critical** - Must fix before commit (blocks tidy)
-- **major** - Should fix, but can file as bead
-- **minor** - Nice to fix, file as P4 bead
-- **nit** - Cosmetic, optional
+### Step 4: Process Review Results
 
-**Auto-fixable:**
-- Typos, formatting, obvious one-line fixes: Fix immediately
-- Others: Note for @line-tidy to file as beads
+Based on review findings:
 
-### Step 5: Output Review Results
+**If no issues found:**
+- Verdict: APPROVED
+- Proceed to Step 5
+
+**If issues found but non-blocking:**
+- Verdict: NEEDS_CHANGES
+- Do NOT continue to tidy
+- Report findings to user with SERVE_RESULT showing `next_step: @line-cook`
+- The user will rerun `@line-cook` with the review findings
+
+**If critical issues found:**
+- Verdict: BLOCKED
+- CRITICAL issues must be fixed before tidying
+- Report blocking issues to user
+- Recommend not proceeding to `@line-tidy` until fixed
+- Keep task as in_progress
+
+### Step 5: Record and Report Results
+
+**Record via comment:**
+```bash
+bd comments add <bead-id> "PHASE: SERVE
+Status: completed
+Verdict: <approved|needs_changes|blocked>
+Issues: <count> found (<auto-fixed>, <to-file>)
+Summary: <brief assessment>"
+```
+
+**Output format:**
+
+CRITICAL: The SERVE_RESULT block must be present and parseable by orchestrators.
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
-  ║  SERVE: Dish Presented                                       ║
-  ╚══════════════════════════════════════════════════════════════╝
+║  SERVE: Dish Presented                                       ║
+╚══════════════════════════════════════════════════════════════╝
 
 REVIEW: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -90,7 +113,7 @@ Summary:
 Auto-fixed:
   - <file>:<line> - <fix applied>
 
-Issues to file in @line-tidy (see Finding Filing Strategy):
+Issues to file in /tidy (see tidy.md Finding Filing Strategy):
   Code/project findings (siblings under parent):
   - [P1] "<title>" - <description>
   - [P3] "<title>" - <description>
@@ -120,7 +143,7 @@ NEXT STEP: @line-tidy (if APPROVED) or @line-cook (if NEEDS_CHANGES)
 
 ## Error Handling
 
-If review cannot be completed:
+If review cannot be completed (tool failure, timeout, etc.):
 
 ```
 ⚠️ REVIEW SKIPPED
@@ -128,7 +151,7 @@ If review cannot be completed:
 
 Reason: <error message>
 
-Manual review recommended. Run @line-serve again after @line-tidy.
+Manual review recommended. Run @line-serve again after /tidy.
 
 ┌─────────────────────────────────────────┐
 │ SERVE_RESULT                            │
@@ -137,6 +160,13 @@ Manual review recommended. Run @line-serve again after @line-tidy.
 │ blocking_issues: 0                      │
 │ retry_recommended: true                 │
 └─────────────────────────────────────────┘
+```
 
-NEXT STEP: @line-tidy
+Errors are **transient** - workflow continues but recommends retry later.
+
+## Example Usage
+
+```
+@line-serve              # Review most recent closed bead
+@line-serve lc-042       # Review specific bead
 ```

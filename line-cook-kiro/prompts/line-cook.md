@@ -1,8 +1,11 @@
-Execute a task with TDD cycle and completion guardrails. Part of prep → cook → serve → tidy.
+## Summary
+
+**Execute a task with guardrails ensuring completion.** Part of prep → cook → serve → tidy.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to execute
 
-**STOP after completing.** Show NEXT STEP and wait for user.
+**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
+**When run via `@line-run`:** Continue to the next step without stopping.
 
 ---
 
@@ -22,9 +25,33 @@ Execute a task with TDD cycle and completion guardrails. Part of prep → cook �
 bd show <id> --json
 ```
 
-If `issue_type` is `epic`, find first ready child and select that instead.
+If `issue_type` is `epic`, the epic itself has no work to execute. Instead:
 
-**If no actionable tasks available** (e.g., only P4 parking lot items):
+1. Show the epic and its children:
+   ```bash
+   bd list --parent=<epic-id> --all
+   ```
+
+2. Find the first ready (unblocked, open) child and select that instead
+
+3. Output epic context:
+   ```
+   EPIC SELECTED: <epic-id> - <epic-title>
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   Epics contain no direct work. Selecting first ready child:
+
+   Children (<open>/<total>):
+     ○ <id>: <title> [P<n>] ← selected
+     ○ <id>: <title> [P<n>] (blocked by above)
+     ✓ <id>: <title> (closed)
+
+   Proceeding with: <selected-task-id>
+   ```
+
+4. Continue with the selected child task
+
+**If no actionable tasks available** (e.g., only P4 parking lot items or research tasks):
 
 Output the idle signal and stop:
 ```
@@ -41,76 +68,83 @@ Signal: KITCHEN_IDLE
 <phase_complete>DONE</phase_complete>
 ```
 
-**Once a task is selected**, claim it:
+**Once a regular task is selected**, claim it:
 ```bash
 bd show <id>                           # Display full task details
 bd update <id> --status=in_progress    # Claim the task
+bd comments add <id> "PHASE: COOK
+Status: started"
 ```
 
-### Step 1.5: Check for Review Findings (Rework Mode)
+### Step 2: Load Ingredients
 
-Check if this task has previous review findings:
+Load relevant context files and documentation (the ingredients):
 
-```bash
-bd comments list <id> | grep -A 20 "PHASE: SERVE"
-```
-
-**If review findings exist (NEEDS_CHANGES):**
-1. Load the findings from the serve comment
-2. Prioritize fixing these before new work
-
-**Output in rework mode:**
-```
-REWORK MODE: <id> - <title>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Previous review found issues to address:
-  - [major] <issue 1>
-  - [minor] <issue 2>
-
-Addressing review findings first.
-```
-
-**If no review findings:** Continue normally with Step 2.
-
-### Step 2: Load Context
-
-Load relevant context files:
 1. **Project structure** - Understand codebase layout
-2. **Related code** - Read files relevant to the task
-3. **Dependencies** - Check what this task builds on
-4. **Planning context** - Check for design rationale:
+2. **Kitchen manual** - Review AGENTS.md for conventions
+3. **Related code** - Read files relevant to the task
+4. **Dependencies** - Check what this task builds on
+5. **Planning context** - Check for design rationale:
    - Get task's parent chain: `bd show <id> --json` -> parent -> epic
    - Read epic description, look for `Planning context:` line
    - If found, read `README.md` (always) and `architecture.md` (for patterns/constraints)
    - Graceful no-op if no context folder exists
 
+Use Read, Glob, and Grep tools to gather necessary context before starting implementation.
+
 ### Step 3: Plan the Task
 
-Break the task into steps:
+Break the task into steps using TodoWrite:
+
 1. Read the task description carefully
 2. Identify all deliverables
-3. Include verification steps (test, compile, etc.)
+3. Add steps to TodoWrite before starting
+4. Include verification steps (test, compile, etc.)
+
+For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
 ### Step 4: Execute TDD Cycle
 
-For code changes, follow TDD cycle:
+Process TodoWrite items systematically with TDD guardrails:
+
+- Mark items `in_progress` when starting
+- Mark items `completed` immediately when done
+- Only one item should be `in_progress` at a time
+
+**For code changes, follow TDD cycle:**
 
 1. **RED**: Write failing test
-   ```bash
-   <test command>  # Should FAIL
+    ```bash
+    <test command>  # e.g., pytest, go test, npm test
+    # Should FAIL
+    ```
+
+   **Automatic test quality review** (use Task tool):
    ```
+   Task tool: Review test code for quality
+   Subagent type: taster
+   ```
+
+   Test quality checks:
+   - Tests are isolated, fast, repeatable
+   - Clear test names and error messages
+   - Proper structure (Setup-Execute-Validate-Cleanup)
+   - No anti-patterns
+
+   **Address critical issues before GREEN phase.**
 
 2. **GREEN**: Implement minimal code
    ```bash
    <implementation>
-   <test command>  # Should PASS
+   <test command>
+   # Should PASS
    ```
 
 3. **REFACTOR**: Clean up code
    ```bash
    <refactoring>
-   <test command>  # All tests should PASS
+   <test command>
+   # All tests should PASS
    ```
 
 **Output format during execution:**
@@ -118,9 +152,9 @@ For code changes, follow TDD cycle:
 COOKING: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1/N] <step> ... ✓
-[2/N] <step> ... ✓
-[3/N] <step> ... in progress
+[1/N] <todo item> ... ✓
+[2/N] <todo item> ... ✓
+[3/N] <todo item> ... in progress
 
 Progress: 2/N complete
 
@@ -132,20 +166,30 @@ TDD Phase: RED/GREEN/REFACTOR
 - Potential issues or bugs
 - Areas for improvement
 
-These will be filed as beads in @line-tidy.
+These will be filed as beads in `@line-tidy` (see tidy.md Finding Filing Strategy).
 
-### Step 5: Verify Completion
+### Step 5: Verify Kitchen Equipment
 
 Before marking the task done, verify ALL guardrails pass:
 
+- [ ] All TodoWrite items completed
 - [ ] Code compiles/runs without errors
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
+
+**Kitchen equipment checklist** (MANDATORY):
+
+- [ ] All tests pass: `<test command>` (e.g., `go test ./...`, `pytest`, `npm test`)
+- [ ] Code builds: `<build command>` (e.g., `go build ./...`, `npm run build`)
+- [ ] Lint passes: `<lint command>` (if applicable, e.g., `npm run lint`)
+- [ ] Task deliverable complete
+- [ ] Code follows kitchen manual conventions
 
 **If any guardrail fails:**
 - Do NOT close the task
 - Report what's incomplete
 - Keep task as `in_progress`
+- Ask user how to proceed
 
 ### Step 6: Complete Task
 
@@ -153,54 +197,62 @@ Only after all guardrails pass:
 
 ```bash
 bd close <id>
+bd comments add <id> "PHASE: COOK
+Status: completed
+Summary: <what was done>
+Files: <count> changed
+Findings: <issues/improvements noted for tidy>"
 ```
 
 **Completion output format:**
 ```
 ╔══════════════════════════════════════════════════════════════╗
-  ║  KITCHEN COMPLETE                                            ║
-  ╚══════════════════════════════════════════════════════════════╝
+║  KITCHEN COMPLETE                                            ║
+╚══════════════════════════════════════════════════════════════╝
 
 Task: <id> - <title>
+Parent: <parent-id> - <parent-title> (or "none")
 Tests: ✓ All passing
 Build: ✓ Successful
 
-INTENT:
-  <1-2 sentences from task description>
+Signal: KITCHEN_COMPLETE
 
-BEFORE → AFTER:
-  <previous state> → <new state>
+Summary:
+  <1-2 sentence description of what was accomplished>
 
 Files changed:
   M src/foo.ts
   A src/bar.ts
 
 Verification:
+  [✓] All todos complete
   [✓] Code compiles
   [✓] Tests pass
 
-Findings (to file in @line-tidy):
+Findings (to file in /tidy):
   New tasks:
-    - "<discovered task>"
+    - "Add support for edge case X"
   Potential issues:
-    - "<issue noted>"
+    - "Error handling in Y could be improved"
+  Improvements:
+    - "Consider refactoring Z for clarity"
 
-NEXT STEP: @line-serve
+NEXT STEP: @line-serve (review) or @line-tidy (commit)
 ```
 
-## Guardrails
+## Guardrails (Critical)
 
 1. **No silent failures** - If something breaks, report it clearly
 2. **No premature completion** - Task stays open until verification passes
 3. **No scope creep** - Stay focused on the specific task
-4. **Note, don't file** - Discovered issues are noted for @line-tidy, not filed during cook
+4. **Note, don't file** - Discovered issues are noted for `@line-tidy`, not filed during cook
 
 ## Error Handling
 
 If execution is blocked:
 ```
 ⚠️ KITCHEN BLOCKED: <description>
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Reason: <why it failed>
 Progress: <what was completed>
@@ -210,4 +262,11 @@ Options:
   2. <alternative>
 
 Task remains in_progress. Run @line-tidy to save partial progress.
+```
+
+## Example Usage
+
+```
+@line-cook              # Pick highest priority ready task
+@line-cook lc-042       # Execute specific task
 ```

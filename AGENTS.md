@@ -292,28 +292,26 @@ See [Project Structure](docs/dev/project-structure.md) for full directory layout
 
 ## Command Synchronization
 
-Line Cook maintains commands for both Claude Code (`commands/`) and OpenCode (`line-cook-opencode/commands/`). To ensure consistency across platforms:
+Line Cook maintains commands for Claude Code (`commands/`), OpenCode (`line-cook-opencode/commands/`), and Kiro (`line-cook-kiro/prompts/`). All are generated from shared templates to prevent drift.
 
 **Template system:**
-- Source templates live in `commands/templates/`
+- Source templates live in `commands/templates/` (11 templates)
 - Use placeholders for platform-specific differences:
-  - `@NAMESPACE@` - Command prefix (`line:` for Claude, `line-` for OpenCode)
-  - `@HEADLESSCLI@` - Headless CLI name (`claude` for Claude, `opencode` for OpenCode)
-  - `@NAMESPACE@CLI` - CLI name reference in documentation
-- Run sync script to generate both versions:
+  - `@NAMESPACE@` - Command prefix (`line:` for Claude Code, `line-` for OpenCode/Kiro)
+  - `@IF_CLAUDECODE@`...`@ENDIF_CLAUDECODE@` - Claude Code only content
+  - `@IF_OPENCODE@`...`@ENDIF_OPENCODE@` - OpenCode and Kiro shared content
+  - `@IF_KIRO@`...`@ENDIF_KIRO@` - Kiro only content
 
 **Platform differences handled automatically:**
-- Claude Code: `/line:cook` (colon separator), uses `claude` CLI
-- OpenCode: `/line-cook` (hyphen separator), uses `opencode` CLI
-- OpenCode includes additional "When run via /line-run" instruction
+- Claude Code: `/line:cook` (colon separator), includes `Skill()` calls and subagent details
+- OpenCode: `/line-cook` (hyphen separator), simplified step numbering
+- Kiro: `@line-cook` (at-sign prefix), same content as OpenCode but no YAML frontmatter
 
-**Synced commands:**
-- cook.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`
-- serve.md → uses `@NAMESPACE@`, `@HEADLESSCLI@`, `@NAMESPACE@CLI`
+**Synced commands:** All 11 — brainstorm, cook, finalize, getting-started, mise, plate, prep, run, scope, serve, tidy
 
 **When to sync:**
 - After editing any command template
-- Before committing command changes
+- Before committing command changes (pre-commit hook enforces this)
 - As part of release process
 
 ```bash

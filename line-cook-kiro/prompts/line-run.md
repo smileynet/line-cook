@@ -1,4 +1,6 @@
-Run full workflow cycle: prep → cook → serve → tidy. Primary entry point for focused work sessions.
+## Summary
+
+**Run the full prep → cook → serve → tidy cycle.** Primary entry point for focused work sessions.
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to work on (passed to cook)
 
@@ -6,68 +8,38 @@ Run full workflow cycle: prep → cook → serve → tidy. Primary entry point f
 
 ## Process
 
-### Step 1: Run @line-prep
+Execute all steps in sequence without stopping between commands.
 
-Sync state and identify available work.
+### Step 1: Run /prep
 
-Execute the prep workflow to:
-- Sync with remote
-- Display ready tasks
-- Identify next task
+Read and follow `line-prep.md` to sync state and identify available work.
 
-### Step 2: Run @line-cook
+Wait for prep to complete.
 
-Execute work with TDD cycle.
+### Step 2: Run /cook
 
-**If `$ARGUMENTS` provided:**
-- Execute that specific task
+Read and follow `line-cook.md` to execute work.
 
-**Otherwise:**
-- Select highest priority ready task
+**If `$ARGUMENTS` provided:** Pass the task ID to cook for explicit task selection.
 
-Execute the task through:
-- Claim task
-- Load context
-- TDD cycle (red → green → refactor)
-- Verify completion
-- Close task
+**Otherwise:** Cook will auto-select the highest priority ready task.
 
-### Step 3: Run @line-serve
+Wait for cook to complete.
 
-Review changes before commit.
+### Step 3: Run /serve
 
-Review the code changes for:
-- Correctness
-- Security
-- Style
-- Completeness
+Read and follow `line-serve.md` for peer review.
 
-Categorize any issues found.
+Wait for review to complete. **Check SERVE_RESULT verdict:**
 
-**Check SERVE_RESULT verdict:**
+- If `continue: true` → proceed to Step 4
+- If `continue: false` (BLOCKED) → STOP and wait for user decision (see Error Handling)
 
-| Verdict | Action |
-|---------|--------|
-| `APPROVED` | Continue to Step 4 (tidy) |
-| `NEEDS_CHANGES` | Loop back to Step 2 (cook rework) |
-| `SKIPPED` | Continue to Step 4 with retry recommendation |
-| `BLOCKED` | **STOP workflow** - require user decision |
+### Step 4: Run /tidy
 
-**On NEEDS_CHANGES (Rework Loop):**
-1. Reopen the task: `bd update <id> --status=in_progress`
-2. Run @line-cook again (task will detect rework mode)
-3. Run @line-serve again
-4. Repeat until APPROVED or BLOCKED
-5. Maximum 3 rework attempts before requiring user decision
+Read and follow `line-tidy.md` to file discovered work, commit, and push.
 
-### Step 4: Run @line-tidy
-
-File discovered work, commit, and push.
-
-- File beads for discovered issues
-- Commit all changes
-- Sync beads
-- Push to remote
+Tidy files discovered work, commits, syncs, and pushes.
 
 ### Step 5: Check for Feature Completion
 
@@ -82,19 +54,16 @@ bd show <task-id>
 - Create acceptance documentation
 - Close feature bead
 
-### Step 6: Output Cycle Summary
+### Step 6: Cycle Summary
+
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-  ║  FULL SERVICE COMPLETE                                       ║
-  ╚══════════════════════════════════════════════════════════════╝
-
 WORK CYCLE: Complete
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [1/5] PREP    ✓ synced
 [2/5] COOK    ✓ executed
-[3/5] SERVE   ✓ reviewed (<verdict>)
+[3/5] SERVE   ✓ reviewed
 [4/5] TIDY    ✓ committed, pushed
 [5/5] PLATE   ✓ (feature complete) | ○ (not applicable)
 
@@ -104,56 +73,94 @@ TASK: <id> - <title>
 
 INTENT:
   <1-2 sentences from task description>
+  Goal: <deliverable or acceptance criteria>
 
 BEFORE → AFTER:
   <previous state> → <new state>
+  <what couldn't be done> → <what can be done now>
 
 Files: <count> changed
 Commit: <hash>
 Issues filed: <count>
 
-NEXT STEP: @line-prep (start new cycle)
 ```
 
 ## Error Handling
 
 If any step fails:
 
-1. **Prep fails** - Report sync error, stop workflow
-2. **Cook fails** - Report what went wrong, offer to continue to tidy
-3. **Serve fails** - Note review was skipped, continue to tidy
-4. **Tidy fails** - Report push error, create bead for follow-up
-5. **Plate fails** - Note feature validation incomplete, create bead
+- **Prep fails**: Report sync error, stop workflow
+- **Cook fails**: Report error, offer to continue to tidy (to save progress)
+- **Serve fails**: Check SERVE_RESULT verdict (see below)
+- **Tidy fails**: Report push error, create bead for follow-up
+- **Plate fails**: Note feature validation incomplete, create bead
+
+### Serve Verdict Handling
+
+After serve completes, check the SERVE_RESULT block:
+
+| Verdict | continue | Action |
+|---------|----------|--------|
+| `APPROVED` | true | Continue to tidy |
+| `NEEDS_CHANGES` | true | Loop back to cook (rework) |
+| `SKIPPED` | true | Continue to tidy with retry recommendation |
+| `BLOCKED` | false | **STOP workflow** - require user decision |
+
+**On NEEDS_CHANGES verdict (Rework Loop):**
+1. Reopen the task: `bd update <id> --status=in_progress`
+2. Run @line-cook again (task will detect rework mode via serve comments)
+3. Run @line-serve again
+4. Repeat until APPROVED or BLOCKED
+5. Maximum 3 rework attempts before requiring user decision
 
 ```
-WORK CYCLE: Incomplete
+REWORK REQUIRED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[1/5] PREP    ✓
-[2/5] COOK    ✓
-[3/5] SERVE   ✗ (error: <reason>)
-[4/5] TIDY    pending
-[5/5] PLATE   pending
+Review found issues that should be addressed:
 
-Failed at: <step>
-Error: <description>
+<list issues from SERVE_RESULT>
 
-──────────────────────────────────────────
+Looping back to @line-cook for rework (attempt <n>/3)...
+```
 
-TASK: <id> - <title>
+**On BLOCKED verdict:**
+```
+WORKFLOW STOPPED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Run @line-tidy to save progress, or investigate the error.
+Review found blocking issues that must be addressed:
+
+<list blocking issues from SERVE_RESULT>
+
+Options:
+1. Fix the issues, then run @line-run again
+2. Override: run @line-tidy directly (skips review gate)
+3. Abandon: leave changes uncommitted for manual handling
+
+Waiting for user decision...
+```
+
+**On SKIPPED verdict (API error):**
+```
+Review skipped due to API error. Continuing to tidy.
+Recommendation: Run @line-serve manually after tidy completes.
 ```
 
 ## Design Notes
 
-The @line-run command is the recommended entry point for focused work sessions:
+The `@line-run` command is the recommended entry point for focused work sessions. It:
 
 1. **Ensures proper setup** - Prep runs first to sync state
 2. **Maintains focus** - One task per cycle
 3. **Enforces quality** - Serve reviews before commit
 4. **Guarantees completion** - Tidy pushes changes
 
-For exploratory sessions or when you need more control, use individual commands.
+For exploratory sessions or when you need more control, use the individual commands directly.
 
-**NEXT STEP: @line-prep (start new cycle)**
+## Example Usage
+
+```
+@line-run              # Full cycle with auto-selected task
+@line-run lc-042       # Full cycle with specific task
+```

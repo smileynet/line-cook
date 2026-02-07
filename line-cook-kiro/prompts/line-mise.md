@@ -1,18 +1,20 @@
-Mise en place orchestrator: brainstorm → scope → finalize. Primary entry point for planning work.
+## Summary
 
-Like @line-run orchestrates the execution cycle (prep→cook→serve→tidy), @line-mise orchestrates the planning cycle (brainstorm→scope→finalize).
+**Mise en place orchestrator: brainstorm → scope → finalize.** Primary entry point for planning work.
+
+Like `@line-run` orchestrates the execution cycle (prep→cook→serve→tidy), `@line-mise` orchestrates the planning cycle (brainstorm→scope→finalize).
 
 **Phases:**
 1. **Brainstorm** - Divergent thinking: explore, question, research
 2. **Scope** - Convergent thinking: structure, scope, decompose
 3. **Finalize** - Execution: create beads, write test specs, persist
 
+**Arguments:** `$ARGUMENTS` (optional)
+- `skip-brainstorm` - Skip directly to scoping (when requirements are clear)
+
 ---
 
 ## Process
-
-**Arguments:** `$ARGUMENTS` (optional)
-- `skip-brainstorm` - Skip directly to scoping (when requirements are clear)
 
 ### Step 1: Start Planning Chain
 
@@ -36,6 +38,9 @@ After all phases complete, output summary:
 ║  MISE EN PLACE COMPLETE                                      ║
 ╚══════════════════════════════════════════════════════════════╝
 
+PLANNING CYCLE: Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 [1/3] BRAINSTORM  ✓ explored
 [2/3] SCOPE       ✓ structured
 [3/3] FINALIZE    ✓ beads + specs created
@@ -53,6 +58,8 @@ Artifacts:
 
 ## Using Individual Phases
 
+Users can run phases individually for more control:
+
 | Command | Purpose |
 |---------|---------|
 | `@line-brainstorm` | Just explore and create brainstorm.md |
@@ -67,17 +74,26 @@ Artifacts:
 ```
 PLANNING CYCLE              EXECUTION CYCLE
 ━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
-@brainstorm                 @prep
+/brainstorm                 /prep
       ↓                           ↓
-@scope                      @cook
+/scope                      /cook
       ↓                           ↓
-@finalize                   @serve
+/finalize                   /serve
                                   ↓
-                            @tidy
+                            /tidy
                                   ↓
-                            @plate
+                            /plate
 
-@mise (orchestrator)        @run (orchestrator)
+/mise (orchestrator)        /run (orchestrator)
 ```
 
 Planning creates the work. Execution completes the work.
+
+---
+
+## Example Usage
+
+```
+@line-mise                    # Full planning cycle with pauses
+```
+
