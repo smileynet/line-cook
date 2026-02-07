@@ -271,6 +271,31 @@ See [Beads Reference](docs/guidance/beads-reference.md) for hierarchy, CLI comma
 
 ## Project Structure
 
+Three zones: **plugins/** (shipped), **core/** (shared source), **dev/** (tooling)
+
+```
+plugins/          Shipped per-platform artifacts
+  claude-code/    commands/, agents/, scripts/
+  opencode/       commands/, src/, dist/
+  kiro/           agents/, prompts/, steering/
+
+core/             Shared source material
+  templates/      *.md.template → plugins/*/commands|agents|steering
+  line_loop/      Python package → bundled into plugins/claude-code/scripts/
+  line-loop-cli.py  CLI wrapper source for bundling
+
+dev/              Development tooling
+  release.py, sync-commands.sh, check-*, doctor-*, validate-*
+```
+
+Data flow:
+
+```
+core/templates/commands/  ──sync──>  plugins/{claude-code,opencode,kiro}
+core/templates/agents/    ──sync──>  plugins/{claude-code,kiro}
+core/line_loop/           ──bundle──> plugins/claude-code/scripts/line-loop.py
+```
+
 See [Project Structure](docs/dev/project-structure.md) for full directory layout.
 
 ## Command Synchronization

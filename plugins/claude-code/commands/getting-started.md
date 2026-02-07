@@ -21,7 +21,7 @@ This guide explains the line-cook workflow and provides a complete reference for
 
 Or use `/line:run` to run the full cycle.
 
-For autonomous execution of multiple tasks, use the `scripts/line-loop.sh` wrapper (see [Autonomous Loop](#autonomous-loop) below).
+For autonomous execution of multiple tasks, use the `/line:loop` command (see [Autonomous Loop](#autonomous-loop) below).
 
 ### /line:prep - "What's ready?"
 - Syncs git and beads
@@ -163,16 +163,19 @@ For batch processing multiple tasks, use the external script wrapper instead of 
 
 ```bash
 # Run with default 25 iterations
-./scripts/line-loop.py
+/line:loop
+
+# Or invoke the script directly
+python3 plugins/claude-code/scripts/line-loop.py
 
 # Run with custom limit
-./scripts/line-loop.py --max-iterations 10
+python3 plugins/claude-code/scripts/line-loop.py --max-iterations 10
 
 # JSON output for automation
-./scripts/line-loop.py --json --output report.json
+python3 plugins/claude-code/scripts/line-loop.py --json --output report.json
 
 # Control behavior
-./scripts/line-loop.py --stop-on-blocked --max-retries 1
+python3 plugins/claude-code/scripts/line-loop.py --stop-on-blocked --max-retries 1
 ```
 
 ### Options

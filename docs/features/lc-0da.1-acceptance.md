@@ -105,13 +105,13 @@ How users can verify this feature works:
 
 ```bash
 # View the updated documentation
-cat commands/loop.md
+cat plugins/claude-code/commands/loop.md
 
 # Check the quick start section
-head -55 commands/loop.md
+head -55 plugins/claude-code/commands/loop.md
 
 # Verify CLI options match script
-python scripts/line-loop.py --help
+python plugins/claude-code/scripts/line-loop.py --help
 ```
 
 **Expected Outcome:** Documentation accurately reflects the modular loop script structure, with comprehensive troubleshooting, architecture diagrams, and CLI reference.

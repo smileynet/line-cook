@@ -1,5 +1,7 @@
 # Architecture Audit Report: Line Cook
 
+> **Note:** Paths in this audit pre-date the three-zone reorganization (commit 3d6fda9). `scripts/` is now `core/` and `dev/`, `agents/` and `commands/` root dirs moved to `plugins/claude-code/`.
+
 **Date:** 2026-02-05
 **Auditor:** Claude (automated analysis)
 **Scope:** Full codebase
