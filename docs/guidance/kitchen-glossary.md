@@ -5,7 +5,7 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | Term | Meaning | Context |
 |------|---------|---------|
 | **Mise** | Create work breakdown before starting | `/mise` phase |
-| **Audit** | Validate bead structure and quality | `/audit` phase |
+| **Audit** | Validate bead structure and quality | `/plan-audit` phase |
 | **Prep** | Sync git, show ready tasks | `/prep` phase |
 | **Cook** | Execute task with TDD cycle | `/cook` phase |
 | **Serve** | Review code changes | `/serve` phase |
