@@ -134,11 +134,12 @@ Claude Code uses slash commands instead of agents:
 
 ### Claude Code Subagents (agents/)
 
-Claude Code subagents are specialized review agents invoked during workflow phases:
+Claude Code subagents are specialized agents invoked during workflow phases:
 
 | Agent | Phase | Purpose |
 |-------|-------|---------|
 | **taster** | Cook (RED) | Reviews test quality |
+| **polisher** | Serve | Refines code for clarity before review |
 | **sous-chef** | Serve | Reviews code changes |
 | **maître** | Plate (Feature) | Reviews feature acceptance |
 | **critic** | Plate (Epic) | Reviews E2E and user journey coverage |
@@ -172,6 +173,19 @@ OpenCode plugin uses OpenCode's built-in agent system:
   - Refactor while tests pass
   - Verify tests pass and code builds
 - **Output**: `KITCHEN_COMPLETE` signal when task is ready for review
+
+### polisher
+
+- **Purpose**: Refine code for clarity before review
+- **Responsibilities**:
+  - Reduce unnecessary complexity and nesting
+  - Improve naming clarity
+  - Remove dead code and redundancy
+  - Follow project conventions from CLAUDE.md
+  - Avoid nested ternaries (prefer if/else or switch)
+- **Scope**: Only touches files modified in current changes
+- **Constraint**: Never changes functionality—only how code is written
+- **Output**: Summary of refinements made (file:line - change)
 
 ### sous-chef
 
