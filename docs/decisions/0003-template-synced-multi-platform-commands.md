@@ -1,8 +1,8 @@
 ---
 status: accepted
 date: 2026-01-22
-tags: [architecture, commands]
-relates-to: []
+tags: [architecture, commands, agents]
+relates-to: [0011]
 superseded-by: null
 ---
 
@@ -28,4 +28,5 @@ We will use a template system with a sync script (`scripts/sync-commands.sh`) be
 - Positive: Platform differences are explicit and documented via placeholders
 - Positive: Pre-commit sync guard catches out-of-sync generated files before they're committed
 - Positive: Kiro support added as third sync target with minimal overhead — shares OpenCode content via `@IF_OPENCODE@` blocks, uses `@line-` namespace, strips YAML frontmatter
+- Positive: Template system extended to cover review agents (see ADR 0011) — same sync script and pre-commit guard handles both commands and agents
 - Negative: Adding a new synced command requires updating the template system
