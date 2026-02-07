@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `polisher` agent for code refinement before sous-chef review in serve phase
+  - Automatically polishes modified files for clarity and consistency
+  - Reduces complexity, improves naming, removes dead code
+  - Conservative approach: preserves functionality, only changes how code is written
+
 ## [0.10.0] - 2026-02-06
 ### Added
 - Epic-level git branch management for `/line:run` and `/line:loop`
