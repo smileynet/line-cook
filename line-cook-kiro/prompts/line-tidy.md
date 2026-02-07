@@ -6,35 +6,59 @@ This is where findings from @line-cook and @line-serve get filed as beads.
 
 ---
 
-## Bead Creation Reference
+## Finding Filing Strategy
 
-Use this when filing discovered issues:
+Findings from cook and serve are filed as **siblings under the current task's parent feature**:
+
+**Code/project findings (any priority)** → sibling tasks under parent feature
+**Process improvement suggestions** → Retrospective epic
+
+This ensures findings are addressed before the feature is plated (all children must close).
+
+**Edge cases:**
+- Task parent is an **epic** → file under the epic
+- Task has **no parent** → file as standalone
+
+### Bead Creation Reference
 
 ```bash
-# Standard issues (blocking tasks)
-bd create --title="..." --type=task|bug|feature --priority=0-4
+# Code/project findings → sibling under parent feature
+bd create --title="..." --type=task|bug --priority=0-4 --parent=<parent-feature-or-epic>
 
 # Priority: 0=critical, 1=high, 2=medium, 3=low, 4=backlog
-# Types: task, bug (broken), feature (new capability)
 
-# Minor improvements (review later)
-bd create --title="..." --type=task --priority=4
+# Process improvement suggestions → Retrospective epic
+bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic>
 ```
 
 ## Process
 
-### Step 1: File Discovered Issues
+### Step 1: Determine Filing Parent
 
-Review findings from @line-cook and @line-serve and create beads:
-
-**Blocking issues** (needs attention):
 ```bash
-bd create --title="<issue>" --type=bug|task --priority=1-3
+SOURCE_TASK="<current-task-id>"
+PARENT=$(bd show $SOURCE_TASK --json | jq -r '.[0].parent // empty')
 ```
 
-**Non-blocking findings** (review later):
+Use `$PARENT` as `--parent` for code/project findings. If no parent, file as standalone.
+
+### Step 2: File Discovered Issues
+
+Review findings from @line-cook and @line-serve and create beads.
+
+**Code/project findings** (siblings under parent feature/epic):
 ```bash
-bd create --title="<suggestion>" --type=task --priority=4
+bd create --title="<issue>" --type=bug|task --priority=1-3 --parent=$PARENT
+```
+
+**Lower-priority code findings** (still under parent):
+```bash
+bd create --title="<suggestion>" --type=task --priority=4 --parent=$PARENT
+```
+
+**Process improvement suggestions** (Retrospective epic):
+```bash
+bd create --title="<workflow suggestion>" --type=task --priority=4 --parent=<retro-epic>
 ```
 
 ### Step 2: Review In-Progress Issues

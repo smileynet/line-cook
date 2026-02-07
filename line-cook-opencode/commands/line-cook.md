@@ -171,7 +171,7 @@ TDD Phase: RED/GREEN/REFACTOR
 - Potential issues or bugs
 - Areas for improvement
 
-These will be filed as beads in `/line-tidy`.
+These will be filed as beads in `/line-tidy` (see tidy.md Finding Filing Strategy).
 
 ### Step 5: Verify Kitchen Equipment
 
@@ -216,6 +216,7 @@ Findings: <issues/improvements noted for tidy>"
 ╚══════════════════════════════════════════════════════════════╝
 
 Task: <id> - <title>
+Parent: <parent-id> - <parent-title> (or "none")
 Tests: ✓ All passing
 Build: ✓ Successful
 

@@ -10,57 +10,91 @@ This is where findings from `/line-cook` and `/line-serve` get filed as beads.
 
 ---
 
-## Bead Creation Reference
+## Finding Filing Strategy
 
-Use this when filing discovered issues:
+Findings from cook and serve are filed as **siblings under the current task's parent feature**:
+
+**Code/project findings (any priority)** → sibling tasks under parent feature
+**Process improvement suggestions** → Retrospective epic
+
+This ensures:
+- Findings are addressed before the feature is plated (all children must close)
+- The loop picks them up next (highest priority first)
+- Context is maintained (findings cluster with related work)
+
+**Edge cases:**
+- Task parent is an **epic** (no feature layer) → file under the epic
+- Task has **no parent** → file as standalone with appropriate priority
+
+### Bead Creation Reference
 
 ```bash
-# Standard issues (blocking tasks)
-bd create --title="..." --type=task|bug|feature --priority=0-4
+# Code/project findings → sibling under parent feature
+bd create --title="..." --type=task|bug --priority=0-4 --parent=<parent-feature-or-epic>
 
 # Priority: 0=critical, 1=high, 2=medium, 3=low, 4=backlog
 # Types: task, bug (broken), feature (new capability)
 
-# Minor improvements (review later)
+# Process improvement suggestions → Retrospective epic
+# (Ways to improve cook, serve, tidy, plate, or other workflow phases)
 bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic>
 ```
 
-**Retrospective Epic Pattern:**
+**Retrospective epic:**
 
-For minor suggestions, improvements, and "nice-to-haves" discovered during execution, file them to a retrospective epic. This keeps the main backlog focused on real issues.
+Reserved for **process improvement suggestions** (not code findings):
+- Workflow phase improvements (cook, serve, tidy, etc.)
+- Tooling or automation suggestions
+- Process observations
 
 ```bash
 # One-time setup (if not exists)
 bd create --title="Retrospective" --type=epic --priority=4
 
-# Then file minor items as children
-bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<retro-epic-id>
+# File process improvements as children
+bd create --title="Consider adding lint step to serve" --type=task --priority=4 --parent=<retro-epic-id>
 ```
 
 ## Process
 
-### Step 1: File Discovered Issues
+### Step 1: Determine Filing Parent
 
-Review findings from `/line-cook` and `/line-serve` and create beads:
+Look up the current task's parent to determine where to file findings:
 
-**Blocking issues** (needs attention):
 ```bash
-bd create --title="<issue>" --type=bug|task --priority=1-3
+SOURCE_TASK="<current-task-id>"
+PARENT=$(bd show $SOURCE_TASK --json | jq -r '.[0].parent // empty')
 ```
 
-**Non-blocking findings** (review later):
+Use `$PARENT` as the `--parent` for all code/project findings filed below. If no parent exists, file as standalone beads.
+
+### Step 2: File Discovered Issues
+
+Review findings from `/line-cook` and `/line-serve` and create beads with full context.
+
+**Code/project findings** (file as siblings under parent feature/epic):
 ```bash
-bd create --title="<suggestion>" --type=task --priority=4 --parent=<retro-epic>
+bd create --title="<issue>" --type=bug|task --priority=1-3 --parent=$PARENT
+```
+
+**Lower-priority code findings** (still under parent, not retro):
+```bash
+bd create --title="<suggestion>" --type=task --priority=4 --parent=$PARENT
+```
+
+**Process improvement suggestions** (file under Retrospective epic):
+```bash
+bd create --title="<workflow suggestion>" --type=task --priority=4 --parent=<retro-epic>
 ```
 
 #### Research Findings (for research tasks)
 
 When the task involved research (architecture analysis, spike, investigation), also capture findings:
 
-**New beads for discoveries:**
+**New beads for discoveries** (file under parent feature/epic):
 ```bash
-bd create --title="Implement <finding>" --type=task --priority=2-3
-bd create --title="Document <pattern>" --type=task --priority=3
+bd create --title="Implement <finding>" --type=task --priority=2-3 --parent=$PARENT
+bd create --title="Document <pattern>" --type=task --priority=3 --parent=$PARENT
 ```
 
 **Update existing beads:**
@@ -77,8 +111,6 @@ bd comments add <id> "RESEARCH FINDINGS:
 - Blocker discovered → Create bug/task as dependency
 - Option evaluated → Comment on research task
 - Decision made → Update task description
-
-**Tip:** Research tasks often yield multiple follow-up beads. This is expected.
 
 ### Step 2: Review In-Progress Issues
 
@@ -269,8 +301,10 @@ Epics completed: <count>
   ★ <epic-id>: <title> (<N> children)
 
 Issues filed: <count>
-  + <new-id>: <title> [P<n>]
-  + <new-id>: <title> [P4/retro]
+  Under parent (<parent-id>):
+    + <new-id>: <title> [P<n>]
+  Under Retrospective:
+    + <new-id>: <title> [P4/retro]
 
 Commit: <hash>
   <commit message>

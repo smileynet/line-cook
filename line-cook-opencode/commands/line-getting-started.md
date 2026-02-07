@@ -124,19 +124,21 @@ bd sync                # Push/pull with remote
 bd stats               # Project statistics
 ```
 
-### Retrospective Pattern
+### Finding Filing Strategy
 
-For minor suggestions and improvements, use a retrospective epic:
+Code/project findings from serve and other reviewers are filed as **siblings under the current task's parent feature** (any priority). This ensures findings are addressed before the feature is plated.
+
+**Process improvement suggestions** (ways to improve cook, serve, tidy, etc.) go to a Retrospective epic:
 
 ```bash
 # One-time setup
 bd create --title="Retrospective" --type=epic --priority=4
 
-# File minor items as children
-bd create --title="Consider refactoring X" --type=task --priority=4 --parent=<retro-epic-id>
+# File process improvements as children
+bd create --title="Consider adding lint step to serve" --type=task --priority=4 --parent=<retro-epic-id>
 ```
 
-This keeps the main backlog focused on real tasks while preserving good ideas for later review.
+See `line-tidy.md` Finding Filing Strategy for full details.
 
 ---
 
