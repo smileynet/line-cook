@@ -1,6 +1,6 @@
 ---
 description: Review changes via headless Claude and file issues
-allowed-tools: Bash, Read, Glob, Grep, Edit, TodoWrite
+allowed-tools: Bash, Read, Glob, Grep, Edit, TodoWrite, Task
 ---
 
 ## Summary
@@ -51,6 +51,33 @@ cat CLAUDE.md 2>/dev/null | head -50
 ```
 
 This gives the reviewer awareness of project patterns and conventions.
+
+### Step 2.5: Polish Changes (Automatic)
+
+Before review, automatically refine code for clarity. Extract the list of modified files from git status.
+
+```
+Use Task tool to invoke polisher subagent:
+Task(description="Polish code changes", prompt="Polish the following files for clarity and consistency:
+
+<list of modified files from git status --porcelain>
+
+Apply these principles:
+- Preserve exact functionality (never change behavior)
+- Reduce unnecessary complexity
+- Improve naming clarity
+- Follow project conventions from CLAUDE.md
+- Remove dead code and redundancy
+- Avoid nested ternaries (prefer if/else or switch)
+
+Output: List of refinements made (file:line - change)", subagent_type="polisher")
+```
+
+**After polisher completes:**
+- If changes were made, stage them: `git add <polished files>`
+- Proceed to sous-chef review (reviewer sees polished code)
+
+**Note:** The polisher is conservative—it only makes safe, obvious improvements. If uncertain, it leaves code alone.
 
 ### Step 3: Automatic Code Review
 
