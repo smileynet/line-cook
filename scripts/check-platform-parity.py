@@ -53,10 +53,10 @@ PLATFORM_SPECIFIC_COMMANDS = {
 
 # Shared agents that should exist on Claude Code and Kiro
 # OpenCode SDK supports agents but line-cook-opencode hasn't implemented them yet
-SHARED_AGENTS = {"taster", "sous-chef", "maitre"}
+SHARED_AGENTS = {"taster", "sous-chef", "maitre", "polisher", "critic"}
 
 # Kiro-only orchestrator agents (intentionally not on other platforms)
-KIRO_ONLY_AGENTS = {"line-cook", "kitchen-manager"}
+KIRO_ONLY_AGENTS = {"line-cook"}
 
 
 def discover_claude_code_assets(repo_root: Path) -> PlatformAssets:
@@ -104,14 +104,14 @@ def discover_kiro_assets(repo_root: Path) -> PlatformAssets:
     assets = PlatformAssets()
 
     # Kiro uses a different architecture:
-    # - Main orchestration via line-cook.md and kitchen-manager.md
+    # - Main orchestration via line-cook.md (routes to template-synced prompts)
     # - Individual agent steering files (taster, sous-chef, maitre)
-    # - Supporting files (beads, session, getting-started)
+    # - Supporting files (beads, session)
     #
     # Kiro does NOT have 1:1 command parity - it uses agents for workflow phases
     # Skip agent steering files when counting commands
     agent_steering = {"taster", "sous-chef", "maitre"}
-    orchestrator_steering = {"line-cook", "kitchen-manager"}
+    orchestrator_steering = {"line-cook"}
     supporting_steering = {"beads", "session"}
 
     steering_dir = repo_root / "line-cook-kiro" / "steering"

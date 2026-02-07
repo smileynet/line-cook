@@ -1,3 +1,5 @@
+<!-- Kiro-only CLI quick reference. Claude Code equivalent: docs/guidance/beads-reference.md + hook injection -->
+
 # Beads Quick Reference
 
 Git-native issue tracking for multi-session work.

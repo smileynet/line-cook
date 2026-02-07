@@ -10,15 +10,18 @@ line-cook-kiro/
 │   ├── line-cook.json
 │   ├── taster.json
 │   ├── sous-chef.json
-│   └── maitre.json
+│   ├── maitre.json
+│   ├── polisher.json
+│   └── critic.json
 ├── steering/         # Steering files (always-loaded context)
 │   ├── line-cook.md
 │   ├── beads.md
 │   ├── session.md
-│   ├── getting-started.md
 │   ├── taster.md
 │   ├── sous-chef.md
-│   └── maitre.md
+│   ├── maitre.md
+│   ├── polisher.md
+│   └── critic.md
 ├── prompts/          # @prompt invocations
 │   ├── line-prep.md
 │   ├── line-cook.md

@@ -108,10 +108,12 @@ Line Cook provides agents for each platform:
 
 | Agent | Role | Purpose |
 |-------|------|---------|
-| **line-cook** | Main agent | Execute workflow commands (prep, cook, serve, tidy, run) |
-| **kitchen-manager** | Orchestrator | Coordinate full service cycle with automatic error handling |
+| **line-cook** | Orchestrator | Route workflow commands to template-synced prompts, enforce guardrails |
 | **taster** | Test quality | Review tests for isolation, clarity, structure, anti-patterns |
 | **sous-chef** | Code review | Review changes for correctness, security, style, completeness |
+| **polisher** | Code refinement | Simplify and polish code before review |
+| **maitre** | BDD review | Review feature acceptance and BDD test quality |
+| **critic** | E2E review | Review epic-level E2E and user journey coverage |
 
 ### Claude Code Commands (commands/)
 
@@ -234,25 +236,6 @@ OpenCode plugin uses OpenCode's built-in agent system:
 - **Output**: E2E coverage assessment (PASS, NEEDS_WORK, or FAIL)
 - **Documentation**: See [Epic-Level Testing](docs/guidance/epic-testing.md)
 
-### kitchen-manager (expeditor)
-
-- **Purpose**: Orchestrate complete service cycle (prep→cook→serve→tidy→plate)
-- **Responsibilities**:
-  - Run prep checks and auto-select next task
-  - Execute cook phase directly (or delegate to chef)
-  - Coordinate serving with sous-chef review
-  - Manage tidy phase (commit, push)
-  - Trigger plate phase for feature completion
-  - Handle failure conditions and abort protocol
-- **Failure Conditions** (stop execution):
-  - Tests fail
-  - Build fails
-  - Reviewer blocks (BLOCKED verdict)
-  - BDD quality blocks
-  - Git operations fail
-- **Output**: Service report after successful tidy
-- **Implementation**: `line-cook-kiro/agents/kitchen-manager.json`
-
 ## Workflow Principles
 
 1. **Sync before work** - Always start with current state
@@ -327,8 +310,8 @@ Review agents are also generated from shared templates to prevent drift between 
 
 **NOT templatized:**
 - Kiro JSON agent configs (`line-cook-kiro/agents/*.json`) — platform-specific metadata
-- Kiro-only orchestrators (line-cook, kitchen-manager) — map to CC commands, not agents
-- Non-agent steering files (beads.md, session.md, getting-started.md) — reference docs
+- Kiro orchestrator steering (line-cook.md) — routing table only, delegates to template-synced prompts
+- Non-agent steering files (beads.md, session.md) — Kiro-only reference docs (CC equivalents in docs/guidance/ and AGENTS.md)
 
 **When to sync:**
 - After editing any command template

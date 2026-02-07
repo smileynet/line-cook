@@ -50,8 +50,8 @@ def main() -> None:
     (kiro_dir / "scripts").mkdir(parents=True, exist_ok=True)
     (kiro_dir / "prompts").mkdir(parents=True, exist_ok=True)
 
-    # Copy agent configuration
-    print("Installing agent configuration...")
+    # Copy agent configurations
+    print("Installing agent configurations...")
     agent_src = script_dir / "agents" / "line-cook.json"
     agent_dst = kiro_dir / "agents" / "line-cook.json"
 

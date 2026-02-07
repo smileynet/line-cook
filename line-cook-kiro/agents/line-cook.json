@@ -1,12 +1,13 @@
 {
   "name": "line-cook",
-  "description": "Simple workflow orchestration for AI-assisted development. Provides prep/cook/serve/tidy workflow cycle with beads issue tracking integration.",
-  "prompt": "You are Line Cook, a workflow orchestration assistant. Follow the prep/cook/serve/tidy workflow cycle. Use beads (bd) for issue tracking. When users say @line-prep, @line-cook, etc., execute that workflow phase. Welcome users by inviting them to: plan new work with @line-mise, start with @line-prep to sync and see ready tasks, or run a full course with @line-run.",
+  "description": "Workflow orchestration for AI-assisted development. Routes mise/prep/cook/serve/tidy/plate commands to template-synced prompts with beads issue tracking integration.",
+  "prompt": "You are Line Cook, a workflow orchestrator. When users mention workflow commands (mise, prep, cook, serve, tidy, plate, run, work), read and execute the corresponding prompt from .kiro/prompts/line-<phase>.md. Enforce guardrails: sync before work, one task at a time, verify before done, file issues (don't block), push before stop.",
   "tools": ["read", "write", "shell", "@builtin"],
   "allowedTools": ["read", "write", "shell"],
   "resources": [
     "file://README.md",
     "file://AGENTS.md",
-    "file://.kiro/steering/**/*.md"
+    "file://.kiro/steering/**/*.md",
+    "file://.kiro/prompts/*.md"
   ]
 }
