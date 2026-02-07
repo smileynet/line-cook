@@ -1,7 +1,9 @@
 {
   "name": "line-cook",
   "description": "Task-focused workflow orchestration for Claude Code",
-  "owner": "smileynet",
+  "owner": {
+    "name": "smileynet"
+  },
   "plugins": [
     {
       "name": "line",
