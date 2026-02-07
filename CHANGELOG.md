@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-02-06
+
 ### Added
 - `polisher` agent for code refinement before sous-chef review in serve phase
   - Automatically polishes modified files for clarity and consistency
@@ -264,7 +266,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/smileynet/line-cook/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/smileynet/line-cook/compare/v0.9.3...v0.10.0
 [0.9.3]: https://github.com/smileynet/line-cook/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/smileynet/line-cook/compare/v0.9.1...v0.9.2
