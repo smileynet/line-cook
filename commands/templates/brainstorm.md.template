@@ -1,5 +1,8 @@
 ---
 description: Explore problem space before planning (divergent thinking)
+@IF_CLAUDECODE@
+allowed-tools: Bash, Read, Write, Glob, Grep, Task, AskUserQuestion, Skill, WebFetch, WebSearch
+@ENDIF_CLAUDECODE@
 ---
 
 ## Summary
@@ -32,7 +35,12 @@ Ask clarifying questions to understand what we're solving:
 - How will we know it works?
 - What would the user be able to do?
 
+@IF_CLAUDECODE@
+**Use AskUserQuestion** if requirements are unclear. Don't assume.
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 **Ask questions** if requirements are unclear. Don't assume.
+@ENDIF_OPENCODE@
 
 ### Step 2: Explore Technical Approaches
 
@@ -48,6 +56,9 @@ Research and explore different ways to solve the problem:
 - Are there standard approaches?
 - What are the trade-offs?
 
+@IF_CLAUDECODE@
+**Use Task tool with Explore agent** for codebase research.
+@ENDIF_CLAUDECODE@
 
 ### Step 3: Identify Risks and Unknowns
 
@@ -73,14 +84,52 @@ Write the brainstorm document to `docs/planning/brainstorm-<name>.md`.
 
 **Use the template at `docs/templates/brainstorm.md`** as the starting point.
 
+@IF_CLAUDECODE@
+The document should include:
+- Problem statement
+- User perspective
+- Technical approaches explored
+- Risks and unknowns identified
+- Recommended direction
+- Open questions (if any)
+
+@ENDIF_CLAUDECODE@
 ### Step 5b: Create Planning Context Folder
 
 Create `docs/planning/context-<name>/` with initial context files:
 
+@IF_CLAUDECODE@
+1. **Copy templates:**
+   ```bash
+   mkdir -p docs/planning/context-<name>
+   cp docs/templates/planning-context/README.md docs/planning/context-<name>/README.md
+   cp docs/templates/planning-context/architecture.md docs/planning/context-<name>/architecture.md
+   cp docs/templates/planning-context/decisions.log docs/planning/context-<name>/decisions.log
+   ```
+
+2. **Populate README.md** — Fill in from brainstorm results:
+   - Problem (2-3 sentences from problem statement)
+   - Approach (chosen approach + rationale)
+   - Key Decisions (major decisions made during brainstorm)
+   - Set status to `brainstormed`
+   - Set created date
+   - Remove the "Usage Instructions" section from the copied template
+
+3. **Populate architecture.md** — Fill in any technical patterns/constraints discovered during exploration
+
+4. **Seed decisions.log** — Add brainstorm decisions:
+   ```
+   YYYY-MM-DD | brainstorm | <decision> | <rationale>
+   ```
+
+**Graceful fallback:** If `docs/templates/planning-context/` doesn't exist, create the files directly with minimal content.
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 1. Copy templates from `docs/templates/planning-context/` (or create directly)
 2. Populate README.md with Problem, Approach, Key Decisions from brainstorm
 3. Populate architecture.md with technical patterns/constraints discovered
 4. Seed decisions.log with brainstorm decisions
+@ENDIF_OPENCODE@
 
 ### Step 6: Handoff
 
@@ -102,15 +151,33 @@ Key decisions:
   - <decision 2>
 
 Open questions: <N> (if any)
+@IF_CLAUDECODE@
+  - <question 1>
+  - <question 2>
+@ENDIF_CLAUDECODE@
 ```
 
+@IF_CLAUDECODE@
+Then **use AskUserQuestion** to ask:
+
+**Question:** "Brainstorm complete. How would you like to proceed?"
+**Options:**
+  - "Continue to /@NAMESPACE@scope" — Create structured work breakdown now
+  - "Review brainstorm first" — Stop here, review docs/planning/brainstorm-<name>.md
+  - "Done for now" — End the planning session
+
+If user chooses "Continue to /@NAMESPACE@scope", invoke `Skill(skill="@NAMESPACE@scope")`.
+Otherwise, stop and output the artifact file paths.
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 Then ask the user how they'd like to proceed:
 
-- **Continue to /line-scope** — Create structured work breakdown now
+- **Continue to /@NAMESPACE@scope** — Create structured work breakdown now
 - **Review brainstorm first** — Stop here, review docs/planning/brainstorm-<name>.md
 - **Done for now** — End the planning session
 
-Wait for the user's response before continuing. If user chooses to continue, run `/line-scope`.
+Wait for the user's response before continuing. If user chooses to continue, run `/@NAMESPACE@scope`.
+@ENDIF_OPENCODE@
 
 ---
 
@@ -120,14 +187,31 @@ Skip this phase if:
 - User has already done the exploration
 - Requirements are crystal clear and well-documented
 - It's a small, well-defined task (not an epic/feature)
+@IF_CLAUDECODE@
+- User explicitly asks to skip to planning
+@ENDIF_CLAUDECODE@
 
-In these cases, proceed directly to `/line-scope`.
+In these cases, proceed directly to `/@NAMESPACE@scope`.
 
 ---
 
 ## Example Usage
 
 ```
-/line-brainstorm
+/@NAMESPACE@brainstorm
 ```
 
+@IF_CLAUDECODE@
+This command will:
+1. Ask clarifying questions about the problem
+2. Explore technical approaches
+3. Identify risks and unknowns
+4. Create brainstorm document
+5. Output summary for review
+
+---
+
+## Example Output File
+
+See `docs/templates/brainstorm.md` for the template structure.
+@ENDIF_CLAUDECODE@

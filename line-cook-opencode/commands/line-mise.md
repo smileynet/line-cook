@@ -13,12 +13,12 @@ Like `/line-run` orchestrates the execution cycle (prep→cook→serve→tidy), 
 2. **Scope** - Convergent thinking: structure, scope, decompose
 3. **Finalize** - Execution: create beads, write test specs, persist
 
+**Arguments:** `$ARGUMENTS` (optional)
+- `skip-brainstorm` - Skip directly to scoping (when requirements are clear)
+
 ---
 
 ## Process
-
-**Arguments:** `$ARGUMENTS` (optional)
-- `skip-brainstorm` - Skip directly to scoping (when requirements are clear)
 
 ### Step 1: Start Planning Chain
 
@@ -100,3 +100,4 @@ Planning creates the work. Execution completes the work.
 ```
 /line-mise                    # Full planning cycle with pauses
 ```
+

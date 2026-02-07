@@ -36,7 +36,8 @@ Look for planning context:
    ```bash
    ls docs/planning/brainstorm-*.md 2>/dev/null
    ```
-   - Read the brainstorm document and use as input
+   - Read the brainstorm document
+   - Use it as input for planning
    - Create a context folder from brainstorm content
 
 4. **If neither exists:**
@@ -58,26 +59,37 @@ Look for planning context:
 phases:
   - id: phase-1
     title: "Phase 1: Foundation"
-    description: "Core infrastructure"
+    description: "Core infrastructure for tmux integration and worktrees"
 
     features:
       - id: feature-1.1
-        title: "Feature 1.1: <user-facing capability>"
+        title: "Feature 1.1: Execute commands in tmux sessions"
         priority: 2
-        user_story: "As a <role>, I want to <action> so that <benefit>"
+        user_story: "As a capsule orchestrator, I want to execute commands in tmux sessions so that I can programmatic control OpenCode TUI"
         acceptance_criteria:
-          - "Can do X"
-          - "Can do Y"
-          - "Handles error Z"
+          - "Can create/destroy tmux sessions"
+          - "Can send commands with proper debouncing"
+          - "Can capture session output"
 
         tasks:
-          - title: "<implementation step>"
+          - title: "Port tmux wrapper from gastown"
             priority: 1
-            tracer: "<what this proves>"
+            tracer: "Foundation layer - proves tmux integration works"
             description: |
-              - Detail 1
-              - Detail 2
-            deliverable: "<what is created>"
+              - Copy internal/tmux/tmux.go structure
+              - Adapt for Capsule needs
+            deliverable: "internal/tmux/tmux.go skeleton"
+            tdd: true
+
+          - title: "Implement session creation/destruction"
+            priority: 1
+            depends_on: ["Port tmux wrapper from gastown"]
+            tracer: "Session lifecycle - proves basic management works"
+            description: |
+              - NewSession(name, workDir) function
+              - KillSession(name) function
+              - SessionExists(name) check
+            deliverable: "Session management with tests"
             tdd: true
 ```
 
@@ -94,15 +106,23 @@ Epic (Phase)
     └── Task 2.2 (Implementation step)
 ```
 
-### Step 4b: Update Planning Context
+### Step 5b: Update Planning Context
 
 If a planning context folder exists (`docs/planning/context-<name>/`):
 
-1. Update README.md: status -> `scoped`, add Scope section with counts and feature list
-2. Update architecture.md with any new layer/constraint info
-3. Append scope decisions to decisions.log
+1. **Update README.md:**
+   - Set status to `scoped`
+   - Add Scope section with phase/feature/task counts and feature list
 
-### Step 5: Handoff
+2. **Update architecture.md:**
+   - Add any new layer/constraint info discovered during scoping
+
+3. **Append to decisions.log:**
+   ```
+   YYYY-MM-DD | scope | <decision> | <rationale>
+   ```
+
+### Step 6: Handoff
 
 Output the menu plan summary:
 
@@ -143,6 +163,21 @@ Wait for the user's response before continuing. If user chooses to continue, run
 
 ---
 
+## Hierarchy Structure
+
+```
+Epic (Phase)
+├── Feature 1 (User-observable outcome)
+│   ├── Task 1.1 (Implementation step)
+│   ├── Task 1.2 (Implementation step)
+│   └── Task 1.3 (Implementation step)
+└── Feature 2 (User-observable outcome)
+    ├── Task 2.1 (Implementation step)
+    └── Task 2.2 (Implementation step)
+```
+
+---
+
 ## Task Sizing Guidelines
 
 **Too Small** (combine):
@@ -165,3 +200,4 @@ Wait for the user's response before continuing. If user chooses to continue, run
 ```
 /line-scope
 ```
+
