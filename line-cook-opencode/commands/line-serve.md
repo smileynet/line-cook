@@ -117,10 +117,13 @@ Summary:
 Auto-fixed:
   - <file>:<line> - <fix applied>
 
-Issues to file in /tidy:
+Issues to file in /tidy (see tidy.md Finding Filing Strategy):
+  Code/project findings (siblings under parent):
   - [P1] "<title>" - <description>
   - [P3] "<title>" - <description>
-  - [P4/retro] "<title>" - <minor suggestion>
+  - [P4] "<title>" - <minor code finding>
+  Process improvements (under Retrospective epic):
+  - [P4] "<title>" - <workflow suggestion>
 
 Positive notes:
   - <good thing>

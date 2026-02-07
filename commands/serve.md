@@ -77,8 +77,6 @@ Output: List of refinements made (file:line - change)", subagent_type="polisher"
 - If changes were made, stage them: `git add <polished files>`
 - Proceed to sous-chef review (reviewer sees polished code)
 
-**Note:** The polisher is conservative—it only makes safe, obvious improvements. If uncertain, it leaves code alone.
-
 ### Step 3: Automatic Code Review
 
 Delegate to sous-chef (reviewer) subagent:
@@ -115,12 +113,6 @@ Output format:
 
 CRITICAL: If verdict is 'blocked', explain why and what must be fixed.", subagent_type="sous-chef")
 ```
-
-The sous-chef agent will:
-- Review correctness (logic, edge cases, error handling)
-- Check security (input validation, secrets, injection risks)
-- Verify style (naming, consistency with codebase patterns)
-- Assess completeness (fully addresses the task?)
 
 **Wait for reviewer assessment. Address any critical issues before proceeding to tidy.**
 
@@ -182,10 +174,13 @@ Summary:
 Auto-fixed:
   - <file>:<line> - <fix applied>
 
-Issues to file in /tidy:
+Issues to file in /tidy (see tidy.md Finding Filing Strategy):
+  Code/project findings (siblings under parent):
   - [P1] "<title>" - <description>
   - [P3] "<title>" - <description>
-  - [P4/retro] "<title>" - <minor suggestion>
+  - [P4] "<title>" - <minor code finding>
+  Process improvements (under Retrospective epic):
+  - [P4] "<title>" - <workflow suggestion>
 
 Positive notes:
   - <good thing>
