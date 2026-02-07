@@ -6,6 +6,16 @@
 # - run_provider_test - Run a command for a specific provider
 # - print_result - Print pass/fail result
 # - setup_colors - Initialize color codes
+#
+# Git State Assertion Helpers:
+# - verify_branch_exists - Check if a git branch exists locally
+# - get_current_branch - Get current git branch name
+# - verify_current_branch - Check if we're on a specific branch
+# - verify_merge_commit_exists - Check if a merge commit exists in recent history
+# - verify_no_ff_merge - Check if a --no-ff merge was used
+# - verify_branch_deleted - Check if a branch was deleted
+# - verify_wip_commit_exists - Check if there's a WIP commit on a branch
+# - get_bead_status - Check bead status via bd show
 
 set -euo pipefail
 
@@ -129,4 +139,71 @@ check_provider_available() {
         kiro) command -v kiro-cli >/dev/null 2>&1 ;;
         *) return 1 ;;
     esac
+}
+
+# ============================================================
+# Git State Assertion Helpers
+# ============================================================
+
+# Check if a git branch exists locally
+# Usage: verify_branch_exists <branch_name>
+verify_branch_exists() {
+    local branch="$1"
+    git show-ref --verify "refs/heads/$branch" >/dev/null 2>&1
+}
+
+# Get current git branch name
+# Usage: get_current_branch
+get_current_branch() {
+    git branch --show-current
+}
+
+# Check if we're on a specific branch
+# Usage: verify_current_branch <branch_name>
+verify_current_branch() {
+    local expected="$1"
+    local current
+    current=$(get_current_branch)
+    [[ "$current" == "$expected" ]]
+}
+
+# Check if a merge commit exists in recent history
+# Usage: verify_merge_commit_exists <pattern>
+verify_merge_commit_exists() {
+    local pattern="$1"
+    git log --oneline --merges -10 | grep -q "$pattern"
+}
+
+# Check if a --no-ff merge was used (commit has 2 parents)
+# Usage: verify_no_ff_merge <commit_pattern>
+verify_no_ff_merge() {
+    local pattern="$1"
+    local merge_commit
+    merge_commit=$(git log --oneline --merges -10 | grep "$pattern" | head -1 | cut -d' ' -f1)
+    if [[ -z "$merge_commit" ]]; then
+        return 1
+    fi
+    # Check if commit has a second parent (indicates --no-ff merge)
+    git rev-parse --verify "${merge_commit}^2" >/dev/null 2>&1
+}
+
+# Check if a branch was deleted (no longer exists)
+# Usage: verify_branch_deleted <branch_name>
+verify_branch_deleted() {
+    local branch="$1"
+    ! git show-ref --verify "refs/heads/$branch" >/dev/null 2>&1
+}
+
+# Check if there's a WIP commit on a branch
+# Usage: verify_wip_commit_exists <branch_name>
+verify_wip_commit_exists() {
+    local branch="$1"
+    git log "$branch" --oneline -10 | grep -q "WIP:"
+}
+
+# Check bead status via bd show
+# Usage: get_bead_status <bead_id>
+get_bead_status() {
+    local bead_id="$1"
+    bd show "$bead_id" --json 2>/dev/null | jq -r '.status // empty'
 }
