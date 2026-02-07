@@ -73,6 +73,10 @@ CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
 # Hierarchy traversal
 HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks
 
+# Epic titles to exclude from auto-selection (parking lot pattern)
+# See .kiro/steering/line-cook.md, parking lot section
+EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})
+
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
     'cook': 1200,   # 20 min - Main work phase: TDD cycle, file edits, test runs
@@ -1518,6 +1522,107 @@ def build_hierarchy_chain(bead_id: str, snapshot: BeadSnapshot, cwd: Path) -> li
     return chain
 
 
+def find_epic_ancestor(bead: BeadInfo, snapshot: BeadSnapshot, cwd: Path) -> Optional[BeadInfo]:
+    """Walk parent chain to find the first epic ancestor.
+
+    Snapshot-first: looks up parents in the snapshot before falling back
+    to bd show. Returns the BeadInfo of the epic, or None if no epic
+    ancestor exists.
+
+    Args:
+        bead: The starting bead to walk from.
+        snapshot: Current BeadSnapshot for in-memory lookups.
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        BeadInfo of the epic ancestor, or None.
+    """
+    parent_id: Optional[str] = bead.parent
+    for _ in range(HIERARCHY_MAX_DEPTH):
+        if not parent_id:
+            break
+        parent = snapshot.get_by_id(parent_id)
+        if parent:
+            if parent.issue_type == "epic":
+                return parent
+            parent_id = parent.parent
+        else:
+            # Not in snapshot — query bd
+            try:
+                result = run_subprocess(["bd", "show", parent_id, "--json"], BD_COMMAND_TIMEOUT, cwd)
+                if result.returncode != 0:
+                    break
+                data = json.loads(result.stdout)
+                issue = parse_bd_json_item(data)
+                if not issue:
+                    break
+                info = BeadInfo(
+                    id=issue.get("id", parent_id),
+                    title=issue.get("title", ""),
+                    issue_type=issue.get("issue_type", "unknown"),
+                    parent=issue.get("parent"),
+                )
+                if info.issue_type == "epic":
+                    return info
+                parent_id = info.parent
+            except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+                logger.debug(f"Error traversing hierarchy for {parent_id}: {e}")
+                break
+            except Exception as e:
+                logger.debug(f"Error finding epic ancestor from {bead.id}: {e}")
+                break
+    return None
+
+
+def is_descendant_of_epic(bead: BeadInfo, epic_id: str, snapshot: BeadSnapshot, cwd: Path) -> bool:
+    """Check if a bead is a descendant of a specific epic.
+
+    Same parent-chain walk as find_epic_ancestor but short-circuits
+    when the target epic_id is found.
+
+    Args:
+        bead: The bead to check.
+        epic_id: The epic ID to look for in the ancestor chain.
+        snapshot: Current BeadSnapshot for in-memory lookups.
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        True if the bead is under the specified epic.
+    """
+    parent_id: Optional[str] = bead.parent
+    for _ in range(HIERARCHY_MAX_DEPTH):
+        if not parent_id:
+            break
+        if parent_id == epic_id:
+            return True
+        parent = snapshot.get_by_id(parent_id)
+        if parent:
+            if parent.issue_type == "epic":
+                # Found an epic but it's not the one we want
+                return False
+            parent_id = parent.parent
+        else:
+            # Not in snapshot — query bd
+            try:
+                result = run_subprocess(["bd", "show", parent_id, "--json"], BD_COMMAND_TIMEOUT, cwd)
+                if result.returncode != 0:
+                    break
+                data = json.loads(result.stdout)
+                issue = parse_bd_json_item(data)
+                if not issue:
+                    break
+                if issue.get("issue_type") == "epic":
+                    return issue.get("id") == epic_id
+                parent_id = issue.get("parent")
+            except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+                logger.debug(f"Error checking descendant for {parent_id}: {e}")
+                break
+            except Exception as e:
+                logger.debug(f"Error checking if {bead.id} is under {epic_id}: {e}")
+                break
+    return False
+
+
 def _parse_bead_info(issue: dict) -> BeadInfo:
     """Parse a bd JSON issue dict into a BeadInfo object."""
     priority = issue.get("priority")
@@ -2670,10 +2775,92 @@ def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
     return delay * random.uniform(0.8, 1.2)  # ±20% jitter
 
 
+def get_excluded_epic_ids(snapshot: BeadSnapshot) -> set[str]:
+    """Find IDs of Retrospective/Backlog epics in the snapshot.
+
+    Scans the snapshot for epics whose title matches EXCLUDED_EPIC_TITLES.
+
+    Args:
+        snapshot: Current BeadSnapshot.
+
+    Returns:
+        Set of epic IDs that should be excluded from auto-selection.
+    """
+    return {
+        b.id for b in snapshot.ready
+        if b.issue_type == "epic" and b.title in EXCLUDED_EPIC_TITLES
+    }
+
+
+def detect_first_epic(
+    snapshot: BeadSnapshot, excluded_ids: set[str],
+    skip_ids: set[str], cwd: Path
+) -> Optional[tuple[str, str]]:
+    """Find the epic of the highest-priority ready work item.
+
+    For --epic (no ID) mode: auto-detect the first non-excluded epic
+
+    Args:
+        snapshot: Current BeadSnapshot.
+        excluded_ids: Set of epic IDs to exclude (Retrospective/Backlog).
+        skip_ids: Set of task IDs to skip (from failure tracking).
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        Tuple of (epic_id, epic_title) or None if no epic found.
+    """
+    for bead in snapshot.ready_work:
+        if bead.id in skip_ids:
+            continue
+        epic = find_epic_ancestor(bead, snapshot, cwd)
+        if epic and epic.id not in excluded_ids:
+            return (epic.id, epic.title)
+    return None
+
+
+def validate_epic_id(epic_id: str, cwd: Path) -> Optional[str]:
+    """Validate that an ID refers to an epic and return its title.
+
+    Args:
+        epic_id: The bead ID to validate.
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        Epic title if valid, or None if not found or not an epic.
+    """
+    try:
+        result = run_subprocess(["bd", "show", epic_id, "--json"], BD_COMMAND_TIMEOUT, cwd)
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout)
+            issue = parse_bd_json_item(data)
+            if issue and issue.get("issue_type") == "epic":
+                return issue.get("title", "")
+    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+        logger.debug(f"Error validating epic {epic_id}: {e}")
+    except Exception as e:
+        logger.debug(f"Error validating epic {epic_id}: {e}")
+    return None
+
+
+def _filter_excluded_epics(
+    beads: list[BeadInfo], excluded_ids: set[str],
+    snapshot: BeadSnapshot, cwd: Path
+) -> list[BeadInfo]:
+    """Filter out beads that descend from excluded epics."""
+    result = []
+    for b in beads:
+        ancestor = find_epic_ancestor(b, snapshot, cwd)
+        if ancestor is None or ancestor.id not in excluded_ids:
+            result.append(b)
+    return result
+
+
 def get_next_ready_task(
     cwd: Path,
     skip_ids: Optional[set[str]] = None,
-    snapshot: Optional[BeadSnapshot] = None
+    snapshot: Optional[BeadSnapshot] = None,
+    epic_filter: Optional[str] = None,
+    excluded_epic_ids: Optional[set[str]] = None
 ) -> Optional[tuple[str, str]]:
     """Get the next ready task ID and title before cook runs.
 
@@ -2685,6 +2872,8 @@ def get_next_ready_task(
         cwd: Working directory
         skip_ids: Optional set of task IDs to skip (due to repeated failures)
         snapshot: Optional BeadSnapshot to use instead of re-querying bd
+        epic_filter: Only return tasks under this epic ID
+        excluded_epic_ids: Skip tasks under these epic IDs
 
     Returns:
         Tuple of (task_id, task_title) or None if no tasks ready
@@ -2692,11 +2881,19 @@ def get_next_ready_task(
     skip_ids = skip_ids or set()
 
     if snapshot:
+        candidates = snapshot.ready_work
+        if epic_filter:
+            candidates = [
+                b for b in candidates
+                if is_descendant_of_epic(b, epic_filter, snapshot, cwd)
+            ]
+        elif excluded_epic_ids:
+            candidates = _filter_excluded_epics(candidates, excluded_epic_ids, snapshot, cwd)
         # Two-pass: prefer tasks over features
-        for bead in snapshot.ready_work:
+        for bead in candidates:
             if bead.id not in skip_ids and bead.issue_type == "task":
                 return (bead.id, bead.title)
-        for bead in snapshot.ready_work:
+        for bead in candidates:
             if bead.id not in skip_ids:
                 return (bead.id, bead.title)
         return None
@@ -2962,7 +3159,9 @@ def write_status_file(
     current_action_count: int = 0,
     last_action_time: Optional[datetime] = None,
     skipped_tasks: Optional[list] = None,
-    escalation: Optional[dict] = None
+    escalation: Optional[dict] = None,
+    epic_mode: Optional[str] = None,
+    current_epic: Optional[str] = None
 ):
     """Write live status JSON for external monitoring.
 
@@ -2993,6 +3192,12 @@ def write_status_file(
     }
     if stop_reason:
         status["stop_reason"] = stop_reason
+
+    # Add epic mode fields
+    if epic_mode:
+        status["epic_mode"] = epic_mode
+    if current_epic:
+        status["current_epic"] = current_epic
 
     # Add intra-iteration progress fields
     if current_phase:
@@ -3328,7 +3533,8 @@ def run_loop(
     phase_timeouts: Optional[dict[str, int]] = None,
     max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
     idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
-    idle_action: str = DEFAULT_IDLE_ACTION
+    idle_action: str = DEFAULT_IDLE_ACTION,
+    epic_mode: Optional[str] = None
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat.
 
@@ -3338,6 +3544,11 @@ def run_loop(
     Idle detection: If idle_timeout > 0, phases will be checked for idle
     (no tool actions within threshold). idle_action determines response:
     "warn" logs a warning, "terminate" stops the phase.
+
+    Epic mode: If epic_mode is set, filters task selection:
+    - None: default mode, excludes Retrospective/Backlog epics
+    - "auto": auto-detect first non-excluded epic, work only its tasks
+    - "<id>": work only the specified epic's tasks
     """
     global _shutdown_requested
 
@@ -3348,11 +3559,36 @@ def run_loop(
     stop_reason = "unknown"
     circuit_breaker = CircuitBreaker()
     skip_list = SkipList(max_failures=max_task_failures)
+    current_epic_id: Optional[str] = None
+    current_epic_title: Optional[str] = None
 
-    logger.info(f"Loop starting: max_iterations={max_iterations}")
+    logger.info(f"Loop starting: max_iterations={max_iterations}, epic_mode={epic_mode}")
+
+    # Validate explicit epic ID upfront
+    if epic_mode and epic_mode != "auto":
+        title = validate_epic_id(epic_mode, cwd)
+        if title is None:
+            logger.error(f"Epic {epic_mode} not found or not an epic type")
+            if not json_output:
+                print(f"Error: {epic_mode} is not a valid epic ID.")
+            return LoopReport(
+                started_at=datetime.now().isoformat(),
+                ended_at=datetime.now().isoformat(),
+                iterations=[],
+                stop_reason="invalid_epic",
+                completed_count=0,
+                failed_count=0,
+                duration_seconds=0.0
+            )
+        current_epic_id = epic_mode
+        current_epic_title = title
 
     if not json_output:
         print(f"Line Cook Loop starting (max {max_iterations} iterations)")
+        if epic_mode == "auto":
+            print("  Mode: epic (auto-detect)")
+        elif epic_mode:
+            print(f"  Mode: epic ({current_epic_id} - {current_epic_title})")
         print("=" * 44)
         print()
 
@@ -3383,9 +3619,54 @@ def run_loop(
 
         # Check for ready work items (tasks + features, not epics)
         snapshot = get_bead_snapshot(cwd)
-        ready_work_count = len(snapshot.ready_work_ids)
+
+        # Compute excluded epic IDs (Retrospective/Backlog) each iteration
+        excluded_ids = get_excluded_epic_ids(snapshot)
+
+        # Determine effective epic filter for this iteration
+        if epic_mode and epic_mode != "auto":
+            # Explicit epic ID mode
+            effective_epic = epic_mode
+        elif epic_mode == "auto":
+            # Auto-detect first epic if not already locked
+            if current_epic_id is None:
+                skipped_ids_for_detect = skip_list.get_skipped_ids()
+                result_detect = detect_first_epic(snapshot, excluded_ids, skipped_ids_for_detect, cwd)
+                if result_detect is None:
+                    stop_reason = "no_work"
+                    logger.info("No non-excluded epic found for auto-detect mode")
+                    if not json_output:
+                        print("\nNo epic with ready work found. Loop complete.")
+                    break
+                current_epic_id, current_epic_title = result_detect
+                if not json_output:
+                    print(f"  Epic: {current_epic_id} - {current_epic_title}")
+            effective_epic = current_epic_id
+        else:
+            # Default mode: all work, just exclude retro/backlog
+            effective_epic = None
+
+        # Count ready work with filtering applied
+        if effective_epic:
+            ready_work_count = sum(
+                1 for b in snapshot.ready_work
+                if is_descendant_of_epic(b, effective_epic, snapshot, cwd)
+            )
+        elif excluded_ids:
+            ready_work_count = len(_filter_excluded_epics(
+                snapshot.ready_work, excluded_ids, snapshot, cwd
+            ))
+        else:
+            ready_work_count = len(snapshot.ready_work_ids)
 
         if ready_work_count == 0:
+            if epic_mode == "auto" and current_epic_id is not None:
+                # Current epic done, try next
+                if not json_output:
+                    print(f"\n  Epic {current_epic_id} has no remaining work.")
+                current_epic_id = None
+                current_epic_title = None
+                continue
             stop_reason = "no_work"
             if snapshot.ready_ids:
                 logger.info(f"No work items ready ({len(snapshot.ready_ids)} epics ready), loop complete")
@@ -3400,7 +3681,11 @@ def run_loop(
         # Pre-cook task detection: identify target task before running cook
         # This helps correlate failures with specific tasks even if cook times out
         skipped_ids = skip_list.get_skipped_ids()
-        next_task = get_next_ready_task(cwd, skip_ids=skipped_ids, snapshot=snapshot)
+        next_task = get_next_ready_task(
+            cwd, skip_ids=skipped_ids, snapshot=snapshot,
+            epic_filter=effective_epic,
+            excluded_epic_ids=excluded_ids if not effective_epic else None
+        )
 
         if next_task:
             target_task_id, target_task_title = next_task
@@ -3494,7 +3779,9 @@ def run_loop(
                 tasks_completed=completed_count + (1 if result.success else 0),
                 tasks_remaining=result.after_ready,  # Use data from iteration result
                 started_at=started_at,
-                iterations=iterations
+                iterations=iterations,
+                epic_mode=epic_mode,
+                current_epic=current_epic_id
             )
 
         # Append iteration to history JSONL file (full action details)
@@ -3623,6 +3910,11 @@ def run_loop(
                     except Exception as e:
                         logger.debug(f"Failed to update status with epic completions: {e}")
 
+                # In auto-epic mode, reset to re-detect next epic
+                if epic_mode == "auto":
+                    current_epic_id = None
+                    current_epic_title = None
+
                 if break_on_epic:
                     stop_reason = "epic_complete"
                     logger.info(f"Epic(s) {[e['id'] for e in epic_summaries]} completed, breaking as requested")
@@ -3679,7 +3971,9 @@ def run_loop(
             stop_reason=stop_reason,
             iterations=iterations,
             skipped_tasks=skip_list.get_skipped_tasks(),
-            escalation=escalation
+            escalation=escalation,
+            epic_mode=epic_mode,
+            current_epic=current_epic_id
         )
 
     # Write history summary record to mark end of loop
@@ -3830,6 +4124,8 @@ def main():
 Examples:
   %(prog)s                          # Run with defaults (25 iterations)
   %(prog)s --max-iterations 10      # Limit to 10 iterations
+  %(prog)s --epic                   # Auto-select first available epic
+  %(prog)s --epic lc-001            # Focus on specific epic
   %(prog)s --json                   # Output JSON instead of human-readable
   %(prog)s --json --output report.json  # Write JSON to file
   %(prog)s --stop-on-blocked        # Stop if any task is blocked
@@ -3899,6 +4195,11 @@ Examples:
         "--history-file",
         type=Path,
         help="Write history JSONL (default: /tmp/line-loop-{project}/history.jsonl)"
+    )
+    parser.add_argument(
+        "--epic", nargs="?", const="auto", default=None,
+        metavar="EPIC_ID",
+        help="Focus on one epic (auto-select first available, or specify ID)"
     )
     parser.add_argument(
         "--break-on-epic",
@@ -4018,7 +4319,8 @@ Examples:
             phase_timeouts=phase_timeouts,
             max_task_failures=args.max_task_failures,
             idle_timeout=args.idle_timeout,
-            idle_action=args.idle_action
+            idle_action=args.idle_action,
+            epic_mode=args.epic
         )
     finally:
         # Clean up PID file on exit
@@ -4036,6 +4338,8 @@ Examples:
         sys.exit(1)
     elif report.stop_reason in ("circuit_breaker", "all_tasks_skipped"):
         sys.exit(3)
+    elif report.stop_reason == "invalid_epic":
+        sys.exit(2)
     else:
         sys.exit(2)
 

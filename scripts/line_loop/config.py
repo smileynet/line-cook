@@ -40,6 +40,10 @@ CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
 # Hierarchy traversal
 HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks
 
+# Epic titles to exclude from auto-selection (parking lot pattern)
+# See .kiro/steering/line-cook.md, parking lot section
+EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})
+
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
     'cook': 1200,   # 20 min - Main work phase: TDD cycle, file edits, test runs

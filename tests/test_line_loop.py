@@ -12,6 +12,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 import line_loop
 
 
+# --- Shared test helpers ---
+
+def make_bead(id, title="", issue_type="task", parent=None):
+    """Create a BeadInfo for testing."""
+    return line_loop.BeadInfo(id=id, title=title, issue_type=issue_type, parent=parent)
+
+
+def make_snapshot(beads):
+    """Create a BeadSnapshot with given beads in ready list."""
+    snapshot = line_loop.BeadSnapshot()
+    snapshot.ready = beads
+    return snapshot
+
+
 class TestParseServeResult(unittest.TestCase):
     """Test parse_serve_result() function."""
 
@@ -1150,6 +1164,263 @@ class TestIsFirstEpicWork(unittest.TestCase):
         # In /tmp with no git repo, branch checks fail, so should return True
         result = line_loop.is_first_epic_work("nonexistent-epic", Path("/tmp"))
         self.assertTrue(result)
+
+
+class TestExcludedEpicTitlesConfig(unittest.TestCase):
+    """Test EXCLUDED_EPIC_TITLES configuration constant."""
+
+    def test_excluded_epic_titles_exported(self):
+        """EXCLUDED_EPIC_TITLES is exported from line_loop."""
+        self.assertTrue(hasattr(line_loop, 'EXCLUDED_EPIC_TITLES'))
+
+    def test_excluded_epic_titles_is_frozenset(self):
+        """EXCLUDED_EPIC_TITLES is a frozenset."""
+        self.assertIsInstance(line_loop.EXCLUDED_EPIC_TITLES, frozenset)
+
+    def test_excluded_epic_titles_contains_expected(self):
+        """EXCLUDED_EPIC_TITLES contains Retrospective and Backlog."""
+        self.assertIn("Retrospective", line_loop.EXCLUDED_EPIC_TITLES)
+        self.assertIn("Backlog", line_loop.EXCLUDED_EPIC_TITLES)
+
+    def test_excluded_epic_titles_exact_membership(self):
+        """EXCLUDED_EPIC_TITLES has exactly the expected members."""
+        self.assertEqual(line_loop.EXCLUDED_EPIC_TITLES, frozenset({"Retrospective", "Backlog"}))
+
+
+class TestFindEpicAncestor(unittest.TestCase):
+    """Test find_epic_ancestor function."""
+
+    def test_direct_child_of_epic(self):
+        """Task directly under an epic finds that epic."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        task = make_bead("task-1", "My Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        result = line_loop.find_epic_ancestor(task, snapshot, Path("/tmp"))
+        self.assertIsNotNone(result)
+        self.assertEqual(result.id, "epic-1")
+        self.assertEqual(result.issue_type, "epic")
+
+    def test_grandchild_through_feature(self):
+        """Task under a feature under an epic finds the epic."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        feature = make_bead("feat-1", "My Feature", "feature", parent="epic-1")
+        task = make_bead("task-1", "My Task", "task", parent="feat-1")
+        snapshot = make_snapshot([epic, feature, task])
+        result = line_loop.find_epic_ancestor(task, snapshot, Path("/tmp"))
+        self.assertIsNotNone(result)
+        self.assertEqual(result.id, "epic-1")
+
+    def test_no_parent_returns_none(self):
+        """Task with no parent returns None."""
+        task = make_bead("task-1", "Orphan Task", "task")
+        snapshot = make_snapshot([task])
+        result = line_loop.find_epic_ancestor(task, snapshot, Path("/tmp"))
+        self.assertIsNone(result)
+
+    def test_no_epic_in_chain(self):
+        """Task under a feature (no epic above) returns None."""
+        feature = make_bead("feat-1", "My Feature", "feature")
+        task = make_bead("task-1", "My Task", "task", parent="feat-1")
+        snapshot = make_snapshot([feature, task])
+        result = line_loop.find_epic_ancestor(task, snapshot, Path("/tmp"))
+        self.assertIsNone(result)
+
+
+class TestIsDescendantOfEpic(unittest.TestCase):
+    """Test is_descendant_of_epic function."""
+
+    def test_direct_child(self):
+        """Task directly under the target epic returns True."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        task = make_bead("task-1", "My Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        self.assertTrue(line_loop.is_descendant_of_epic(task, "epic-1", snapshot, Path("/tmp")))
+
+    def test_grandchild(self):
+        """Task under feature under epic returns True."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        feature = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        task = make_bead("task-1", "Task", "task", parent="feat-1")
+        snapshot = make_snapshot([epic, feature, task])
+        self.assertTrue(line_loop.is_descendant_of_epic(task, "epic-1", snapshot, Path("/tmp")))
+
+    def test_no_parent(self):
+        """Task with no parent returns False."""
+        task = make_bead("task-1", "Orphan", "task")
+        snapshot = make_snapshot([task])
+        self.assertFalse(line_loop.is_descendant_of_epic(task, "epic-1", snapshot, Path("/tmp")))
+
+    def test_wrong_epic(self):
+        """Task under a different epic returns False."""
+        epic_a = make_bead("epic-a", "Epic A", "epic")
+        task = make_bead("task-1", "Task", "task", parent="epic-a")
+        snapshot = make_snapshot([epic_a, task])
+        self.assertFalse(line_loop.is_descendant_of_epic(task, "epic-b", snapshot, Path("/tmp")))
+
+
+class TestGetExcludedEpicIds(unittest.TestCase):
+    """Test get_excluded_epic_ids function."""
+
+    def test_finds_retrospective_and_backlog(self):
+        """Identifies epics titled Retrospective and Backlog."""
+        retro = make_bead("epic-r", "Retrospective", "epic")
+        backlog = make_bead("epic-b", "Backlog", "epic")
+        normal = make_bead("epic-n", "My Feature Epic", "epic")
+        snapshot = make_snapshot([retro, backlog, normal])
+        excluded = line_loop.get_excluded_epic_ids(snapshot)
+        self.assertEqual(excluded, {"epic-r", "epic-b"})
+
+    def test_ignores_non_epic_with_excluded_title(self):
+        """Non-epic items with excluded titles are not matched."""
+        task = make_bead("task-1", "Retrospective", "task")
+        snapshot = make_snapshot([task])
+        excluded = line_loop.get_excluded_epic_ids(snapshot)
+        self.assertEqual(excluded, set())
+
+    def test_empty_snapshot(self):
+        """Empty snapshot returns empty set."""
+        snapshot = make_snapshot([])
+        excluded = line_loop.get_excluded_epic_ids(snapshot)
+        self.assertEqual(excluded, set())
+
+    def test_no_excluded_epics(self):
+        """Snapshot with non-excluded epics returns empty set."""
+        epic = make_bead("epic-1", "Important Work", "epic")
+        snapshot = make_snapshot([epic])
+        excluded = line_loop.get_excluded_epic_ids(snapshot)
+        self.assertEqual(excluded, set())
+
+
+class TestExcludedEpicFiltering(unittest.TestCase):
+    """Test that get_next_ready_task excludes retro/backlog tasks."""
+
+    def test_skips_tasks_under_retrospective(self):
+        """Tasks under Retrospective epic are skipped."""
+        retro = make_bead("epic-r", "Retrospective", "epic")
+        task_r = make_bead("task-r", "Retro Task", "task", parent="epic-r")
+        normal_epic = make_bead("epic-n", "Normal", "epic")
+        task_n = make_bead("task-n", "Normal Task", "task", parent="epic-n")
+        snapshot = make_snapshot([retro, task_r, normal_epic, task_n])
+        excluded = line_loop.get_excluded_epic_ids(snapshot)
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, excluded_epic_ids=excluded
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "task-n")
+
+    def test_returns_task_under_normal_epic(self):
+        """Tasks under non-excluded epics are returned."""
+        epic = make_bead("epic-1", "Important", "epic")
+        task = make_bead("task-1", "Important Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        excluded = line_loop.get_excluded_epic_ids(snapshot)
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, excluded_epic_ids=excluded
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "task-1")
+
+    def test_all_excluded_returns_none(self):
+        """When all tasks are under excluded epics, returns None."""
+        retro = make_bead("epic-r", "Retrospective", "epic")
+        task = make_bead("task-1", "Retro Task", "task", parent="epic-r")
+        snapshot = make_snapshot([retro, task])
+        excluded = line_loop.get_excluded_epic_ids(snapshot)
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, excluded_epic_ids=excluded
+        )
+        self.assertIsNone(result)
+
+
+class TestEpicFilter(unittest.TestCase):
+    """Test epic_filter parameter in get_next_ready_task."""
+
+    def test_filters_to_specific_epic(self):
+        """Only returns tasks under the specified epic."""
+        epic_a = make_bead("epic-a", "Epic A", "epic")
+        epic_b = make_bead("epic-b", "Epic B", "epic")
+        task_a = make_bead("task-a", "Task A", "task", parent="epic-a")
+        task_b = make_bead("task-b", "Task B", "task", parent="epic-b")
+        snapshot = make_snapshot([epic_a, epic_b, task_a, task_b])
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, epic_filter="epic-a"
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "task-a")
+
+    def test_epic_filter_returns_none_when_no_tasks(self):
+        """Returns None when no tasks under the filtered epic."""
+        epic_a = make_bead("epic-a", "Epic A", "epic")
+        epic_b = make_bead("epic-b", "Epic B", "epic")
+        task_b = make_bead("task-b", "Task B", "task", parent="epic-b")
+        snapshot = make_snapshot([epic_a, epic_b, task_b])
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, epic_filter="epic-a"
+        )
+        self.assertIsNone(result)
+
+    def test_epic_filter_with_skip_ids(self):
+        """Epic filter + skip_ids work together."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        task_1 = make_bead("task-1", "Task 1", "task", parent="epic-1")
+        task_2 = make_bead("task-2", "Task 2", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task_1, task_2])
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), skip_ids={"task-1"}, snapshot=snapshot, epic_filter="epic-1"
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "task-2")
+
+
+class TestDetectFirstEpic(unittest.TestCase):
+    """Test detect_first_epic function."""
+
+    def test_detects_first_non_excluded_epic(self):
+        """Auto-detect selects the first non-excluded epic."""
+        retro = make_bead("epic-r", "Retrospective", "epic")
+        normal = make_bead("epic-n", "Normal", "epic")
+        task_r = make_bead("task-r", "Retro Task", "task", parent="epic-r")
+        task_n = make_bead("task-n", "Normal Task", "task", parent="epic-n")
+        snapshot = make_snapshot([retro, normal, task_r, task_n])
+        excluded = {"epic-r"}
+        result = line_loop.detect_first_epic(snapshot, excluded, set(), Path("/tmp"))
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "epic-n")
+
+    def test_returns_none_when_all_excluded(self):
+        """Returns None when all epics are excluded."""
+        retro = make_bead("epic-r", "Retrospective", "epic")
+        task = make_bead("task-1", "Task", "task", parent="epic-r")
+        snapshot = make_snapshot([retro, task])
+        excluded = {"epic-r"}
+        result = line_loop.detect_first_epic(snapshot, excluded, set(), Path("/tmp"))
+        self.assertIsNone(result)
+
+    def test_skips_tasks_in_skip_ids(self):
+        """Skipped tasks are not used for epic detection."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        task_1 = make_bead("task-1", "Task 1", "task", parent="epic-1")
+        task_2 = make_bead("task-2", "Task 2", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task_1, task_2])
+        result = line_loop.detect_first_epic(snapshot, set(), {"task-1"}, Path("/tmp"))
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "epic-1")
+
+    def test_returns_none_for_orphan_tasks(self):
+        """Tasks without epic ancestors don't produce a detection result."""
+        task = make_bead("task-1", "Orphan", "task")
+        snapshot = make_snapshot([task])
+        result = line_loop.detect_first_epic(snapshot, set(), set(), Path("/tmp"))
+        self.assertIsNone(result)
+
+
+class TestValidateEpicId(unittest.TestCase):
+    """Test validate_epic_id function."""
+
+    def test_nonexistent_id_returns_none(self):
+        """validate_epic_id returns None for nonexistent ID."""
+        result = line_loop.validate_epic_id("nonexistent", Path("/tmp"))
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
