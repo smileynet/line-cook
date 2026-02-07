@@ -26,15 +26,54 @@ setup_colors() {
         GREEN='\033[0;32m'
         YELLOW='\033[1;33m'
         BLUE='\033[0;34m'
+        BOLD='\033[1m'
         NC='\033[0m' # No Color
     else
         RED=''
         GREEN=''
         YELLOW=''
         BLUE=''
+        BOLD=''
         NC=''
     fi
-    export RED GREEN YELLOW BLUE NC
+    export RED GREEN YELLOW BLUE BOLD NC
+}
+
+# ============================================================
+# Logging Functions (output to stderr)
+# ============================================================
+
+# Basic log (to stderr)
+log() {
+    echo -e "$@" >&2
+}
+
+# Phase header with separator
+log_phase() {
+    log ""
+    log "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    log "${BOLD}$1${NC}"
+    log "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+# Step indicator
+log_step() {
+    log "  ${BLUE}▶${NC} $1"
+}
+
+# Success indicator
+log_success() {
+    log "  ${GREEN}✓${NC} $1"
+}
+
+# Error indicator
+log_error() {
+    log "  ${RED}✗${NC} $1"
+}
+
+# Warning indicator
+log_warning() {
+    log "  ${YELLOW}!${NC} $1"
 }
 
 # Print pass/fail result
@@ -139,6 +178,51 @@ check_provider_available() {
         kiro) command -v kiro-cli >/dev/null 2>&1 ;;
         *) return 1 ;;
     esac
+}
+
+# ============================================================
+# Cleanup Utilities
+# ============================================================
+
+# Clean up stale test directories from previous runs
+# Usage: cleanup_stale_tests [pattern...]
+# Default patterns: /tmp/line-cook-smoke* /tmp/line-cook-smoke-remote*
+cleanup_stale_tests() {
+    local patterns=("$@")
+    if [[ ${#patterns[@]} -eq 0 ]]; then
+        patterns=("/tmp/line-cook-smoke*" "/tmp/line-cook-smoke-remote*")
+    fi
+
+    local found=0
+    for pattern in "${patterns[@]}"; do
+        for dir in $pattern; do
+            if [[ -d "$dir" ]]; then
+                log_warning "Removing stale test directory: $dir"
+                rm -rf "$dir"
+                found=$((found + 1))
+            fi
+        done
+    done
+    if [[ $found -gt 0 ]]; then
+        log_success "Cleaned up $found stale test director(ies)"
+    fi
+}
+
+# Check required dependencies exist
+# Usage: check_dependencies "dep1" "dep2" ...
+check_dependencies() {
+    local missing=()
+    for dep in "$@"; do
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            missing+=("$dep")
+        fi
+    done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_error "Missing dependencies: ${missing[*]}"
+        return 1
+    fi
+    return 0
 }
 
 # ============================================================

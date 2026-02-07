@@ -26,22 +26,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Colors
-if [[ -t 1 ]]; then
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    BOLD='\033[1m'
-    NC='\033[0m'
-else
-    RED=''
-    GREEN=''
-    YELLOW=''
-    BLUE=''
-    BOLD=''
-    NC=''
-fi
+# Source shared test utilities (logging, colors, etc.)
+source "$SCRIPT_DIR/lib/test-utils.sh"
+setup_colors
 
 # Defaults
 PROVIDER=""

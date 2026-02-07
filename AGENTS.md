@@ -247,113 +247,9 @@ OpenCode plugin uses OpenCode's built-in agent system:
 4. **Push before stop** - Work isn't done until pushed
 5. **File, don't block** - Discovered issues become beads, not interruptions
 
-## Beads Quick Reference
+## Beads Reference
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
-```
-
-## Bead Hierarchy
-
-Line-cook uses a **3-tier hierarchy** for organizing work:
-
-1. **Epics** - High-level capability areas (3+ sessions of work)
-2. **User-Observable Features** - Acceptance-testable outcomes (first-level children of epics)
-3. **Implementation Tasks** - Single-session work items (children of features)
-
-### Structure
-
-```
-Epic (capability area)
-├── Feature 1 (user-verifiable outcome)
-│   ├── Task 1a (implementation step)
-│   └── Task 1b (implementation step)
-├── Feature 2 (user-verifiable outcome)
-│   └── Task 2a (implementation step)
-└── Feature 3 (user-verifiable outcome)
-    ├── Task 3a (implementation step)
-    └── Task 3b (depends on Task 3a)
-```
-
-**Exception: Research & Parking Lot epics** - These have tasks as direct children (no feature layer) since research tasks don't have user-observable outcomes.
-
-### What Makes a User-Observable Feature
-
-**A feature is user-observable when a human can verify it works.**
-
-| Criterion | Feature | Task |
-|-----------|---------|------|
-| **Value** | Delivers visible benefit to user | Supports features, no standalone value |
-| **Testable** | User can verify "it works" | Only devs can verify |
-| **Perspective** | Human user's viewpoint | System/developer viewpoint |
-| **Scope** | End-to-end (vertical slice) | Single layer/component |
-
-**The "Who" Test:** If the beneficiary is "the system" or "developers," it's a task, not a feature.
-
-### Naming Conventions
-
-| Tier | Style | Examples |
-|------|-------|----------|
-| **Epic** | Noun phrase (capability area) | "Hook System Hardening", "AI Discoverability" |
-| **Feature** | User-verifiable outcome | "Hooks work in all git configurations", "Scripts work on Windows" |
-| **Task** | Action-oriented implementation | "Harden worktree detection", "Add Python fallback" |
-
-### When to Create Each Tier
-
-| Tier | When to Create |
-|------|----------------|
-| **Epic** | Work spans 3+ sessions OR multiple user-observable features |
-| **Feature** | User could test/demonstrate it working; has acceptance criteria |
-| **Task** | Implementation step completable in one session |
-
-### Creating Hierarchy
-
-```bash
-# Create the epic
-bd create --title="Hook System Hardening" --type=epic --priority=2
-
-# Create features under epic
-bd create --title="Hooks work in all git configurations" --type=feature --parent=lc-abc --priority=3
-bd create --title="Scripts work across all platforms" --type=feature --parent=lc-abc --priority=3
-
-# Create tasks under features
-bd create --title="Harden worktree detection in pre-push" --type=task --parent=lc-abc.1
-bd create --title="Add fallback for bare repos" --type=task --parent=lc-abc.1
-
-# Add dependencies between tasks for ordering
-bd dep add lc-xyz lc-def   # Task xyz depends on task def
-```
-
-### Querying Epic Progress
-
-```bash
-bd epic status                    # Show all epics with child completion
-bd epic status --eligible-only    # Show epics ready to close
-bd list --parent=<epic-id>        # List children of an epic
-bd list --parent=<epic-id> --all  # Include closed children
-```
-
-### When to Use Each Relationship
-
-| Relationship | When to use |
-|--------------|-------------|
-| `--parent` (epic) | Feature belongs to an epic |
-| `--parent` (feature) | Task implements a feature |
-| `bd dep add` | Task must complete before another (ordering) |
-| Epic depends on epic | One capability requires another first |
-
-### Anti-patterns
-
-- **System-as-User** - "As a system, I want to upgrade the database" → This is a task, not a feature
-- **Prescribing Solutions** - "Add dropdown with autocomplete" → Better: "Users can quickly find products"
-- **Layer-by-Layer Splitting** - "Build UI" → "Build API" → "Build DB" → Better: vertical slice that delivers value
-- **Technical Tasks as Features** - "Refactor hook detection" → Should be a task under a feature
-- **Flat task lists** - Group related work into epics with features
-- **Over-nesting** - Max 3 levels: epic → feature → task
+See [Beads Reference](docs/guidance/beads-reference.md) for hierarchy, CLI commands, and best practices.
 
 ## Session Completion (Landing the Plane)
 
@@ -378,92 +274,7 @@ bd list --parent=<epic-id> --all  # Include closed children
 
 ## Project Structure
 
-```
-line-cook/
-├── .claude/
-│   └── agents/            # Project-specific agents (not shipped)
-│       └── release-editor.md  # Release coordinator
-├── agents/                # Claude Code subagent definitions (shipped)
-│   ├── taster.md          # Test quality review (cook RED phase)
-│   ├── sous-chef.md       # Code review (serve phase)
-│   ├── maitre.md          # BDD test review (plate phase)
-│   └── critic.md          # E2E test review (epic plate phase)
-├── commands/              # Claude Code command definitions
-│   ├── getting-started.md # → /line:getting-started
-│   ├── mise.md            # → /line:mise (planning orchestrator)
-│   ├── brainstorm.md      # → /line:brainstorm
-│   ├── scope.md           # → /line:scope
-│   ├── finalize.md        # → /line:finalize
-│   ├── plan-audit.md      # → /line:plan-audit
-│   ├── architecture-audit.md  # → /line:architecture-audit
-│   ├── prep.md            # → /line:prep
-│   ├── cook.md            # → /line:cook
-│   ├── serve.md           # → /line:serve
-│   ├── tidy.md            # → /line:tidy
-│   ├── plate.md           # → /line:plate
-│   └── run.md             # → /line:run
-├── scripts/               # Installation and utility scripts
-│   ├── install-claude-code.sh    # Install Claude Code plugin locally
-│   ├── sync-commands.sh          # Sync commands across platforms
-│   ├── check-platform-parity.py  # Verify command parity across platforms
-│   ├── check-plugin-health.py    # Health checks for plugin files
-│   ├── doctor-docs.py            # Validate documentation consistency
-│   ├── menu-plan-to-beads.sh     # Convert menu plans to beads issues
-│   └── validate-smoke-test.py    # Validate smoke test results
-├── line-cook-opencode/    # OpenCode plugin
-│   ├── package.json       # Plugin manifest
-│   ├── install.sh         # Installation script
-│   ├── AGENTS.md          # Agent instructions (bundled)
-│   └── commands/          # OpenCode command definitions
-│       ├── line-getting-started.md # → /line-getting-started
-│       ├── line-prep.md   # → /line-prep
-│       ├── line-cook.md   # → /line-cook
-│       ├── line-serve.md  # → /line-serve
-│       ├── line-tidy.md   # → /line-tidy
-│       ├── line-mise.md   # → /line-mise
-│       ├── line-brainstorm.md  # → /line-brainstorm
-│       ├── line-scope.md       # → /line-scope
-│       ├── line-finalize.md    # → /line-finalize
-│       ├── line-plate.md  # → /line-plate
-│       └── line-run.md    # → /line-run
-├── line-cook-kiro/        # Kiro CLI prompts
-│   ├── prompts/           # Kiro prompt definitions
-│   │   ├── line-getting-started.md
-│   │   ├── line-prep.md
-│   │   ├── line-cook.md
-│   │   ├── line-serve.md
-│   │   ├── line-tidy.md
-│   │   ├── line-mise.md
-│   │   ├── line-brainstorm.md
-│   │   ├── line-scope.md
-│   │   ├── line-finalize.md
-│   │   ├── line-plate.md
-│   │   └── line-run.md
-│   └── steering/          # Workflow steering docs
-│       ├── beads.md
-│       ├── getting-started.md
-│       ├── kitchen-manager.md
-│       ├── line-cook.md
-│       ├── maitre.md
-│       ├── session.md
-│       ├── sous-chef.md
-│       └── taster.md
-├── tests/                 # Test files
-├── docs/                  # Documentation
-│   ├── decisions/         # Architecture decision records (ADRs)
-│   ├── guidance/          # Workflow guidance docs
-│   ├── planning/          # Planning methodology
-│   ├── templates/         # Document templates
-│   └── dev/               # Developer docs
-├── .github/
-│   └── workflows/         # CI/CD automation
-│       ├── ci.yml         # Continuous integration
-│       └── release.yml    # Automated releases
-├── .claude-plugin/
-│   └── plugin.json        # Claude Code plugin manifest
-├── AGENTS.md              # Agent workflow instructions (this file)
-└── README.md              # User documentation
-```
+See [Project Structure](docs/dev/project-structure.md) for full directory layout.
 
 ## Command Synchronization
 
@@ -497,59 +308,9 @@ Line Cook maintains commands for both Claude Code (`commands/`) and OpenCode (`l
 
 ## Installation
 
-### Claude Code
+See [README.md#installation](README.md#installation) for platform-specific installation instructions.
 
-**Remote (from GitHub) - recommended for auto-updates:**
-```bash
-/plugin marketplace add smileynet/line-cook
-/plugin install line@line-cook
-```
-
-Update: `/plugin update line`
-
-**Local (from clone) - for development or offline use:**
-```bash
-git clone https://github.com/smileynet/line-cook.git ~/line-cook
-cd ~/line-cook && ./scripts/install-claude-code.sh
-```
-
-Update: `cd ~/line-cook && git pull && ./scripts/install-claude-code.sh`
-
-> **Note:** Local and remote installations are tracked separately.
-> Local plugins show "To update, modify the source at: ./line" and cannot use `/plugin update`.
-> To switch from local to remote, uninstall first: `/plugin uninstall line`
-
-> **Important - Command Discovery:** Claude Code caches the list of available commands based on the plugin version number. If you add new commands but don't bump the version in `plugin.json`, they won't appear in other projects. After updating the version and running the install script, start a new Claude Code session (`/clear` or new terminal) for new commands to appear.
-
-Commands: `/line:getting-started`, `/line:mise`, `/line:brainstorm`, `/line:scope`, `/line:finalize`, `/line:prep`, `/line:cook`, `/line:serve`, `/line:tidy`, `/line:plate`, `/line:run`
-
-Agents: `line:taster`, `line:sous-chef`, `line:maitre`
-
-### OpenCode
-
-**Online (from GitHub):**
-```bash
-opencode plugin install https://github.com/smileynet/line-cook
-```
-
-**Offline (local clone):**
-```bash
-git clone https://github.com/smileynet/line-cook.git ~/line-cook
-cd ~/line-cook/line-cook-opencode && ./install.sh
-```
-
-Commands: `/line-getting-started`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-plate`, `/line-run`
-
-### Kiro
-
-Copy the `line-cook-kiro/` directory to your `.kiro/` folder:
-
-```bash
-git clone https://github.com/smileynet/line-cook.git ~/line-cook
-cp -r ~/line-cook/line-cook-kiro/* ~/.kiro/
-```
-
-Commands: `line-getting-started`, `line-prep`, `line-cook`, `line-serve`, `line-tidy`, `line-mise`, `line-plate`, `line-run`
+> **Important - Command Discovery:** Claude Code caches commands based on `plugin.json` version. After adding new commands, bump the version and run `/clear` in a new session.
 
 ## Release Process
 
@@ -693,22 +454,6 @@ After pushing a release, create a GitHub release with these instructions for use
 
 > **Context Recovery**: Run `/line:prep` after compaction
 
-### Commands
-| Command | Purpose |
-|---------|---------|
-| `/line:mise` | Create work breakdown (orchestrates brainstorm→scope→finalize) |
-| `/line:brainstorm` | Explore problem space (divergent thinking) |
-| `/line:scope` | Create structured work breakdown (convergent thinking) |
-| `/line:finalize` | Convert plan to beads and create test specs |
-| `/line:plan-audit` | Audit bead structure, quality, and hygiene |
-| `/line:architecture-audit` | Audit codebase architecture and code smells |
-| `/line:prep` | Sync git, show ready tasks |
-| `/line:cook` | Execute task with TDD cycle |
-| `/line:serve` | Review code changes |
-| `/line:tidy` | Commit and push changes |
-| `/line:plate` | Validate completed feature |
-| `/line:run` | Run full workflow cycle |
-
 ### Core Guardrails
 1. **Sync before work** - Always start with current state
 2. **One task at a time** - Focus prevents scope creep
@@ -744,25 +489,4 @@ Line Cook follows the Red-Green-Refactor cycle with automatic quality checks:
 
 ## Kitchen Terminology
 
-Line Cook uses restaurant/kitchen terminology throughout its workflow:
-
-| Term | Meaning | Context |
-|------|---------|---------|
-| **Mise** | Create work breakdown before starting | `/mise` phase |
-| **Audit** | Validate bead structure and quality | `/audit` phase |
-| **Prep** | Sync git, show ready tasks | `/prep` phase |
-| **Cook** | Execute task with TDD cycle | `/cook` phase |
-| **Serve** | Review code changes | `/serve` phase |
-| **Tidy** | Commit and push changes | `/tidy` phase |
-| **Plate** | Validate completed feature | `/plate` phase |
-| **Run** | Run full workflow cycle | `/run` phase |
-| **Chef** | Subagent that executes tasks with TDD cycle | `/cook` phase |
-| **Sous-Chef** | Subagent that reviews code changes | `/serve` phase |
-| **Taster** | Subagent that reviews test quality | After RED phase |
-| **Maître** | Subagent that reviews feature acceptance | `/plate` phase |
-| **Expeditor** | Subagent that orchestrates full workflow | `/run` phase |
-| **ORDER_UP** | Signal emitted when task is ready for review | End of cook phase |
-| **GOOD_TO_GO** | Assessment from sous-chef indicating code is ready to commit | After serve phase |
-| **Tracer** | Task that proves one aspect of a feature through all layers | Planning methodology |
-| **Feature Complete** | All tasks for a feature closed, ready for plate phase | `/plate` phase trigger |
-| **Acceptance Report** | Document validating feature against acceptance criteria | Created in plate |
+See [Kitchen Glossary](docs/guidance/kitchen-glossary.md) for the full terminology reference.

@@ -27,22 +27,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 RESULTS_DIR="$SCRIPT_DIR/results"
 
-# Colors (disabled in CI mode or when piping)
-if [[ -t 1 ]]; then
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    BOLD='\033[1m'
-    NC='\033[0m'
-else
-    RED=''
-    GREEN=''
-    YELLOW=''
-    BLUE=''
-    BOLD=''
-    NC=''
-fi
+# Source shared test utilities (logging, cleanup, etc.)
+source "$SCRIPT_DIR/lib/test-utils.sh"
+setup_colors
 
 # Defaults
 MODE=""
@@ -51,49 +38,6 @@ PLATFORM="claude"
 DRY_RUN=false
 VERBOSE=false
 SKIP_COOK=false
-
-# Logging functions (output to stderr so stdout is clean for --setup)
-log() {
-    echo -e "$@" >&2
-}
-
-log_phase() {
-    log ""
-    log "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    log "${BOLD}$1${NC}"
-    log "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-}
-
-log_step() {
-    log "  ${BLUE}▶${NC} $1"
-}
-
-log_success() {
-    log "  ${GREEN}✓${NC} $1"
-}
-
-log_error() {
-    log "  ${RED}✗${NC} $1"
-}
-
-log_warning() {
-    log "  ${YELLOW}!${NC} $1"
-}
-
-# Clean up stale test directories from previous runs
-cleanup_stale_tests() {
-    local found=0
-    for dir in /tmp/line-cook-smoke* /tmp/line-cook-smoke-remote*; do
-        if [[ -d "$dir" ]]; then
-            log_warning "Removing stale test directory: $dir"
-            rm -rf "$dir"
-            found=$((found + 1))
-        fi
-    done
-    if [[ $found -gt 0 ]]; then
-        log_success "Cleaned up $found stale test director(ies)"
-    fi
-}
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -153,12 +97,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check dependencies
-check_dependencies() {
+# Check dependencies (smoke-test specific)
+check_smoke_dependencies() {
     log_phase "Dependency Check"
 
     local missing=()
 
+    # Check core dependencies using shared utility
     for dep in git jq bd python3; do
         if command -v "$dep" >/dev/null 2>&1; then
             log_success "Found: $dep"
@@ -503,7 +448,7 @@ do_teardown() {
 main() {
     case "$MODE" in
         setup)
-            if ! check_dependencies; then
+            if ! check_smoke_dependencies; then
                 exit 1
             fi
             do_setup
@@ -515,7 +460,7 @@ main() {
             do_teardown "$TARGET_DIR"
             ;;
         dry-run)
-            if check_dependencies; then
+            if check_smoke_dependencies; then
                 log ""
                 log_success "Dry run complete. Dependencies satisfied."
                 exit 0
