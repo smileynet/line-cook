@@ -73,6 +73,7 @@ For each task with `tdd: true`, create a test specification:
 Foundation layer - proves tmux integration works
 
 ## Test Cases
+
 | Input | Expected Output | Notes |
 |-------|-----------------|-------|
 | NewTmux() | Returns Tmux instance | Constructor works |
@@ -80,6 +81,9 @@ Foundation layer - proves tmux integration works
 ## Edge Cases
 - [ ] Empty session name
 - [ ] Invalid characters in session name
+
+## Implementation Notes
+These specs will be translated to language-specific tests during /cook.
 ```
 
 ### Step 5: Verify Beads and Dependencies
@@ -94,8 +98,12 @@ bd show <epic-id>    # View epic with child features
 
 If a planning context folder exists (`docs/planning/context-<name>/`):
 
-1. Update README.md: status -> `finalized`, add epic bead ID, finalize summary
-2. Link context from epic bead description:
+1. **Update README.md:**
+   - Set status to `finalized`
+   - Add epic bead ID
+   - Add finalize summary (beads created, test specs)
+
+2. **Link context from epic bead description:**
    ```bash
    DESC=$(bd show <epic-id> --json | jq -r '.[0].description')
    bd update <epic-id> --body-file=- <<EOF
@@ -163,3 +171,4 @@ Wait for the user's response before continuing. If user chooses to start working
 ```
 /line-finalize
 ```
+

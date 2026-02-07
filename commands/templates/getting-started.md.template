@@ -1,5 +1,8 @@
 ---
 description: Workflow guide with full bead reference
+@IF_CLAUDECODE@
+allowed-tools: Bash, Read
+@ENDIF_CLAUDECODE@
 ---
 
 **Output this guide to the user.** Do not act on it - display it for reference.
@@ -13,30 +16,39 @@ This guide explains the line-cook workflow and provides a complete reference for
 ## The Workflow Loop
 
 ```
-/line-prep  →  /line-cook  →  /line-serve  →  /line-tidy
+/@NAMESPACE@prep  →  /@NAMESPACE@cook  →  /@NAMESPACE@serve  →  /@NAMESPACE@tidy
     ↓              ↓              ↓              ↓
   sync          execute        review         commit
 ```
 
-Or use `/line-run` to run the full cycle.
+Or use `/@NAMESPACE@run` to run the full cycle.
 
-### /line-prep - "What's ready?"
+@IF_CLAUDECODE@
+For autonomous execution of multiple tasks, use the `scripts/line-loop.sh` wrapper (see [Autonomous Loop](#autonomous-loop) below).
+
+@ENDIF_CLAUDECODE@
+### /@NAMESPACE@prep - "What's ready?"
 - Syncs git and beads
 - Shows available tasks
 - Identifies the next recommended task
 
-### /line-cook - "Execute the task"
+### /@NAMESPACE@cook - "Execute the task"
 - Claims a task
 - Plans and executes the task
 - Notes discovered issues for later (doesn't file beads yet)
 - Closes the task when done
 
-### /line-serve - "Review changes"
+### /@NAMESPACE@serve - "Review changes"
+@IF_CLAUDECODE@
+- Invokes headless Claude for peer review
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 - Performs peer review of changes
+@ENDIF_OPENCODE@
 - Auto-fixes minor issues
 - Categorizes findings for /tidy
 
-### /line-tidy - "Commit and capture"
+### /@NAMESPACE@tidy - "Commit and capture"
 - Files discovered issues as beads
 - Commits changes
 - Pushes to remote
@@ -50,6 +62,10 @@ Or use `/line-run` to run the full cycle.
 4. **Guardrails on completion** - Verify before marking done
 5. **Push before stop** - Session isn't done until pushed
 
+@IF_CLAUDECODE@
+> **Tip:** Run `/@NAMESPACE@plan-audit` periodically to check bead health and structure.
+
+@ENDIF_CLAUDECODE@
 ---
 
 ## Bead Reference
@@ -138,15 +154,69 @@ bd create --title="Retrospective" --type=epic --priority=4
 bd create --title="Consider adding lint step to serve" --type=task --priority=4 --parent=<retro-epic-id>
 ```
 
+@IF_CLAUDECODE@
+See `commands/tidy.md` Finding Filing Strategy for full details.
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 See `line-tidy.md` Finding Filing Strategy for full details.
+@ENDIF_OPENCODE@
 
 ---
 
 ## Quick Start
 
-1. Run `/line-prep` to see ready tasks
-2. Run `/line-cook` to execute the top task
-3. Run `/line-tidy` when done to commit and push
+1. Run `/@NAMESPACE@prep` to see ready tasks
+2. Run `/@NAMESPACE@cook` to execute the top task
+3. Run `/@NAMESPACE@tidy` when done to commit and push
 
-Or just run `/line-run` for the full cycle.
+Or just run `/@NAMESPACE@run` for the full cycle.
 
+@IF_CLAUDECODE@
+---
+
+## Autonomous Loop
+
+For batch processing multiple tasks, use the external script wrapper instead of running `/@NAMESPACE@run` manually each time:
+
+```bash
+# Run with default 25 iterations
+./scripts/line-loop.py
+
+# Run with custom limit
+./scripts/line-loop.py --max-iterations 10
+
+# JSON output for automation
+./scripts/line-loop.py --json --output report.json
+
+# Control behavior
+./scripts/line-loop.py --stop-on-blocked --max-retries 1
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-n, --max-iterations` | 25 | Max iterations before stopping |
+| `-t, --timeout` | 600 | Per-iteration timeout in seconds |
+| `--json` | false | Output JSON instead of human-readable |
+| `-o, --output` | - | Write final report to file |
+| `--stop-on-blocked` | false | Stop if task is BLOCKED |
+| `--stop-on-crash` | false | Stop on claude crash |
+| `--max-retries` | 2 | Max retries per task on NEEDS_CHANGES |
+
+### Why External Script?
+
+The script runs **outside** Claude Code, which provides:
+- **Fresh context per task** - No context accumulation across iterations
+- **Session independence** - Runs without active Claude Code session
+- **Better recovery** - Script survives Claude crashes, can restart
+- **Robust feedback** - Tracks bead state changes and parses SERVE_RESULT
+
+The script:
+1. Captures bead state (ready/in_progress/closed)
+2. Runs `claude --skill line:run` for each task
+3. Parses SERVE_RESULT verdict and INTENT block
+4. Handles retries on NEEDS_CHANGES (up to max-retries)
+5. Reports progress with before/after bead state diffs
+6. Stops when no tasks remain or limit reached
+@ENDIF_CLAUDECODE@

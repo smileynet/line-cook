@@ -119,11 +119,11 @@ Process TodoWrite items systematically with TDD guardrails:
 **For code changes, follow TDD cycle:**
 
 1. **RED**: Write failing test
-   ```bash
-   <test command>  # e.g., pytest, go test, npm test
-   # Should FAIL
-   ```
-   
+    ```bash
+    <test command>  # e.g., pytest, go test, npm test
+    # Should FAIL
+    ```
+
    **Automatic test quality review** (use Task tool):
    ```
    Task tool: Review test code for quality
@@ -135,7 +135,7 @@ Process TodoWrite items systematically with TDD guardrails:
    - Clear test names and error messages
    - Proper structure (Setup-Execute-Validate-Cleanup)
    - No anti-patterns
-   
+
    **Address critical issues before GREEN phase.**
 
 2. **GREEN**: Implement minimal code
@@ -212,7 +212,7 @@ Findings: <issues/improvements noted for tidy>"
 **Completion output format:**
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  KITCHEN COMPLETE                                             ║
+║  KITCHEN COMPLETE                                            ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Task: <id> - <title>

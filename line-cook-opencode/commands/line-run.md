@@ -14,13 +14,13 @@ description: Run full workflow cycle (prep→cook→serve→tidy)
 
 Execute all steps in sequence without stopping between commands.
 
-### Step 1: Run /line-prep
+### Step 1: Run /prep
 
 Read and follow `line-prep.md` to sync state and identify available work.
 
 Wait for prep to complete.
 
-### Step 2: Run /line-cook
+### Step 2: Run /cook
 
 Read and follow `line-cook.md` to execute work.
 
@@ -30,7 +30,7 @@ Read and follow `line-cook.md` to execute work.
 
 Wait for cook to complete.
 
-### Step 3: Run /line-serve
+### Step 3: Run /serve
 
 Read and follow `line-serve.md` for peer review.
 
@@ -39,7 +39,7 @@ Wait for review to complete. **Check SERVE_RESULT verdict:**
 - If `continue: true` → proceed to Step 4
 - If `continue: false` (BLOCKED) → STOP and wait for user decision (see Error Handling)
 
-### Step 4: Run /line-tidy
+### Step 4: Run /tidy
 
 Read and follow `line-tidy.md` to file discovered work, commit, and push.
 
@@ -60,9 +60,10 @@ bd show <task-id>
 
 ### Step 6: Cycle Summary
 
+
 ```
 WORK CYCLE: Complete
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [1/5] PREP    ✓ synced
 [2/5] COOK    ✓ executed
@@ -85,11 +86,13 @@ BEFORE → AFTER:
 Files: <count> changed
 Commit: <hash>
 Issues filed: <count>
+
 ```
 
 ## Error Handling
 
 If any step fails:
+
 - **Prep fails**: Report sync error, stop workflow
 - **Cook fails**: Report error, offer to continue to tidy (to save progress)
 - **Serve fails**: Check SERVE_RESULT verdict (see below)
@@ -116,7 +119,7 @@ After serve completes, check the SERVE_RESULT block:
 
 ```
 REWORK REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Review found issues that should be addressed:
 
@@ -128,7 +131,7 @@ Looping back to /line-cook for rework (attempt <n>/3)...
 **On BLOCKED verdict:**
 ```
 WORKFLOW STOPPED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Review found blocking issues that must be addressed:
 

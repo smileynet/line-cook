@@ -18,7 +18,7 @@ Select the feature to validate:
 
 ```bash
 # Option 1: Use argument
-/line-plate <feature-id>
+/plate <feature-id>
 
 # Option 2: Find recently completed features
 bd list --status=closed --type=feature --limit=5
@@ -59,7 +59,7 @@ Review BDD tests for quality:
 
 **If critical issues found:**
 - Address issues
-- Re-run tests
+- Re-run BDD review
 - Do NOT proceed until quality bar is met
 
 ### Step 4: Create Feature Acceptance Documentation
@@ -83,7 +83,7 @@ Create acceptance documentation using the multi-course meal template:
 
 3. Remove the "Usage Instructions" section from the filled template
 
-See [`docs/templates/feature-acceptance.md`](../../docs/templates/feature-acceptance.md) for the full template.
+See [`docs/templates/feature-acceptance.md`](../docs/templates/feature-acceptance.md) for the full template.
 
 ### Step 5: Update CHANGELOG.md
 
@@ -175,7 +175,7 @@ NEXT STEP: Continue with next feature or task
 ### Tests Fail
 
 ```
-FEATURE VALIDATION FAILED
+⚠️ FEATURE VALIDATION FAILED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Feature: <id> - <title>
@@ -193,7 +193,7 @@ Actions:
 ### BDD Quality Issues
 
 ```
-BDD QUALITY ISSUES FOUND
+⚠️ BDD QUALITY ISSUES FOUND
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Feature: <id> - <title>

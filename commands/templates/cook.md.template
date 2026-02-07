@@ -9,7 +9,13 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 
 **Arguments:** `$ARGUMENTS` (optional) - Specific task ID to execute
 
+@IF_CLAUDECODE@
 **STOP after completing.** Show NEXT STEP and wait for user.
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+**When run directly:** STOP after completing, show NEXT STEP, and wait for user.
+**When run via `/@NAMESPACE@run`:** Continue to the next step without stopping.
+@ENDIF_OPENCODE@
 
 ---
 
@@ -80,7 +86,94 @@ bd comments add <id> "PHASE: COOK
 Status: started"
 ```
 
+@IF_CLAUDECODE@
+### Step 1.5: Check for Review Findings (Rework Mode)
+
+Check if this task has previous review findings:
+
+```bash
+bd comments list <id> | grep -A 20 "PHASE: SERVE"
+```
+
+**If review findings exist (NEEDS_CHANGES):**
+1. Load the findings from the serve comment
+2. Add findings to TodoWrite as items to address
+3. Prioritize fixing these before new work
+
+**Output in rework mode:**
+```
+REWORK MODE: <id> - <title>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Previous review found issues to address:
+  - [major] <issue 1>
+  - [minor] <issue 2>
+
+Addressing review findings first.
+```
+
+**If no review findings:** Continue normally with Step 2.
+
+### Step 1.6: Check for Retry Context (Loop Mode)
+
+When running in line-loop, check for structured retry context:
+
+```bash
+cat .line-cook/retry-context.json 2>/dev/null
+```
+
+**If retry-context.json exists:**
+This file contains structured feedback from the previous serve review, including:
+- `verdict`: The serve verdict (NEEDS_CHANGES)
+- `summary`: Brief assessment of the changes
+- `issues`: Array of issues with severity, location, problem, and suggestion
+- `attempt`: Which retry attempt this is
+
+**Prioritize issues from the context file over bead comments**, as they're more structured and reliable.
+
+**Output in retry mode:**
+```
+╔══════════════════════════════════════════════════════════════╗
+║  RETRY MODE - Attempt <N>                                    ║
+╚══════════════════════════════════════════════════════════════╝
+
+Task: <id> - <title>
+Previous verdict: NEEDS_CHANGES
+
+Issues to address:
+  [critical] <location>: <problem>
+    → <suggestion>
+  [major] <location>: <problem>
+    → <suggestion>
+  [minor] <location>: <problem>
+
+Summary: <assessment from serve>
+
+Addressing issues in priority order (critical → major → minor).
+```
+
+**Add issues to TodoWrite** in severity order:
+1. Critical issues first (blocking)
+2. Major issues second
+3. Minor issues last
+
+**If no retry context exists:** Continue normally with Step 2.
+
+### Step 2: Load Recipe
+
+Load the task details (the recipe):
+
+```bash
+bd show <id>
+```
+
+Review the task description, acceptance criteria, and any dependencies. This is the recipe for what will be cooked.
+
+### Step 3: Load Ingredients
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 ### Step 2: Load Ingredients
+@ENDIF_OPENCODE@
 
 Load relevant context files and documentation (the ingredients):
 
@@ -96,7 +189,12 @@ Load relevant context files and documentation (the ingredients):
 
 Use Read, Glob, and Grep tools to gather necessary context before starting implementation.
 
+@IF_CLAUDECODE@
+### Step 4: Plan the Task
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 ### Step 3: Plan the Task
+@ENDIF_OPENCODE@
 
 Break the task into steps using TodoWrite:
 
@@ -107,7 +205,12 @@ Break the task into steps using TodoWrite:
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
+@IF_CLAUDECODE@
+### Step 5: Execute TDD Cycle
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 ### Step 4: Execute TDD Cycle
+@ENDIF_OPENCODE@
 
 Process TodoWrite items systematically with TDD guardrails:
 
@@ -118,11 +221,32 @@ Process TodoWrite items systematically with TDD guardrails:
 **For code changes, follow TDD cycle:**
 
 1. **RED**: Write failing test
-   ```bash
-   <test command>  # e.g., pytest, go test, npm test
-   # Should FAIL
-   ```
-   
+    ```bash
+    <test command>  # e.g., pytest, go test, npm test
+    # Should FAIL
+    ```
+
+@IF_CLAUDECODE@
+    **Automatic test quality review (CRITICAL):**
+    ```
+    Use Task tool to invoke taster subagent:
+    Task(description="Review test code for quality", prompt="Review test code for <package> for quality, checking:
+    - Tests are isolated, fast, repeatable
+    - Clear test names and error messages
+    - Proper structure (Setup-Execute-Validate-Cleanup)
+    - No anti-patterns
+
+    Report any critical issues that must be addressed before proceeding.", subagent_type="taster")
+    ```
+
+    **Address critical issues before GREEN phase.** The taster agent will:
+    - Verify tests are isolated, fast, repeatable
+    - Check for clear test names and error messages
+    - Ensure proper structure (Setup-Execute-Validate-Cleanup)
+    - Identify anti-patterns
+    - Provide critical issue blocking if needed
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
    **Automatic test quality review** (use Task tool):
    ```
    Task tool: Review test code for quality
@@ -134,8 +258,9 @@ Process TodoWrite items systematically with TDD guardrails:
    - Clear test names and error messages
    - Proper structure (Setup-Execute-Validate-Cleanup)
    - No anti-patterns
-   
+
    **Address critical issues before GREEN phase.**
+@ENDIF_OPENCODE@
 
 2. **GREEN**: Implement minimal code
    ```bash
@@ -172,7 +297,12 @@ TDD Phase: RED/GREEN/REFACTOR
 
 These will be filed as beads in `/@NAMESPACE@tidy` (see tidy.md Finding Filing Strategy).
 
+@IF_CLAUDECODE@
+### Step 6: Verify Kitchen Equipment
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 ### Step 5: Verify Kitchen Equipment
+@ENDIF_OPENCODE@
 
 Before marking the task done, verify ALL guardrails pass:
 
@@ -195,7 +325,12 @@ Before marking the task done, verify ALL guardrails pass:
 - Keep task as `in_progress`
 - Ask user how to proceed
 
+@IF_CLAUDECODE@
+### Step 7: Complete Task
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 ### Step 6: Complete Task
+@ENDIF_OPENCODE@
 
 Only after all guardrails pass:
 
@@ -203,15 +338,27 @@ Only after all guardrails pass:
 bd close <id>
 bd comments add <id> "PHASE: COOK
 Status: completed
+@IF_CLAUDECODE@
+
+SEMANTIC CONTEXT (for tidy summary):
+Intent: <why this change was made, from task description>
+Before: <previous state - what existed/didn't work>
+After: <new state - what's now possible/fixed>
+
+Files: <count> changed
+Findings: <issues/improvements noted for tidy>"
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 Summary: <what was done>
 Files: <count> changed
 Findings: <issues/improvements noted for tidy>"
+@ENDIF_OPENCODE@
 ```
 
 **Completion output format:**
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  KITCHEN COMPLETE                                             ║
+║  KITCHEN COMPLETE                                            ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Task: <id> - <title>
@@ -221,8 +368,19 @@ Build: ✓ Successful
 
 Signal: KITCHEN_COMPLETE
 
+@IF_CLAUDECODE@
+INTENT:
+  <1-2 sentences from task description>
+  Goal: <deliverable or acceptance criteria>
+
+BEFORE → AFTER:
+  <previous state> → <new state>
+  <what couldn't be done> → <what can be done now>
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 Summary:
   <1-2 sentence description of what was accomplished>
+@ENDIF_OPENCODE@
 
 Files changed:
   M src/foo.ts
@@ -241,9 +399,20 @@ Findings (to file in /tidy):
   Improvements:
     - "Consider refactoring Z for clarity"
 
+@IF_CLAUDECODE@
+NEXT STEP: /@NAMESPACE@serve
+
+<phase_complete>DONE</phase_complete>
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
 NEXT STEP: /@NAMESPACE@serve (review) or /@NAMESPACE@tidy (commit)
+@ENDIF_OPENCODE@
 ```
 
+@IF_CLAUDECODE@
+**Phase completion signal:** The `<phase_complete>DONE</phase_complete>` tag signals to the line-loop orchestrator that this phase has completed its work and can be terminated early. This avoids waiting for natural exit or timeout. Always emit this signal at the very end of successful completion output.
+
+@ENDIF_CLAUDECODE@
 ## Guardrails (Critical)
 
 1. **No silent failures** - If something breaks, report it clearly
