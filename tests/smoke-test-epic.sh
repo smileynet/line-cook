@@ -227,7 +227,7 @@ verify_wip_commit_exists() {
 # Usage: get_bead_status <bead_id>
 get_bead_status() {
     local bead_id="$1"
-    bd show "$bead_id" --json 2>/dev/null | jq -r '.status // empty'
+    bd show "$bead_id" --json 2>/dev/null | jq -r '.[0].status // .status // empty'
 }
 
 # ============================================================
