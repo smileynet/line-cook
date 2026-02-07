@@ -44,7 +44,7 @@ Ask for the target version if not provided. Read the current version and validat
 
 ```bash
 # Read current version
-cat .claude-plugin/plugin.json | grep version
+cat plugins/claude-code/.claude-plugin/plugin.json | grep version
 ```
 
 Verify the new version is newer than current.
@@ -155,9 +155,9 @@ If you find issues, discuss them with the user:
 Execute the health check scripts:
 
 ```bash
-./scripts/check-plugin-health.py --skip-changelog
-./scripts/check-platform-parity.py
-./scripts/doctor-docs.py
+./dev/check-plugin-health.py --skip-changelog
+./dev/check-platform-parity.py
+./dev/doctor-docs.py
 ```
 
 - **Errors**: Must be fixed before release
@@ -170,7 +170,7 @@ Help fix any errors found.
 When all checks pass:
 
 ```bash
-./scripts/release.py <version>
+./dev/release.py <version>
 ```
 
 Verify the commit was created successfully.
@@ -267,9 +267,9 @@ Which would you prefer?
 ### Version Locations
 
 Three files need matching versions:
-1. `.claude-plugin/plugin.json` - line 4
-2. `line-cook-opencode/package.json` - line 3
-3. `line-cook-opencode/package.json` - line 15 (opencode.version)
+1. `plugins/claude-code/.claude-plugin/plugin.json` - line 4
+2. `plugins/opencode/package.json` - line 3
+3. `plugins/opencode/package.json` - line 15 (opencode.version)
 
 The release script handles this automatically.
 

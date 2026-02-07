@@ -101,7 +101,7 @@ opencode plugin install https://github.com/smileynet/line-cook
 **Kiro:**
 ```bash
 git clone https://github.com/smileynet/line-cook.git ~/line-cook
-cp -r ~/line-cook/line-cook-kiro/* ~/.kiro/
+cp -r ~/line-cook/plugins/kiro/* ~/.kiro/
 ```
 > [Full tutorial](docs/tutorial-kiro.md)
 

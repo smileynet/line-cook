@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.claude-plugin/plugin.json'
+      - 'plugins/claude-code/.claude-plugin/plugin.json'
 
 jobs:
   release:
@@ -17,7 +17,7 @@ jobs:
       - name: Get version from plugin.json
         id: version
         run: |
-          VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+          VERSION=$(jq -r '.version' plugins/claude-code/.claude-plugin/plugin.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 

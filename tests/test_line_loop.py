@@ -5,8 +5,8 @@ import sys
 import unittest
 from pathlib import Path
 
-# Add scripts directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+# Add core directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
 
 # Import the line_loop package
 import line_loop

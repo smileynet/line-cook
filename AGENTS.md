@@ -91,9 +91,9 @@ Claude Code and OpenCode use different command naming conventions:
 - **Claude Code**, **OpenCode**, and **Kiro CLI** are COMPLETELY UNRELATED PRODUCTS
 - Each has its own CLI: `claude`, `opencode`, and `kiro` respectively
 - Line Cook provides separate implementations for each:
-  - `commands/` + `.claude-plugin/` = Claude Code plugin
-  - `line-cook-opencode/` = OpenCode plugin  
-  - `line-cook-kiro/` = Kiro CLI agents
+  - `plugins/claude-code/` = Claude Code plugin
+  - `plugins/opencode/` = OpenCode plugin
+  - `plugins/kiro/` = Kiro CLI agents
 
 ## Dependencies
 
@@ -104,7 +104,7 @@ Claude Code and OpenCode use different command naming conventions:
 
 Line Cook provides agents for each platform:
 
-### Kiro CLI Agents (line-cook-kiro/agents/)
+### Kiro CLI Agents (plugins/kiro/agents/)
 
 | Agent | Role | Purpose |
 |-------|------|---------|
@@ -115,7 +115,7 @@ Line Cook provides agents for each platform:
 | **maitre** | BDD review | Review feature acceptance and BDD test quality |
 | **critic** | E2E review | Review epic-level E2E and user journey coverage |
 
-### Claude Code Commands (commands/)
+### Claude Code Commands (plugins/claude-code/commands/)
 
 Claude Code uses slash commands instead of agents:
 
@@ -134,7 +134,7 @@ Claude Code uses slash commands instead of agents:
 | **/line:plate** | Plate phase | Validate completed feature |
 | **/line:run** | Execution orchestrator | Prep→cook→serve→tidy orchestration |
 
-### Claude Code Subagents (agents/)
+### Claude Code Subagents (plugins/claude-code/agents/)
 
 Claude Code subagents are specialized agents invoked during workflow phases:
 
@@ -154,9 +154,9 @@ Agents for Line Cook development (not shipped with the plugin):
 |-------|---------|
 | **release-editor** | Interactive release coordinator for preparing new versions |
 
-> **Note:** The shipped `agents/sous-chef.md` is used directly for this project (no local override).
+> **Note:** The shipped `plugins/claude-code/agents/sous-chef.md` is used directly for this project (no local override).
 
-### OpenCode Plugin (line-cook-opencode/)
+### OpenCode Plugin (plugins/opencode/)
 
 OpenCode plugin uses OpenCode's built-in agent system:
 
@@ -275,10 +275,10 @@ See [Project Structure](docs/dev/project-structure.md) for full directory layout
 
 ## Command Synchronization
 
-Line Cook maintains commands for Claude Code (`commands/`), OpenCode (`line-cook-opencode/commands/`), and Kiro (`line-cook-kiro/prompts/`). All are generated from shared templates to prevent drift.
+Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), OpenCode (`plugins/opencode/commands/`), and Kiro (`plugins/kiro/prompts/`). All are generated from shared templates to prevent drift.
 
 **Template system:**
-- Source templates live in `commands/templates/` (11 templates)
+- Source templates live in `core/templates/commands/` (11 templates)
 - Use placeholders for platform-specific differences:
   - `@NAMESPACE@` - Command prefix (`line:` for Claude Code, `line-` for OpenCode/Kiro)
   - `@IF_CLAUDECODE@`...`@ENDIF_CLAUDECODE@` - Claude Code only content
@@ -297,10 +297,10 @@ Line Cook maintains commands for Claude Code (`commands/`), OpenCode (`line-cook
 Review agents are also generated from shared templates to prevent drift between Claude Code and Kiro.
 
 **Agent template system:**
-- Source templates live in `agents/templates/` (5 templates)
+- Source templates live in `core/templates/agents/` (5 templates)
 - Same conditional block syntax as commands: `@IF_CLAUDECODE@`, `@IF_KIRO@`
 - No `@NAMESPACE@` substitution needed (agents don't reference command namespaces)
-- No OpenCode output — OpenCode uses Claude Code's `agents/` directory directly
+- No OpenCode output — OpenCode uses Claude Code's `plugins/claude-code/agents/` directory directly
 
 **Platform differences handled automatically:**
 - Claude Code: YAML frontmatter with `name`, `description`, `tools`, plus concise review format
@@ -309,7 +309,7 @@ Review agents are also generated from shared templates to prevent drift between 
 **Synced agents:** All 5 review agents — sous-chef, taster, maitre, polisher, critic
 
 **NOT templatized:**
-- Kiro JSON agent configs (`line-cook-kiro/agents/*.json`) — platform-specific metadata
+- Kiro JSON agent configs (`plugins/kiro/agents/*.json`) — platform-specific metadata
 - Kiro orchestrator steering (line-cook.md) — routing table only, delegates to template-synced prompts
 - Non-agent steering files (beads.md, session.md) — Kiro-only reference docs (CC equivalents in docs/guidance/ and AGENTS.md)
 
@@ -319,7 +319,7 @@ Review agents are also generated from shared templates to prevent drift between 
 - As part of release process
 
 ```bash
-./scripts/sync-commands.sh
+./dev/sync-commands.sh
 ```
 
 ## Installation
@@ -348,8 +348,8 @@ vim CHANGELOG.md  # Add your changes under [Unreleased]
 
 | File | Field(s) |
 |------|----------|
-| `.claude-plugin/plugin.json` | `version` |
-| `line-cook-opencode/package.json` | `version` AND `opencode.version` |
+| `plugins/claude-code/.claude-plugin/plugin.json` | `version` |
+| `plugins/opencode/package.json` | `version` AND `opencode.version` |
 | `CHANGELOG.md` | New version section from [Unreleased] |
 
 ### Release Procedure
@@ -366,23 +366,23 @@ vim CHANGELOG.md  # Add your changes under [Unreleased]
 #    Major: breaking changes → 0.4.5 → 1.0.0
 
 # 3. Update all version locations (must be identical)
-#    - .claude-plugin/plugin.json: "version"
-#    - line-cook-opencode/package.json: "version" AND "opencode.version"
+#    - plugins/claude-code/.claude-plugin/plugin.json: "version"
+#    - plugins/opencode/package.json: "version" AND "opencode.version"
 
 # 4. Commit and push (release is created automatically)
-git add CHANGELOG.md .claude-plugin/plugin.json line-cook-opencode/package.json
+git add CHANGELOG.md plugins/claude-code/.claude-plugin/plugin.json plugins/opencode/package.json
 git commit -m "chore: release X.Y.Z"
 bd sync
 git push
 ```
 
-> **Note:** GitHub Actions automatically creates a release when `plugin.json` is updated on `main`. See `.github/workflows/release.yml`.
+> **Note:** GitHub Actions automatically creates a release when `plugins/claude-code/.claude-plugin/plugin.json` is updated on `main`. See `.github/workflows/release.yml`.
 
 ### What to Track in CHANGELOG.md
 
 **Track in [Unreleased]:**
-- Command changes (commands/*.md)
-- Script changes (scripts/*.py, scripts/*.sh)
+- Command changes (plugins/claude-code/commands/*.md)
+- Script changes (dev/*.py, dev/*.sh)
 - Plugin manifest changes
 - Core workflow logic
 - Significant user-facing features or fixes
@@ -410,8 +410,8 @@ git push
 Claude Code caches the available commands list based on the plugin version. This affects when you need to bump versions:
 
 **Must bump version:**
-- Adding new commands (files in `commands/`)
-- Adding new agents (files in `agents/`)
+- Adding new commands (files in `plugins/claude-code/commands/`)
+- Adding new agents (files in `plugins/claude-code/agents/`)
 - Adding new scripts that skills depend on
 - Any change you want users to see immediately
 

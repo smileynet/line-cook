@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "line",
-      "source": "./"
+      "source": "./plugins/claude-code/"
     }
   ]
 }

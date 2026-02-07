@@ -216,7 +216,7 @@ Good. All deliverables met:
 **Major**: None
 
 **Minor**:
-- [ ] line-cook-kiro/agents/sous-chef.json - Could add "allowedTools" field for consistency
+- [ ] plugins/kiro/agents/sous-chef.json - Could add "allowedTools" field for consistency
   - Severity: minor
   - Suggestion: Consider specifying exact tool list like taster
 

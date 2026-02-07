@@ -1,93 +1,81 @@
 # Project Structure
 
-> **Note:** This structure is auto-generated. To update, run `tree -I '.git|__pycache__|.beads' --dirsfirst -L 3` and edit.
+Three clear zones: **plugins/** (shipped per-platform artifacts), **core/** (shared source material that generates plugins), **dev/** (tooling that operates on core → plugins).
 
 ```
 line-cook/
-├── .claude/
-│   └── agents/            # Project-specific agents (not shipped)
-│       └── release-editor.md  # Release coordinator
-├── agents/                # Claude Code subagent definitions (shipped)
-│   ├── taster.md          # Test quality review (cook RED phase)
-│   ├── polisher.md        # Code refinement (serve phase)
-│   ├── sous-chef.md       # Code review (serve phase)
-│   ├── maitre.md          # BDD test review (plate phase)
-│   └── critic.md          # E2E test review (epic plate phase)
-├── commands/              # Claude Code command definitions
-│   ├── getting-started.md # → /line:getting-started
-│   ├── mise.md            # → /line:mise (planning orchestrator)
-│   ├── brainstorm.md      # → /line:brainstorm
-│   ├── scope.md           # → /line:scope
-│   ├── finalize.md        # → /line:finalize
-│   ├── plan-audit.md      # → /line:plan-audit
-│   ├── architecture-audit.md  # → /line:architecture-audit
-│   ├── prep.md            # → /line:prep
-│   ├── cook.md            # → /line:cook
-│   ├── serve.md           # → /line:serve
-│   ├── tidy.md            # → /line:tidy
-│   ├── plate.md           # → /line:plate
-│   └── run.md             # → /line:run
-├── scripts/               # Installation and utility scripts
-│   ├── install-claude-code.sh    # Install Claude Code plugin locally
-│   ├── sync-commands.sh          # Sync commands across platforms
-│   ├── check-platform-parity.py  # Verify command parity across platforms
-│   ├── check-plugin-health.py    # Health checks for plugin files
-│   ├── doctor-docs.py            # Validate documentation consistency
-│   ├── menu-plan-to-beads.sh     # Convert menu plans to beads issues
-│   └── validate-smoke-test.py    # Validate smoke test results
-├── line-cook-opencode/    # OpenCode plugin
-│   ├── package.json       # Plugin manifest
-│   ├── install.sh         # Installation script
-│   ├── AGENTS.md          # Agent instructions (bundled)
-│   └── commands/          # OpenCode command definitions
-│       ├── line-getting-started.md # → /line-getting-started
-│       ├── line-prep.md   # → /line-prep
-│       ├── line-cook.md   # → /line-cook
-│       ├── line-serve.md  # → /line-serve
-│       ├── line-tidy.md   # → /line-tidy
-│       ├── line-mise.md   # → /line-mise
-│       ├── line-brainstorm.md  # → /line-brainstorm
-│       ├── line-scope.md       # → /line-scope
-│       ├── line-finalize.md    # → /line-finalize
-│       ├── line-plate.md  # → /line-plate
-│       └── line-run.md    # → /line-run
-├── line-cook-kiro/        # Kiro CLI prompts
-│   ├── prompts/           # Kiro prompt definitions
-│   │   ├── line-getting-started.md
-│   │   ├── line-prep.md
-│   │   ├── line-cook.md
-│   │   ├── line-serve.md
-│   │   ├── line-tidy.md
-│   │   ├── line-mise.md
-│   │   ├── line-brainstorm.md
-│   │   ├── line-scope.md
-│   │   ├── line-finalize.md
-│   │   ├── line-plate.md
-│   │   └── line-run.md
-│   ├── agents/            # Kiro agent configs
-│   │   └── *.json         # Agent metadata (line-cook, taster, sous-chef, maitre, polisher, critic)
-│   └── steering/          # Workflow steering docs
-│       ├── beads.md       # Kiro-only beads CLI reference
-│       ├── session.md     # Kiro-only session protocols
-│       ├── line-cook.md   # Orchestrator routing (delegates to prompts)
-│       ├── taster.md      # Test review agent steering
-│       ├── sous-chef.md   # Code review agent steering
-│       ├── maitre.md      # BDD test review agent steering
-│       ├── polisher.md    # Code refinement agent steering
-│       └── critic.md      # E2E test review agent steering
-├── tests/                 # Test files
-├── docs/                  # Documentation
-│   ├── decisions/         # Architecture decision records (ADRs)
-│   ├── guidance/          # Workflow guidance docs
-│   ├── planning/          # Planning methodology
-│   ├── templates/         # Document templates
-│   └── dev/               # Developer docs
-├── .github/
-│   └── workflows/         # CI/CD automation
-│       ├── ci.yml         # Continuous integration
-│       └── release.yml    # Automated releases
+├── plugins/                   # Shipped per-platform artifacts
+│   ├── claude-code/           # Claude Code plugin
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json    # Plugin manifest (version source of truth)
+│   │   ├── commands/          # Generated (from core/templates) + native
+│   │   ├── agents/            # Generated (from core/templates)
+│   │   └── scripts/
+│   │       ├── line-loop.py   # Bundled from core/line_loop
+│   │       └── menu-plan-to-beads.sh
+│   ├── opencode/              # OpenCode plugin
+│   │   ├── package.json       # Plugin manifest
+│   │   ├── src/               # TypeScript source
+│   │   ├── dist/              # Built output
+│   │   ├── commands/          # Generated (from core/templates)
+│   │   ├── skills/
+│   │   ├── install.sh         # User-facing installer
+│   │   └── AGENTS.md
+│   └── kiro/                  # Kiro plugin
+│       ├── agents/            # JSON configs (platform-specific)
+│       ├── prompts/           # Generated (from core/templates)
+│       ├── steering/          # Generated (from core/templates/agents) + native
+│       ├── skills/
+│       ├── install.py         # User-facing installer
+│       └── README.md
+│
+├── core/                      # Shared source material
+│   ├── templates/
+│   │   ├── commands/          # *.md.template → plugins/*/commands/
+│   │   └── agents/            # *.md.template → plugins/*/agents|steering/
+│   ├── line_loop/             # Python package (bundled → plugins/claude-code/scripts/)
+│   └── line-loop-cli.py       # CLI wrapper source for bundling
+│
+├── dev/                       # Development tooling
+│   ├── release.py             # Release automation
+│   ├── sync-commands.sh       # Template → plugin sync
+│   ├── install-claude-code.sh # Local plugin installer
+│   ├── check-plugin-health.py # Version and metadata checks
+│   ├── check-platform-parity.py # Cross-platform command parity
+│   ├── doctor-docs.py         # Documentation validation
+│   └── validate-smoke-test.py # Smoke test verification
+│
+├── tests/                     # Test suite
+├── docs/                      # Documentation
+│   ├── demos/                 # Demo project templates
+│   ├── decisions/             # Architecture decision records (ADRs)
+│   ├── dev/                   # Developer docs
+│   └── guidance/              # Workflow guidance docs
+│
+├── .claude/                   # Dev-only local Claude Code config
+│   └── agents/
+│       └── release-editor.md  # Release coordinator (not shipped)
 ├── .claude-plugin/
-│   └── plugin.json        # Claude Code plugin manifest
-├── AGENTS.md              # Agent workflow instructions
-└── README.md              # User documentation
+│   └── marketplace.json       # Points to plugins/claude-code/
+├── .github/
+│   └── workflows/             # CI/CD automation
+│       ├── ci.yml             # Continuous integration (OpenCode)
+│       └── release.yml        # Automated releases
+├── AGENTS.md                  # Dev reference (not shipped)
+├── CHANGELOG.md
+├── CLAUDE.md
+└── README.md
+```
+
+## Data Flow
+
+```
+core/templates/commands/  ──sync──>  plugins/claude-code/commands/
+                          ──sync──>  plugins/opencode/commands/
+                          ──sync──>  plugins/kiro/prompts/
+
+core/templates/agents/    ──sync──>  plugins/claude-code/agents/
+                          ──sync──>  plugins/kiro/steering/
+
+core/line_loop/           ──bundle──> plugins/claude-code/scripts/line-loop.py
 ```
