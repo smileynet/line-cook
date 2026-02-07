@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'line-cook-opencode/**'
+      - 'plugins/opencode/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'line-cook-opencode/**'
+      - 'plugins/opencode/**'
       - '.github/workflows/ci.yml'
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: line-cook-opencode
+        working-directory: plugins/opencode
     steps:
       - uses: actions/checkout@v4
 

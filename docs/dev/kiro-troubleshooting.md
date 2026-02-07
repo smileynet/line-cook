@@ -6,10 +6,10 @@ Developer reference for Kiro CLI integration issues.
 
 ```bash
 # Global install (default) - installs to ~/.kiro/
-python3 line-cook-kiro/install.py
+python3 plugins/kiro/install.py
 
 # Local install - installs to .kiro/ in current directory
-python3 line-cook-kiro/install.py --local
+python3 plugins/kiro/install.py --local
 ```
 
 ## Common Issues
@@ -25,7 +25,7 @@ WARNING Agent config line-cook is malformed at /resources/3: "skill://..." is no
 
 **Fix:** Reinstall:
 ```bash
-python3 line-cook-kiro/install.py --global
+python3 plugins/kiro/install.py --global
 ```
 
 ### Agent conflict warning
@@ -66,7 +66,7 @@ ls .kiro/prompts/line-*.md     # Local
 
 Reinstall if missing:
 ```bash
-python3 line-cook-kiro/install.py
+python3 plugins/kiro/install.py
 ```
 
 ## CLI Flags Reference
@@ -94,7 +94,7 @@ Global installs use absolute paths to ensure resources resolve correctly regardl
 
 ## Relevant Files
 
-- `line-cook-kiro/install.py` - Installation script with path transformation logic
-- `line-cook-kiro/agents/line-cook.json` - Source agent configuration
+- `plugins/kiro/install.py` - Installation script with path transformation logic
+- `plugins/kiro/agents/line-cook.json` - Source agent configuration
 - `~/.kiro/agents/line-cook.json` - Installed global agent config
 - `.kiro/agents/line-cook.json` - Installed local agent config

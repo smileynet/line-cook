@@ -209,7 +209,7 @@ Check documentation health:
 
 ```bash
 # Run existing tools
-./scripts/doctor-docs.py
+./dev/doctor-docs.py
 
 # Check ADR currency
 ls -la docs/decisions/*.md | wc -l
@@ -401,9 +401,9 @@ Date: YYYY-MM-DD
 
 ```bash
 # 1. Run automated validation
-./scripts/check-plugin-health.py
-./scripts/check-platform-parity.py
-./scripts/doctor-docs.py
+./dev/check-plugin-health.py
+./dev/check-platform-parity.py
+./dev/doctor-docs.py
 
 # 2. Collect metrics
 cloc .                           # LOC by language
@@ -425,4 +425,4 @@ git log --format='' --name-only | sort | uniq -c | sort -rn | head -10  # Churn
 - [Workflow](./workflow.md) - How audits fit in the development cycle
 - [Epic-Level Testing](./epic-testing.md) - Quality validation at epic completion
 - [TDD/BDD Workflow](./tdd-bdd.md) - Test-driven quality practices
-- [Plan Audit](../../commands/plan-audit.md) - Bead content quality checks
+- [Plan Audit](../../plugins/claude-code/commands/plan-audit.md) - Bead content quality checks

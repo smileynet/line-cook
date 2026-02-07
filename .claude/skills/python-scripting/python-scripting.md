@@ -363,5 +363,5 @@ if retry_count > MAX_RETRIES:
 
 ## See Also
 
-- `scripts/line-loop.py` - Reference implementation
+- `plugins/claude-code/scripts/line-loop.py` - Reference implementation
 - `AGENTS.md` - Line Cook documentation

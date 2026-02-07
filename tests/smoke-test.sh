@@ -114,10 +114,10 @@ check_smoke_dependencies() {
     done
 
     # Check for validation script
-    if [[ -f "$REPO_ROOT/scripts/validate-smoke-test.py" ]]; then
+    if [[ -f "$REPO_ROOT/dev/validate-smoke-test.py" ]]; then
         log_success "Found: validate-smoke-test.py"
     else
-        log_error "Missing: scripts/validate-smoke-test.py"
+        log_error "Missing: dev/validate-smoke-test.py"
         missing+=("validate-smoke-test.py")
     fi
 
@@ -398,7 +398,7 @@ do_validate() {
     fi
 
     # Run validation script
-    if python3 "$REPO_ROOT/scripts/validate-smoke-test.py" \
+    if python3 "$REPO_ROOT/dev/validate-smoke-test.py" \
         --test-dir "$test_dir" \
         --platform "$PLATFORM" \
         --output "$result_file" \
