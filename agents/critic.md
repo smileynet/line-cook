@@ -50,6 +50,8 @@ Check that critical paths have smoke tests:
 - Smoke tests exercise the primary interface (CLI, API, UI, etc.)
 - Tests are fast critical-path checks, not exhaustive suites
 - Tests run against real (or realistic) environments
+- Tests must exercise real system interfaces (not mocked or stubbed)
+- Smoke tests that pass by returning canned data prove mocks work, not the system
 
 ### 4. Review Cross-Feature Integration
 
@@ -83,6 +85,7 @@ Flag common E2E testing mistakes:
 - **Over-Testing**: Testing every path instead of critical paths only
 - **Environment Coupling**: Tests that only work in specific environments
 - **Missing Observability**: No logs/traces to debug failures
+- **Simulated Testing**: Tests use mocks/stubs to simulate behavior instead of exercising actual system interfaces — proves the mock works, not the feature
 
 ## Quality Assessment Output
 
@@ -101,6 +104,7 @@ Smoke Test Coverage:
   [✓/✗] Critical paths have smoke tests
   [✓/✗] Tests exercise real interfaces
   [✓/✗] Tests are fast and reliable
+  [✓/✗] No simulated/mocked system interfaces
 
 Cross-Feature Integration:
   [✓/✗] Data flows validated
@@ -138,6 +142,7 @@ Summary: [Overall assessment]
 - Major cross-feature integration gaps
 - Fundamentally wrong testing strategy
 - Antipatterns that undermine test value
+- Tests simulate behavior with mocks instead of exercising real system interfaces
 
 ## Your Authority
 

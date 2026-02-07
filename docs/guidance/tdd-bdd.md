@@ -554,6 +554,11 @@ Problem: Tests pass but integration fails.
 
 Fix: Mock only external dependencies; use integration tests.
 
+**Tier distinction:**
+- **Unit tests (TDD/taster):** Mock external dependencies (network, databases, third-party APIs)
+- **Feature tests (BDD/maitre):** Must use real system operations (mocking core behavior defeats acceptance testing)
+- **Epic tests (E2E/critic):** Must exercise real interfaces end-to-end (no simulated behavior)
+
 ### Testing Implementation
 
 > "Check that internal method was called 3 times."

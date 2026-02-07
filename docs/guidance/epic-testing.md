@@ -330,6 +330,12 @@ echo "=== All smoke tests passed ==="
 - Mock external dependencies
 - Configure via environment variables
 
+### Simulated Testing
+
+**Problem:** Tests use mocks or stubs that simulate behavior instead of exercising actual system interfaces. They prove mocks work, not the feature.
+
+**Fix:** Feature and epic tests must exercise real interfaces. If the system creates files, create real files. If it calls a CLI, run the real CLI. Reserve mocks for unit tests and external third-party services only.
+
 ## Quality Checklist
 
 Before closing an epic, verify:

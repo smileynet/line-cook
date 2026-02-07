@@ -67,6 +67,7 @@ Verify:
 - Tests map to acceptance criteria
 - User perspective documented
 - Error scenarios included
+- Tests exercise real system operations, not mocked simulations
 
 Report any critical issues before proceeding with plate phase.", subagent_type="maitre")
 ```
@@ -164,6 +165,7 @@ Verify:
 - Smoke tests exist for critical paths
 - Testing approach fits project type
 - No major antipatterns
+- Tests exercise real system interfaces, not mocked simulations
 
 Report any critical issues before closing the epic.", subagent_type="critic")
 ```
