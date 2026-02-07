@@ -15,17 +15,17 @@ Line Cook supports three AI coding platforms: Claude Code, OpenCode, and Kiro CL
 Options considered:
 - **Separate codebases** — each platform gets independently maintained commands; maximum flexibility but guaranteed drift
 - **Single source with runtime detection** — one command file adapts at runtime; not possible since platforms read static markdown
-- **Template system with sync script** — source templates use placeholders (`@NAMESPACE@`, `@HEADLESSCLI@`); a sync script generates platform-specific versions
+- **Template system with sync script** — source templates use placeholders (`@NAMESPACE@`, conditional blocks); a sync script generates platform-specific versions
 
 ## Decision
 
-We will use a template system with a sync script (`scripts/sync-commands.sh`) because it maintains a single source of truth while accommodating platform differences through placeholder substitution. Templates live in `commands/templates/`, and the sync script generates both Claude Code and OpenCode versions. Platform-specific additions (like OpenCode's `/line-run` instruction) are handled as template conditionals.
+We will use a template system with a sync script (`scripts/sync-commands.sh`) because it maintains a single source of truth while accommodating platform differences through placeholder substitution. Templates live in `commands/templates/`, and the sync script generates Claude Code, OpenCode, and Kiro versions. Platform-specific additions (like OpenCode's `/line-run` instruction) are handled as template conditionals. A pre-commit hook enforces that generated files stay in sync with templates.
 
 ## Consequences
 
-- Positive: Single source of truth prevents drift between platforms
+- Positive: Single source of truth prevents drift across all three platforms
 - Positive: Bug fixes and improvements propagate to all platforms automatically
 - Positive: Platform differences are explicit and documented via placeholders
+- Positive: Pre-commit sync guard catches out-of-sync generated files before they're committed
+- Positive: Kiro support added as third sync target with minimal overhead — shares OpenCode content via `@IF_OPENCODE@` blocks, uses `@line-` namespace, strips YAML frontmatter
 - Negative: Adding a new synced command requires updating the template system
-- Negative: Not all commands are synced yet — some still maintained separately
-- Neutral: Kiro CLI uses its own prompt format and is maintained separately in `line-cook-kiro/`
