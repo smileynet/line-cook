@@ -35,6 +35,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 RESULTS_DIR="$SCRIPT_DIR/results"
 
+# Source shared test utilities (includes git assertion helpers)
+source "$SCRIPT_DIR/lib/test-utils.sh"
+
 # Colors (disabled in CI mode or when piping)
 if [[ -t 1 ]]; then
     RED='\033[0;31m'
@@ -55,7 +58,6 @@ fi
 # Defaults
 MODE=""
 TARGET_DIR=""
-DRY_RUN=false
 VERBOSE=false
 
 # Logging functions (output to stderr so stdout is clean for --setup)
@@ -139,7 +141,6 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --dry-run)
-            DRY_RUN=true
             MODE="dry-run"
             shift
             ;;
@@ -162,73 +163,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# ============================================================
-# Git State Assertion Helpers
-# ============================================================
-
-# Check if a git branch exists locally
-# Usage: verify_branch_exists <branch_name>
-verify_branch_exists() {
-    local branch="$1"
-    git show-ref --verify "refs/heads/$branch" >/dev/null 2>&1
-}
-
-# Get current git branch name
-# Usage: get_current_branch
-get_current_branch() {
-    git branch --show-current
-}
-
-# Check if we're on a specific branch
-# Usage: verify_current_branch <branch_name>
-verify_current_branch() {
-    local expected="$1"
-    local current
-    current=$(get_current_branch)
-    [[ "$current" == "$expected" ]]
-}
-
-# Check if a merge commit exists in recent history
-# Usage: verify_merge_commit_exists <pattern>
-verify_merge_commit_exists() {
-    local pattern="$1"
-    git log --oneline --merges -10 | grep -q "$pattern"
-}
-
-# Check if a --no-ff merge was used (commit has 2 parents)
-# Usage: verify_no_ff_merge <commit_pattern>
-verify_no_ff_merge() {
-    local pattern="$1"
-    local merge_commit
-    merge_commit=$(git log --oneline --merges -10 | grep "$pattern" | head -1 | cut -d' ' -f1)
-    if [[ -z "$merge_commit" ]]; then
-        return 1
-    fi
-    # Check if commit has a second parent (indicates --no-ff merge)
-    git rev-parse --verify "${merge_commit}^2" >/dev/null 2>&1
-}
-
-# Check if a branch was deleted (no longer exists)
-# Usage: verify_branch_deleted <branch_name>
-verify_branch_deleted() {
-    local branch="$1"
-    ! git show-ref --verify "refs/heads/$branch" >/dev/null 2>&1
-}
-
-# Check if there's a WIP commit on a branch
-# Usage: verify_wip_commit_exists <branch_name>
-verify_wip_commit_exists() {
-    local branch="$1"
-    git log "$branch" --oneline -10 | grep -q "WIP:"
-}
-
-# Check bead status
-# Usage: get_bead_status <bead_id>
-get_bead_status() {
-    local bead_id="$1"
-    bd show "$bead_id" --json 2>/dev/null | jq -r '.[0].status // .status // empty'
-}
 
 # ============================================================
 # Clean up stale test directories from previous runs
@@ -533,6 +467,14 @@ do_validate_s1() {
 
     cd "$test_dir"
 
+    # Verbose: show git state
+    if $VERBOSE; then
+        log "  [verbose] Git branches:"
+        git branch -a 2>/dev/null | while read -r line; do log "    $line"; done
+        log "  [verbose] Recent commits:"
+        git log --oneline -5 2>/dev/null | while read -r line; do log "    $line"; done
+    fi
+
     # Check 1: Epic branch exists
     log_step "Checking epic branch exists..."
     if verify_branch_exists "epic/smoke-epic-001"; then
@@ -589,6 +531,14 @@ do_validate_s2() {
     fi
 
     cd "$test_dir"
+
+    # Verbose: show git state
+    if $VERBOSE; then
+        log "  [verbose] Git branches:"
+        git branch -a 2>/dev/null | while read -r line; do log "    $line"; done
+        log "  [verbose] Recent commits on epic branch:"
+        git log "epic/smoke-epic-001" --oneline -5 2>/dev/null | while read -r line; do log "    $line"; done
+    fi
 
     # Check 1: Still on epic branch
     log_step "Checking current branch..."
@@ -696,6 +646,14 @@ do_validate_s4() {
     fi
 
     cd "$test_dir"
+
+    # Verbose: show git state
+    if $VERBOSE; then
+        log "  [verbose] Git branches:"
+        git branch -a 2>/dev/null | while read -r line; do log "    $line"; done
+        log "  [verbose] Recent commits (showing merges):"
+        git log --oneline --graph -10 2>/dev/null | while read -r line; do log "    $line"; done
+    fi
 
     # Check 1: Currently on main branch
     log_step "Checking current branch..."
