@@ -9,6 +9,5 @@
     "file://AGENTS.md",
     "file://.kiro/steering/**/*.md",
     "skill://.kiro/skills/**/SKILL.md"
-  ],
-  "model": "claude-sonnet-4"
+  ]
 }

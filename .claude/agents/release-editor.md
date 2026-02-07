@@ -2,7 +2,6 @@
 name: release-editor
 description: Interactive release coordinator. Guides user through release process - reviews readiness, runs validations, helps fix issues, improves changelog quality, and executes release when ready. Use when preparing a new version release.
 tools: Glob, Grep, Read, Edit, Bash
-model: sonnet
 ---
 
 # Release Editor Agent

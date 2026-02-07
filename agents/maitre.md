@@ -2,7 +2,6 @@
 name: maitre
 description: Reviews feature acceptance and BDD test quality - verifies acceptance criteria coverage and Given-When-Then structure
 tools: Glob, Grep, Read
-model: opus
 ---
 
 # Maître Agent
