@@ -14,137 +14,12 @@ When the user says any of these phrases, execute the corresponding workflow:
 | "serve", "/serve", "review", "review changes" | Run serve workflow |
 | "tidy", "/tidy", "commit", "push changes" | Run tidy workflow |
 | "plate", "/plate", "validate feature" | Run plate workflow (feature validation) |
-| "run", "/run", "full run" | Run full cycle (mise→prep→cook→serve→tidy→plate) |
-| "work", "/work", "full cycle", "start work" | Run work cycle (prep→cook→serve→tidy) |
+| "run", "/run", "full run", "work", "/work", "full cycle", "start work" | Run execution cycle → `line-run.md` |
 | "getting started", "help", "guide", "how do I" | Show getting-started guide |
 
-## The Workflow Loop
+## Delegation
 
-```
-mise → prep → cook → serve → tidy → plate
-  ↓      ↓       ↓       ↓       ↓       ↓
-plan   sync  execute  review  commit validate
-```
-
-**Quick cycle (most common):**
-```
-prep → cook → serve → tidy
-```
-
-**Full service (feature delivery):**
-```
-mise → prep → cook → serve → tidy → plate
-```
-
-### mise - "Plan the work"
-
-Create structured work breakdown before implementation.
-
-```bash
-# No CLI equivalent - this is an interactive planning session
-```
-
-1. **Clarify scope**: Ask questions about what we're building
-2. **Create hierarchy**: Epic → Feature → Task breakdown
-3. **Define acceptance**: User stories and acceptance criteria
-4. **Output plan**: YAML menu plan for review
-5. **Convert to beads**: After user approval
-
-### prep - "What's ready?"
-
-Sync state and identify available work.
-
-```bash
-git pull --rebase
-bd sync
-bd ready
-```
-
-Output shows:
-- Sync status
-- Ready task count
-- In-progress tasks
-- Next recommended task
-
-### cook - "Execute the task"
-
-Execute a task with guardrails ensuring completion. Follows TDD Red-Green-Refactor cycle.
-
-```bash
-bd ready                              # Find available tasks
-bd update <id> --status in_progress   # Claim the task
-bd show <id>                          # Get task context
-```
-
-1. **Task selected and claimed** via bd commands
-2. **Plan steps**: Break into todos before starting
-3. **RED**: Write failing test, invoke taster for quality review
-4. **GREEN**: Implement minimal code to pass test
-5. **REFACTOR**: Clean up while tests pass
-6. **Verify**: All tests pass, code compiles
-7. **Complete**: `bd close <id>` only after verification
-
-**Quality gates** (must pass before completion):
-- Tests pass
-- Code builds
-- Test quality approved (taster)
-- Code quality approved (sous-chef, in serve phase)
-
-Note discoveries for /tidy - don't file beads during cook.
-
-### serve - "Review changes"
-
-Invoke review of completed work.
-
-```bash
-git diff
-# Review for correctness, security, style, completeness
-```
-
-Output provides diff context. Review for:
-- Correctness and security
-- Style consistency
-- Completeness
-
-Categorize findings for /tidy.
-
-### tidy - "Commit and capture"
-
-File discovered issues, commit, and push.
-
-```bash
-bd create --title="..." --type=task   # File any discoveries
-bd close <id>                          # Close completed task
-git add . && git commit -m "..."       # Commit changes
-bd sync                                # Sync beads
-git push                               # Push to remote
-```
-
-1. **File issues**: Create beads for discoveries
-2. **Commit**: Staged changes with conventional commit
-3. **Sync and push**: Ensure work is remote
-
-### plate - "Validate the feature"
-
-Final validation for completed features.
-
-```bash
-# Run after all feature tasks are closed
-```
-
-1. **Run tests**: All tests must pass
-2. **BDD review**: Invoke maître for test quality
-3. **Create acceptance doc**: Document feature completion
-4. **Update changelog**: Add to CHANGELOG.md
-5. **Close feature**: Mark feature bead complete
-
-### run - "Full run"
-
-Complete feature delivery cycle.
-
-Run prep → cook → serve → tidy → plate (if feature complete) in sequence using the commands above.
-
-**Kitchen Manager**: Use `/run` when delivering a complete feature. Use individual commands (`/prep`, `/cook`, etc.) when you need fine-grained control, want to pause between phases, or are just doing a quick task. The `/run` command orchestrates the entire flow automatically.
+When a command is recognized, **read and follow the corresponding prompt file** at `.kiro/prompts/line-<phase>.md`. The prompt files contain the full phase logic. Do not improvise phase steps — execute the prompt as written.
 
 ## Guardrails
 
@@ -154,9 +29,9 @@ Run prep → cook → serve → tidy → plate (if feature complete) in sequence
 4. **File, don't block** - Discovered issues become beads
 5. **Push before stop** - Work isn't done until pushed
 
-## Parking Lot Pattern
+## Parking Lot
 
-Tasks under "Retrospective" or "Backlog" epics are excluded from auto-selection. They're parked until explicitly requested:
+Tasks under "Retrospective" or "Backlog" epics are excluded from auto-selection until explicitly claimed:
 
 ```bash
 bd update <parked-task-id> --status in_progress

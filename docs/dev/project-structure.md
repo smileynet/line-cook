@@ -9,6 +9,7 @@ line-cook/
 │       └── release-editor.md  # Release coordinator
 ├── agents/                # Claude Code subagent definitions (shipped)
 │   ├── taster.md          # Test quality review (cook RED phase)
+│   ├── polisher.md        # Code refinement (serve phase)
 │   ├── sous-chef.md       # Code review (serve phase)
 │   ├── maitre.md          # BDD test review (plate phase)
 │   └── critic.md          # E2E test review (epic plate phase)
@@ -63,15 +64,17 @@ line-cook/
 │   │   ├── line-finalize.md
 │   │   ├── line-plate.md
 │   │   └── line-run.md
+│   ├── agents/            # Kiro agent configs
+│   │   └── *.json         # Agent metadata (line-cook, taster, sous-chef, maitre, polisher, critic)
 │   └── steering/          # Workflow steering docs
-│       ├── beads.md
-│       ├── getting-started.md
-│       ├── kitchen-manager.md
-│       ├── line-cook.md
-│       ├── maitre.md
-│       ├── session.md
-│       ├── sous-chef.md
-│       └── taster.md
+│       ├── beads.md       # Kiro-only beads CLI reference
+│       ├── session.md     # Kiro-only session protocols
+│       ├── line-cook.md   # Orchestrator routing (delegates to prompts)
+│       ├── taster.md      # Test review agent steering
+│       ├── sous-chef.md   # Code review agent steering
+│       ├── maitre.md      # BDD test review agent steering
+│       ├── polisher.md    # Code refinement agent steering
+│       └── critic.md      # E2E test review agent steering
 ├── tests/                 # Test files
 ├── docs/                  # Documentation
 │   ├── decisions/         # Architecture decision records (ADRs)

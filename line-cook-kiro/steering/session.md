@@ -1,3 +1,5 @@
+<!-- Kiro-only session protocols. Claude Code equivalent: AGENTS.md "Session Completion" section + hooks -->
+
 # Session Protocols
 
 Rules for managing work sessions with line-cook.
