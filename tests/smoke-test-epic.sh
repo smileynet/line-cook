@@ -35,58 +35,14 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 RESULTS_DIR="$SCRIPT_DIR/results"
 
-# Source shared test utilities (includes git assertion helpers)
+# Source shared test utilities (logging, colors, git assertion helpers)
 source "$SCRIPT_DIR/lib/test-utils.sh"
-
-# Colors (disabled in CI mode or when piping)
-if [[ -t 1 ]]; then
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    BOLD='\033[1m'
-    NC='\033[0m'
-else
-    RED=''
-    GREEN=''
-    YELLOW=''
-    BLUE=''
-    BOLD=''
-    NC=''
-fi
+setup_colors
 
 # Defaults
 MODE=""
 TARGET_DIR=""
 VERBOSE=false
-
-# Logging functions (output to stderr so stdout is clean for --setup)
-log() {
-    echo -e "$@" >&2
-}
-
-log_phase() {
-    log ""
-    log "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    log "${BOLD}$1${NC}"
-    log "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-}
-
-log_step() {
-    log "  ${BLUE}▶${NC} $1"
-}
-
-log_success() {
-    log "  ${GREEN}✓${NC} $1"
-}
-
-log_error() {
-    log "  ${RED}✗${NC} $1"
-}
-
-log_warning() {
-    log "  ${YELLOW}!${NC} $1"
-}
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
