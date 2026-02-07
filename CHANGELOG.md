@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Epic-level git branch management for `/line:run` and `/line:loop`
+  - Automatically creates `epic/<epic-id>` branch when first work starts on an epic
+  - Merges to main with `--no-ff` when epic closes (all children complete)
+  - Auto-commits WIP when switching between epics to preserve uncommitted work
+  - Handles merge conflicts by aborting merge and creating bug bead for manual resolution
+
+### Fixed
+- Task detection now correctly preserves the task worked during cook phase instead of being overwritten by tidy's re-detection when multiple beads close together
+- Non-deterministic task selection now prefers leaf nodes (actual tasks) over parent features/epics when multiple items close simultaneously
+- Data loss prevention when WIP commit fails during epic branch switch (aborts switch to preserve uncommitted work)
+- Reduced log noise from git pull warnings in local repos without upstream tracking
 
 ## [0.9.3] - 2026-02-06
 ### Fixed
