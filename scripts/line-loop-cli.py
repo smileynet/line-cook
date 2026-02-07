@@ -90,6 +90,8 @@ def main():
 Examples:
   %(prog)s                          # Run with defaults (25 iterations)
   %(prog)s --max-iterations 10      # Limit to 10 iterations
+  %(prog)s --epic                   # Auto-select first available epic
+  %(prog)s --epic lc-001            # Focus on specific epic
   %(prog)s --json                   # Output JSON instead of human-readable
   %(prog)s --json --output report.json  # Write JSON to file
   %(prog)s --stop-on-blocked        # Stop if any task is blocked
@@ -159,6 +161,11 @@ Examples:
         "--history-file",
         type=Path,
         help="Write history JSONL (default: /tmp/line-loop-{project}/history.jsonl)"
+    )
+    parser.add_argument(
+        "--epic", nargs="?", const="auto", default=None,
+        metavar="EPIC_ID",
+        help="Focus on one epic (auto-select first available, or specify ID)"
     )
     parser.add_argument(
         "--break-on-epic",
@@ -278,7 +285,8 @@ Examples:
             phase_timeouts=phase_timeouts,
             max_task_failures=args.max_task_failures,
             idle_timeout=args.idle_timeout,
-            idle_action=args.idle_action
+            idle_action=args.idle_action,
+            epic_mode=args.epic
         )
     finally:
         # Clean up PID file on exit
@@ -296,6 +304,8 @@ Examples:
         sys.exit(1)
     elif report.stop_reason in ("circuit_breaker", "all_tasks_skipped"):
         sys.exit(3)
+    elif report.stop_reason == "invalid_epic":
+        sys.exit(2)
     else:
         sys.exit(2)
 

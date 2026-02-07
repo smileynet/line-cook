@@ -312,6 +312,107 @@ def build_hierarchy_chain(bead_id: str, snapshot: BeadSnapshot, cwd: Path) -> li
     return chain
 
 
+def find_epic_ancestor(bead: BeadInfo, snapshot: BeadSnapshot, cwd: Path) -> Optional[BeadInfo]:
+    """Walk parent chain to find the first epic ancestor.
+
+    Snapshot-first: looks up parents in the snapshot before falling back
+    to bd show. Returns the BeadInfo of the epic, or None if no epic
+    ancestor exists.
+
+    Args:
+        bead: The starting bead to walk from.
+        snapshot: Current BeadSnapshot for in-memory lookups.
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        BeadInfo of the epic ancestor, or None.
+    """
+    parent_id: Optional[str] = bead.parent
+    for _ in range(HIERARCHY_MAX_DEPTH):
+        if not parent_id:
+            break
+        parent = snapshot.get_by_id(parent_id)
+        if parent:
+            if parent.issue_type == "epic":
+                return parent
+            parent_id = parent.parent
+        else:
+            # Not in snapshot — query bd
+            try:
+                result = run_subprocess(["bd", "show", parent_id, "--json"], BD_COMMAND_TIMEOUT, cwd)
+                if result.returncode != 0:
+                    break
+                data = json.loads(result.stdout)
+                issue = parse_bd_json_item(data)
+                if not issue:
+                    break
+                info = BeadInfo(
+                    id=issue.get("id", parent_id),
+                    title=issue.get("title", ""),
+                    issue_type=issue.get("issue_type", "unknown"),
+                    parent=issue.get("parent"),
+                )
+                if info.issue_type == "epic":
+                    return info
+                parent_id = info.parent
+            except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+                logger.debug(f"Error traversing hierarchy for {parent_id}: {e}")
+                break
+            except Exception as e:
+                logger.debug(f"Error finding epic ancestor from {bead.id}: {e}")
+                break
+    return None
+
+
+def is_descendant_of_epic(bead: BeadInfo, epic_id: str, snapshot: BeadSnapshot, cwd: Path) -> bool:
+    """Check if a bead is a descendant of a specific epic.
+
+    Same parent-chain walk as find_epic_ancestor but short-circuits
+    when the target epic_id is found.
+
+    Args:
+        bead: The bead to check.
+        epic_id: The epic ID to look for in the ancestor chain.
+        snapshot: Current BeadSnapshot for in-memory lookups.
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        True if the bead is under the specified epic.
+    """
+    parent_id: Optional[str] = bead.parent
+    for _ in range(HIERARCHY_MAX_DEPTH):
+        if not parent_id:
+            break
+        if parent_id == epic_id:
+            return True
+        parent = snapshot.get_by_id(parent_id)
+        if parent:
+            if parent.issue_type == "epic":
+                # Found an epic but it's not the one we want
+                return False
+            parent_id = parent.parent
+        else:
+            # Not in snapshot — query bd
+            try:
+                result = run_subprocess(["bd", "show", parent_id, "--json"], BD_COMMAND_TIMEOUT, cwd)
+                if result.returncode != 0:
+                    break
+                data = json.loads(result.stdout)
+                issue = parse_bd_json_item(data)
+                if not issue:
+                    break
+                if issue.get("issue_type") == "epic":
+                    return issue.get("id") == epic_id
+                parent_id = issue.get("parent")
+            except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+                logger.debug(f"Error checking descendant for {parent_id}: {e}")
+                break
+            except Exception as e:
+                logger.debug(f"Error checking if {bead.id} is under {epic_id}: {e}")
+                break
+    return False
+
+
 def _parse_bead_info(issue: dict) -> BeadInfo:
     """Parse a bd JSON issue dict into a BeadInfo object."""
     priority = issue.get("priority")

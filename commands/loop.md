@@ -50,6 +50,8 @@ allowed-tools: Bash, Read, Glob
 | Stop gracefully | `/line:loop stop` |
 | Custom iteration limit | `/line:loop start --max-iterations N` |
 | Stop on first blocker | `/line:loop start --stop-on-blocked` |
+| Focus on one epic | `/line:loop start --epic` |
+| Focus on specific epic | `/line:loop start --epic lc-001` |
 | Epic milestone review | `/line:loop start --break-on-epic` |
 | Complex tasks (40min) | `/line:loop start --cook-timeout 2400` |
 
@@ -186,6 +188,7 @@ Commands:
   history  View iteration history with action details
 
 Start Options:
+  --epic [EPIC_ID]      Focus on one epic (auto-select first, or specify ID)
   --max-iterations N    Maximum iterations (default: 25)
   --cook-timeout S      Cook phase timeout in seconds (default: 1200)
   --serve-timeout S     Serve phase timeout in seconds (default: 600)
@@ -205,6 +208,8 @@ Examples:
   /line:loop watch                    # Monitor progress with context
   /line:loop start --max-iterations 5 # Quick test run
   /line:loop start --cook-timeout 1800 # Complex tasks (30min cook timeout)
+  /line:loop start --epic              # Auto-select first available epic
+  /line:loop start --epic lc-001      # Focus on specific epic
   /line:loop start --break-on-epic    # Pause for review at epic completion
   /line:loop start --stop-on-blocked  # Stop immediately on blocked tasks
   /line:loop status                   # One-shot status check
@@ -510,6 +515,8 @@ The following fields provide real-time visibility during long-running phases:
 | `phase_start_time` | When the current phase started |
 | `current_action_count` | Number of tool actions in current phase |
 | `last_action_time` | Timestamp of most recent tool action |
+| `epic_mode` | Epic filter mode if active (`auto` or epic ID) |
+| `current_epic` | Currently focused epic ID (in epic mode) |
 
 These enable:
 - **Progress visibility**: Action count increasing = work happening
@@ -938,6 +945,7 @@ The loop tracks tasks that fail repeatedly and adds them to a skip list:
        │ Filter out:      │
        │  - epics         │
        │  - skipped IDs   │
+       │  - retro/backlog │
        └────────┬─────────┘
                 ▼
          ┌────────────┐
