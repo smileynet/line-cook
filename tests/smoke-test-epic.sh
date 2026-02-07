@@ -121,26 +121,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ============================================================
-# Clean up stale test directories from previous runs
+# Check dependencies (epic-specific)
 # ============================================================
-cleanup_stale_tests() {
-    local found=0
-    for dir in /tmp/line-cook-epic-smoke* /tmp/line-cook-epic-remote*; do
-        if [[ -d "$dir" ]]; then
-            log_warning "Removing stale test directory: $dir"
-            rm -rf "$dir"
-            found=$((found + 1))
-        fi
-    done
-    if [[ $found -gt 0 ]]; then
-        log_success "Cleaned up $found stale test director(ies)"
-    fi
-}
-
-# ============================================================
-# Check dependencies
-# ============================================================
-check_dependencies() {
+check_epic_dependencies() {
     log_phase "Dependency Check"
 
     local missing=()
@@ -179,8 +162,8 @@ check_dependencies() {
 do_setup() {
     log_phase "Setup: Creating Isolated Test Environment with Epic Hierarchy"
 
-    # Clean up stale directories from previous runs
-    cleanup_stale_tests
+    # Clean up stale directories from previous runs (epic-specific patterns)
+    cleanup_stale_tests "/tmp/line-cook-epic-smoke*" "/tmp/line-cook-epic-remote*"
 
     # Create temp directories
     local TEST_DIR
@@ -720,7 +703,7 @@ do_teardown() {
 main() {
     case "$MODE" in
         setup)
-            if ! check_dependencies; then
+            if ! check_epic_dependencies; then
                 exit 1
             fi
             do_setup
@@ -741,7 +724,7 @@ main() {
             do_teardown "$TARGET_DIR"
             ;;
         dry-run)
-            if check_dependencies; then
+            if check_epic_dependencies; then
                 log ""
                 log_success "Dry run complete. Dependencies satisfied."
                 exit 0
@@ -751,7 +734,7 @@ main() {
             ;;
         cleanup)
             log_phase "Cleanup: Removing Stale Test Directories"
-            cleanup_stale_tests
+            cleanup_stale_tests "/tmp/line-cook-epic-smoke*" "/tmp/line-cook-epic-remote*"
             log ""
             log_success "Cleanup complete"
             ;;
