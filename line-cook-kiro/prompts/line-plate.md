@@ -52,6 +52,7 @@ Review BDD tests for quality:
 - Tests map to acceptance criteria
 - User perspective documented
 - Error scenarios included
+- Tests exercise real system operations, not mocked simulations
 
 **If critical issues found:**
 - Address issues

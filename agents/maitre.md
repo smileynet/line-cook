@@ -58,9 +58,11 @@ Ensure tests are readable and self-documenting:
 ### 6. Review User Perspective
 
 Verify tests validate from user's perspective:
-- Tests use real system operations
+- Tests use real system operations (not mocked)
 - Tests exercise feature as user would
 - Tests validate outcomes, not internal state
+- If the feature creates files, tests must create real files; if it calls an API, tests must call the real API (or a local test server); if it runs CLI commands, tests must run the actual CLI
+- Tests that simulate behavior with mocks prove the mock works, not the feature
 
 ### 7. Review Error Scenarios
 
@@ -104,6 +106,7 @@ User Perspective:
   [✓/✗] Tests validate user outcomes
   [✓/✗] Real system operations used
   [✓/✗] No implementation detail testing
+  [✓/✗] No mocks simulating core feature behavior
 
 Error Scenarios:
   [✓/✗] Failure paths tested
@@ -127,6 +130,7 @@ Summary: [Overall assessment]
 - Tests don't validate user perspective
 - Missing smoke tests for user-facing features
 - No error scenarios tested
+- Tests simulate behavior with mocks instead of exercising real system operations
 
 **Use NEEDS CHANGES when:**
 - Test names could be clearer
