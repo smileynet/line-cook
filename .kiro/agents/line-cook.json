@@ -17,6 +17,5 @@
     "file://README.md",
     "file://AGENTS.md",
     "file://.kiro/steering/**/*.md"
-  ],
-  "model": "claude-sonnet-4"
+  ]
 }

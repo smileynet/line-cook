@@ -2,7 +2,6 @@
 name: critic
 description: Reviews epic-level E2E and smoke test coverage - validates user journeys and cross-feature integration before epic completion
 tools: Glob, Grep, Read
-model: opus
 ---
 
 # Critic Agent
