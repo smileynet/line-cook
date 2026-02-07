@@ -2772,13 +2772,16 @@ def reset_shutdown_flag() -> None:
 def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
     """Exponential backoff with jitter: 2s, 4s, 8s... capped at MAX_RETRY_DELAY_SECONDS."""
     delay = min(base * (2 ** attempt), MAX_RETRY_DELAY_SECONDS)
-    return delay * random.uniform(0.8, 1.2)  # ±20% jitter
+    jitter = random.uniform(0.8, 1.2)
+    return delay * jitter
 
 
 def get_excluded_epic_ids(snapshot: BeadSnapshot) -> set[str]:
     """Find IDs of Retrospective/Backlog epics in the snapshot.
 
-    Scans the snapshot for epics whose title matches EXCLUDED_EPIC_TITLES.
+    Scans snapshot.ready (not all beads) for epics whose title matches
+    EXCLUDED_EPIC_TITLES. This is sufficient because excluded epics must
+    be in the ready list to affect task selection.
 
     Args:
         snapshot: Current BeadSnapshot.
@@ -2794,26 +2797,30 @@ def get_excluded_epic_ids(snapshot: BeadSnapshot) -> set[str]:
 
 def detect_first_epic(
     snapshot: BeadSnapshot, excluded_ids: set[str],
-    skip_ids: set[str], cwd: Path
+    skip_ids: set[str], cwd: Path,
+    exhausted_ids: Optional[set[str]] = None
 ) -> Optional[tuple[str, str]]:
     """Find the epic of the highest-priority ready work item.
 
-    For --epic (no ID) mode: auto-detect the first non-excluded epic
+    For --epic (no ID) mode: auto-detect the first non-excluded epic,
+    scanning ready work items in priority order.
 
     Args:
         snapshot: Current BeadSnapshot.
         excluded_ids: Set of epic IDs to exclude (Retrospective/Backlog).
         skip_ids: Set of task IDs to skip (from failure tracking).
         cwd: Working directory containing the .beads project.
+        exhausted_ids: Set of epic IDs already tried with no remaining work.
 
     Returns:
         Tuple of (epic_id, epic_title) or None if no epic found.
     """
+    exhausted_set = exhausted_ids or set()
     for bead in snapshot.ready_work:
         if bead.id in skip_ids:
             continue
         epic = find_epic_ancestor(bead, snapshot, cwd)
-        if epic and epic.id not in excluded_ids:
+        if epic and epic.id not in excluded_ids and epic.id not in exhausted_set:
             return (epic.id, epic.title)
     return None
 
@@ -2835,8 +2842,6 @@ def validate_epic_id(epic_id: str, cwd: Path) -> Optional[str]:
             issue = parse_bd_json_item(data)
             if issue and issue.get("issue_type") == "epic":
                 return issue.get("title", "")
-    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
-        logger.debug(f"Error validating epic {epic_id}: {e}")
     except Exception as e:
         logger.debug(f"Error validating epic {epic_id}: {e}")
     return None
@@ -2898,7 +2903,13 @@ def get_next_ready_task(
                 return (bead.id, bead.title)
         return None
 
-    # Fallback: query bd directly
+    # Fallback: query bd directly (no snapshot available for hierarchy walks)
+    if epic_filter or excluded_epic_ids:
+        logger.warning(
+            "get_next_ready_task called with epic_filter=%s excluded_epic_ids=%s "
+            "but no snapshot — filtering cannot be applied in fallback path",
+            epic_filter, excluded_epic_ids
+        )
     cmd = "bd ready --json"
     try:
         result = run_subprocess(["bd", "ready", "--json"], BD_COMMAND_TIMEOUT, cwd)
@@ -2948,7 +2959,7 @@ def serialize_iteration_for_status(result: IterationResult) -> dict:
 
 def serialize_action(action: ActionRecord) -> dict:
     """Serialize an ActionRecord for history JSONL."""
-    data: dict = {
+    data = {
         "tool": action.tool_name,
         "timestamp": action.timestamp,
     }
@@ -3119,16 +3130,18 @@ def format_escalation_report(escalation: dict) -> str:
         ""
     ]
 
-    if escalation['skipped_tasks']:
+    skipped_tasks = escalation['skipped_tasks']
+    if skipped_tasks:
         lines.append("SKIPPED TASKS (too many failures):")
-        for task in escalation['skipped_tasks']:
+        for task in skipped_tasks:
             lines.append(f"  - {task['id']}: {task['failure_count']} failures")
         lines.append("")
 
-    if escalation['recent_failures']:
+    recent_failures = escalation['recent_failures']
+    if recent_failures:
         lines.append("RECENT FAILURES:")
-        for failure in escalation['recent_failures'][-RECENT_ITERATIONS_DISPLAY:]:
-            task_info = f"{failure['task_id']}" if failure['task_id'] else "unknown"
+        for failure in recent_failures[-RECENT_ITERATIONS_DISPLAY:]:
+            task_info = failure['task_id'] if failure['task_id'] else "unknown"
             lines.append(f"  - #{failure['iteration']}: {task_info} ({failure['outcome']})")
         lines.append("")
 
@@ -3212,7 +3225,10 @@ def write_status_file(
     # Add recent_iterations (limited for display)
     if iterations:
         completed = [i for i in iterations if i.outcome == "completed"]
-        recent = completed[-RECENT_ITERATIONS_DISPLAY:] if len(completed) > RECENT_ITERATIONS_DISPLAY else completed
+        if len(completed) > RECENT_ITERATIONS_DISPLAY:
+            recent = completed[-RECENT_ITERATIONS_DISPLAY:]
+        else:
+            recent = completed
         status["recent_iterations"] = [
             serialize_iteration_for_status(i) for i in recent
         ]
@@ -3302,7 +3318,9 @@ def has_uncommitted_changes(cwd: Path) -> bool:
     """
     try:
         result = run_subprocess(["git", "status", "--porcelain"], GIT_SYNC_TIMEOUT, cwd)
-        return bool(result.stdout.strip()) if result.returncode == 0 else False
+        if result.returncode != 0:
+            return False
+        return bool(result.stdout.strip())
     except Exception as e:
         logger.debug(f"Error checking uncommitted changes: {e}")
         return False
@@ -3336,10 +3354,9 @@ def auto_commit_wip(current_branch: str, cwd: Path) -> bool:
         if result.returncode != 0:
             logger.warning(f"git commit failed: {result.stderr}")
             return False
-        result = run_subprocess(["git", "push", "origin", current_branch], GIT_SYNC_TIMEOUT, cwd)
-        if result.returncode != 0:
-            # Commit succeeded locally, push failed - log warning but return True
-            logger.warning(f"git push failed (commit succeeded locally): {result.stderr}")
+        push_result = run_subprocess(["git", "push", "origin", current_branch], GIT_SYNC_TIMEOUT, cwd)
+        if push_result.returncode != 0:
+            logger.warning(f"git push failed (commit succeeded locally): {push_result.stderr}")
         logger.info(f"Auto-committed WIP on {current_branch}")
         return True
     except Exception as e:
@@ -3380,11 +3397,11 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
         return (None, False)
 
     # Auto-commit WIP if switching from another epic branch
-    if current_branch and current_branch.startswith("epic/"):
-        if has_uncommitted_changes(cwd):
-            if not auto_commit_wip(current_branch, cwd):
-                logger.warning(f"Failed to commit WIP on {current_branch}, aborting branch switch to preserve work")
-                return (None, False)
+    is_switching_from_epic = current_branch and current_branch.startswith("epic/")
+    if is_switching_from_epic and has_uncommitted_changes(cwd):
+        if not auto_commit_wip(current_branch, cwd):
+            logger.warning(f"Failed to commit WIP on {current_branch}, aborting branch switch to preserve work")
+            return (None, False)
 
     try:
         if is_first_epic_work(epic_id, cwd):
@@ -3561,6 +3578,7 @@ def run_loop(
     skip_list = SkipList(max_failures=max_task_failures)
     current_epic_id: Optional[str] = None
     current_epic_title: Optional[str] = None
+    exhausted_epic_ids: set[str] = set()  # Epics already tried in auto mode
 
     logger.info(f"Loop starting: max_iterations={max_iterations}, epic_mode={epic_mode}")
 
@@ -3631,7 +3649,7 @@ def run_loop(
             # Auto-detect first epic if not already locked
             if current_epic_id is None:
                 skipped_ids_for_detect = skip_list.get_skipped_ids()
-                result_detect = detect_first_epic(snapshot, excluded_ids, skipped_ids_for_detect, cwd)
+                result_detect = detect_first_epic(snapshot, excluded_ids, skipped_ids_for_detect, cwd, exhausted_epic_ids)
                 if result_detect is None:
                     stop_reason = "no_work"
                     logger.info("No non-excluded epic found for auto-detect mode")
@@ -3661,9 +3679,10 @@ def run_loop(
 
         if ready_work_count == 0:
             if epic_mode == "auto" and current_epic_id is not None:
-                # Current epic done, try next
+                # Current epic done, try next (track to avoid re-detection)
                 if not json_output:
                     print(f"\n  Epic {current_epic_id} has no remaining work.")
+                exhausted_epic_ids.add(current_epic_id)
                 current_epic_id = None
                 current_epic_title = None
                 continue
@@ -3719,12 +3738,12 @@ def run_loop(
 
         # Pre-cook: ensure correct branch for epic work
         if target_task_id:
-            branch_switched, was_created = ensure_epic_branch(target_task_id, cwd)
-            if branch_switched and not json_output:
+            branch_name, was_created = ensure_epic_branch(target_task_id, cwd)
+            if branch_name and not json_output:
                 if was_created:
-                    print(f"  Branch: main → {branch_switched} (new)")
+                    print(f"  Branch: main → {branch_name} (new)")
                 else:
-                    print(f"  Branch: → {branch_switched}")
+                    print(f"  Branch: → {branch_name}")
 
         # Create progress state for real-time status updates during iteration
         progress_state = None
@@ -3767,7 +3786,7 @@ def run_loop(
 
         # Write status file after each iteration
         if status_file:
-            # Note: completed_count hasn't been incremented yet, so add 1 if this iteration succeeded
+            completed_for_status = completed_count + (1 if result.success else 0)
             write_status_file(
                 status_file=status_file,
                 running=True,
@@ -3776,8 +3795,8 @@ def run_loop(
                 current_task=result.task_id,
                 current_task_title=result.task_title,
                 last_verdict=result.serve_verdict,
-                tasks_completed=completed_count + (1 if result.success else 0),
-                tasks_remaining=result.after_ready,  # Use data from iteration result
+                tasks_completed=completed_for_status,
+                tasks_remaining=result.after_ready,
                 started_at=started_at,
                 iterations=iterations,
                 epic_mode=epic_mode,
@@ -3814,7 +3833,8 @@ def run_loop(
                 skip_list.record_success(result.task_id)
 
         elif result.outcome == "needs_retry":
-            if result.task_id == last_task_id:
+            is_same_task = result.task_id == last_task_id
+            if is_same_task:
                 current_retries += 1
             else:
                 current_retries = 1
@@ -3884,14 +3904,15 @@ def run_loop(
                 # Merge epic branches to main for each completed epic
                 for epic in epic_summaries:
                     epic_id = epic.get("id")
+                    if not epic_id:
+                        continue
                     epic_title = epic.get("title", "")
-                    if epic_id:
-                        merged, merge_error = merge_epic_on_close(epic_id, epic_title, cwd)
-                        if merged:
-                            print(f"  Branch: epic/{epic_id} merged to main")
-                        elif merge_error == "merge_conflict":
-                            print(f"  WARNING: Merge conflict: epic/{epic_id} could not be merged")
-                            print(f"           Bug bead created for manual resolution")
+                    merged, merge_error = merge_epic_on_close(epic_id, epic_title, cwd)
+                    if merged:
+                        print(f"  Branch: epic/{epic_id} merged to main")
+                    elif merge_error == "merge_conflict":
+                        print(f"  WARNING: Merge conflict: epic/{epic_id} could not be merged")
+                        print(f"           Bug bead created for manual resolution")
 
                 # Update status file with epic completions
                 if status_file:
@@ -4091,7 +4112,7 @@ signal.signal(signal.SIGHUP, _handle_shutdown)
 def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     """Configure logging with optional file output and rotation."""
     level = logging.DEBUG if verbose else logging.INFO
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    handlers = [logging.StreamHandler()]
     if log_file:
         handlers.append(logging.handlers.RotatingFileHandler(
             log_file,
@@ -4284,8 +4305,10 @@ Examples:
                 status = "OK" if passed else "FAIL"
                 print(f"  {check}: {status}")
             print("=" * 30)
-            print(f"Overall: {'HEALTHY' if health['healthy'] else 'UNHEALTHY'}")
-        sys.exit(0 if health['healthy'] else 1)
+            overall = "HEALTHY" if health['healthy'] else "UNHEALTHY"
+            print(f"Overall: {overall}")
+        exit_code = 0 if health['healthy'] else 1
+        sys.exit(exit_code)
 
     # Write PID file if requested (atomic to prevent race on concurrent starts)
     if args.pid_file:
@@ -4338,9 +4361,8 @@ Examples:
         sys.exit(1)
     elif report.stop_reason in ("circuit_breaker", "all_tasks_skipped"):
         sys.exit(3)
-    elif report.stop_reason == "invalid_epic":
-        sys.exit(2)
     else:
+        # invalid_epic and any unknown stop reasons
         sys.exit(2)
 
 
