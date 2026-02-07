@@ -231,9 +231,9 @@ class TestCircuitBreaker(unittest.TestCase):
         cb = line_loop.CircuitBreaker(failure_threshold=3, window_size=5)
         cb.record(False)
         cb.record(False)
-        self.assertFalse(cb.is_open())  # Not yet at threshold
+        self.assertFalse(cb.is_open())
         cb.record(False)
-        self.assertTrue(cb.is_open())  # Now at threshold
+        self.assertTrue(cb.is_open())
 
     def test_success_keeps_circuit_closed(self):
         """Successes keep the circuit closed."""
@@ -292,7 +292,6 @@ class TestProgressState(unittest.TestCase):
         """update_progress() handles malformed timestamp gracefully."""
         ps = self._create_progress_state()
         ps.start_phase("cook")
-        # Should not raise - falls back to datetime.now()
         ps.update_progress(3, "not-a-timestamp")
         self.assertEqual(ps.current_action_count, 3)
         self.assertIsNotNone(ps.last_action_time)
@@ -301,7 +300,6 @@ class TestProgressState(unittest.TestCase):
         """update_progress() handles None timestamp gracefully."""
         ps = self._create_progress_state()
         ps.start_phase("cook")
-        # Should not raise - falls back to datetime.now()
         ps.update_progress(2, None)
         self.assertEqual(ps.current_action_count, 2)
         self.assertIsNotNone(ps.last_action_time)
@@ -335,14 +333,14 @@ class TestCalculateRetryDelay(unittest.TestCase):
         """Delay grows exponentially."""
         delay1 = line_loop.calculate_retry_delay(1, base=2.0)
         delay2 = line_loop.calculate_retry_delay(2, base=2.0)
-        # Remove jitter by checking bounds
-        # attempt 2 should be roughly 2x attempt 1
+        # Attempt 2 should be roughly 2x attempt 1 (accounting for jitter)
         self.assertGreater(delay2, delay1 * 1.5)
 
     def test_delay_capped_at_60s(self):
         """Delay is capped at 60 seconds."""
-        delay = line_loop.calculate_retry_delay(10)  # Would be 2^10 = 1024 without cap
-        self.assertLessEqual(delay, 60 * 1.2)  # Max 72s with jitter
+        delay = line_loop.calculate_retry_delay(10)
+        max_with_jitter = 60 * 1.2
+        self.assertLessEqual(delay, max_with_jitter)
 
 
 class TestSkipList(unittest.TestCase):
@@ -543,9 +541,9 @@ class TestGenerateEscalationReport(unittest.TestCase):
             iterations, skip_list, "circuit_breaker"
         )
 
-        self.assertGreater(len(report["suggested_actions"]), 0)
-        # Should mention checking failures
-        actions_text = " ".join(report["suggested_actions"])
+        suggested_actions = report["suggested_actions"]
+        self.assertGreater(len(suggested_actions), 0)
+        actions_text = " ".join(suggested_actions)
         self.assertIn("failure", actions_text.lower())
 
     def test_escalation_report_suggested_actions_all_skipped(self):
@@ -557,9 +555,9 @@ class TestGenerateEscalationReport(unittest.TestCase):
             iterations, skip_list, "all_tasks_skipped"
         )
 
-        self.assertGreater(len(report["suggested_actions"]), 0)
-        # Should mention reviewing skipped tasks
-        actions_text = " ".join(report["suggested_actions"])
+        suggested_actions = report["suggested_actions"]
+        self.assertGreater(len(suggested_actions), 0)
+        actions_text = " ".join(suggested_actions)
         self.assertIn("skipped", actions_text.lower())
 
 
@@ -940,9 +938,10 @@ class TestPrintEpicCompletion(unittest.TestCase):
             line_loop.print_epic_completion(epic)
         output = buf.getvalue()
         lines = output.strip().split("\n")
-        # First and last content lines should be +---+ borders
-        self.assertTrue(lines[0].strip().startswith("+"))
-        self.assertTrue(lines[-1].strip().startswith("+"))
+        first_line = lines[0].strip()
+        last_line = lines[-1].strip()
+        self.assertTrue(first_line.startswith("+"))
+        self.assertTrue(last_line.startswith("+"))
 
 
 class TestActionDots(unittest.TestCase):
@@ -1033,7 +1032,8 @@ class TestSerializeAction(unittest.TestCase):
             duration_ms=150.7
         )
         data = serialize_action(record)
-        self.assertEqual(data["duration_ms"], 151)  # Rounded
+        expected_rounded = 151
+        self.assertEqual(data["duration_ms"], expected_rounded)
 
 
 class TestEpicIdValidation(unittest.TestCase):
@@ -1102,7 +1102,8 @@ class TestEnsureEpicBranchReturnType(unittest.TestCase):
     def test_no_epic_returns_none_false(self):
         """Returns (None, False) when no epic is found."""
         result = line_loop.ensure_epic_branch("no-such-task", Path("/tmp"))
-        self.assertEqual(result, (None, False))
+        expected = (None, False)
+        self.assertEqual(result, expected)
 
     def test_return_type_unpacking(self):
         """Return value can be unpacked as (branch, was_created)."""
@@ -1133,8 +1134,8 @@ class TestGetCurrentBranch(unittest.TestCase):
     def test_returns_optional_string(self):
         """get_current_branch returns Optional[str]."""
         result = line_loop.get_current_branch(Path("/tmp"))
-        # In a non-git directory, returns None
-        self.assertTrue(result is None or isinstance(result, str))
+        is_valid = result is None or isinstance(result, str)
+        self.assertTrue(is_valid)
 
 
 class TestGetEpicForTask(unittest.TestCase):
@@ -1148,7 +1149,8 @@ class TestGetEpicForTask(unittest.TestCase):
     def test_returns_optional_string(self):
         """get_epic_for_task returns Optional[str]."""
         result = line_loop.get_epic_for_task("any-id", Path("/tmp"))
-        self.assertTrue(result is None or isinstance(result, str))
+        is_valid = result is None or isinstance(result, str)
+        self.assertTrue(is_valid)
 
 
 class TestIsFirstEpicWork(unittest.TestCase):
@@ -1161,7 +1163,6 @@ class TestIsFirstEpicWork(unittest.TestCase):
 
     def test_nonexistent_epic_returns_true(self):
         """For nonexistent epic (no branch, no children), returns True."""
-        # In /tmp with no git repo, branch checks fail, so should return True
         result = line_loop.is_first_epic_work("nonexistent-epic", Path("/tmp"))
         self.assertTrue(result)
 
@@ -1184,7 +1185,8 @@ class TestExcludedEpicTitlesConfig(unittest.TestCase):
 
     def test_excluded_epic_titles_exact_membership(self):
         """EXCLUDED_EPIC_TITLES has exactly the expected members."""
-        self.assertEqual(line_loop.EXCLUDED_EPIC_TITLES, frozenset({"Retrospective", "Backlog"}))
+        expected = frozenset({"Retrospective", "Backlog"})
+        self.assertEqual(line_loop.EXCLUDED_EPIC_TITLES, expected)
 
 
 class TestFindEpicAncestor(unittest.TestCase):
@@ -1412,6 +1414,20 @@ class TestDetectFirstEpic(unittest.TestCase):
         snapshot = make_snapshot([task])
         result = line_loop.detect_first_epic(snapshot, set(), set(), Path("/tmp"))
         self.assertIsNone(result)
+
+    def test_skips_exhausted_epics(self):
+        """Exhausted epic IDs are not re-detected."""
+        epic_a = make_bead("epic-a", "Epic A", "epic")
+        epic_b = make_bead("epic-b", "Epic B", "epic")
+        task_a = make_bead("task-a", "Task A", "task", parent="epic-a")
+        task_b = make_bead("task-b", "Task B", "task", parent="epic-b")
+        snapshot = make_snapshot([epic_a, epic_b, task_a, task_b])
+        # epic-a is exhausted, should detect epic-b instead
+        result = line_loop.detect_first_epic(
+            snapshot, set(), set(), Path("/tmp"), exhausted_ids={"epic-a"}
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "epic-b")
 
 
 class TestValidateEpicId(unittest.TestCase):

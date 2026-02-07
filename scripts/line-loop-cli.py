@@ -57,7 +57,7 @@ signal.signal(signal.SIGHUP, _handle_shutdown)
 def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     """Configure logging with optional file output and rotation."""
     level = logging.DEBUG if verbose else logging.INFO
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    handlers = [logging.StreamHandler()]
     if log_file:
         handlers.append(logging.handlers.RotatingFileHandler(
             log_file,
@@ -250,8 +250,10 @@ Examples:
                 status = "OK" if passed else "FAIL"
                 print(f"  {check}: {status}")
             print("=" * 30)
-            print(f"Overall: {'HEALTHY' if health['healthy'] else 'UNHEALTHY'}")
-        sys.exit(0 if health['healthy'] else 1)
+            overall = "HEALTHY" if health['healthy'] else "UNHEALTHY"
+            print(f"Overall: {overall}")
+        exit_code = 0 if health['healthy'] else 1
+        sys.exit(exit_code)
 
     # Write PID file if requested (atomic to prevent race on concurrent starts)
     if args.pid_file:
@@ -304,9 +306,8 @@ Examples:
         sys.exit(1)
     elif report.stop_reason in ("circuit_breaker", "all_tasks_skipped"):
         sys.exit(3)
-    elif report.stop_reason == "invalid_epic":
-        sys.exit(2)
     else:
+        # invalid_epic and any unknown stop reasons
         sys.exit(2)
 
 
