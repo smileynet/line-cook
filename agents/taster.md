@@ -106,16 +106,27 @@ Output your review in this format:
 
 ## Common Anti-Patterns to Flag
 
-- **The Liar**: Test passes but doesn't actually validate anything
-- **The Giant**: Test does too much, tests multiple things
-- **Excessive Setup**: Too much boilerplate
-- **External Fixtures**: Depends on external files
-- **Interdependent Tests**: Tests depend on each other
+### The Liar
+Test passes but doesn't actually validate anything.
+
+### The Giant
+Test does too much, tests multiple things.
+
+### Excessive Setup
+Too much boilerplate.
+
+### External Fixtures
+Depends on external files.
+
+### Interdependent Tests
+Tests depend on each other.
 
 ## Your Authority
 
 - **APPROVED**: Tests meet quality bar - proceed to GREEN phase
 - **APPROVED WITH NOTES**: Fix minor issues but can proceed
 - **REJECTED**: Tests don't meet quality bar - fix critical issues first
+
+## Guidelines
 
 Be thorough, constructive, consistent, and practical.

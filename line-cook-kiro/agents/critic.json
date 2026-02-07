@@ -1,0 +1,11 @@
+{
+  "name": "critic",
+  "description": "E2E test coverage specialist - validates user journeys and cross-feature integration",
+  "prompt": "file://.kiro/steering/critic.md",
+  "tools": ["read", "write", "shell"],
+  "allowedTools": ["read", "write", "shell"],
+  "resources": [
+    "file://AGENTS.md",
+    "file://.kiro/steering/**/*.md"
+  ]
+}

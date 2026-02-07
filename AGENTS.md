@@ -309,6 +309,27 @@ Line Cook maintains commands for Claude Code (`commands/`), OpenCode (`line-cook
 
 **Synced commands:** All 11 — brainstorm, cook, finalize, getting-started, mise, plate, prep, run, scope, serve, tidy
 
+### Agent Template Synchronization
+
+Review agents are also generated from shared templates to prevent drift between Claude Code and Kiro.
+
+**Agent template system:**
+- Source templates live in `agents/templates/` (5 templates)
+- Same conditional block syntax as commands: `@IF_CLAUDECODE@`, `@IF_KIRO@`
+- No `@NAMESPACE@` substitution needed (agents don't reference command namespaces)
+- No OpenCode output — OpenCode uses Claude Code's `agents/` directory directly
+
+**Platform differences handled automatically:**
+- Claude Code: YAML frontmatter with `name`, `description`, `tools`, plus concise review format
+- Kiro: No frontmatter (steering files only), includes context-loading instructions (`bd show`, `git diff`), detailed checklists, red flags, code examples, and anti-pattern sections
+
+**Synced agents:** All 5 review agents — sous-chef, taster, maitre, polisher, critic
+
+**NOT templatized:**
+- Kiro JSON agent configs (`line-cook-kiro/agents/*.json`) — platform-specific metadata
+- Kiro-only orchestrators (line-cook, kitchen-manager) — map to CC commands, not agents
+- Non-agent steering files (beads.md, session.md, getting-started.md) — reference docs
+
 **When to sync:**
 - After editing any command template
 - Before committing command changes (pre-commit hook enforces this)

@@ -1,0 +1,11 @@
+{
+  "name": "polisher",
+  "description": "Code refinement specialist - simplifies and polishes code before review",
+  "prompt": "file://.kiro/steering/polisher.md",
+  "tools": ["read", "write", "shell"],
+  "allowedTools": ["read", "write", "shell"],
+  "resources": [
+    "file://AGENTS.md",
+    "file://.kiro/steering/**/*.md"
+  ]
+}
