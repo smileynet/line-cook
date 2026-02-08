@@ -71,6 +71,13 @@ log_phase "Eval Validate: $SCENARIO ($PROVIDER, run $RUN_ID)"
 # Accumulate checks as JSON array
 CHECKS="[]"
 
+# Get bead status with JSON parsing fallback
+# Args: bead_id
+get_bead_status() {
+    local bead_id="$1"
+    bd show "$bead_id" --json 2>/dev/null | jq -r '.[0].status // .status // "unknown"' 2>/dev/null || echo "unknown"
+}
+
 # Add a check result to CHECKS array and log it
 # Args: name, passed (true/false), message, [details]
 add_check() {
@@ -151,17 +158,17 @@ validate_analysis() {
     check_run_exit_code
 
     if [[ -n "$RUN_FILE" && -f "$RUN_FILE" ]]; then
-        local result
-        result=$(jq -r '.result' "$RUN_FILE")
+        local provider_output
+        provider_output=$(jq -r '.result' "$RUN_FILE")
 
         # Check that analysis mentions key files
-        if echo "$result" | grep -qi "todo.js"; then
+        if echo "$provider_output" | grep -qi "todo.js"; then
             add_check "mentions_source_file" true "Analysis mentions todo.js"
         else
             add_check "mentions_source_file" false "Analysis does not mention todo.js"
         fi
 
-        if echo "$result" | grep -qi "test"; then
+        if echo "$provider_output" | grep -qi "test"; then
             add_check "mentions_tests" true "Analysis mentions tests"
         else
             add_check "mentions_tests" false "Analysis does not mention tests"
@@ -206,7 +213,7 @@ validate_implement() {
 
     # Bead closed
     local bead_status
-    bead_status=$(bd show demo-001.1.1 --json 2>/dev/null | jq -r '.[0].status // .status // "unknown"' 2>/dev/null || echo "unknown")
+    bead_status=$(get_bead_status demo-001.1.1)
     if [[ "$bead_status" == "closed" ]]; then
         add_check "bead_closed" true "demo-001.1.1 is closed"
     else
@@ -230,13 +237,13 @@ validate_implement() {
         add_check "pushed_to_remote" false "Unpushed commits exist" "$unpushed"
     fi
 
-    # Clean working tree
-    local status
-    status=$(git status --porcelain 2>/dev/null)
-    if [[ -z "$status" ]]; then
+    # Clean working tree (ignore beads lock files, they're ephemeral)
+    local uncommitted_changes
+    uncommitted_changes=$(git status --porcelain 2>/dev/null | grep -v '\.beads/\.jsonl\.lock' || true)
+    if [[ -z "$uncommitted_changes" ]]; then
         add_check "clean_working_tree" true "Working tree is clean"
     else
-        add_check "clean_working_tree" false "Uncommitted changes" "$status"
+        add_check "clean_working_tree" false "Uncommitted changes" "$uncommitted_changes"
     fi
 }
 
@@ -246,7 +253,7 @@ validate_sequence() {
 
     # Additionally check demo-001.1.2 (the dependent task)
     local bead_status_2
-    bead_status_2=$(bd show demo-001.1.2 --json 2>/dev/null | jq -r '.[0].status // .status // "unknown"' 2>/dev/null || echo "unknown")
+    bead_status_2=$(get_bead_status demo-001.1.2)
     if [[ "$bead_status_2" == "closed" ]]; then
         add_check "sequence_bead_2_closed" true "demo-001.1.2 is closed"
     else
