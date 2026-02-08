@@ -74,26 +74,31 @@ Signal: KITCHEN_IDLE
 
 **Once a regular task is selected**, claim it:
 ```bash
-bd show <id>                           # Display full task details
-bd update <id> --status=in_progress    # Claim the task
+# Claim the task and display details
+bd show <id>
+bd update <id> --status=in_progress
 bd comments add <id> "PHASE: COOK
 Status: started"
 ```
 
-### Step 1.5: Check for Review Findings (Rework Mode)
+### Step 1.5: Check for Prior Context
 
-Check if this task has previous review findings:
+Check for previous review findings and retry context in one pass:
 
 ```bash
-bd comments list <id> | grep -A 20 "PHASE: SERVE"
+# Check for previous review findings and retry context
+echo "=== SERVE COMMENTS ==="
+bd comments list <id> 2>/dev/null | grep -A 20 "PHASE: SERVE" || echo "(none)"
+echo "=== RETRY CONTEXT ==="
+cat .line-cook/retry-context.json 2>/dev/null || echo "(none)"
 ```
 
 **If review findings exist (NEEDS_CHANGES):**
-1. Load the findings from the serve comment
+1. Load findings from the serve comment
 2. Add findings to TodoWrite as items to address
 3. Prioritize fixing these before new work
 
-**Output in rework mode:**
+**Output format:**
 ```
 REWORK MODE: <id> - <title>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -105,16 +110,6 @@ Previous review found issues to address:
 Addressing review findings first.
 ```
 
-**If no review findings:** Continue normally with Step 2.
-
-### Step 1.6: Check for Retry Context (Loop Mode)
-
-When running in line-loop, check for structured retry context:
-
-```bash
-cat .line-cook/retry-context.json 2>/dev/null
-```
-
 **If retry-context.json exists:**
 This file contains structured feedback from the previous serve review, including:
 - `verdict`: The serve verdict (NEEDS_CHANGES)
@@ -124,7 +119,7 @@ This file contains structured feedback from the previous serve review, including
 
 **Prioritize issues from the context file over bead comments**, as they're more structured and reliable.
 
-**Output in retry mode:**
+**Output format:**
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║  RETRY MODE - Attempt <N>                                    ║
@@ -145,9 +140,9 @@ Summary: <assessment from serve>
 Addressing issues in priority order (critical → major → minor).
 ```
 
-**Add issues to TodoWrite** in severity order: critical → major → minor
+Add issues to TodoWrite in severity order: critical → major → minor.
 
-**If no retry context exists:** Continue normally with Step 2.
+**If no prior context exists:** Continue normally with Step 2.
 
 ### Step 2: Load Recipe
 
@@ -265,7 +260,7 @@ Before marking the task done, verify ALL guardrails pass:
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
 
-**Kitchen equipment checklist** (MANDATORY):
+**Kitchen equipment checklist:**
 
 - [ ] All tests pass: `<test command>` (e.g., `go test ./...`, `pytest`, `npm test`)
 - [ ] Code builds: `<build command>` (e.g., `go build ./...`, `npm run build`)

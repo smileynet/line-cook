@@ -83,16 +83,24 @@ bd create --title="Consider adding lint step to serve" --type=task --priority=4 
 
 ## Process
 
-### Step 1: Determine Filing Parent
+### Step 1: Collect Tidy State
 
-Look up the current task's parent to determine where to file findings:
+Gather filing parent, in-progress tasks, epic eligibility, and git status in one pass:
 
 ```bash
-SOURCE_TASK="<current-task-id>"
-PARENT=$(bd show $SOURCE_TASK --json | jq -r '.[0].parent // empty')
+TASK_ID="<current-task-id>"
+
+echo "=== PARENT ==="
+bd show $TASK_ID --json 2>/dev/null | jq -r '.[0].parent // empty' || echo "(none)"
+echo "=== IN PROGRESS ==="
+bd list --status=in_progress 2>/dev/null || echo "(none)"
+echo "=== EPIC ELIGIBLE ==="
+bd epic close-eligible --dry-run 2>/dev/null || echo "(none)"
+echo "=== GIT STATUS ==="
+git status --porcelain
 ```
 
-Use `$PARENT` as the `--parent` for all code/project findings filed below. If no parent exists, file as standalone beads.
+Use the PARENT value from output as `--parent` for all code/project findings. If no parent exists, file as standalone beads.
 
 ### Step 2: File Discovered Issues
 
@@ -182,12 +190,7 @@ bd comments add <id> "RESEARCH FINDINGS:
 
 ### Step 3: Review In-Progress Issues
 
-Check current task state:
-```bash
-bd list --status=in_progress
-```
-
-For each **in-progress** issue:
+Using the IN PROGRESS list from Step 1, review each in-progress issue:
 - If task appears complete based on git changes → `bd close <id>`
 - If task is incomplete → leave as-is (will be picked up next session)
 - If status is unclear → create a P4 bead to review later
@@ -196,11 +199,7 @@ For each **in-progress** issue:
 
 ### Step 4: Check for Epic Closures and Branch Merges
 
-After closing issues, check if any epics are now eligible for closure (all children complete):
-
-```bash
-bd epic close-eligible --dry-run
-```
+Using the EPIC ELIGIBLE list from Step 1, check if any epics are now eligible for closure (all children complete).
 
 If epics are eligible:
 1. Close them: `bd epic close-eligible`
@@ -246,10 +245,7 @@ If epics are eligible:
 
 ### Step 5: Commit Changes with Kitchen Log
 
-Show pending changes:
-```bash
-git status
-```
+Using the GIT STATUS output from Step 1, check for pending changes.
 
 If changes exist:
 1. Stage all relevant files: `git add -A`
@@ -289,7 +285,7 @@ Review findings:
 
 Before pushing, verify all quality gates pass:
 
-**Kitchen closing checklist (MANDATORY):**
+**Kitchen closing checklist:**
 - [ ] All issues filed correctly
 - [ ] Commit message follows kitchen log format
 - [ ] Changes staged and committed

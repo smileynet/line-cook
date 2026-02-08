@@ -53,16 +53,24 @@ bd create --title="Consider adding lint step to serve" --type=task --priority=4 
 
 ## Process
 
-### Step 1: Determine Filing Parent
+### Step 1: Collect Tidy State
 
-Look up the current task's parent to determine where to file findings:
+Gather filing parent, in-progress tasks, epic eligibility, and git status in one pass:
 
 ```bash
-SOURCE_TASK="<current-task-id>"
-PARENT=$(bd show $SOURCE_TASK --json | jq -r '.[0].parent // empty')
+TASK_ID="<current-task-id>"
+
+echo "=== PARENT ==="
+bd show $TASK_ID --json 2>/dev/null | jq -r '.[0].parent // empty' || echo "(none)"
+echo "=== IN PROGRESS ==="
+bd list --status=in_progress 2>/dev/null || echo "(none)"
+echo "=== EPIC ELIGIBLE ==="
+bd epic close-eligible --dry-run 2>/dev/null || echo "(none)"
+echo "=== GIT STATUS ==="
+git status --porcelain
 ```
 
-Use `$PARENT` as the `--parent` for all code/project findings filed below. If no parent exists, file as standalone beads.
+Use the PARENT value from output as `--parent` for all code/project findings. If no parent exists, file as standalone beads.
 
 ### Step 2: File Discovered Issues
 
@@ -108,27 +116,18 @@ bd comments add <id> "RESEARCH FINDINGS:
 - Option evaluated → Comment on research task
 - Decision made → Update task description
 
-### Step 2: Review In-Progress Issues
+### Step 3: Review In-Progress Issues
 
-Check current task state:
-```bash
-bd list --status=in_progress
-```
-
-For each **in-progress** issue:
+Using the IN PROGRESS list from Step 1, review each in-progress issue:
 - If task appears complete based on git changes → `bd close <id>`
 - If task is incomplete → leave as-is (will be picked up next session)
 - If status is unclear → create a P4 bead to review later
 
 **Do NOT ask the user** - make a reasonable judgment or file a bead.
 
-### Step 3: Check for Epic Closures
+### Step 4: Check for Epic Closures
 
-After closing issues, check if any epics are now eligible for closure (all children complete):
-
-```bash
-bd epic close-eligible --dry-run
-```
+Using the EPIC ELIGIBLE list from Step 1, check if any epics are now eligible for closure (all children complete).
 
 If epics are eligible:
 1. Close them: `bd epic close-eligible`
@@ -143,12 +142,9 @@ If epics are eligible:
 > Dependencies between children establish order within an epic.
 > See AGENTS.md for the full epic philosophy.
 
-### Step 4: Commit Changes with Kitchen Log
+### Step 5: Commit Changes with Kitchen Log
 
-Show pending changes:
-```bash
-git status
-```
+Using the GIT STATUS output from Step 1, check for pending changes.
 
 If changes exist:
 1. Stage all relevant files: `git add -A`
@@ -184,11 +180,11 @@ Review findings:
 - Review and test quality feedback
 - Signal emitted
 
-### Step 5: Verify Closing Kitchen
+### Step 6: Verify Closing Kitchen
 
 Before pushing, verify all quality gates pass:
 
-**Kitchen closing checklist (MANDATORY):**
+**Kitchen closing checklist:**
 - [ ] All issues filed correctly
 - [ ] Commit message follows kitchen log format
 - [ ] Changes staged and committed
@@ -200,7 +196,7 @@ Before pushing, verify all quality gates pass:
 - Note in commit body
 - Continue with push if non-blocking issue
 
-### Step 6: Sync and Push
+### Step 7: Sync and Push
 
 ```bash
 bd sync                        # Commit beads changes
@@ -216,7 +212,7 @@ bd create --title="Resolve git push failure: <error>" --type=bug --priority=2
 
 **CRITICAL:** Work is NOT complete until `git push` succeeds. If push fails, resolve and retry.
 
-### Step 7: Record Session Summary
+### Step 8: Record Session Summary
 
 **Add final comment to the task:**
 ```bash
@@ -239,7 +235,7 @@ Commit: <hash>
 Push: <success|failed>"
 ```
 
-### Step 8: Output Kitchen Report
+### Step 9: Output Kitchen Report
 
 **If an epic was closed**, output the epic completion banner first:
 

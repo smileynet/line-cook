@@ -68,8 +68,9 @@ Signal: KITCHEN_IDLE
 
 **Once a regular task is selected**, claim it:
 ```bash
-bd show <id>                           # Display full task details
-bd update <id> --status=in_progress    # Claim the task
+# Claim the task and display details
+bd show <id>
+bd update <id> --status=in_progress
 bd comments add <id> "PHASE: COOK
 Status: started"
 ```
@@ -171,7 +172,7 @@ Before marking the task done, verify ALL guardrails pass:
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
 
-**Kitchen equipment checklist** (MANDATORY):
+**Kitchen equipment checklist:**
 
 - [ ] All tests pass: `<test command>` (e.g., `go test ./...`, `pytest`, `npm test`)
 - [ ] Code builds: `<build command>` (e.g., `go build ./...`, `npm run build`)

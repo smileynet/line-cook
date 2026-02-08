@@ -8,46 +8,34 @@
 
 ## Process
 
-### Step 1: Sync State
+### Step 1: Collect State
 
-Ensure local state is current:
-
-```bash
-git fetch origin
-git pull --rebase
-```
-
-If `.beads/` directory exists:
-```bash
-bd sync
-```
-
-### Step 2: Load Kitchen Manual
-
-Load the work structure documentation:
+Sync local state, load context, and gather kitchen roster in one pass:
 
 ```bash
-cat AGENTS.md | head -100
+# Sync
+git fetch origin 2>&1 && git pull --rebase 2>&1
+[ -d .beads ] && bd sync 2>&1 || true
+
+# Project info
+echo "=== PROJECT ==="
+echo "DIR: $(pwd)"
+echo "BRANCH: $(git branch --show-current)"
+
+# Kitchen manual (work structure, terminology, conventions)
+echo "=== KITCHEN MANUAL ==="
+head -100 AGENTS.md 2>/dev/null || echo "(no AGENTS.md)"
+
+# Task state
+echo "=== READY ==="
+bd ready 2>/dev/null || echo "(no beads configured)"
+echo "=== IN PROGRESS ==="
+bd list --status=in_progress 2>/dev/null || echo "(none)"
+echo "=== BLOCKED ==="
+bd blocked 2>/dev/null || echo "(none)"
 ```
 
-This loads kitchen terminology, agent definitions, and workflow principles.
-
-### Step 3: Gather Kitchen Roster
-
-Get project and branch info:
-```bash
-pwd                           # Project directory
-git branch --show-current     # Current branch
-```
-
-Display current task state:
-```bash
-bd ready                      # Available orders (no blockers)
-bd list --status=in_progress  # Active orders
-bd blocked                    # Blocked orders (for awareness)
-```
-
-### Step 4: Branching Strategy
+### Step 2: Branching Strategy
 
 Before selecting a task, check branching context:
 
@@ -62,11 +50,11 @@ bd show <feature-id>  # Confirm it's a feature
 git checkout -b feature/<feature-id>
 ```
 
-### Step 5: Identify Next Task and Gather Context
+### Step 3: Identify Next Task and Gather Context
 
 Before outputting the summary, determine the recommended next task and its hierarchy:
 
-#### 5a: Find Next Ready Task
+#### 3a: Find Next Ready Task
 
 1. Get the highest priority ready item from `bd ready`
 2. Check if it's an epic: `bd show <id> --json` and check `issue_type`
@@ -80,41 +68,35 @@ Before outputting the summary, determine the recommended next task and its hiera
 - Check epic children that are open but not blocked
 - Recommend starting with those
 
-#### 5b: Gather Parent Hierarchy
+#### 3b: Gather Parent Hierarchy
 
 Once you have identified the next task, gather its parent chain:
 
 ```bash
-# Get task details
 TASK_JSON=$(bd show <task-id> --json)
 PARENT_ID=$(echo $TASK_JSON | jq -r '.[0].parent // empty')
 
 if [ -n "$PARENT_ID" ]; then
-  # Get feature/parent info
   FEATURE_JSON=$(bd show $PARENT_ID --json)
-
-  # Get sibling tasks for progress tracking
   TOTAL_SIBLINGS=$(bd list --parent=$PARENT_ID | wc -l)
   CLOSED_SIBLINGS=$(bd list --parent=$PARENT_ID --status=closed)
 
-  # Get epic info if feature has parent
   EPIC_ID=$(echo $FEATURE_JSON | jq -r '.[0].parent // empty')
   if [ -n "$EPIC_ID" ]; then
     EPIC_JSON=$(bd show $EPIC_ID --json)
-    # Count epic's children for feature progress
     TOTAL_FEATURES=$(bd list --parent=$EPIC_ID | wc -l)
     CLOSED_FEATURES=$(bd list --parent=$EPIC_ID --status=closed | wc -l)
   fi
 fi
 ```
 
-#### 5c: Extract Task Intent
+#### 3c: Extract Task Intent
 
 Parse the task description to extract:
 - **Summary**: First paragraph of description
 - **Deliverables**: Lines starting with "Deliverable:", "Verify:", or bullet points under those headers
 
-### Step 6: Output Kitchen Roster
+### Step 4: Output Kitchen Roster
 
 Output a focused, scannable summary with hierarchical context:
 
