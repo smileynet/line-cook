@@ -128,7 +128,7 @@ run_provider_test() {
             ;;
         opencode)
             # OpenCode headless mode
-            output=$(timeout "$timeout" opencode run --command "$command" 2>&1) || exit_code=$?
+            output=$(timeout "$timeout" opencode run "$command" 2>&1) || exit_code=$?
             ;;
         kiro)
             # Kiro CLI (natural language)
