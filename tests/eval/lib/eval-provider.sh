@@ -21,9 +21,8 @@ source "$REPO_ROOT/tests/lib/test-utils.sh"
 get_timestamp_ns() {
     local ts
     ts=$(date +%s%N 2>/dev/null)
-    # On macOS, %N is literal "N" — detect and fall back
-    if [[ "$ts" == *N ]]; then
-        # Fallback: seconds * 1_000_000_000
+    # On macOS, %N is literal "N" — detect and fall back to seconds
+    if [[ "$ts" =~ N$ ]]; then
         echo "$(( $(date +%s) * 1000000000 ))"
     else
         echo "$ts"
@@ -97,9 +96,9 @@ parse_result() {
 # Truncate string to max length with indicator
 truncate_string() {
     local str="$1"
-    local max_len="${2:-10000}"
-    if [[ ${#str} -gt $max_len ]]; then
-        echo "${str:0:$max_len}...[truncated]"
+    local max_length="${2:-10000}"
+    if [[ ${#str} -gt $max_length ]]; then
+        echo "${str:0:$max_length}...[truncated]"
     else
         echo "$str"
     fi
@@ -181,10 +180,10 @@ eval_provider_run() {
     result_text=$(parse_result "$provider" "$raw_output")
 
     # Truncate large fields for JSON safety
-    local max_field_len=10000
-    result_text=$(truncate_string "$result_text" "$max_field_len")
-    stderr_output=$(truncate_string "$stderr_output" "$max_field_len")
-    raw_output=$(truncate_string "$raw_output" "$max_field_len")
+    local truncate_limit=10000
+    result_text=$(truncate_string "$result_text" "$truncate_limit")
+    stderr_output=$(truncate_string "$stderr_output" "$truncate_limit")
+    raw_output=$(truncate_string "$raw_output" "$truncate_limit")
 
     # Emit structured JSON
     jq -n \
