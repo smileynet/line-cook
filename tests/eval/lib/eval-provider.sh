@@ -52,12 +52,16 @@ parse_tokens() {
             cost_usd=$(echo "$raw_output" | jq -r '.total_cost_usd // 0' 2>/dev/null || echo 0)
             ;;
         opencode)
-            input_tokens=$(echo "$raw_output" | jq -r '.usage.input_tokens // .input_tokens // 0' 2>/dev/null || echo 0)
-            output_tokens=$(echo "$raw_output" | jq -r '.usage.output_tokens // .output_tokens // 0' 2>/dev/null || echo 0)
+            # OpenCode --format json emits NDJSON; token info is in step_finish events
+            input_tokens=$(echo "$raw_output" | jq -rs '[.[] | select(.type=="step_finish") | .part.tokens.input // 0] | add // 0' 2>/dev/null || echo 0)
+            output_tokens=$(echo "$raw_output" | jq -rs '[.[] | select(.type=="step_finish") | .part.tokens.output // 0] | add // 0' 2>/dev/null || echo 0)
+            cache_read=$(echo "$raw_output" | jq -rs '[.[] | select(.type=="step_finish") | .part.tokens.cache.read // 0] | add // 0' 2>/dev/null || echo 0)
+            cost_usd=$(echo "$raw_output" | jq -rs '[.[] | select(.type=="step_finish") | .part.cost // 0] | add // 0' 2>/dev/null || echo 0)
             ;;
         kiro)
-            input_tokens=$(echo "$raw_output" | jq -r '.usage.input_tokens // .tokens.input // 0' 2>/dev/null || echo 0)
-            output_tokens=$(echo "$raw_output" | jq -r '.usage.output_tokens // .tokens.output // 0' 2>/dev/null || echo 0)
+            # Kiro outputs plain text, no token usage available
+            input_tokens=0
+            output_tokens=0
             ;;
     esac
 
@@ -80,10 +84,12 @@ parse_result() {
             echo "$raw_output" | jq -r '.result // empty' 2>/dev/null || echo "$raw_output"
             ;;
         opencode)
-            echo "$raw_output" | jq -r '.result // .output // empty' 2>/dev/null || echo "$raw_output"
+            # OpenCode --format json emits NDJSON; extract text parts
+            echo "$raw_output" | jq -rs '[.[] | select(.type=="text") | .part.text] | join("\n")' 2>/dev/null || echo "$raw_output"
             ;;
         kiro)
-            echo "$raw_output" | jq -r '.result // .response // empty' 2>/dev/null || echo "$raw_output"
+            # Kiro outputs plain text, no JSON wrapper
+            echo "$raw_output"
             ;;
     esac
 }
@@ -144,16 +150,15 @@ eval_provider_run() {
                 >"$stdout_file" 2>"$stderr_file" || exit_code=$?
             ;;
         opencode)
-            timeout "$timeout_sec" opencode -p "$prompt" \
-                -f json \
-                -q \
+            timeout "$timeout_sec" opencode run \
+                --format json \
+                "$prompt" \
                 >"$stdout_file" 2>"$stderr_file" || exit_code=$?
             ;;
         kiro)
             timeout "$timeout_sec" kiro-cli chat \
                 --no-interactive \
                 --trust-all-tools \
-                --format json \
                 "$prompt" \
                 >"$stdout_file" 2>"$stderr_file" || exit_code=$?
             ;;
