@@ -38,8 +38,9 @@ bin/
 coverage.out
 coverage.html
 
-# Smoke test results (keep .gitkeep)
+# Test results (keep .gitkeep files)
 tests/results/*.json
+tests/results/eval/
 
 # OpenCode working files (commands are in plugins/opencode/commands/)
 .opencode/
