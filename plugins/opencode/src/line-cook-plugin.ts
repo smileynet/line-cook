@@ -158,7 +158,7 @@ Before saying "done" or "complete", run this checklist:
 
 ### Core Rules
 - Track strategic work in beads (multi-session, dependencies, discovered work)
-- Use \`bd create\` for issues, TodoWrite for simple single-session execution
+- Use \`bd create\` for issues, a checklist for simple single-session execution
 - Git workflow: hooks auto-sync, run \`bd sync\` at session end
 - Session management: check \`bd ready\` for available work
 

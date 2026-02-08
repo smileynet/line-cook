@@ -35,7 +35,7 @@ Structured AI workflow execution: prep → cook → serve → tidy.
 
 1. **Prep**: Sync state, identify available work
 2. **Cook**: Claim task, execute with guardrails, verify completion
-3. **Serve**: Headless AI reviews changes
+3. **Serve**: AI reviews changes for quality
 4. **Tidy**: File discovered issues, commit, push
 
 ## Guardrails
@@ -77,5 +77,5 @@ If a step fails:
 
 ## Reference
 
-- [README](../../../../README.md) - Philosophy and installation
-- [Commands](../../commands/) - Detailed command documentation
+- `README.md` in project root - Philosophy and installation
+- `commands/` directory - Detailed command documentation

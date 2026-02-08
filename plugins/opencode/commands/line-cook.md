@@ -1,6 +1,5 @@
 ---
 description: Select and execute a task with completion guardrails
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQuestion
 ---
 
 ## Summary
@@ -69,8 +68,6 @@ No actionable tasks available.
 Available: <count> items (all P4 parking lot or research)
 
 Signal: KITCHEN_IDLE
-
-<phase_complete>DONE</phase_complete>
 ```
 
 **Once a regular task is selected**, claim it:
@@ -99,18 +96,18 @@ Use Read, Glob, and Grep tools to gather necessary context before starting imple
 
 ### Step 3: Plan the Task
 
-Break the task into steps using TodoWrite:
+Break the task into a checklist of steps:
 
 1. Read the task description carefully
 2. Identify all deliverables
-3. Add steps to TodoWrite before starting
+3. List steps before starting implementation
 4. Include verification steps (test, compile, etc.)
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
 ### Step 4: Execute TDD Cycle
 
-Process TodoWrite items systematically with TDD guardrails:
+Process checklist items systematically with TDD guardrails:
 
 - Mark items `in_progress` when starting
 - Mark items `completed` immediately when done
@@ -124,17 +121,13 @@ Process TodoWrite items systematically with TDD guardrails:
     # Should FAIL
     ```
 
-   **Automatic test quality review** (use Task tool):
-   ```
-   Task tool: Review test code for quality
-   Subagent type: taster
-   ```
+   **Automatic test quality review:**
 
-   Test quality checks:
+   Before proceeding to GREEN, review your test code for quality:
    - Tests are isolated, fast, repeatable
    - Clear test names and error messages
    - Proper structure (Setup-Execute-Validate-Cleanup)
-   - No anti-patterns
+   - No anti-patterns (shared mutable state, flaky assertions, implementation coupling)
 
    **Address critical issues before GREEN phase.**
 
@@ -171,13 +164,13 @@ TDD Phase: RED/GREEN/REFACTOR
 - Potential issues or bugs
 - Areas for improvement
 
-These will be filed as beads in `/line-tidy` (see tidy.md Finding Filing Strategy).
+These will be filed as beads in tidy phase (see tidy.md Finding Filing Strategy).
 
 ### Step 5: Verify Kitchen Equipment
 
 Before marking the task done, verify ALL guardrails pass:
 
-- [ ] All TodoWrite items completed
+- [ ] All checklist items completed
 - [ ] Code compiles/runs without errors
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
@@ -234,7 +227,7 @@ Verification:
   [✓] Code compiles
   [✓] Tests pass
 
-Findings (to file in /tidy):
+Findings (to file in tidy):
   New tasks:
     - "Add support for edge case X"
   Potential issues:

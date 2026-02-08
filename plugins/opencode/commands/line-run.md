@@ -14,13 +14,13 @@ description: Run full workflow cycle (prep→cook→serve→tidy)
 
 Execute all steps in sequence without stopping between commands.
 
-### Step 1: Run /prep
+### Step 1: Run /line-prep
 
 Read and follow `line-prep.md` to sync state and identify available work.
 
 Wait for prep to complete.
 
-### Step 2: Run /cook
+### Step 2: Run /line-cook
 
 Read and follow `line-cook.md` to execute work.
 
@@ -30,7 +30,7 @@ Read and follow `line-cook.md` to execute work.
 
 Wait for cook to complete.
 
-### Step 3: Run /serve
+### Step 3: Run /line-serve
 
 Read and follow `line-serve.md` for peer review.
 
@@ -39,7 +39,7 @@ Wait for review to complete. **Check SERVE_RESULT verdict:**
 - If `continue: true` → proceed to Step 4
 - If `continue: false` (BLOCKED) → STOP and wait for user decision (see Error Handling)
 
-### Step 4: Run /tidy
+### Step 4: Run /line-tidy
 
 Read and follow `line-tidy.md` to file discovered work, commit, and push.
 

@@ -32,7 +32,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 Execute all steps in sequence without stopping between commands.
 
 @ENDIF_OPENCODE@
-### Step 1: Run /prep
+### Step 1: Run /@NAMESPACE@prep
 
 @IF_CLAUDECODE@
 Invoke the prep command to sync state and identify available work:
@@ -47,7 +47,7 @@ Read and follow `line-prep.md` to sync state and identify available work.
 
 Wait for prep to complete.
 
-### Step 2: Run /cook
+### Step 2: Run /@NAMESPACE@cook
 
 @IF_CLAUDECODE@
 Invoke the cook command to execute work:
@@ -74,7 +74,7 @@ Read and follow `line-cook.md` to execute work.
 Wait for cook to complete.
 @ENDIF_OPENCODE@
 
-### Step 3: Run /serve
+### Step 3: Run /@NAMESPACE@serve
 
 @IF_CLAUDECODE@
 Invoke the serve command for peer review:
@@ -94,7 +94,7 @@ Wait for review to complete. **Check SERVE_RESULT verdict:**
 - If `continue: false` (BLOCKED) → STOP and wait for user decision (see Error Handling)
 @ENDIF_OPENCODE@
 
-### Step 4: Run /tidy
+### Step 4: Run /@NAMESPACE@tidy
 
 @IF_CLAUDECODE@
 Invoke tidy to file discovered work, commit, and push:

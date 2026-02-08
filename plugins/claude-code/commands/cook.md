@@ -145,10 +145,7 @@ Summary: <assessment from serve>
 Addressing issues in priority order (critical → major → minor).
 ```
 
-**Add issues to TodoWrite** in severity order:
-1. Critical issues first (blocking)
-2. Major issues second
-3. Minor issues last
+**Add issues to TodoWrite** in severity order: critical → major → minor
 
 **If no retry context exists:** Continue normally with Step 2.
 
@@ -257,13 +254,13 @@ TDD Phase: RED/GREEN/REFACTOR
 - Potential issues or bugs
 - Areas for improvement
 
-These will be filed as beads in `/line:tidy` (see tidy.md Finding Filing Strategy).
+These will be filed as beads in tidy phase (see tidy.md Finding Filing Strategy).
 
 ### Step 6: Verify Kitchen Equipment
 
 Before marking the task done, verify ALL guardrails pass:
 
-- [ ] All TodoWrite items completed
+- [ ] All checklist items completed
 - [ ] Code compiles/runs without errors
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
@@ -330,7 +327,7 @@ Verification:
   [✓] Code compiles
   [✓] Tests pass
 
-Findings (to file in /tidy):
+Findings (to file in tidy):
   New tasks:
     - "Add support for edge case X"
   Potential issues:

@@ -21,7 +21,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 
 ## Process
 
-### Step 1: Run /prep
+### Step 1: Run /line:prep
 
 Invoke the prep command to sync state and identify available work:
 
@@ -31,7 +31,7 @@ Skill(skill="line:prep")
 
 Wait for prep to complete.
 
-### Step 2: Run /cook
+### Step 2: Run /line:cook
 
 Invoke the cook command to execute work:
 
@@ -47,7 +47,7 @@ Skill(skill="line:cook")
 
 Wait for cook to complete. Cook will select a task, execute the work, and output findings for tidy.
 
-### Step 3: Run /serve
+### Step 3: Run /line:serve
 
 Invoke the serve command for peer review:
 
@@ -57,7 +57,7 @@ Skill(skill="line:serve")
 
 Wait for review to complete. Serve will invoke sous-chef subagent for code review and categorize any issues found.
 
-### Step 4: Run /tidy
+### Step 4: Run /line:tidy
 
 Invoke tidy to file discovered work, commit, and push:
 
