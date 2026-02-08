@@ -407,11 +407,11 @@ OPENCODE_MODEL=deepseek/deepseek-chat ./tests/run-tests.sh --provider opencode -
 
 **Kiro CLI** uses `@line-<command>` prompt syntax (not slash commands). The `get_provider_command` function in `test-utils.sh` maps command names to the correct provider-specific syntax:
 
-| Provider | Command format | Example |
-|----------|---------------|---------|
-| Claude Code | `/line:<command>` | `/line:getting-started` |
-| OpenCode | `/line-<command>` | `/line-getting-started` |
-| Kiro CLI | `@line-<command>` | `@line-getting-started` |
+| Provider | `--provider` flag | Command format | Example |
+|----------|------------------|---------------|---------|
+| Claude Code | `claude` | `/line:<command>` | `/line:getting-started` |
+| OpenCode | `opencode` | `/line-<command>` | `/line-getting-started` |
+| Kiro CLI | `kiro` | `@line-<command>` | `@line-getting-started` |
 
 ### Known Patterns
 

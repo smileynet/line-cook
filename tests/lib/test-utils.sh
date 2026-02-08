@@ -101,7 +101,7 @@ check_output_contains() {
 
     for pattern in "${patterns[@]}"; do
         if ! echo "$output" | grep -qiE "$pattern"; then
-            echo "  Missing pattern: $pattern" >&2
+            log_error "Missing pattern: $pattern"
             return 1
         fi
     done
@@ -130,16 +130,15 @@ run_provider_test() {
             # OpenCode headless mode (OPENCODE_MODEL overrides default model)
             # Note: OpenCode requires a pseudo-TTY to flush output during tool calls.
             # Without script(1), tool-call responses buffer indefinitely.
-            local model_flag=""
+            local model_arg=""
             if [[ -n "${OPENCODE_MODEL:-}" ]]; then
-                model_flag="--model $(printf '%q' "$OPENCODE_MODEL")"
+                model_arg="--model $(printf '%q' "$OPENCODE_MODEL")"
             fi
             local script_tmp
             script_tmp=$(mktemp)
             trap "rm -f '$script_tmp'" RETURN
-            script -q -c "timeout $timeout opencode run $model_flag $(printf '%q' "$command")" "$script_tmp" >/dev/null 2>&1 || exit_code=$?
+            script -q -c "timeout $(printf '%q' "$timeout") opencode run $model_arg $(printf '%q' "$command")" "$script_tmp" >/dev/null 2>&1 || exit_code=$?
             output=$(cat "$script_tmp")
-            rm -f "$script_tmp"
             ;;
         kiro)
             # Kiro CLI (natural language)
@@ -215,9 +214,9 @@ cleanup_stale_tests() {
         done
     done
     if [[ $found -gt 0 ]]; then
-        local plural="directories"
-        [[ $found -eq 1 ]] && plural="directory"
-        log_success "Cleaned up $found stale test $plural"
+        local plural_form="directories"
+        [[ $found -eq 1 ]] && plural_form="directory"
+        log_success "Cleaned up $found stale test $plural_form"
     fi
 }
 

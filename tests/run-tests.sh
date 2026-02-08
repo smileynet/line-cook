@@ -175,7 +175,7 @@ for test_name in "${TESTS_TO_RUN[@]}"; do
         continue
     fi
 
-    # Make sure script is executable
+    # Ensure script is executable
     chmod +x "$test_script"
 
     echo ""
