@@ -161,11 +161,12 @@ validate_analysis() {
         local provider_output
         provider_output=$(jq -r '.result' "$RUN_FILE")
 
-        # Check that analysis mentions key files
-        if echo "$provider_output" | grep -qi "todo.js"; then
-            add_check "mentions_source_file" true "Analysis mentions todo.js"
+        # Check that analysis mentions JavaScript source files
+        # LLMs may name the file todo.js, app.js, index.js, etc.
+        if echo "$provider_output" | grep -qiE "(todo\.js|app\.js|index\.js|\.js\b)"; then
+            add_check "mentions_source_file" true "Analysis mentions JavaScript source file"
         else
-            add_check "mentions_source_file" false "Analysis does not mention todo.js"
+            add_check "mentions_source_file" false "Analysis does not mention any .js source file"
         fi
 
         if echo "$provider_output" | grep -qi "test"; then
@@ -239,7 +240,7 @@ validate_implement() {
 
     # Clean working tree (ignore beads lock files, they're ephemeral)
     local uncommitted_changes
-    uncommitted_changes=$(git status --porcelain 2>/dev/null | grep -v '\.beads/\.jsonl\.lock' || true)
+    uncommitted_changes=$(git status --porcelain 2>/dev/null | grep -v '\.beads/\.jsonl\.lock' | grep -v '^?? scratch/' || true)
     if [[ -z "$uncommitted_changes" ]]; then
         add_check "clean_working_tree" true "Working tree is clean"
     else

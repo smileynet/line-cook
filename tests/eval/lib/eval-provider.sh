@@ -149,10 +149,18 @@ eval_provider_run() {
                 >"$stdout_file" 2>"$stderr_file" || exit_code=$?
             ;;
         opencode)
-            timeout "$timeout_sec" opencode run \
-                --format json \
-                "$prompt" \
-                >"$stdout_file" 2>"$stderr_file" || exit_code=$?
+            # OpenCode requires a pseudo-TTY to flush output during tool calls.
+            # Use script(1) to provide one, then capture from the typescript file.
+            local model_flag=""
+            if [[ -n "${OPENCODE_MODEL:-}" ]]; then
+                model_flag="--model $(printf '%q' "$OPENCODE_MODEL")"
+            fi
+            local script_tmp
+            script_tmp=$(mktemp)
+            trap "rm -f '$stdout_file' '$stderr_file' '$script_tmp'" RETURN
+            script -q -c "timeout $timeout_sec opencode run $model_flag --format json $(printf '%q' "$prompt")" "$script_tmp" >/dev/null 2>"$stderr_file" || exit_code=$?
+            cp "$script_tmp" "$stdout_file"
+            rm -f "$script_tmp"
             ;;
         kiro)
             timeout "$timeout_sec" kiro-cli chat \

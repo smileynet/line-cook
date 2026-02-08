@@ -67,16 +67,16 @@ for provider in "${PROVIDERS[@]}"; do
     # Check output for expected patterns
     if check_output_contains "$output" "${EXPECTED_PATTERNS[@]}"; then
         print_result "$display_name $cmd" 0
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
     else
         # Check for reasonable failure modes
         if echo "$output" | grep -qiE "(no.*work|no.*tasks|nothing.*ready|error|timeout)"; then
             print_result "$display_name $cmd (expected failure mode)" 0
-            ((PASSED++))
+            PASSED=$((PASSED + 1))
         else
             print_result "$display_name $cmd" 1
             echo "    Output preview: ${output:0:300}..."
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
         fi
     fi
 done
