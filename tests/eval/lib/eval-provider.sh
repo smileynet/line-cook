@@ -32,32 +32,42 @@ get_timestamp_ns() {
 
 # Parse token usage from provider JSON output
 # Args: provider, raw_output
-# Outputs: JSON object { input: N, output: N }
+# Outputs: JSON object { input: N, output: N, cache_read: N, cache_creation: N, cost_usd: N }
 parse_tokens() {
     local provider="$1"
     local raw_output="$2"
     local input_tokens=0
     local output_tokens=0
+    local cache_read=0
+    local cache_creation=0
+    local cost_usd=0
 
     case "$provider" in
         claude)
-            # Claude --output-format json: { result, session_id, usage: { input_tokens, output_tokens } }
+            # Claude --output-format json includes usage with cache breakdown and total_cost_usd
             input_tokens=$(echo "$raw_output" | jq -r '.usage.input_tokens // 0' 2>/dev/null || echo 0)
             output_tokens=$(echo "$raw_output" | jq -r '.usage.output_tokens // 0' 2>/dev/null || echo 0)
+            cache_read=$(echo "$raw_output" | jq -r '.usage.cache_read_input_tokens // 0' 2>/dev/null || echo 0)
+            cache_creation=$(echo "$raw_output" | jq -r '.usage.cache_creation_input_tokens // 0' 2>/dev/null || echo 0)
+            cost_usd=$(echo "$raw_output" | jq -r '.total_cost_usd // 0' 2>/dev/null || echo 0)
             ;;
         opencode)
-            # OpenCode -f json: parse if available
             input_tokens=$(echo "$raw_output" | jq -r '.usage.input_tokens // .input_tokens // 0' 2>/dev/null || echo 0)
             output_tokens=$(echo "$raw_output" | jq -r '.usage.output_tokens // .output_tokens // 0' 2>/dev/null || echo 0)
             ;;
         kiro)
-            # Kiro --format json: parse if available
             input_tokens=$(echo "$raw_output" | jq -r '.usage.input_tokens // .tokens.input // 0' 2>/dev/null || echo 0)
             output_tokens=$(echo "$raw_output" | jq -r '.usage.output_tokens // .tokens.output // 0' 2>/dev/null || echo 0)
             ;;
     esac
 
-    echo "{\"input\": $input_tokens, \"output\": $output_tokens}"
+    jq -n \
+        --argjson input "$input_tokens" \
+        --argjson output "$output_tokens" \
+        --argjson cache_read "$cache_read" \
+        --argjson cache_creation "$cache_creation" \
+        --argjson cost_usd "$cost_usd" \
+        '{ input: $input, output: $output, cache_read: $cache_read, cache_creation: $cache_creation, cost_usd: $cost_usd }'
 }
 
 # Extract result text from provider JSON output
@@ -76,6 +86,17 @@ parse_result() {
             echo "$raw_output" | jq -r '.result // .response // empty' 2>/dev/null || echo "$raw_output"
             ;;
     esac
+}
+
+# Truncate string to max length with indicator
+truncate_string() {
+    local str="$1"
+    local max_len="${2:-10000}"
+    if [[ ${#str} -gt $max_len ]]; then
+        echo "${str:0:$max_len}...[truncated]"
+    else
+        echo "$str"
+    fi
 }
 
 # Run a provider headlessly with metrics capture
@@ -156,15 +177,9 @@ eval_provider_run() {
 
     # Truncate large fields for JSON safety
     local max_field_len=10000
-    if [[ ${#result_text} -gt $max_field_len ]]; then
-        result_text="${result_text:0:$max_field_len}...[truncated]"
-    fi
-    if [[ ${#stderr_output} -gt $max_field_len ]]; then
-        stderr_output="${stderr_output:0:$max_field_len}...[truncated]"
-    fi
-    if [[ ${#raw_output} -gt $max_field_len ]]; then
-        raw_output="${raw_output:0:$max_field_len}...[truncated]"
-    fi
+    result_text=$(truncate_string "$result_text" "$max_field_len")
+    stderr_output=$(truncate_string "$stderr_output" "$max_field_len")
+    raw_output=$(truncate_string "$raw_output" "$max_field_len")
 
     # Emit structured JSON
     jq -n \

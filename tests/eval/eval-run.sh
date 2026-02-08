@@ -85,14 +85,14 @@ scenario_analysis() {
 scenario_implement() {
     PROMPT="Implement task demo-001.1.1 for the TodoWebApp. Read the task details with 'bd show demo-001.1.1'. Write tests first in src/todo.test.js, then implement src/todo.js to make the tests pass. Verify tests pass with 'node src/todo.test.js'. After tests pass, close the bead with 'bd close demo-001.1.1', commit all changes with a message referencing demo-001.1.1, and push to origin."
     TIMEOUT=600
-    MAX_TURNS=10
+    MAX_TURNS=25
     MAX_BUDGET="5.00"
 }
 
 scenario_sequence() {
     PROMPT="Complete all ready tasks for the TodoWebApp project. Start by running 'bd ready' to find available work. For each ready task: read its details with 'bd show', write tests first, implement the feature, verify tests pass with 'node src/todo.test.js', close the bead with 'bd close', commit, and push. After completing a task, run 'bd ready' again to check if new tasks are unblocked. Continue until no more tasks are ready."
     TIMEOUT=900
-    MAX_TURNS=20
+    MAX_TURNS=50
     MAX_BUDGET="10.00"
 }
 
@@ -152,8 +152,10 @@ exit_code=$(echo "$run_result" | jq -r '.exit_code // 0')
 wall_time_ms=$(echo "$run_result" | jq -r '.wall_time_ms // 0')
 input_tokens=$(echo "$run_result" | jq -r '.tokens.input // 0')
 output_tokens=$(echo "$run_result" | jq -r '.tokens.output // 0')
+cache_read=$(echo "$run_result" | jq -r '.tokens.cache_read // 0')
+cost_usd=$(echo "$run_result" | jq -r '.tokens.cost_usd // 0')
 
-wall_time_sec=$(( wall_time_ms / 1000 ))
+wall_time_sec=$(( wall_time_ms / 1000 ))  # Convert milliseconds to seconds
 
 log ""
 if [[ "$exit_code" -eq 0 ]]; then
@@ -161,7 +163,10 @@ if [[ "$exit_code" -eq 0 ]]; then
 else
     log_error "Failed (exit code $exit_code) in ${wall_time_sec}s"
 fi
-log_step "Tokens: ${input_tokens} in / ${output_tokens} out"
+log_step "Tokens: ${input_tokens} in / ${output_tokens} out (cache: ${cache_read} read)"
+if [[ "$cost_usd" != "0" ]]; then
+    log_step "Cost: \$${cost_usd}"
+fi
 log_step "Result: $result_file"
 
 # Output result file path to stdout

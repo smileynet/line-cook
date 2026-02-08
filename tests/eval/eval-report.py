@@ -48,6 +48,9 @@ class RunResult:
     exit_code: int
     input_tokens: int
     output_tokens: int
+    cache_read_tokens: int
+    cache_creation_tokens: int
+    actual_cost_usd: float
     timestamp: str
     result_file: str
 
@@ -77,6 +80,7 @@ class ScenarioStats:
     wall_times_ms: list = field(default_factory=list)
     input_tokens_list: list = field(default_factory=list)
     output_tokens_list: list = field(default_factory=list)
+    actual_costs_usd: list = field(default_factory=list)
     failure_modes: list = field(default_factory=list)
 
     @property
@@ -103,6 +107,10 @@ class ScenarioStats:
 
     @property
     def mean_cost_usd(self) -> float:
+        # Use actual cost from provider if available, otherwise estimate
+        actual_costs = [c for c in self.actual_costs_usd if c > 0]
+        if actual_costs:
+            return _mean(actual_costs)
         input_cost = self.mean_input_tokens / 1_000_000 * COST_PER_1M_INPUT.get(self.provider, 3.00)
         output_cost = self.mean_output_tokens / 1_000_000 * COST_PER_1M_OUTPUT.get(self.provider, 15.00)
         return input_cost + output_cost
@@ -150,14 +158,18 @@ def load_run_results(results_dir: Path) -> list[RunResult]:
             data = json.loads(result_file.read_text())
             if "scenario" not in data:
                 continue
+            tokens = data.get("tokens", {})
             results.append(RunResult(
                 provider=data.get("provider", "unknown"),
                 scenario=data.get("scenario", "unknown"),
                 run_id=data.get("run_id", "0"),
                 wall_time_ms=data.get("wall_time_ms", 0),
                 exit_code=data.get("exit_code", -1),
-                input_tokens=data.get("tokens", {}).get("input", 0),
-                output_tokens=data.get("tokens", {}).get("output", 0),
+                input_tokens=tokens.get("input", 0),
+                output_tokens=tokens.get("output", 0),
+                cache_read_tokens=tokens.get("cache_read", 0),
+                cache_creation_tokens=tokens.get("cache_creation", 0),
+                actual_cost_usd=tokens.get("cost_usd", 0.0),
                 timestamp=data.get("timestamp", ""),
                 result_file=str(result_file),
             ))
@@ -210,6 +222,7 @@ def compute_stats(
         scenario_stats.wall_times_ms.append(run.wall_time_ms)
         scenario_stats.input_tokens_list.append(run.input_tokens)
         scenario_stats.output_tokens_list.append(run.output_tokens)
+        scenario_stats.actual_costs_usd.append(run.actual_cost_usd)
 
         # Check validation result
         validation = validation_index.get((run.provider, run.scenario, run.run_id))
@@ -236,7 +249,7 @@ def render_markdown_table(stats: dict[tuple[str, str], ScenarioStats]) -> str:
     lines = [
         "# Eval Report",
         "",
-        "| Provider | Scenario | Runs | Pass Rate | Wall Time (s) | Input Tokens | Output Tokens | Est. Cost |",
+        "| Provider | Scenario | Runs | Pass Rate | Wall Time (s) | Input Tokens | Output Tokens | Avg Cost |",
         "|----------|----------|------|-----------|---------------|--------------|---------------|-----------|",
     ]
 
@@ -251,17 +264,17 @@ def render_markdown_table(stats: dict[tuple[str, str], ScenarioStats]) -> str:
         )
 
     # Failure modes section
-    has_failures = any(scenario_stats.failure_modes for scenario_stats in stats.values())
-    if has_failures:
+    any_failures = any(scenario_stats.failure_modes for scenario_stats in stats.values())
+    if any_failures:
         lines.extend(["", "## Failure Modes", ""])
         for key in sorted(stats.keys()):
             scenario_stats = stats[key]
             if scenario_stats.failure_modes:
                 # Count occurrences of each failure mode
-                mode_counts: dict[str, int] = {}
+                failure_counts: dict[str, int] = {}
                 for mode in scenario_stats.failure_modes:
-                    mode_counts[mode] = mode_counts.get(mode, 0) + 1
-                modes_str = ", ".join(f"{mode} ({count}x)" for mode, count in sorted(mode_counts.items()))
+                    failure_counts[mode] = failure_counts.get(mode, 0) + 1
+                modes_str = ", ".join(f"{mode} ({count}x)" for mode, count in sorted(failure_counts.items()))
                 lines.append(f"- **{scenario_stats.provider}/{scenario_stats.scenario}**: {modes_str}")
 
     return "\n".join(lines)
