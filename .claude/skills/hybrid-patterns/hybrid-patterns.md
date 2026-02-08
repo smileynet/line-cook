@@ -80,8 +80,8 @@ Scripts and agents communicate through defined signal formats. These contracts l
 |--------|--------|----------|----------|---------|
 | `SERVE_RESULT` | Key-value block | serve command | line-loop.py | Review verdict (APPROVED/NEEDS_CHANGES/BLOCKED/SKIPPED) |
 | `KITCHEN_COMPLETE` | Plain text marker | cook command | line-loop.py | Cook confidence (supporting signal only) |
-| `KITCHEN_IDLE` | Box + text | cook command | line-loop.py | No actionable work available |
-| `INTENT` / `BEFORE → AFTER` | Structured block | cook command | line-loop.py | Intent declaration with before/after state |
+| `KITCHEN_IDLE` | Plain text marker | cook command | line-loop.py | No actionable work available |
+| `INTENT` / `BEFORE → AFTER` | Labeled key-value block | cook command | line-loop.py | Intent declaration with before/after state |
 | `<phase_complete>` | XML tag | any command | line-loop.py | Early phase termination |
 
 **Contract rules:**
@@ -249,10 +249,10 @@ Estimates of mechanical (scriptable) vs judgment work in each command. Higher me
 | brainstorm | 10% | 90% | Minimal — divergent thinking is fundamentally agent work |
 | mise | 50% | 50% | Orchestration sequencing (brainstorm→scope→finalize) |
 | decision | 60% | 40% | ADR file scaffolding + numbering |
-| run | 95% | 5% | Already orchestration (prep→cook→serve→tidy sequence) |
+| run | 95% | 5% | Already orchestration (prep→cook→serve→tidy→plate sequence) |
 | help | 20% | 80% | Minimal — contextual help requires understanding intent |
 | getting-started | 10% | 90% | Minimal — interactive guidance |
-| smoke-test | 80% | 20% | Test execution sequence |
+| smoke-test (dev) | 80% | 20% | Test execution sequence (project-local, not shipped) |
 
 ### Agents
 
