@@ -73,6 +73,7 @@ CHECKS="[]"
 
 # Get bead status with JSON parsing fallback
 # Args: bead_id
+# Returns: bead status or "unknown"
 get_bead_status() {
     local bead_id="$1"
     bd show "$bead_id" --json 2>/dev/null | jq -r '.[0].status // .status // "unknown"' 2>/dev/null || echo "unknown"
