@@ -16,42 +16,44 @@ After cooking (executing a task), you "serve" it for review before tidying up.
 
 ## Process
 
-### Step 1: Identify Changes to Review
+### Step 1: Collect Review Context
 
 **If `$ARGUMENTS` provided:**
 - Use that bead ID directly
 
 **Otherwise:**
-- Find most recently closed bead: `bd list --status=closed --limit=1`
-- Or find current in-progress bead if cook didn't close it yet
+- Identify from the collected output below
 
-Show the bead being reviewed:
+Collect bead state, changes, and project context in one pass:
+
+```bash
+# Identify bead to review
+echo "=== RECENT CLOSED ==="
+bd list --status=closed --limit=1 2>/dev/null || echo "(none)"
+echo "=== IN PROGRESS ==="
+bd list --status=in_progress --limit=1 2>/dev/null || echo "(none)"
+
+# Collect changes
+echo "=== CHANGES ==="
+git diff 2>/dev/null
+echo "=== STAGED ==="
+git diff --cached 2>/dev/null
+echo "=== FILES ==="
+git status --porcelain
+echo "=== LAST COMMIT ==="
+git diff HEAD~1 2>/dev/null
+
+# Project context for review
+echo "=== PROJECT CONTEXT ==="
+head -50 CLAUDE.md 2>/dev/null || echo "(no CLAUDE.md)"
+```
+
+Then load the specific bead details (needs ID from collected output):
 ```bash
 bd show <id>
 ```
 
-### Step 2: Gather Review Context
-
-Collect changes and project context:
-```bash
-# Get changes
-git diff                    # Unstaged changes
-git diff --cached           # Or staged changes
-git status --porcelain      # File list
-
-# If already committed
-git diff HEAD~1
-```
-
-**Load project context for context-aware review:**
-```bash
-# Check for CLAUDE.md
-cat CLAUDE.md 2>/dev/null | head -50
-```
-
-This gives the reviewer awareness of project patterns and conventions.
-
-### Step 3: Perform Code Review
+### Step 2: Perform Code Review
 
 Review the changes with focus on:
 
@@ -67,13 +69,13 @@ For each issue found, categorize:
 - **Suggestion**: How to fix
 - **Auto-fixable**: true | false
 
-### Step 4: Process Review Results
+### Step 3: Process Review Results
 
 Based on review findings:
 
 **If no issues found:**
 - Verdict: APPROVED
-- Proceed to Step 5
+- Proceed to Step 4
 
 **If issues found but non-blocking:**
 - Verdict: NEEDS_CHANGES
@@ -88,7 +90,7 @@ Based on review findings:
 - Recommend not proceeding to `/line-tidy` until fixed
 - Keep task as in_progress
 
-### Step 5: Record and Report Results
+### Step 4: Record and Report Results
 
 **Record via comment:**
 ```bash
