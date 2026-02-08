@@ -204,7 +204,9 @@ cleanup_stale_tests() {
         done
     done
     if [[ $found -gt 0 ]]; then
-        log_success "Cleaned up $found stale test director(ies)"
+        local plural="directories"
+        [[ $found -eq 1 ]] && plural="directory"
+        log_success "Cleaned up $found stale test $plural"
     fi
 }
 
@@ -263,7 +265,7 @@ verify_merge_commit_exists() {
 verify_no_ff_merge() {
     local pattern="$1"
     local merge_commit
-    merge_commit=$(git log --oneline --merges -10 | grep "$pattern" | head -1 | cut -d' ' -f1)
+    merge_commit=$(git log --oneline --merges -10 | grep "$pattern" | head -1 | awk '{print $1}')
     if [[ -z "$merge_commit" ]]; then
         return 1
     fi
