@@ -89,21 +89,21 @@ for provider in "${PROVIDERS[@]}"; do
     if check_output_contains "$output" "${EXPECTED_PATTERNS[@]}"; then
         if [[ "$git_before" == "$git_after" ]]; then
             print_result "$display_name $cmd" 0
-            ((PASSED++))
+            PASSED=$((PASSED + 1))
         else
             print_result "$display_name $cmd" 1
             echo "    Git state changed unexpectedly (serve shouldn't commit)"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
         fi
     else
         # Check if it failed due to no changes (still valid)
         if echo "$output" | grep -qiE "(no.*changes|nothing.*review|clean)"; then
             print_result "$display_name $cmd (no changes)" 0
-            ((PASSED++))
+            PASSED=$((PASSED + 1))
         else
             print_result "$display_name $cmd" 1
             echo "    Output preview: ${output:0:300}..."
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
         fi
     fi
 done

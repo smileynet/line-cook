@@ -127,8 +127,19 @@ run_provider_test() {
                 --output-format text 2>&1) || exit_code=$?
             ;;
         opencode)
-            # OpenCode headless mode
-            output=$(timeout "$timeout" opencode run "$command" 2>&1) || exit_code=$?
+            # OpenCode headless mode (OPENCODE_MODEL overrides default model)
+            # Note: OpenCode requires a pseudo-TTY to flush output during tool calls.
+            # Without script(1), tool-call responses buffer indefinitely.
+            local model_flag=""
+            if [[ -n "${OPENCODE_MODEL:-}" ]]; then
+                model_flag="--model $(printf '%q' "$OPENCODE_MODEL")"
+            fi
+            local script_tmp
+            script_tmp=$(mktemp)
+            trap "rm -f '$script_tmp'" RETURN
+            script -q -c "timeout $timeout opencode run $model_flag $(printf '%q' "$command")" "$script_tmp" >/dev/null 2>&1 || exit_code=$?
+            output=$(cat "$script_tmp")
+            rm -f "$script_tmp"
             ;;
         kiro)
             # Kiro CLI (natural language)
@@ -164,7 +175,7 @@ get_provider_command() {
     case "$provider" in
         claude) echo "/line:$command" ;;
         opencode) echo "/line-$command" ;;
-        kiro) echo "$command" ;;
+        kiro) echo "@line-$command" ;;
         *) echo "$command" ;;
     esac
 }

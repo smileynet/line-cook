@@ -353,6 +353,72 @@ See [README.md#installation](README.md#installation) for platform-specific insta
 
 > **Important - Command Discovery:** Claude Code caches commands based on `plugin.json` version. After adding new commands, bump the version and run `/clear` in a new session.
 
+## Testing
+
+### Test Suite Overview
+
+```
+tests/
+├── run-tests.sh              # Main orchestrator (--provider, --tier, --test)
+├── test-getting-started.sh    # Unit: read-only guide output check
+├── test-prep.sh               # Integration: sync + ready tasks
+├── test-serve.sh              # Integration: headless review
+├── test-tidy.sh               # Integration: commit + push
+├── test-cook.sh               # Full: LLM task execution
+├── test-work.sh               # Full: complete workflow cycle
+├── lib/
+│   ├── test-utils.sh          # Provider abstraction, logging, helpers
+│   ├── setup-env.sh           # Isolated git+beads test environment
+│   └── teardown-env.sh        # Cleanup
+├── eval/
+│   ├── eval.sh                # Eval orchestrator (matrix runner)
+│   ├── eval-run.sh            # Single provider+scenario execution
+│   ├── eval-validate.sh       # Artifact validation checks
+│   ├── eval-setup.sh          # Eval environment creation
+│   ├── eval-teardown.sh       # Eval environment cleanup
+│   ├── eval-report.py         # Report generation from JSON results
+│   └── lib/eval-provider.sh   # Enhanced provider invocation with metrics
+└── results/eval/              # JSON results + report.md
+```
+
+### Running Tests
+
+```bash
+# Unit tests only (fast, read-only)
+./tests/run-tests.sh --provider opencode --tier unit
+./tests/run-tests.sh --provider kiro --tier unit
+
+# Eval scenarios (isolated environments, artifact validation)
+./tests/eval/eval.sh --provider opencode --scenario readonly --runs 1
+./tests/eval/eval.sh --provider kiro --scenario analysis --runs 1
+
+# Full report from existing results
+./tests/eval/eval.sh --report-only
+```
+
+### Provider-Specific Testing Notes
+
+**OpenCode** requires a pseudo-TTY to flush stdout during tool-call responses. All OpenCode invocations in the test harness use `script -q -c` as a wrapper. Without this, OpenCode buffers indefinitely when not attached to a terminal.
+
+Override the default model with `OPENCODE_MODEL`:
+```bash
+OPENCODE_MODEL=deepseek/deepseek-chat ./tests/run-tests.sh --provider opencode --tier unit
+```
+
+**Kiro CLI** uses `@line-<command>` prompt syntax (not slash commands). The `get_provider_command` function in `test-utils.sh` maps command names to the correct provider-specific syntax:
+
+| Provider | Command format | Example |
+|----------|---------------|---------|
+| Claude Code | `/line:<command>` | `/line:getting-started` |
+| OpenCode | `/line-<command>` | `/line-getting-started` |
+| Kiro CLI | `@line-<command>` | `@line-getting-started` |
+
+### Known Patterns
+
+- **Bash arithmetic under `set -e`**: Use `VAR=$((VAR + 1))` instead of `((VAR++))`. When `VAR=0`, `((0++))` evaluates to 0 which is falsy, causing `set -e` to exit the script.
+- **LLM non-determinism**: Unit tests use `MAX_RETRIES=2` to handle flaky LLM responses. If output doesn't match expected patterns on first try, the test retries.
+- **Eval vs. unit tests**: Eval scenarios (readonly, analysis, implement, sequence) use isolated git repos and validate artifacts. Unit tests check command output patterns. Prefer eval for CI; unit tests are for quick smoke checks.
+
 ## Release Process
 
 **Releases are targeted events triggered by human decision, not automatic enforcement.** Track changes in CHANGELOG.md, then release when ready.

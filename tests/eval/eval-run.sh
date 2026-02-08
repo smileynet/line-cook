@@ -90,7 +90,7 @@ scenario_implement() {
 }
 
 scenario_sequence() {
-    PROMPT="Complete all ready tasks for the TodoWebApp project. Start by running 'bd ready' to find available work. For each ready task: read its details with 'bd show', write tests first, implement the feature, verify tests pass with 'node src/todo.test.js', close the bead with 'bd close', commit, and push. After completing a task, run 'bd ready' again to check if new tasks are unblocked. Continue until no more tasks are ready."
+    PROMPT="Complete all ready tasks for the TodoWebApp project. Start by running 'bd ready' to find available work. For each ready task: read its details with 'bd show', write tests first, implement the feature, verify tests pass with 'node src/todo.test.js', close the bead with 'bd close', commit all changes with a message that includes the task ID (e.g. 'feat: implement add todo [demo-001.1.1]'), and push. After completing a task, run 'bd ready' again to check if new tasks are unblocked. Continue until no more tasks are ready."
     TIMEOUT=900
     MAX_TURNS=50
     MAX_BUDGET="10.00"

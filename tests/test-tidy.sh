@@ -78,27 +78,27 @@ for provider in "${PROVIDERS[@]}"; do
             # Verify push happened (remote updated)
             if [[ "$remote_before" != "$remote_after" ]]; then
                 print_result "$display_name $cmd" 0
-                ((PASSED++))
+                PASSED=$((PASSED + 1))
             else
                 # Push might have been blocked or delayed
                 print_result "$display_name $cmd (commit ok, push unclear)" 0
-                ((PASSED++))
+                PASSED=$((PASSED + 1))
             fi
         else
             # No commit - check if there were no changes
             if echo "$output" | grep -qiE "(nothing.*commit|no.*changes|clean)"; then
                 print_result "$display_name $cmd (no changes to commit)" 0
-                ((PASSED++))
+                PASSED=$((PASSED + 1))
             else
                 print_result "$display_name $cmd" 1
                 echo "    Expected commit but none created"
-                ((FAILED++))
+                FAILED=$((FAILED + 1))
             fi
         fi
     else
         print_result "$display_name $cmd" 1
         echo "    Output preview: ${output:0:300}..."
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 done
 

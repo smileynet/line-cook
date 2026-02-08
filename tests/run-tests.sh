@@ -171,7 +171,7 @@ for test_name in "${TESTS_TO_RUN[@]}"; do
 
     if [[ ! -f "$test_script" ]]; then
         echo -e "${RED}Test script not found: $test_script${NC}"
-        ((TOTAL_FAILED++))
+        TOTAL_FAILED=$((TOTAL_FAILED + 1))
         continue
     fi
 
@@ -184,15 +184,15 @@ for test_name in "${TESTS_TO_RUN[@]}"; do
     # Run with specific provider or all
     if [[ -n "$PROVIDER" ]]; then
         if "$test_script" "$PROVIDER"; then
-            ((TOTAL_PASSED++))
+            TOTAL_PASSED=$((TOTAL_PASSED + 1))
         else
-            ((TOTAL_FAILED++))
+            TOTAL_FAILED=$((TOTAL_FAILED + 1))
         fi
     else
         if "$test_script"; then
-            ((TOTAL_PASSED++))
+            TOTAL_PASSED=$((TOTAL_PASSED + 1))
         else
-            ((TOTAL_FAILED++))
+            TOTAL_FAILED=$((TOTAL_FAILED + 1))
         fi
     fi
 done
