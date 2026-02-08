@@ -1,6 +1,8 @@
 ---
 description: Select and execute a task with completion guardrails
+@IF_CLAUDECODE@
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQuestion
+@ENDIF_CLAUDECODE@
 ---
 
 ## Summary
@@ -74,8 +76,10 @@ No actionable tasks available.
 Available: <count> items (all P4 parking lot or research)
 
 Signal: KITCHEN_IDLE
+@IF_CLAUDECODE@
 
 <phase_complete>DONE</phase_complete>
+@ENDIF_CLAUDECODE@
 ```
 
 **Once a regular task is selected**, claim it:
@@ -152,10 +156,7 @@ Summary: <assessment from serve>
 Addressing issues in priority order (critical → major → minor).
 ```
 
-**Add issues to TodoWrite** in severity order:
-1. Critical issues first (blocking)
-2. Major issues second
-3. Minor issues last
+**Add issues to TodoWrite** in severity order: critical → major → minor
 
 **If no retry context exists:** Continue normally with Step 2.
 
@@ -196,12 +197,22 @@ Use Read, Glob, and Grep tools to gather necessary context before starting imple
 ### Step 3: Plan the Task
 @ENDIF_OPENCODE@
 
+@IF_CLAUDECODE@
 Break the task into steps using TodoWrite:
 
 1. Read the task description carefully
 2. Identify all deliverables
 3. Add steps to TodoWrite before starting
 4. Include verification steps (test, compile, etc.)
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+Break the task into a checklist of steps:
+
+1. Read the task description carefully
+2. Identify all deliverables
+3. List steps before starting implementation
+4. Include verification steps (test, compile, etc.)
+@ENDIF_OPENCODE@
 
 For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 
@@ -212,7 +223,12 @@ For complex tasks, use explore-plan-code workflow or ask clarifying questions.
 ### Step 4: Execute TDD Cycle
 @ENDIF_OPENCODE@
 
+@IF_CLAUDECODE@
 Process TodoWrite items systematically with TDD guardrails:
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+Process checklist items systematically with TDD guardrails:
+@ENDIF_OPENCODE@
 
 - Mark items `in_progress` when starting
 - Mark items `completed` immediately when done
@@ -247,17 +263,13 @@ Process TodoWrite items systematically with TDD guardrails:
     - Provide critical issue blocking if needed
 @ENDIF_CLAUDECODE@
 @IF_OPENCODE@
-   **Automatic test quality review** (use Task tool):
-   ```
-   Task tool: Review test code for quality
-   Subagent type: taster
-   ```
+   **Automatic test quality review:**
 
-   Test quality checks:
+   Before proceeding to GREEN, review your test code for quality:
    - Tests are isolated, fast, repeatable
    - Clear test names and error messages
    - Proper structure (Setup-Execute-Validate-Cleanup)
-   - No anti-patterns
+   - No anti-patterns (shared mutable state, flaky assertions, implementation coupling)
 
    **Address critical issues before GREEN phase.**
 @ENDIF_OPENCODE@
@@ -295,7 +307,7 @@ TDD Phase: RED/GREEN/REFACTOR
 - Potential issues or bugs
 - Areas for improvement
 
-These will be filed as beads in `/@NAMESPACE@tidy` (see tidy.md Finding Filing Strategy).
+These will be filed as beads in tidy phase (see tidy.md Finding Filing Strategy).
 
 @IF_CLAUDECODE@
 ### Step 6: Verify Kitchen Equipment
@@ -306,7 +318,7 @@ These will be filed as beads in `/@NAMESPACE@tidy` (see tidy.md Finding Filing S
 
 Before marking the task done, verify ALL guardrails pass:
 
-- [ ] All TodoWrite items completed
+- [ ] All checklist items completed
 - [ ] Code compiles/runs without errors
 - [ ] Tests pass (if applicable)
 - [ ] Changes match task description
@@ -391,7 +403,7 @@ Verification:
   [✓] Code compiles
   [✓] Tests pass
 
-Findings (to file in /tidy):
+Findings (to file in tidy):
   New tasks:
     - "Add support for edge case X"
   Potential issues:

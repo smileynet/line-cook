@@ -9,7 +9,7 @@ Structured AI workflow execution for disciplined development.
 
 ## When to Use
 
-- Starting a work session with "work" or "/work"
+- Starting a work session with "work"
 - Running individual workflow steps: "mise", "prep", "cook", "serve", "tidy", "plate"
 - Managing beads issues during execution
 - Understanding workflow guardrails

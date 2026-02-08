@@ -1,10 +1,10 @@
 ---
-description: Review changes via headless Claude and file issues
+description: Review changes for quality and file issues
 ---
 
 ## Summary
 
-**Review changes via headless Claude.** Part of prep → cook → serve → tidy.
+**Review changes for quality.** Part of prep → cook → serve → tidy.
 
 After cooking (executing a task), you "serve" it for review before tidying up.
 
@@ -117,7 +117,7 @@ Summary:
 Auto-fixed:
   - <file>:<line> - <fix applied>
 
-Issues to file in /tidy (see tidy.md Finding Filing Strategy):
+Issues to file in tidy (see tidy.md Finding Filing Strategy):
   Code/project findings (siblings under parent):
   - [P1] "<title>" - <description>
   - [P3] "<title>" - <description>
@@ -155,7 +155,7 @@ If review cannot be completed (tool failure, timeout, etc.):
 
 Reason: <error message>
 
-Manual review recommended. Run /line-serve again after /tidy.
+Manual review recommended. Run /line-serve again after /line-tidy.
 
 ┌─────────────────────────────────────────┐
 │ SERVE_RESULT                            │
@@ -166,7 +166,7 @@ Manual review recommended. Run /line-serve again after /tidy.
 └─────────────────────────────────────────┘
 ```
 
-Errors are **transient** - workflow continues but recommends retry later.
+Errors are transient - workflow continues but recommends retry later.
 
 ## Example Usage
 

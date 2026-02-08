@@ -114,9 +114,9 @@ Output format:
 CRITICAL: If verdict is 'blocked', explain why and what must be fixed.", subagent_type="sous-chef")
 ```
 
-**Wait for reviewer assessment. Address any critical issues before proceeding to tidy.**
+Wait for reviewer assessment. Address any critical issues before proceeding to tidy.
 
-**Manual fallback:** If sous-chef agent is unavailable, invoke headless Claude:
+**Manual fallback (if sous-chef agent unavailable):**
 ```bash
 git diff | claude \
   --max-turns 1 \
@@ -174,7 +174,7 @@ Summary:
 Auto-fixed:
   - <file>:<line> - <fix applied>
 
-Issues to file in /tidy (see tidy.md Finding Filing Strategy):
+Issues to file in tidy (see tidy.md Finding Filing Strategy):
   Code/project findings (siblings under parent):
   - [P1] "<title>" - <description>
   - [P3] "<title>" - <description>
@@ -218,7 +218,7 @@ If the sous-chef agent or headless Claude invocation fails (API error, timeout, 
 
 Reason: <error message>
 
-Manual review recommended. Run /line:serve again after /tidy.
+Manual review recommended. Run /line:serve again after /line:tidy.
 
 ┌─────────────────────────────────────────┐
 │ SERVE_RESULT                            │
@@ -229,7 +229,7 @@ Manual review recommended. Run /line:serve again after /tidy.
 └─────────────────────────────────────────┘
 ```
 
-API errors are **transient** - workflow continues but recommends retry later.
+API errors are transient - workflow continues but recommends retry later.
 
 ## Example Usage
 
