@@ -37,7 +37,7 @@ class DocResult:
 COMMAND_REQUIRED_FIELDS = {"description", "allowed-tools"}
 
 # Required frontmatter fields for agents
-AGENT_REQUIRED_FIELDS = {"name", "description", "tools", "model"}
+AGENT_REQUIRED_FIELDS = {"name", "description", "tools"}
 
 # Required sections in README.md
 README_REQUIRED_SECTIONS = {"getting started", "installation", "usage"}
