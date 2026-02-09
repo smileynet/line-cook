@@ -89,7 +89,7 @@ cd $TEST_DIR
 |------|-------|----------|------|
 | `unit` | getting-started | ~$0.01 | ~1min |
 | `integration` | getting-started, prep, serve, tidy | ~$0.10 | ~5min |
-| `full` | All tests including cook, work | ~$0.50-2.00 | ~30min |
+| `full` | All tests including cook, run (full cycle) | ~$0.50-2.00 | ~30min |
 
 ## Options
 
@@ -126,7 +126,7 @@ tests/
 ├── test-cook.sh              # Tests /line:cook (LLM-heavy)
 ├── test-serve.sh             # Tests /line:serve
 ├── test-tidy.sh              # Tests /line:tidy
-└── test-work.sh              # Tests /line:work (LLM-heavy)
+└── test-work.sh              # Tests full workflow cycle
 ```
 
 ## Test Fixtures

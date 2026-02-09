@@ -18,3 +18,6 @@ Run `/decision` to create, list, or supersede decisions.
 | [0007](0007-fresh-context-review.md) | Fresh-context review via subagent | accepted | 2026-02-04 | architecture, workflow |
 | [0008](0008-three-phase-mise-with-pause-points.md) | Three-phase mise with cognitive mode separation | accepted | 2026-02-04 | commands, workflow |
 | [0009](0009-autonomous-loop-as-external-package.md) | Autonomous loop as external Python package | accepted | 2026-02-04 | architecture |
+| [0010](0010-epic-level-testing-strategy.md) | Epic-level testing strategy | accepted | 2026-02-05 | testing, agents, architecture |
+| [0011](0011-template-synced-review-agents.md) | Template-synced review agents | accepted | 2026-02-07 | architecture, agents |
+| [0012](0012-steering-delegates-to-prompts.md) | Steering delegates to prompts | accepted | 2026-02-07 | architecture, kiro, agents |

@@ -34,13 +34,15 @@ dist/
 bin/
 *.exe
 
-# Go
-coverage.out
-coverage.html
-
 # Test results (keep .gitkeep files)
-tests/results/*.json
-tests/results/eval/
+tests/results/*
+!tests/results/.gitkeep
 
 # OpenCode working files (commands are in plugins/opencode/commands/)
 .opencode/
+
+# Kiro working files (commands are in plugins/kiro/)
+.kiro/
+
+# Beads lock files
+.beads/*.lock
