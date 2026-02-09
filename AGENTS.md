@@ -501,6 +501,7 @@ vim CHANGELOG.md  # Add your changes under [Unreleased]
 ./dev/release.py <version> --push     # Prepare + push (triggers GH release)
 ./dev/release.py <version> --dry-run  # Preview what would change
 ./dev/release.py --check              # Validate current state only
+./dev/release.py --bundle             # Bundle line_loop only (for dev testing)
 ```
 
 The script handles: version sync across all manifests → CHANGELOG transformation → line_loop bundling → validation scripts → commit creation.
