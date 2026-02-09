@@ -96,11 +96,13 @@ def get_current_version(repo_root: Path) -> Optional[str]:
         return None
 
 
+def parse_version(version: str) -> tuple[int, ...]:
+    """Parse semver string into tuple of ints for comparison."""
+    return tuple(int(x) for x in version.split("."))
+
+
 def version_is_newer(new_version: str, current_version: str) -> bool:
     """Check if new_version > current_version using semver comparison."""
-    def parse_version(v: str) -> tuple[int, ...]:
-        return tuple(int(x) for x in v.split("."))
-
     try:
         return parse_version(new_version) > parse_version(current_version)
     except (ValueError, AttributeError):
@@ -952,51 +954,52 @@ def main():
 
     # Capture current version before updating (for changelog links)
     config.previous_version = current
-    rollback_hint = "  To undo: git checkout -- ." if not config.dry_run else ""
+
+    def rollback(exit_code: int) -> int:
+        """Rollback file changes and return the provided exit code."""
+        if config.dry_run:
+            return exit_code
+        print(f"  {color('↩', Colors.YELLOW)} Rolling back file changes...")
+        code, _ = run_git(["checkout", "--", "."])
+        if code == 0:
+            print(f"  {color('✓', Colors.GREEN)} Rolled back to clean state")
+        else:
+            print(f"  {color('⚠', Colors.YELLOW)} Rollback failed — run: git checkout -- .")
+        return exit_code
 
     # Update versions
     print()
     print("Updating versions:")
     if not update_versions(config):
         print(color("Version update failed.", Colors.RED))
-        if rollback_hint:
-            print(rollback_hint)
-        return 2
+        return rollback(2)
 
     # Update changelog
     print()
     print("Updating CHANGELOG:")
     if not update_changelog(config):
         print(color("CHANGELOG update failed.", Colors.RED))
-        if rollback_hint:
-            print(rollback_hint)
-        return 3
+        return rollback(3)
 
     # Bundle line_loop package
     print()
     print("Bundling line_loop package:")
     if not bundle_line_loop(config.repo_root, config.dry_run):
         print(color("Bundling failed.", Colors.RED))
-        if rollback_hint:
-            print(rollback_hint)
-        return 4
+        return rollback(4)
 
     # Run validation
     print()
     print("Validation:")
     if not run_validation_scripts(config):
         print(color("Validation failed.", Colors.RED))
-        if rollback_hint:
-            print(rollback_hint)
-        return 5
+        return rollback(5)
 
     # Create commit
     print()
     print("Commit:")
     if not create_commit(config):
         print(color("Commit failed.", Colors.RED))
-        if rollback_hint:
-            print(rollback_hint)
         return 6
 
     # Push if requested

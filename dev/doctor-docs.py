@@ -46,6 +46,11 @@ README_REQUIRED_SECTIONS = {"getting started", "installation", "usage"}
 AGENTS_REQUIRED_SECTIONS = {"agents", "taster", "sous-chef", "maitre"}
 
 
+def parse_version(version: str) -> tuple[int, ...]:
+    """Parse semver string into tuple of ints for comparison."""
+    return tuple(int(x) for x in version.split("."))
+
+
 def extract_frontmatter(content: str) -> Optional[dict[str, str]]:
     """Extract YAML frontmatter from markdown content."""
     if not content.startswith("---"):
@@ -226,22 +231,37 @@ def check_changelog_format(repo_root: Path) -> DocResult:
     if "[Unreleased]" not in content:
         result.warnings.append("CHANGELOG.md should have an [Unreleased] section")
 
-    # Check for version entries
-    version_pattern = r"^## \[(\d+\.\d+\.\d+)\]"
-    versions = re.findall(version_pattern, content, re.MULTILINE)
+    # Check for version entries with date format validation
+    version_pattern = r"^## \[(\d+\.\d+\.\d+)\] - (.+)$"
+    version_matches = re.findall(version_pattern, content, re.MULTILINE)
 
-    if not versions:
+    if not version_matches:
         result.warnings.append("CHANGELOG.md has no version entries")
     else:
+        versions = [v for v, _ in version_matches]
         result.info.append(f"CHANGELOG.md has {len(versions)} version entries: {versions[:5]}")
+
+        # Validate date format (ISO 8601: YYYY-MM-DD)
+        date_pattern = r"^\d{4}-\d{2}-\d{2}$"
+        for version, date_str in version_matches:
+            if not re.match(date_pattern, date_str.strip()):
+                result.warnings.append(
+                    f"Version {version} has non-ISO 8601 date: '{date_str.strip()}' (expected YYYY-MM-DD)"
+                )
+
+        # Check version ordering (should be descending)
+        for i in range(len(versions) - 1):
+            try:
+                if parse_version(versions[i]) <= parse_version(versions[i + 1]):
+                    result.warnings.append(
+                        f"Version ordering issue: [{versions[i]}] should be newer than [{versions[i + 1]}]"
+                    )
+            except ValueError:
+                pass
 
     # Check for section headers (Added, Changed, etc.)
     section_headers = {"Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"}
-    found_sections = set()
-    for section in section_headers:
-        if f"### {section}" in content:
-            found_sections.add(section)
-
+    found_sections = {section for section in section_headers if f"### {section}" in content}
     result.info.append(f"CHANGELOG uses sections: {found_sections}")
 
     # Check for link definitions at bottom
@@ -249,6 +269,22 @@ def check_changelog_format(repo_root: Path) -> DocResult:
         result.warnings.append(
             "CHANGELOG.md should have link definitions at bottom (Keep a Changelog format)"
         )
+    else:
+        # Validate comparison link structure
+        # Accept both compare (vX...vY) and releases/tag (first release) formats
+        link_pattern = r"^\[\d+\.\d+\.\d+\]: https://github\.com/.+/(compare/v[\d.]+\.\.\.v[\d.]+|releases/tag/v[\d.]+)$"
+        link_versions = set(re.findall(r"^\[(\d+\.\d+\.\d+)\]:", content, re.MULTILINE))
+        header_versions = set(versions) if version_matches else set()
+        missing_links = header_versions - link_versions
+        if missing_links:
+            result.warnings.append(
+                f"Version sections missing comparison links: {sorted(missing_links)}"
+            )
+        # Check that existing links have proper compare format
+        for line in content.splitlines():
+            if re.match(r"^\[\d+\.\d+\.\d+\]:", line):
+                if not re.match(link_pattern, line):
+                    result.warnings.append(f"Malformed comparison link: {line.strip()}")
 
     return result
 
