@@ -43,7 +43,6 @@ Guide the user through these steps (step 2.5 is conditional):
 Ask for the target version if not provided. Read the current version and validate:
 
 ```bash
-# Read current version
 cat plugins/claude-code/.claude-plugin/plugin.json | grep version
 ```
 
@@ -80,23 +79,31 @@ If the [Unreleased] section is empty, help populate it from git history:
 
 3. **Filter for plugin-relevant changes only:**
 
+   The changelog is for **plugin users** — people who install Line Cook into their editor and use its commands/agents in their own projects. Changes that only affect Line Cook contributors, maintainers, or the development process itself are excluded.
+
    **Include** (user-facing plugin functionality):
-   - New commands or command changes
-   - New agents or agent behavior changes
-   - Workflow changes that affect users
-   - Breaking changes to existing features
-   - Bug fixes users would encounter
+   - New user-invocable commands (slash commands)
+   - Changes to command/agent behavior that users interact with directly
+   - New workflow capabilities users can invoke
+   - Breaking changes to existing user-facing features
+   - Bug fixes users would encounter in their workflows
 
    **Exclude** (internal/dev tooling):
-   - Scripts in `scripts/` (maintainer tools)
+   - Evaluation/benchmarking tooling (`eval/`, harnesses, test infrastructure)
+   - Developer-facing skills or documentation (guidance docs, contributor patterns)
+   - Template syncing or build infrastructure (sync scripts, bundling changes)
+   - Agent review rule changes (what agents check for internally)
+   - New dev scripts or tooling (`dev/`, `scripts/`)
    - CI/workflow changes
-   - Documentation updates (unless user guides)
+   - Documentation updates (unless user-facing command docs)
    - Beads sync commits
    - Internal refactoring with no user impact
 
+   **Litmus test:** Would a plugin user notice this change while using Line Cook in their project? If the answer is "only if they read the source code" or "only if they contribute to Line Cook," exclude it.
+
 4. **Categorize included changes:**
-   - `feat:` on commands/agents → Added
-   - `fix:` on commands/agents → Fixed
+   - `feat:` to commands/agents → Added
+   - `fix:` to commands/agents → Fixed
    - `refactor:` affecting user behavior → Changed
 
 5. **Draft entries following these rules:**
@@ -124,13 +131,7 @@ If the [Unreleased] section is empty, help populate it from git history:
 
 ### 3. Changelog Review
 
-Read the [Unreleased] section:
-
-```bash
-# Read CHANGELOG.md
-```
-
-Review against the criteria from `docs/guidance/changelog.md`:
+Read the [Unreleased] section and review against the criteria from `docs/guidance/changelog.md`:
 
 **Quality Checklist:**
 - [ ] Written for humans (not commit dumps)
