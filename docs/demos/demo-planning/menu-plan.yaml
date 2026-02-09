@@ -1,0 +1,34 @@
+# TodoWebApp Menu Plan (Scope Output)
+# This is a pre-seeded scope document for the planning narrative eval.
+
+project: TodoWebApp
+description: Minimal viable todo web application
+
+epics:
+  - id: "001"
+    title: "TodoWebApp MVP"
+    description: "Build core todo functionality"
+    features:
+      - id: "001.1"
+        title: "User can manage todos"
+        description: "Basic CRUD operations for todo items"
+        tasks:
+          - id: "001.1.1"
+            title: "Implement add todo item"
+            description: "Input field, Add button, localStorage persistence"
+            priority: 2
+          - id: "001.1.2"
+            title: "Implement toggle complete"
+            description: "Click to toggle, visual feedback, persist state"
+            priority: 2
+            depends_on: ["001.1.1"]
+
+  - id: "100"
+    title: "Retrospective & Parking Lot"
+    description: "Future ideas not in MVP scope"
+    priority: 4
+    features:
+      - id: "100.1"
+        title: "Cloud sync research"
+        description: "Evaluate cloud sync options"
+        priority: 4

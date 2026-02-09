@@ -11,6 +11,8 @@
 #   ./tests/eval/eval.sh --skip-missing                     # Skip unavailable providers
 #   ./tests/eval/eval.sh --dry-run                          # Show plan without running
 #   ./tests/eval/eval.sh --provider claude --runs 3         # All scenarios, one provider
+#   ./tests/eval/eval.sh --scenario onboard --runs 1        # Narrative eval
+#   ./tests/eval/eval.sh --scenario single-task --provider claude --runs 1
 #
 # Results: tests/results/eval/*.json
 # Report:  tests/results/eval/report.md
@@ -30,6 +32,27 @@ setup_colors
 
 ALL_PROVIDERS=(claude opencode kiro)
 ALL_SCENARIOS=(readonly analysis implement sequence)
+
+# Narrative scenarios (multi-step command workflows)
+ALL_NARRATIVES=(onboard single-task task-chain full-run planning recovery)
+
+# Which narratives use which setup script
+declare -A NARRATIVE_SETUP
+NARRATIVE_SETUP[onboard]="demo-simple"
+NARRATIVE_SETUP[single-task]="demo-simple"
+NARRATIVE_SETUP[task-chain]="demo-simple"
+NARRATIVE_SETUP[full-run]="demo-simple"
+NARRATIVE_SETUP[planning]="demo-planning"
+NARRATIVE_SETUP[recovery]="demo-simple"
+
+# Check if a scenario is a narrative
+is_narrative() {
+    local scenario="$1"
+    for n in "${ALL_NARRATIVES[@]}"; do
+        [[ "$n" == "$scenario" ]] && return 0
+    done
+    return 1
+}
 
 # Defaults
 PROVIDERS=()
@@ -71,12 +94,15 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --provider <name>   Provider to eval (claude|opencode|kiro). Repeatable."
-            echo "  --scenario <name>   Scenario to run (readonly|analysis|implement|sequence). Repeatable."
+            echo "  --scenario <name>   Scenario to run. Repeatable."
             echo "  --runs N            Number of runs per combination (default: 3)"
             echo "  --dry-run           Show plan and cost estimate without running"
             echo "  --skip-missing      Skip providers that aren't installed"
             echo "  --report-only       Only generate report from existing results"
             echo "  --help              Show this help"
+            echo ""
+            echo "Prompt scenarios: readonly, analysis, implement, sequence"
+            echo "Narrative scenarios: onboard, single-task, task-chain, full-run, planning, recovery"
             exit 0
             ;;
         *)
@@ -116,12 +142,19 @@ fi
 # ============================================================
 
 # Per-scenario approximate cost (based on typical Sonnet usage).
-# Keep in sync with README.md scenario table.
+# All providers are subscription-based; cost estimates are informational only.
 declare -A SCENARIO_COST
 SCENARIO_COST[readonly]=0.05
 SCENARIO_COST[analysis]=0.10
 SCENARIO_COST[implement]=1.00
 SCENARIO_COST[sequence]=2.00
+# Narrative scenarios
+SCENARIO_COST[onboard]=0.10
+SCENARIO_COST[single-task]=1.50
+SCENARIO_COST[task-chain]=3.00
+SCENARIO_COST[full-run]=2.00
+SCENARIO_COST[planning]=0.50
+SCENARIO_COST[recovery]=2.50
 
 estimate_cost() {
     local total_cost=0
@@ -133,7 +166,7 @@ estimate_cost() {
             run_count=$((run_count + RUNS))
         done
     done
-    printf '%d runs, estimated cost: $%s\n' "$run_count" "$total_cost"
+    printf '%d runs (subscription-based, cost informational): $%s est.\n' "$run_count" "$total_cost"
 }
 
 # ============================================================
@@ -230,49 +263,89 @@ for provider in "${PROVIDERS[@]}"; do
             timestamp=$(date +%Y%m%d-%H%M%S)
             run_log="$RESULTS_DIR/${provider}-${scenario}-run${run}-${timestamp}.log"
 
-            # Setup
+            # Setup — choose setup script based on scenario type
             log_step "Setting up environment..."
-            TEST_DIR=$("$SCRIPT_DIR/eval-setup.sh" 2>"$run_log") || {
-                log_error "Setup failed (see $run_log)"
-                failed_runs=$((failed_runs + 1))
-                continue
-            }
+            if is_narrative "$scenario"; then
+                fixture_type="${NARRATIVE_SETUP[$scenario]:-demo-simple}"
+                if [[ "$fixture_type" == "demo-planning" ]]; then
+                    TEST_DIR=$("$SCRIPT_DIR/eval-setup-planning.sh" 2>"$run_log") || {
+                        log_error "Setup failed (see $run_log)"
+                        failed_runs=$((failed_runs + 1))
+                        continue
+                    }
+                else
+                    TEST_DIR=$("$SCRIPT_DIR/eval-setup.sh" 2>"$run_log") || {
+                        log_error "Setup failed (see $run_log)"
+                        failed_runs=$((failed_runs + 1))
+                        continue
+                    }
+                fi
+            else
+                TEST_DIR=$("$SCRIPT_DIR/eval-setup.sh" 2>"$run_log") || {
+                    log_error "Setup failed (see $run_log)"
+                    failed_runs=$((failed_runs + 1))
+                    continue
+                }
+            fi
             log_success "Environment: $TEST_DIR"
 
-            # Run
-            log_step "Running $provider..."
-            RUN_FILE=""
-            run_exit=0
-            RUN_FILE=$("$SCRIPT_DIR/eval-run.sh" \
-                --provider "$provider" \
-                --scenario "$scenario" \
-                --test-dir "$TEST_DIR" \
-                --run-id "$run" 2>>"$run_log") || run_exit=$?
+            if is_narrative "$scenario"; then
+                # Narrative: multi-step runner handles execution + validation
+                log_step "Running narrative $scenario..."
+                run_exit=0
+                RUN_FILE=$("$SCRIPT_DIR/eval-narrative-run.sh" \
+                    --provider "$provider" \
+                    --narrative "$scenario" \
+                    --test-dir "$TEST_DIR" \
+                    --run-id "$run" 2>>"$run_log") || run_exit=$?
 
-            if [[ $run_exit -eq 2 ]]; then
-                log_warning "Provider skipped"
-                skipped_runs=$((skipped_runs + 1))
-                "$SCRIPT_DIR/eval-teardown.sh" "$TEST_DIR" >>"$run_log" 2>&1
-                continue
-            elif [[ $run_exit -ne 0 ]]; then
-                log_error "Run failed (exit $run_exit, see $run_log)"
+                if [[ $run_exit -eq 2 ]]; then
+                    log_warning "Provider skipped"
+                    skipped_runs=$((skipped_runs + 1))
+                elif [[ $run_exit -eq 0 ]]; then
+                    passed_runs=$((passed_runs + 1))
+                    log_success "Narrative passed"
+                else
+                    failed_runs=$((failed_runs + 1))
+                    log_error "Narrative failed (exit $run_exit, see $run_log)"
+                fi
+            else
+                # Prompt scenario: single run + separate validation
+                log_step "Running $provider..."
+                run_exit=0
+                RUN_FILE=$("$SCRIPT_DIR/eval-run.sh" \
+                    --provider "$provider" \
+                    --scenario "$scenario" \
+                    --test-dir "$TEST_DIR" \
+                    --run-id "$run" 2>>"$run_log") || run_exit=$?
+
+                if [[ $run_exit -eq 2 ]]; then
+                    log_warning "Provider skipped"
+                    skipped_runs=$((skipped_runs + 1))
+                    "$SCRIPT_DIR/eval-teardown.sh" "$TEST_DIR" >>"$run_log" 2>&1
+                    continue
+                elif [[ $run_exit -ne 0 ]]; then
+                    log_error "Run failed (exit $run_exit, see $run_log)"
+                fi
+
+                # Validate
+                log_step "Validating..."
+                validate_exit=0
+                VALIDATE_FILE=$("$SCRIPT_DIR/eval-validate.sh" \
+                    --test-dir "$TEST_DIR" \
+                    --scenario "$scenario" \
+                    --run-file "${RUN_FILE:-}" \
+                    --provider "$provider" \
+                    --run-id "$run" 2>>"$run_log") || validate_exit=$?
+
+                if [[ $validate_exit -eq 0 ]]; then
+                    passed_runs=$((passed_runs + 1))
+                    log_success "Validation passed"
+                else
+                    failed_runs=$((failed_runs + 1))
+                    log_error "Validation failed (see $run_log)"
+                fi
             fi
-
-            # Validate
-            log_step "Validating..."
-            VALIDATE_FILE=""
-            VALIDATE_FILE=$("$SCRIPT_DIR/eval-validate.sh" \
-                --test-dir "$TEST_DIR" \
-                --scenario "$scenario" \
-                --run-file "${RUN_FILE:-}" \
-                --provider "$provider" \
-                --run-id "$run" 2>>"$run_log") && {
-                passed_runs=$((passed_runs + 1))
-                log_success "Validation passed"
-            } || {
-                failed_runs=$((failed_runs + 1))
-                log_error "Validation failed (see $run_log)"
-            }
 
             # Teardown
             "$SCRIPT_DIR/eval-teardown.sh" "$TEST_DIR" >>"$run_log" 2>&1
