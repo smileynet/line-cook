@@ -153,12 +153,16 @@ If you find issues, discuss them with the user:
 
 ### 4. Run Validation Scripts
 
-Execute the health check scripts:
+Execute the health check scripts individually, or use the release script's check mode:
 
 ```bash
+# Option A: Individual scripts
 ./dev/check-plugin-health.py --skip-changelog
 ./dev/check-platform-parity.py
 ./dev/doctor-docs.py
+
+# Option B: All-in-one
+./dev/release.py --check
 ```
 
 - **Errors**: Must be fixed before release
@@ -166,19 +170,43 @@ Execute the health check scripts:
 
 Help fix any errors found.
 
+> **Note:** Validation runs here as an early catch, and again inside release.py as a safety gate after bundling. This is intentional — catching issues early avoids wasted work, while the second pass ensures bundling didn't introduce problems.
+
 ### 5. Execute Release Script
 
 When all checks pass:
 
 ```bash
-./dev/release.py <version>
+./dev/release.py <version>              # Prepare release commit
+./dev/release.py <version> --dry-run    # Preview without modifying files
+./dev/release.py <version> --push       # Prepare + push in one step
 ```
+
+The script performs these steps internally:
+1. Pre-flight checks (clean tree, on main, up to date)
+2. Version bump across all manifests
+3. CHANGELOG transformation ([Unreleased] → version section)
+4. **Bundle `line_loop` package** into `plugins/claude-code/scripts/line-loop.py`
+5. Run validation scripts
+6. Create release commit
+
+**Exit codes** (for diagnosing failures):
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Pre-flight check failed |
+| 2 | Version update failed |
+| 3 | CHANGELOG update failed |
+| 4 | Bundling failed |
+| 5 | Validation failed |
+| 6 | Commit failed |
+| 7 | Push failed |
 
 Verify the commit was created successfully.
 
 ### 6. Push and Verify
 
-Ask the user if they want to push:
+If `--push` was not used, ask the user if they want to push:
 
 ```bash
 git push origin main

@@ -23,6 +23,7 @@ Exit codes:
 """
 
 import argparse
+import ast
 import json
 import re
 import subprocess
@@ -578,6 +579,14 @@ def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
     if not dry_run:
         output_file.write_text(bundled_content)
         print(f"  {color('✓', Colors.GREEN)} Bundled line_loop package into line-loop.py")
+
+        # Verify bundled Python is syntactically valid
+        try:
+            ast.parse(output_file.read_text())
+            print(f"  {color('✓', Colors.GREEN)} Syntax check passed")
+        except SyntaxError as e:
+            print(f"  {color('✗', Colors.RED)} Syntax error in bundled file: {e}")
+            return False
     else:
         print(f"  {color('○', Colors.BLUE)} Would bundle line_loop package into line-loop.py")
 

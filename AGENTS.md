@@ -494,44 +494,77 @@ vim CHANGELOG.md  # Add your changes under [Unreleased]
 
 ### Release Procedure
 
-```bash
-# 1. Update CHANGELOG.md
-#    - Create new section: ## [X.Y.Z] - YYYY-MM-DD
-#    - Move entries from [Unreleased] to new section
-#    - Update version comparison links at bottom
+**Primary (release.py):**
 
-# 2. Determine version (semantic versioning)
+```bash
+./dev/release.py <version>            # Prepare release (interactive)
+./dev/release.py <version> --push     # Prepare + push (triggers GH release)
+./dev/release.py <version> --dry-run  # Preview what would change
+./dev/release.py --check              # Validate current state only
+```
+
+The script handles: version sync across all manifests → CHANGELOG transformation → line_loop bundling → validation scripts → commit creation.
+
+> **Note:** GitHub Actions automatically creates a release when `plugins/claude-code/.claude-plugin/plugin.json` is updated on `main`. See `.github/workflows/release.yml`.
+
+**Manual (Fallback):**
+
+Use only if release.py is broken or needs to be bypassed.
+
+```bash
+# 1. Determine version (semantic versioning)
 #    Patch: bug fixes → 0.4.5 → 0.4.6
 #    Minor: new features → 0.4.5 → 0.5.0
 #    Major: breaking changes → 0.4.5 → 1.0.0
 
-# 3. Update all version locations (must be identical)
+# 2. Update all version locations (must be identical)
 #    - plugins/claude-code/.claude-plugin/plugin.json: "version"
 #    - plugins/opencode/package.json: "version" AND "opencode.version"
 
-# 4. Commit and push (release is created automatically)
-git add CHANGELOG.md plugins/claude-code/.claude-plugin/plugin.json plugins/opencode/package.json
-git commit -m "chore: release X.Y.Z"
+# 3. Update CHANGELOG.md
+#    - Create new section: ## [X.Y.Z] - YYYY-MM-DD
+#    - Move entries from [Unreleased] to new section
+#    - Update version comparison links at bottom
+
+# 4. Bundle line_loop (easy to forget!)
+python3 -c "from pathlib import Path; import sys; sys.path.insert(0, 'dev'); from release import bundle_line_loop; bundle_line_loop(Path('.'))"
+
+# 5. Run validation
+./dev/check-plugin-health.py --skip-changelog
+./dev/check-platform-parity.py
+./dev/doctor-docs.py
+
+# 6. Commit and push
+git add CHANGELOG.md plugins/claude-code/.claude-plugin/plugin.json plugins/opencode/package.json plugins/claude-code/scripts/line-loop.py
+git commit -m "chore(release): vX.Y.Z"
 bd sync
 git push
 ```
 
-> **Note:** GitHub Actions automatically creates a release when `plugins/claude-code/.claude-plugin/plugin.json` is updated on `main`. See `.github/workflows/release.yml`.
-
 ### What to Track in CHANGELOG.md
 
+The changelog is for **plugin users** — people who install Line Cook and use its commands/agents in their own projects.
+
 **Track in [Unreleased]:**
-- Command changes (plugins/claude-code/commands/*.md)
-- Script changes (dev/*.py, dev/*.sh)
-- Plugin manifest changes
-- Core workflow logic
-- Significant user-facing features or fixes
+- New or changed user-invocable commands (slash commands)
+- Behavior changes users interact with directly
+- New workflow capabilities users can invoke
+- Breaking changes to existing user-facing features
+- Bug fixes users would encounter in their workflows
 
 **Don't track:**
 - Documentation-only (README, AGENTS.md, docs/)
-- CI/CD configuration
+- CI/CD configuration and GitHub workflows
 - .beads/ changes
 - Test files only
+- Evaluation/benchmarking tooling (eval/, harnesses)
+- Developer-facing skills or contributor docs
+- Template syncing or build infrastructure (sync scripts, bundling)
+- Agent review rule changes (internal reviewer behavior)
+- Dev scripts or tooling (dev/, scripts/)
+- Internal refactoring with no user impact
+
+**Litmus test:** Would a plugin user notice this change while using Line Cook in their project? If the answer is "only if they read the source code" or "only if they contribute to Line Cook," exclude it.
 
 ### When to Release
 
