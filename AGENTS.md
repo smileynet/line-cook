@@ -373,11 +373,22 @@ tests/
 ├── eval/
 │   ├── eval.sh                # Eval orchestrator (matrix runner)
 │   ├── eval-run.sh            # Single provider+scenario execution
+│   ├── eval-narrative-run.sh  # Multi-step narrative runner
 │   ├── eval-validate.sh       # Artifact validation checks
-│   ├── eval-setup.sh          # Eval environment creation
+│   ├── eval-setup.sh          # Eval environment creation (demo-simple)
+│   ├── eval-setup-planning.sh # Eval environment creation (demo-planning)
 │   ├── eval-teardown.sh       # Eval environment cleanup
-│   ├── eval-report.py         # Report generation from JSON results
-│   └── lib/eval-provider.sh   # Enhanced provider invocation with metrics
+│   ├── eval-report.py         # Report generation (summary + per-step + compliance)
+│   ├── lib/
+│   │   ├── eval-provider.sh   # Enhanced provider invocation with metrics
+│   │   └── narrative-utils.sh # Command loading, prompt building, agent validation
+│   └── narratives/            # Narrative definitions
+│       ├── onboard.sh         # getting-started + prep (read-only)
+│       ├── single-task.sh     # prep → cook → serve → tidy
+│       ├── task-chain.sh      # Two cycles + plate
+│       ├── full-run.sh        # /run orchestrator
+│       ├── planning.sh        # brainstorm → scope → finalize
+│       └── recovery.sh        # Serve rejection + retry
 └── results/eval/              # JSON results + report.md
 ```
 
@@ -388,13 +399,51 @@ tests/
 ./tests/run-tests.sh --provider opencode --tier unit
 ./tests/run-tests.sh --provider kiro --tier unit
 
-# Eval scenarios (isolated environments, artifact validation)
-./tests/eval/eval.sh --provider opencode --scenario readonly --runs 1
+# Prompt eval scenarios (isolated environments, artifact validation)
+./tests/eval/eval.sh --provider claude --scenario readonly --runs 1
 ./tests/eval/eval.sh --provider kiro --scenario analysis --runs 1
+
+# Narrative eval scenarios (multi-step command workflows)
+./tests/eval/eval.sh --scenario onboard --runs 1 --skip-missing
+./tests/eval/eval.sh --scenario single-task --provider claude --runs 1
+./tests/eval/eval.sh --scenario task-chain --provider claude --runs 1
+./tests/eval/eval.sh --scenario planning --provider claude --runs 1
 
 # Full report from existing results
 ./tests/eval/eval.sh --report-only
 ```
+
+### Narrative Eval
+
+Narrative scenarios test Line Cook's slash commands in realistic user journeys. Each narrative runs multiple steps (commands) in sequence against an isolated test environment.
+
+**How it works:** Headless mode lacks native slash commands. Each step injects the command's markdown directly into the prompt so the LLM follows the command's instructions.
+
+| # | Narrative | Commands Tested | Fixture |
+|---|-----------|----------------|---------|
+| 1 | `onboard` | getting-started, prep | demo-simple |
+| 2 | `single-task` | prep, cook, serve, tidy | demo-simple |
+| 3 | `task-chain` | prep, cook, serve, tidy (x2), plate | demo-simple |
+| 4 | `full-run` | run | demo-simple |
+| 5 | `planning` | brainstorm, scope, finalize | demo-planning |
+| 6 | `recovery` | prep, cook, serve (reject), cook (retry) | demo-simple |
+
+**Command coverage:**
+
+| Command | Narratives |
+|---------|-----------|
+| getting-started | onboard |
+| prep | onboard, single-task, task-chain, recovery |
+| cook | single-task, task-chain, recovery |
+| serve | single-task, task-chain, recovery |
+| tidy | single-task, task-chain |
+| plate | task-chain |
+| run | full-run |
+| brainstorm | planning |
+| scope | planning |
+| finalize | planning |
+
+All providers are subscription-based; cost estimates in the report are informational only.
 
 ### Provider-Specific Testing Notes
 
@@ -417,7 +466,7 @@ OPENCODE_MODEL=deepseek/deepseek-chat ./tests/run-tests.sh --provider opencode -
 
 - **Bash arithmetic under `set -e`**: Use `VAR=$((VAR + 1))` instead of `((VAR++))`. When `VAR=0`, `((0++))` evaluates to 0 which is falsy, causing `set -e` to exit the script.
 - **LLM non-determinism**: Unit tests use `MAX_RETRIES=2` to handle flaky LLM responses. If output doesn't match expected patterns on first try, the test retries.
-- **Eval vs. unit tests**: Eval scenarios (readonly, analysis, implement, sequence) use isolated git repos and validate artifacts. Unit tests check command output patterns. Prefer eval for CI; unit tests are for quick smoke checks.
+- **Eval vs. unit tests**: Eval scenarios (readonly, analysis, implement, sequence) use isolated git repos and validate artifacts. Narrative eval scenarios test multi-step command workflows. Unit tests check command output patterns. Prefer eval for CI; unit tests are for quick smoke checks.
 
 ## Release Process
 

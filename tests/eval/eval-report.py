@@ -39,6 +39,20 @@ COST_PER_1M_OUTPUT = {
 
 
 @dataclass
+class StepResult:
+    """Single step within a narrative run."""
+    step: int
+    name: str
+    command: str
+    wall_time_ms: int
+    exit_code: int
+    agent_passed: bool
+    agent_reasoning: str
+    step_goal: str
+    checks: list
+
+
+@dataclass
 class RunResult:
     """Single eval run result."""
     provider: str
@@ -53,6 +67,8 @@ class RunResult:
     actual_cost_usd: float
     timestamp: str
     result_file: str
+    is_narrative: bool = False
+    steps: list[StepResult] = field(default_factory=list)
 
 
 @dataclass
@@ -108,7 +124,7 @@ class ScenarioStats:
     @property
     def mean_cost_usd(self) -> float:
         # Use actual cost from provider if available, otherwise estimate
-        actual_costs = [c for c in self.actual_costs_usd if c > 0]
+        actual_costs = [cost for cost in self.actual_costs_usd if cost > 0]
         if actual_costs:
             return _mean(actual_costs)
         input_cost = self.mean_input_tokens / 1_000_000 * COST_PER_1M_INPUT.get(self.provider, 3.00)
@@ -159,6 +175,28 @@ def load_run_results(results_dir: Path) -> list[RunResult]:
             if "scenario" not in data:
                 continue
             tokens = data.get("tokens", {})
+            is_narrative = data.get("is_narrative", False)
+
+            # Parse step results for narratives (backward-compatible with old signal_found format)
+            steps = []
+            if is_narrative:
+                for step_data in data.get("steps", []):
+                    # Support both new (agent_passed) and old (signal_found) field names
+                    agent_passed = step_data.get("agent_passed", step_data.get("signal_found", True))
+                    agent_reasoning = step_data.get("agent_reasoning", "")
+                    step_goal = step_data.get("step_goal", step_data.get("expected_signal", ""))
+                    steps.append(StepResult(
+                        step=step_data.get("step", 0),
+                        name=step_data.get("name", ""),
+                        command=step_data.get("command", ""),
+                        wall_time_ms=step_data.get("wall_time_ms", 0),
+                        exit_code=step_data.get("exit_code", 0),
+                        agent_passed=agent_passed,
+                        agent_reasoning=agent_reasoning,
+                        step_goal=step_goal,
+                        checks=step_data.get("checks", []),
+                    ))
+
             results.append(RunResult(
                 provider=data.get("provider", "unknown"),
                 scenario=data.get("scenario", "unknown"),
@@ -172,6 +210,8 @@ def load_run_results(results_dir: Path) -> list[RunResult]:
                 actual_cost_usd=tokens.get("cost_usd", 0.0),
                 timestamp=data.get("timestamp", ""),
                 result_file=str(result_file),
+                is_narrative=is_narrative,
+                steps=steps,
             ))
         except (json.JSONDecodeError, KeyError):
             print(f"Warning: skipping malformed file: {result_file}", file=sys.stderr)
@@ -244,7 +284,118 @@ def compute_stats(
     return stats
 
 
-def render_markdown_table(stats: dict[tuple[str, str], ScenarioStats]) -> str:
+def _render_per_step_timing(narrative_runs: list[RunResult]) -> list[str]:
+    """Render per-step timing breakdown for narrative runs."""
+    lines = []
+
+    # Group runs by scenario
+    runs_by_scenario: dict[str, list[RunResult]] = {}
+    for run in narrative_runs:
+        runs_by_scenario.setdefault(run.scenario, []).append(run)
+
+    for scenario in sorted(runs_by_scenario.keys()):
+        runs = runs_by_scenario[scenario]
+        if not runs or not runs[0].steps:
+            continue
+
+        # Collect unique providers across runs
+        providers = sorted({run.provider for run in runs})
+
+        lines.extend(["", f"### {scenario}", ""])
+
+        # Header
+        header = "| Step | Command |"
+        sep = "|------|---------|"
+        for provider in providers:
+            header += f" {provider} (s) |"
+            sep += "------------|"
+        lines.append(header)
+        lines.append(sep)
+
+        # Get step names from first run (all runs for same scenario have same steps)
+        step_names = [(step.step, step.command) for step in runs[0].steps]
+
+        for step_num, command in step_names:
+            row = f"| {step_num} | {command} |"
+            for provider in providers:
+                provider_runs = [run for run in runs if run.provider == provider]
+                times = []
+                for run in provider_runs:
+                    for step in run.steps:
+                        if step.step == step_num:
+                            times.append(step.wall_time_ms / 1000.0)
+                if times:
+                    mean_time = sum(times) / len(times)
+                    row += f" {mean_time:.1f} |"
+                else:
+                    row += " N/A |"
+            lines.append(row)
+
+    return lines
+
+
+def _render_compliance_matrix(
+    narrative_runs: list[RunResult],
+    validation_results: list[ValidationResult],
+) -> list[str]:
+    """Render a compliance matrix showing signal/check pass rates per provider."""
+    lines = []
+
+    # Collect all unique check names across all narrative validations
+    narrative_scenarios = {run.scenario for run in narrative_runs}
+    narrative_validations = [
+        validation for validation in validation_results if validation.scenario in narrative_scenarios
+    ]
+
+    if not narrative_validations:
+        return lines
+
+    # Build check pass counts: check_name -> provider -> [passed_count, total_count]
+    check_stats: dict[str, dict[str, list[int]]] = {}
+    providers = sorted({validation.provider for validation in narrative_validations})
+
+    for validation in narrative_validations:
+        for check in validation.checks:
+            check_name = check.get("name", "unknown")
+            if check_name not in check_stats:
+                check_stats[check_name] = {}
+            if validation.provider not in check_stats[check_name]:
+                check_stats[check_name][validation.provider] = [0, 0]
+            check_stats[check_name][validation.provider][1] += 1
+            if check.get("passed"):
+                check_stats[check_name][validation.provider][0] += 1
+
+    if not check_stats:
+        return lines
+
+    lines.extend(["", "## Compliance Matrix", ""])
+
+    header = "| Check |"
+    sep = "|-------|"
+    for provider in providers:
+        header += f" {provider} |"
+        sep += "--------|"
+    lines.append(header)
+    lines.append(sep)
+
+    for check_name in sorted(check_stats.keys()):
+        row = f"| {check_name} |"
+        for provider in providers:
+            if provider in check_stats[check_name]:
+                passed, total = check_stats[check_name][provider]
+                row += f" {passed}/{total} |"
+            else:
+                row += " - |"
+        lines.append(row)
+
+    return lines
+
+
+def render_markdown_table(
+    stats: dict[tuple[str, str], ScenarioStats],
+    run_results: list[RunResult] | None = None,
+    validation_results: list[ValidationResult] | None = None,
+) -> str:
     """Render aggregated statistics as a markdown table."""
     lines = [
         "# Eval Report",
@@ -262,6 +413,19 @@ def render_markdown_table(stats: dict[tuple[str, str], ScenarioStats]) -> str:
             f"{scenario_stats.mean_input_tokens:.0f} | {scenario_stats.mean_output_tokens:.0f} | "
             f"${scenario_stats.mean_cost_usd:.3f} |"
         )
+
+    # Per-step timing for narrative runs
+    if run_results:
+        narrative_runs = [r for r in run_results if r.is_narrative]
+        if narrative_runs:
+            lines.extend(["", "## Per-Step Timing"])
+            lines.extend(_render_per_step_timing(narrative_runs))
+
+    # Compliance matrix for narrative runs
+    if run_results and validation_results:
+        narrative_runs = [r for r in run_results if r.is_narrative]
+        if narrative_runs:
+            lines.extend(_render_compliance_matrix(narrative_runs, validation_results))
 
     # Failure modes section
     any_failures = any(scenario_stats.failure_modes for scenario_stats in stats.values())
@@ -316,7 +480,7 @@ def main():
         }
         print(json.dumps(summary, indent=2))
     else:
-        report = render_markdown_table(stats)
+        report = render_markdown_table(stats, run_results, validation_results)
         if args.output:
             Path(args.output).write_text(report + "\n")
             print(f"Report written to: {args.output}")
