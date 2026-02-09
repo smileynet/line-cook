@@ -25,7 +25,12 @@
       "line-mise",
       "line-brainstorm",
       "line-scope",
-      "line-finalize"
+      "line-finalize",
+      "line-architecture-audit",
+      "line-decision",
+      "line-help",
+      "line-plan-audit",
+      "line-loop"
     ]
   },
   "peerDependencies": {

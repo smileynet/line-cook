@@ -1,11 +1,6 @@
----
-description: Audit codebase architecture, code smells, and quality metrics
-allowed-tools: Bash, Read, Glob, Grep, Task
----
-
 ## Summary
 
-**Analyze codebase structure and detect code smells.** Complements `/line:plan-audit` (bead quality) with code-level analysis.
+**Analyze codebase structure and detect code smells.** Complements `@line-plan-audit` (bead quality) with code-level analysis.
 
 **STOP after completing.** Show audit report and wait for user.
 
@@ -14,7 +9,7 @@ allowed-tools: Bash, Read, Glob, Grep, Task
 ## Arguments
 
 ```
-/line:architecture-audit [scope] [--report]
+@line-architecture-audit [scope] [--report]
 
 scope:
   quick     - Run validation scripts only (default)
@@ -375,9 +370,9 @@ echo "Report saved to: $REPORT_PATH"
 
 | Command | Relationship |
 |---------|--------------|
-| `/line:plan-audit` | Bead content checks (this = code checks) |
+| `@line-plan-audit` | Bead content checks (this = code checks) |
 | `bd doctor` | System checks (install, hooks, sync) |
-| `/line:serve` | Code review (this = structural analysis) |
+| `@line-serve` | Code review (this = structural analysis) |
 
 ---
 
@@ -385,16 +380,16 @@ echo "Report saved to: $REPORT_PATH"
 
 ```bash
 # Quick validation only (default)
-/line:architecture-audit
+@line-architecture-audit
 
 # Full analysis with smell detection
-/line:architecture-audit full
+@line-architecture-audit full
 
 # Analyze specific directory
-/line:architecture-audit scripts/
+@line-architecture-audit scripts/
 
 # Generate dated report
-/line:architecture-audit full --report
+@line-architecture-audit full --report
 ```
 
 ---

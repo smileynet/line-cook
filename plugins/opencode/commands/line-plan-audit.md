@@ -1,6 +1,5 @@
 ---
 description: Audit bead/plan structure, dependencies, and quality with auto-fix
-allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ---
 
 ## Summary
@@ -14,7 +13,7 @@ allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ## Arguments
 
 ```
-/line:plan-audit [scope] [--fix] [--interactive]
+/line-plan-audit [scope] [--fix] [--interactive]
 
 scope:
   active    - Open/in_progress beads only (default)
@@ -323,7 +322,7 @@ if [ "$SCOPE" = "full" ]; then
     if [ ! -f "$doc_path" ]; then
       echo "WARNING: MISSING_DOC $feature (closed feature) has no acceptance doc"
       echo "  Expected: $doc_path"
-      echo "  Action: Run /line:plate $feature or create manually"
+      echo "  Action: Run /line-plate $feature or create manually"
     fi
   done
 fi
@@ -477,7 +476,7 @@ WORK VERIFICATION (full scope only)
 
 [MISSING_DOC] <bead-id> (closed feature) has no acceptance doc
   Expected: docs/features/<bead-id>-acceptance.md
-  Action: Run /line:plate <bead-id> or create manually
+  Action: Run /line-plate <bead-id> or create manually
 
 [ORPHAN_PARENT] <bead-id> (feature) has all tasks closed but is still open
   Children: <closed>/<total> closed
@@ -499,9 +498,9 @@ NEXT STEP: <action based on findings>
 
 **NEXT STEP logic:**
 - If critical issues: "Fix critical issues before proceeding"
-- If auto-fixable + no --fix: "Run /line:plan-audit --fix to auto-fix <count> issues"
-- If warnings only: "Review warnings, then /line:prep"
-- If clean: "/line:prep - workspace is healthy"
+- If auto-fixable + no --fix: "Run /line-plan-audit --fix to auto-fix <count> issues"
+- If warnings only: "Review warnings, then /line-prep"
+- If clean: "/line-prep - workspace is healthy"
 
 ---
 
@@ -548,9 +547,9 @@ NEXT STEP: <action based on findings>
 | Command | Relationship |
 |---------|--------------|
 | `bd doctor` | System checks (audit = content checks) |
-| `/line:mise` | Creates beads -> audit validates after |
-| `/line:prep` | Audit first for hygiene, prep for work |
-| `/line:plate` | Audit can pre-validate features |
+| `/line-mise` | Creates beads -> audit validates after |
+| `/line-prep` | Audit first for hygiene, prep for work |
+| `/line-plate` | Audit can pre-validate features |
 
 ---
 
@@ -558,20 +557,20 @@ NEXT STEP: <action based on findings>
 
 ```bash
 # Check active work hygiene (default)
-/line:plan-audit
+/line-plan-audit
 
 # Full audit with work verification
-/line:plan-audit full
+/line-plan-audit full
 
 # Audit specific bead hierarchy
-/line:plan-audit lc-abc.1
+/line-plan-audit lc-abc.1
 
 # Auto-fix safe issues
-/line:plan-audit --fix
+/line-plan-audit --fix
 
 # Interactive fixes (prompts for each)
-/line:plan-audit --fix --interactive
+/line-plan-audit --fix --interactive
 
 # Full audit with auto-fix
-/line:plan-audit full --fix
+/line-plan-audit full --fix
 ```
