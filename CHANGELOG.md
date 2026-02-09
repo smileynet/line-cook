@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Epic-scoped loop execution with `--epic` flag for `/line:loop`
+  - Focus the autonomous loop on a single epic's tasks (`--epic` auto-detects, `--epic ID` targets specific epic)
+  - Tasks under "Retrospective" and "Backlog" epics are automatically excluded from loop auto-selection
+
+### Changed
+- Review agents now inherit the parent session's model instead of pinning specific models, making it easier to switch models globally
+- Findings from serve/plate reviews are now filed as sibling tasks under the parent feature instead of standalone beads, keeping related work together
+
+### Fixed
+- Removed Claude Code-specific content that was leaking into OpenCode and Kiro commands through shared templates
+- Fixed serve review issues in epic-scoped loop execution
+
 ## [0.11.0] - 2026-02-06
 
 ### Added
