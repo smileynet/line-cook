@@ -283,11 +283,6 @@ for step_idx in "${!NARRATIVE_STEPS[@]}"; do
         fi
     fi
 
-    # Track agent validation failure
-    if [[ "$agent_passed" != "true" ]]; then
-        ALL_STEPS_PASSED=false
-    fi
-
     # Build step result JSON
     step_json=$(jq -n \
         --arg step_name "$step_name" \
@@ -436,3 +431,6 @@ log_step "Result: $result_file"
 
 # Output result file path to stdout
 echo "$result_file"
+
+# Exit with non-zero if any checks failed
+$ALL_STEPS_PASSED || exit 1
