@@ -1,6 +1,5 @@
 ---
 description: Manage autonomous loop execution from TUI
-allowed-tools: Bash, Read, Glob
 ---
 
 ## Summary
@@ -24,16 +23,16 @@ allowed-tools: Bash, Read, Glob
 
 | Ready? | Prerequisite | Why |
 |:------:|--------------|-----|
-| ☐ | Run `/line:prep` → `/line:cook` → `/line:tidy` manually | Understand the workflow |
-| ☐ | Run `/line:run` a few times | Practice single-task cycles |
+| ☐ | Run `/line-prep` → `/line-cook` → `/line-tidy` manually | Understand the workflow |
+| ☐ | Run `/line-run` a few times | Practice single-task cycles |
 | ☐ | Have `bd ready` tasks available | Loop needs work to do |
 
 ### First Loop
 
 ```bash
-/line:loop                        # Smart default: start or watch
-/line:loop start --max-iterations 3  # Test run (recommended first time)
-/line:loop watch                  # Monitor progress with context
+/line-loop                        # Smart default: start or watch
+/line-loop start --max-iterations 3  # Test run (recommended first time)
+/line-loop watch                  # Monitor progress with context
 ```
 
 ---
@@ -42,37 +41,22 @@ allowed-tools: Bash, Read, Glob
 
 | Scenario | Command |
 |----------|---------|
-| First time / unsure | `/line:loop` (smart default) |
-| Monitor with context | `/line:loop watch` |
-| Quick status check | `/line:loop status` |
-| Debug issues | `/line:loop tail --lines 100` |
-| Review what happened | `/line:loop history --actions` |
-| Stop gracefully | `/line:loop stop` |
-| Custom iteration limit | `/line:loop start --max-iterations N` |
-| Stop on first blocker | `/line:loop start --stop-on-blocked` |
-| Focus on one epic | `/line:loop start --epic` |
-| Focus on specific epic | `/line:loop start --epic lc-001` |
-| Epic milestone review | `/line:loop start --break-on-epic` |
-| Complex tasks (40min) | `/line:loop start --cook-timeout 2400` |
+| First time / unsure | `/line-loop` (smart default) |
+| Monitor with context | `/line-loop watch` |
+| Quick status check | `/line-loop status` |
+| Debug issues | `/line-loop tail --lines 100` |
+| Review what happened | `/line-loop history --actions` |
+| Stop gracefully | `/line-loop stop` |
+| Custom iteration limit | `/line-loop start --max-iterations N` |
+| Stop on first blocker | `/line-loop start --stop-on-blocked` |
+| Focus on one epic | `/line-loop start --epic` |
+| Focus on specific epic | `/line-loop start --epic lc-001` |
+| Epic milestone review | `/line-loop start --break-on-epic` |
+| Complex tasks (40min) | `/line-loop start --cook-timeout 2400` |
 
 ---
 
 ## Timeout Behavior
-
-### Standalone vs Loop Comparison
-
-| Aspect | Standalone (`/line:cook`) | Loop (`/line:loop start`) |
-|--------|---------------------------|---------------------------|
-| **Cook timeout** | 2 minutes (Claude Code default) | 20 minutes (configurable) |
-| **Serve timeout** | 2 minutes | 10 minutes (configurable) |
-| **Tidy timeout** | 2 minutes | 4 minutes (configurable) |
-| **Plate timeout** | 2 minutes | 10 minutes (configurable) |
-| **Idle detection** | None | 3 minutes (configurable) |
-| **Override method** | Not configurable | CLI flags per phase |
-
-### Why the Difference?
-
-**Standalone execution** uses Claude Code's built-in 2-minute default timeout for all skills. This is sufficient for quick, focused tasks but may be too short for complex work.
 
 **Loop execution** manages its own subprocess timeouts, providing:
 - Phase-appropriate defaults (cook needs more time than tidy)
@@ -94,16 +78,16 @@ allowed-tools: Bash, Read, Glob
 
 ```bash
 # Default timeouts (usually sufficient)
-/line:loop start
+/line-loop start
 
 # Complex tasks (40-minute cook phase)
-/line:loop start --cook-timeout 2400
+/line-loop start --cook-timeout 2400
 
 # Large diffs (15-minute serve phase)
-/line:loop start --serve-timeout 900
+/line-loop start --serve-timeout 900
 
 # All phases extended
-/line:loop start --cook-timeout 2400 --serve-timeout 900 --tidy-timeout 480
+/line-loop start --cook-timeout 2400 --serve-timeout 900 --tidy-timeout 480
 ```
 
 ---
@@ -164,17 +148,17 @@ The `Actions:` line shows tool usage during the iteration:
 If `help` is passed as an argument:
 
 ```
-/line:loop - Manage autonomous loop execution
+/line-loop - Manage autonomous loop execution
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Usage:
-  /line:loop                           # Smart default (watch if running, start if not)
-  /line:loop watch                     # Live progress with milestones
-  /line:loop start [options]           # Start loop with options
-  /line:loop status                    # One-shot status check
-  /line:loop stop                      # Gracefully stop
-  /line:loop tail [--lines N]          # View log output
-  /line:loop history [--iteration N] [--actions]  # View iteration history
+  /line-loop                           # Smart default (watch if running, start if not)
+  /line-loop watch                     # Live progress with milestones
+  /line-loop start [options]           # Start loop with options
+  /line-loop status                    # One-shot status check
+  /line-loop stop                      # Gracefully stop
+  /line-loop tail [--lines N]          # View log output
+  /line-loop history [--iteration N] [--actions]  # View iteration history
 
 Commands:
   (none)   Smart default - watch if loop running, start if not
@@ -202,18 +186,18 @@ Start Options:
   --skip-initial-sync   Skip git fetch/pull and bd sync at loop start
 
 Examples:
-  /line:loop                          # Start or watch (smart default)
-  /line:loop watch                    # Monitor progress with context
-  /line:loop start --max-iterations 5 # Quick test run
-  /line:loop start --cook-timeout 1800 # Complex tasks (30min cook timeout)
-  /line:loop start --epic              # Auto-select first available epic
-  /line:loop start --epic lc-001      # Focus on specific epic
-  /line:loop start --break-on-epic    # Pause for review at epic completion
-  /line:loop start --stop-on-blocked  # Stop immediately on blocked tasks
-  /line:loop status                   # One-shot status check
-  /line:loop tail --lines 100         # View more log output
-  /line:loop history --actions        # View all iterations with actions
-  /line:loop stop                     # Stop gracefully
+  /line-loop                          # Start or watch (smart default)
+  /line-loop watch                    # Monitor progress with context
+  /line-loop start --max-iterations 5 # Quick test run
+  /line-loop start --cook-timeout 1800 # Complex tasks (30min cook timeout)
+  /line-loop start --epic              # Auto-select first available epic
+  /line-loop start --epic lc-001      # Focus on specific epic
+  /line-loop start --break-on-epic    # Pause for review at epic completion
+  /line-loop start --stop-on-blocked  # Stop immediately on blocked tasks
+  /line-loop status                   # One-shot status check
+  /line-loop tail --lines 100         # View more log output
+  /line-loop history --actions        # View all iterations with actions
+  /line-loop stop                     # Stop gracefully
 
 Files stored in: /tmp/line-loop-<project-name>/
 ```
@@ -301,7 +285,7 @@ if [ -f "$LOOP_DIR/loop.pid" ]; then
   PID=$(cat "$LOOP_DIR/loop.pid" 2>/dev/null)
   if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
     echo "Loop already running (PID: $PID)"
-    echo "Use '/line:loop status' to check progress or '/line:loop stop' to stop it."
+    echo "Use '/line-loop status' to check progress or '/line-loop stop' to stop it."
     exit 1
   else
     # Stale or invalid PID file, clean up
@@ -314,24 +298,9 @@ fi
 
 Locate the `line-loop.py` CLI wrapper. The wrapper is a thin script that imports from the `line_loop/` package in the same directory.
 
-Search the plugin installation directory for `line-loop.py`:
-
-1. **Plugin installation** (most common):
-   ```
-   Glob(pattern="**/scripts/line-loop.py", path="~/.claude/plugins")
-   ```
-   Typically located at: `~/.claude/plugins/marketplaces/line-cook-marketplace/line/scripts/line-loop.py`
-
-2. **Current project** (for development):
-   ```
-   Glob(pattern="**/scripts/line-loop.py")
-   ```
-
-The `line_loop/` package should be a sibling directory to the script.
 
 ### Launch Background Loop
 
-Use the Bash tool with `run_in_background: true` to start the loop:
 
 ```bash
 LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
@@ -348,7 +317,6 @@ python3 <path-to-line-loop.py> \
 
 Replace `<path-to-line-loop.py>` with the absolute path located above.
 
-**Important:** Set `run_in_background: true` on the Bash tool call.
 
 ### Output
 
@@ -358,9 +326,9 @@ Project: <project-name>
 Loop dir: /tmp/line-loop-<project-name>
 
 Monitor with:
-  /line:loop status    - Check progress
-  /line:loop tail      - View log output
-  /line:loop stop      - Stop gracefully
+  /line-loop status    - Check progress
+  /line-loop tail      - View log output
+  /line-loop stop      - Stop gracefully
 ```
 
 ---
@@ -424,7 +392,7 @@ Last known state:
   Last update: 5m ago
 
 Check logs for details:
-  /line:loop tail --lines 100
+  /line-loop tail --lines 100
 ```
 
 **If not running but status file exists (clean exit):**
@@ -450,8 +418,8 @@ Loop Status: NOT RUNNING
 No loop is currently running and no previous status found.
 
 Start a loop with:
-  /line:loop start
-  /line:loop start --max-iterations 10
+  /line-loop start
+  /line-loop start --max-iterations 10
 ```
 
 ---
@@ -588,7 +556,7 @@ RECENT LOG
 ───────────────────────────────────────
 <last 20 lines of loop.log>
 
-Refresh: /line:loop watch | Stop: /line:loop stop
+Refresh: /line-loop watch | Stop: /line-loop stop
 ```
 
 The `Phase:` line shows:
@@ -648,7 +616,7 @@ FINAL MILESTONES
 ───────────────────────────────────────
 <last 5 completed iterations>
 
-Start a new loop: /line:loop start
+Start a new loop: /line-loop start
 ```
 
 ---
@@ -863,7 +831,7 @@ LOOP HISTORY: <project>
 No history file found.
 
 Start a loop to begin recording:
-  /line:loop start
+  /line-loop start
 ```
 
 ---
@@ -886,7 +854,7 @@ The loop includes a circuit breaker to prevent runaway failures:
 - **Reset on success:** After any successful iteration, the failure window resets
 - **Exit code:** 3 when circuit breaker trips
 
-When the circuit breaker trips, the loop stops with a message indicating too many consecutive failures. Check the logs (`/line:loop tail --lines 100`) to understand what's failing.
+When the circuit breaker trips, the loop stops with a message indicating too many consecutive failures. Check the logs (`/line-loop tail --lines 100`) to understand what's failing.
 
 ### Circuit Breaker Flow
 
@@ -994,7 +962,7 @@ SUGGESTED ACTIONS:
   • Check if tasks have missing dependencies or unclear requirements
   • Consider breaking down complex tasks into smaller pieces
   • Use 'bd show <task_id>' to see full task details
-  • Restart loop after fixing blocking issues: '/line:loop start'
+  • Restart loop after fixing blocking issues: '/line-loop start'
 
 ============================================================
 ```
@@ -1014,7 +982,7 @@ When the loop completes tasks that roll up into epics, it automatically detects 
 
 After each successful iteration:
 1. Check if the completed task's parent feature has all tasks closed
-2. If feature complete, run `/line:plate` for acceptance validation
+2. If feature complete, run `/line-plate` for acceptance validation
 3. Check if the completed feature's parent epic has all features closed
 4. If epic complete, display an epic closure report
 
@@ -1042,7 +1010,7 @@ Summary: Completed 3 features under this epic.
 Use `--break-on-epic` flag to pause the loop when an epic completes:
 
 ```bash
-/line:loop start --break-on-epic
+/line-loop start --break-on-epic
 ```
 
 This gives you a natural checkpoint to review progress before continuing.
@@ -1151,13 +1119,13 @@ The loop monitors tool action activity during phases to detect hung or stalled e
 
 ```bash
 # Disable idle detection
-/line:loop start --idle-timeout 0
+/line-loop start --idle-timeout 0
 
 # More aggressive idle detection (60s) with termination
-/line:loop start --idle-timeout 60 --idle-action terminate
+/line-loop start --idle-timeout 60 --idle-action terminate
 
 # Relaxed idle detection for complex tasks
-/line:loop start --idle-timeout 300
+/line-loop start --idle-timeout 300
 ```
 
 ### When Idle Detection Triggers
@@ -1231,7 +1199,7 @@ This signal should be emitted at the end of successful completion output in cook
 | Cook phase times out | Task too complex | `--cook-timeout 2400` (40 min) |
 | Serve phase times out | Large diff | `--serve-timeout 900` (15 min) |
 | "Idle timeout after Ns" | Phase waiting/stuck | `--idle-timeout 0` to disable |
-| Status shows "running" but process dead | Unclean shutdown | `rm -f $LOOP_DIR/loop.pid && /line:loop start` |
+| Status shows "running" but process dead | Unclean shutdown | `rm -f $LOOP_DIR/loop.pid && /line-loop start` |
 | Same task keeps retrying | Unclear requirements | Review task, clarify, restart |
 | Loop exits immediately | No ready work | `bd create` tasks first |
 
@@ -1239,7 +1207,7 @@ This signal should be emitted at the end of successful completion output in cook
 
 ### Loop Won't Start
 
-**Symptom:** `/line:loop start` reports "Loop already running" but nothing is happening.
+**Symptom:** `/line-loop start` reports "Loop already running" but nothing is happening.
 
 **Cause:** Stale PID file from a previous run that crashed or was killed.
 
@@ -1247,7 +1215,7 @@ This signal should be emitted at the end of successful completion output in cook
 ```bash
 LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
 rm -f "$LOOP_DIR/loop.pid"
-/line:loop start
+/line-loop start
 ```
 
 ---
@@ -1283,14 +1251,14 @@ Loop stops unexpectedly
 │   │   └── All ready tasks completed successfully
 │   │
 │   ├── "max_iterations" → Reached iteration limit
-│   │   └── Restart with `/line:loop start` to continue
+│   │   └── Restart with `/line-loop start` to continue
 │   │
 │   └── "shutdown" → Graceful stop requested
 │       └── User or signal requested stop
 │
 └── No status file or stop_reason
     └── Process crashed - check logs:
-        /line:loop tail --lines 100
+        /line-loop tail --lines 100
 ```
 
 ---
@@ -1301,8 +1269,8 @@ Loop stops unexpectedly
 
 **Diagnose:**
 ```bash
-/line:loop tail --lines 100
-/line:loop history --actions
+/line-loop tail --lines 100
+/line-loop history --actions
 ```
 
 **Common causes:**
@@ -1326,7 +1294,7 @@ cat /tmp/line-loop-$(basename "$PWD")/status.json | jq '.skipped_tasks'
 **Fix:**
 1. Review skipped tasks: `bd show <task-id>` for each
 2. Fix issues (clarify requirements, fix dependencies)
-3. Restart loop (clears skip list): `/line:loop start`
+3. Restart loop (clears skip list): `/line-loop start`
 
 ---
 
@@ -1338,7 +1306,7 @@ cat /tmp/line-loop-$(basename "$PWD")/status.json | jq '.skipped_tasks'
 
 **Fix:** Increase timeout:
 ```bash
-/line:loop start --cook-timeout 2400  # 40 minutes
+/line-loop start --cook-timeout 2400  # 40 minutes
 ```
 
 ---
@@ -1349,7 +1317,7 @@ cat /tmp/line-loop-$(basename "$PWD")/status.json | jq '.skipped_tasks'
 
 **Fix:**
 ```bash
-/line:loop start --serve-timeout 900  # 15 minutes
+/line-loop start --serve-timeout 900  # 15 minutes
 ```
 
 ---
@@ -1363,13 +1331,13 @@ cat /tmp/line-loop-$(basename "$PWD")/status.json | jq '.skipped_tasks'
 **Fix options:**
 ```bash
 # Disable idle detection
-/line:loop start --idle-timeout 0
+/line-loop start --idle-timeout 0
 
 # Use warning instead of termination
-/line:loop start --idle-action warn
+/line-loop start --idle-action warn
 
 # Increase threshold
-/line:loop start --idle-timeout 300
+/line-loop start --idle-timeout 300
 ```
 
 ---
@@ -1380,22 +1348,22 @@ cat /tmp/line-loop-$(basename "$PWD")/status.json | jq '.skipped_tasks'
 
 **Diagnose:**
 ```bash
-/line:loop watch  # Check "Actions:" count and "Last: Ns ago"
+/line-loop watch  # Check "Actions:" count and "Last: Ns ago"
 ```
 
-**Fix:** If phase is truly stuck, use `/line:loop stop` to terminate gracefully.
+**Fix:** If phase is truly stuck, use `/line-loop stop` to terminate gracefully.
 
 ---
 
 ### Status File Issues
 
-**Symptom:** `/line:loop watch` shows stale data.
+**Symptom:** `/line-loop watch` shows stale data.
 
 **Cause:** Status file updates are throttled to 1 write per 5 seconds during phases.
 
 **Fix:** This is expected behavior. For real-time logs:
 ```bash
-/line:loop tail --lines 50
+/line-loop tail --lines 50
 ```
 
 ---
@@ -1414,7 +1382,7 @@ ps -p <PID>               # Check if alive
 **Fix:**
 ```bash
 rm -f "$LOOP_DIR/loop.pid"
-/line:loop start
+/line-loop start
 ```
 
 ---
@@ -1427,7 +1395,7 @@ rm -f "$LOOP_DIR/loop.pid"
 
 **Diagnose:**
 ```bash
-/line:loop history --iteration N --actions  # See what happened
+/line-loop history --iteration N --actions  # See what happened
 ```
 
 **How the loop handles this:**
@@ -1470,7 +1438,7 @@ jq -s '.[-3:]' "$LOOP_DIR/history.jsonl" # Last 3 iterations
 | Tasks with vague descriptions | Agent gets stuck, timeouts | Write clear acceptance criteria |
 | Dependencies not declared | Tasks attempted out of order | Use `bd dep add` |
 | Complex tasks as single beads | Timeouts, partial completion | Break into smaller tasks |
-| Skipping `/line:run` practice | Don't understand failure modes | Run manual cycles first |
+| Skipping `/line-run` practice | Don't understand failure modes | Run manual cycles first |
 
 ---
 
@@ -1480,13 +1448,13 @@ When things go wrong:
 
 1. **Stop the loop** (if running):
    ```bash
-   /line:loop stop
+   /line-loop stop
    ```
 
 2. **Check what happened**:
    ```bash
-   /line:loop tail --lines 100
-   /line:loop history --actions
+   /line-loop tail --lines 100
+   /line-loop history --actions
    ```
 
 3. **Check task status**:
@@ -1508,7 +1476,7 @@ When things go wrong:
 
 6. **Restart**:
    ```bash
-   /line:loop start
+   /line-loop start
    ```
 
 ---

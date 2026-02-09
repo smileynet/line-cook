@@ -180,7 +180,7 @@ For batch processing multiple tasks, use the external script wrapper instead of 
 
 ```bash
 # Run with default 25 iterations
-/line:loop
+/@NAMESPACE@loop
 
 # Or invoke the script directly
 python3 plugins/claude-code/scripts/line-loop.py

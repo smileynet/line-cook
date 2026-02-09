@@ -1,6 +1,5 @@
 ---
 description: Record, list, or supersede architecture decisions (ADRs)
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 ---
 
 ## Summary

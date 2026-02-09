@@ -87,10 +87,7 @@ Claude Code and OpenCode use different command naming conventions:
 | OpenCode | TUI application | opencode CLI | anomalyco/opencode |
 | Kiro CLI | CLI application | kiro-cli | kiro.dev |
 
-**Key Points:**
-- **Claude Code**, **OpenCode**, and **Kiro CLI** are COMPLETELY UNRELATED PRODUCTS
-- Each has its own CLI: `claude`, `opencode`, and `kiro` respectively
-- Line Cook provides separate implementations for each:
+Line Cook provides separate implementations for each:
   - `plugins/claude-code/` = Claude Code plugin
   - `plugins/opencode/` = OpenCode plugin
   - `plugins/kiro/` = Kiro CLI agents
@@ -133,6 +130,10 @@ Claude Code uses slash commands instead of agents:
 | **/line:tidy** | Tidy phase | Commit and push changes |
 | **/line:plate** | Plate phase | Validate completed feature |
 | **/line:run** | Execution orchestrator | Prep→cook→serve→tidy orchestration |
+| **/line:architecture-audit** | Code quality | Analyze codebase structure and code smells |
+| **/line:decision** | ADR management | Record, list, or supersede architecture decisions |
+| **/line:help** | Reference | Contextual help for Line Cook commands |
+| **/line:loop** | Automation | Autonomous loop management |
 
 ### Claude Code Subagents (plugins/claude-code/agents/)
 
@@ -162,7 +163,7 @@ OpenCode plugin uses OpenCode's built-in agent system:
 
 | Component | Type | Purpose |
 |----------|------|---------|
-| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-run` |
+| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-run`, `/line-getting-started`, `/line-architecture-audit`, `/line-decision`, `/line-help`, `/line-loop`, `/line-plan-audit` |
 | **Kiro Agents** | OpenCode agents | taster, sous-chef (via OpenCode's agent system) |
 
 ### chef
@@ -283,6 +284,8 @@ core/             Shared source material
   templates/      *.md.template → plugins/*/commands|agents|steering
   line_loop/      Python package → bundled into plugins/claude-code/scripts/
   line-loop-cli.py  CLI wrapper source for bundling
+docs/dev/
+  line-loop-internals.md  Module architecture, data flow, and developer debug
 
 dev/              Development tooling
   release.py, sync-commands.sh, check-*, doctor-*, validate-*
@@ -303,7 +306,7 @@ See [Project Structure](docs/dev/project-structure.md) for full directory layout
 Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), OpenCode (`plugins/opencode/commands/`), and Kiro (`plugins/kiro/prompts/`). All are generated from shared templates to prevent drift.
 
 **Template system:**
-- Source templates live in `core/templates/commands/` (11 templates)
+- Source templates live in `core/templates/commands/` (16 templates)
 - Use placeholders for platform-specific differences:
   - `@NAMESPACE@` - Command prefix (`line:` for Claude Code, `line-` for OpenCode/Kiro)
   - `@IF_CLAUDECODE@`...`@ENDIF_CLAUDECODE@` - Claude Code only content
@@ -315,7 +318,7 @@ Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), 
 - OpenCode: `/line-cook` (hyphen separator), simplified step numbering
 - Kiro: `@line-cook` (at-sign prefix), same content as OpenCode but no YAML frontmatter
 
-**Synced commands:** All 11 — brainstorm, cook, finalize, getting-started, mise, plate, prep, run, scope, serve, tidy
+**Synced commands:** All 16 — architecture-audit, brainstorm, cook, decision, finalize, getting-started, help, loop, mise, plan-audit, plate, prep, run, scope, serve, tidy
 
 ### Agent Template Synchronization
 

@@ -1,8 +1,3 @@
----
-description: Contextual help for Line Cook commands
-allowed-tools: Bash, Read, Glob
----
-
 ## Summary
 
 **Show available commands with contextual suggestions.** Helps users discover and navigate Line Cook commands.
@@ -53,11 +48,11 @@ Based on context, suggest the most relevant next action:
 
 | Context | Suggested Command |
 |---------|-------------------|
-| No .beads directory | `/line:mise` (start planning) |
-| Beads present, no ready tasks | `/line:mise` (create more work) |
-| Ready tasks available | `/line:cook <first-ready-id>` |
-| In-progress tasks | `/line:cook <in-progress-id>` |
-| Dirty working tree + tasks done | `/line:tidy` |
+| No .beads directory | `@line-mise` (start planning) |
+| Beads present, no ready tasks | `@line-mise` (create more work) |
+| Ready tasks available | `@line-cook <first-ready-id>` |
+| In-progress tasks | `@line-cook <in-progress-id>` |
+| Dirty working tree + tasks done | `@line-tidy` |
 
 ### Step 4: Output Quick Reference
 
@@ -76,30 +71,30 @@ Suggested: <command based on context>
 
 PLANNING (create work)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-/line:mise         Full planning cycle (brainstorm→scope→finalize)
-/line:brainstorm   Explore problem space (divergent thinking)
-/line:scope        Create work breakdown (convergent thinking)
-/line:finalize     Convert plan to beads and test specs
-/line:plan-audit   Check bead health and structure
-/line:architecture-audit  Analyze code structure and smells
-/line:decision     Record architecture decisions (ADRs)
+@line-mise         Full planning cycle (brainstorm→scope→finalize)
+@line-brainstorm   Explore problem space (divergent thinking)
+@line-scope        Create work breakdown (convergent thinking)
+@line-finalize     Convert plan to beads and test specs
+@line-plan-audit   Check bead health and structure
+@line-architecture-audit  Analyze code structure and smells
+@line-decision     Record architecture decisions (ADRs)
 
 EXECUTION (do work)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-/line:run          Full cycle (prep→cook→serve→tidy)
-/line:prep         Sync state, show ready tasks
-/line:cook         Execute task with TDD guardrails
-/line:serve        Review changes (sous-chef)
-/line:tidy         Commit and push
-/line:plate        Validate completed feature
+@line-run          Full cycle (prep→cook→serve→tidy)
+@line-prep         Sync state, show ready tasks
+@line-cook         Execute task with TDD guardrails
+@line-serve        Review changes (sous-chef)
+@line-tidy         Commit and push
+@line-plate        Validate completed feature
 
 REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-/line:getting-started   Workflow guide with bead reference
-/line:loop              Autonomous loop management
-/line:help <command>    Detailed help for specific command
+@line-getting-started   Workflow guide with bead reference
+@line-loop              Autonomous loop management
+@line-help <command>    Detailed help for specific command
 
-For detailed help: /line:help <command>
+For detailed help: @line-help <command>
 ```
 
 **Contextual variations:**
@@ -109,10 +104,10 @@ For detailed help: /line:help <command>
 YOUR CONTEXT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 No beads directory found.
-Suggested: /line:mise (start planning your work)
+Suggested: @line-mise (start planning your work)
 
 Tip: Line Cook uses beads to track work across sessions.
-     Run /line:mise to create your first work breakdown.
+     Run @line-mise to create your first work breakdown.
 ```
 
 **If dirty working tree:**
@@ -121,9 +116,9 @@ YOUR CONTEXT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Ready tasks: <count> | In progress: <count> | Blocked: <count>
 Working tree: dirty (uncommitted changes)
-Suggested: /line:tidy (commit your changes)
+Suggested: @line-tidy (commit your changes)
 
-Tip: Run /line:tidy to commit changes before starting new work.
+Tip: Run @line-tidy to commit changes before starting new work.
 ```
 
 ### Step 5: Output Detailed Help (If Command Specified)
@@ -133,7 +128,7 @@ Tip: Run /line:tidy to commit changes before starting new work.
 Read the command file and output detailed help:
 
 ```bash
-COMMAND_FILE="commands/${ARGUMENTS#line:}.md"
+COMMAND_FILE="commands/${ARGUMENTS#line-}.md"
 if [ ! -f "$COMMAND_FILE" ]; then
   # Try without prefix
   COMMAND_FILE="commands/$ARGUMENTS.md"
@@ -144,7 +139,7 @@ Output format for detailed help:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  /line:<command> - <description from frontmatter>      ║
+║  @line-<command> - <description from frontmatter>      ║
 ╚══════════════════════════════════════════════════════════════╝
 
 SUMMARY
@@ -163,7 +158,7 @@ RELATED COMMANDS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 <Previous/Next in workflow>
 
-Back to overview: /line:help
+Back to overview: @line-help
 ```
 
 **Command not found:**
@@ -176,7 +171,7 @@ Available commands:
   Execution: run, prep, cook, serve, tidy, plate
   Reference: getting-started, loop, help
 
-Run /line:help for overview.
+Run @line-help for overview.
 ```
 
 ---
@@ -187,22 +182,22 @@ Quick reference for all commands:
 
 | Command | Phase | Description |
 |---------|-------|-------------|
-| `/line:mise` | Planning | Full planning cycle (orchestrates brainstorm→scope→finalize) |
-| `/line:brainstorm` | Planning | Explore problem space (divergent thinking) |
-| `/line:scope` | Planning | Create work breakdown (convergent thinking) |
-| `/line:finalize` | Planning | Convert plan to beads and test specs |
-| `/line:plan-audit` | Planning | Check bead health and structure |
-| `/line:architecture-audit` | Planning | Analyze code structure and smells |
-| `/line:decision` | Planning | Record, list, or supersede architecture decisions |
-| `/line:run` | Execution | Full cycle (orchestrates prep→cook→serve→tidy) |
-| `/line:prep` | Execution | Sync state, show ready tasks |
-| `/line:cook` | Execution | Execute task with TDD guardrails |
-| `/line:serve` | Execution | Review changes (sous-chef subagent) |
-| `/line:tidy` | Execution | Commit and push |
-| `/line:plate` | Execution | Validate completed feature (maître subagent) |
-| `/line:getting-started` | Reference | Workflow guide with bead reference |
-| `/line:loop` | Reference | Autonomous loop management |
-| `/line:help` | Reference | Contextual help for Line Cook commands |
+| `@line-mise` | Planning | Full planning cycle (orchestrates brainstorm→scope→finalize) |
+| `@line-brainstorm` | Planning | Explore problem space (divergent thinking) |
+| `@line-scope` | Planning | Create work breakdown (convergent thinking) |
+| `@line-finalize` | Planning | Convert plan to beads and test specs |
+| `@line-plan-audit` | Planning | Check bead health and structure |
+| `@line-architecture-audit` | Planning | Analyze code structure and smells |
+| `@line-decision` | Planning | Record, list, or supersede architecture decisions |
+| `@line-run` | Execution | Full cycle (orchestrates prep→cook→serve→tidy) |
+| `@line-prep` | Execution | Sync state, show ready tasks |
+| `@line-cook` | Execution | Execute task with TDD guardrails |
+| `@line-serve` | Execution | Review changes (sous-chef subagent) |
+| `@line-tidy` | Execution | Commit and push |
+| `@line-plate` | Execution | Validate completed feature (maître subagent) |
+| `@line-getting-started` | Reference | Workflow guide with bead reference |
+| `@line-loop` | Reference | Autonomous loop management |
+| `@line-help` | Reference | Contextual help for Line Cook commands |
 
 ---
 
@@ -231,7 +226,7 @@ Planning creates work. Execution completes work.
 ## Example Usage
 
 ```
-/line:help              # Show quick reference with context
-/line:help cook         # Detailed help for cook command
-/line:help mise         # Detailed help for mise command
+@line-help              # Show quick reference with context
+@line-help cook         # Detailed help for cook command
+@line-help mise         # Detailed help for mise command
 ```
