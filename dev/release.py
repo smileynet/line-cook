@@ -10,6 +10,7 @@ Usage:
     ./dev/release.py 0.8.2 --push       # Prepare + push (triggers GH release)
     ./dev/release.py 0.8.2 --dry-run    # Show what would change, no modifications
     ./dev/release.py --check            # Validate current state only
+    ./dev/release.py --bundle           # Bundle line_loop only (for dev testing)
 
 Exit codes:
     0: Success
@@ -273,17 +274,32 @@ def update_changelog(config: ReleaseConfig) -> bool:
         # Update existing [Unreleased] link
         unreleased_link_pattern = r"\[Unreleased\]: (https://github\.com/[^/]+/[^/]+)/compare/v[\d.]+\.\.\.HEAD"
         unreleased_link_replacement = f"[Unreleased]: \\1/compare/v{config.version}...HEAD"
-        new_content = re.sub(unreleased_link_pattern, unreleased_link_replacement, new_content)
+        updated_content = re.sub(unreleased_link_pattern, unreleased_link_replacement, new_content)
+        if updated_content == new_content:
+            print(f"  {color('⚠', Colors.YELLOW)} Could not update [Unreleased] comparison link (format mismatch)")
+        new_content = updated_content
+
+        # Extract repo URL from [Unreleased] link (avoids hardcoding)
+        repo_url_match = re.search(r"\[Unreleased\]: (https://github\.com/[^/]+/[^/]+)/compare/", new_content)
+        if repo_url_match:
+            repo_url = repo_url_match.group(1)
+        else:
+            # Fallback: derive from git remote
+            _, remote_url = run_git(["remote", "get-url", "origin"])
+            repo_url = re.sub(r'\.git$', '', remote_url.replace("git@github.com:", "https://github.com/"))
 
         # Add new version link after [Unreleased] link
-        new_version_link = f"[{config.version}]: https://github.com/smileynet/line-cook/compare/v{previous}...v{config.version}"
+        new_version_link = f"[{config.version}]: {repo_url}/compare/v{previous}...v{config.version}"
 
         # Insert after [Unreleased] link line
+        before_insert = new_content
         new_content = re.sub(
             r"(\[Unreleased\]: https://github\.com/[^\n]+\n)",
             f"\\1{new_version_link}\n",
             new_content
         )
+        if new_content == before_insert:
+            print(f"  {color('⚠', Colors.YELLOW)} Could not insert version comparison link")
 
         if not config.dry_run:
             changelog_path.write_text(new_content)
@@ -587,6 +603,30 @@ def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
         except SyntaxError as e:
             print(f"  {color('✗', Colors.RED)} Syntax error in bundled file: {e}")
             return False
+
+        # Check bundle size to catch duplication regressions (v0.9.3 doubled to ~7000 lines)
+        line_count = len(bundled_content.splitlines())
+        if not (1000 <= line_count <= 8000):
+            print(f"  {color('✗', Colors.RED)} Bundle size suspect: {line_count} lines (expected 1000-8000)")
+            return False
+        print(f"  {color('✓', Colors.GREEN)} Bundle size: {line_count} lines")
+
+        # Smoke test: verify the bundled script actually executes
+        try:
+            result = subprocess.run(
+                [sys.executable, str(output_file), "--help"],
+                capture_output=True, text=True, timeout=10
+            )
+        except subprocess.TimeoutExpired:
+            print(f"  {color('✗', Colors.RED)} Smoke test timed out (--help hung for 10s)")
+            return False
+        if result.returncode != 0:
+            print(f"  {color('✗', Colors.RED)} Smoke test failed (--help returned {result.returncode})")
+            if result.stderr:
+                for line in result.stderr.strip().splitlines()[:5]:
+                    print(f"      {line}")
+            return False
+        print(f"  {color('✓', Colors.GREEN)} Smoke test passed (--help)")
     else:
         print(f"  {color('○', Colors.BLUE)} Would bundle line_loop package into line-loop.py")
 
@@ -822,6 +862,11 @@ def main():
         action="store_true",
         help="Validate current state only, don't release"
     )
+    parser.add_argument(
+        "--bundle",
+        action="store_true",
+        help="Bundle line_loop package only (for dev testing)"
+    )
 
     args = parser.parse_args()
 
@@ -830,6 +875,17 @@ def main():
     # Check-only mode
     if args.check:
         return run_check_only(repo_root)
+
+    # Bundle-only mode
+    if args.bundle:
+        print()
+        print("Bundling line_loop package:")
+        if bundle_line_loop(repo_root):
+            print()
+            print(color("✓ Bundle complete", Colors.GREEN))
+            return 0
+        else:
+            return 4
 
     # Version required for release
     if not args.version:
@@ -896,12 +952,15 @@ def main():
 
     # Capture current version before updating (for changelog links)
     config.previous_version = current
+    rollback_hint = "  To undo: git checkout -- ." if not config.dry_run else ""
 
     # Update versions
     print()
     print("Updating versions:")
     if not update_versions(config):
         print(color("Version update failed.", Colors.RED))
+        if rollback_hint:
+            print(rollback_hint)
         return 2
 
     # Update changelog
@@ -909,6 +968,8 @@ def main():
     print("Updating CHANGELOG:")
     if not update_changelog(config):
         print(color("CHANGELOG update failed.", Colors.RED))
+        if rollback_hint:
+            print(rollback_hint)
         return 3
 
     # Bundle line_loop package
@@ -916,6 +977,8 @@ def main():
     print("Bundling line_loop package:")
     if not bundle_line_loop(config.repo_root, config.dry_run):
         print(color("Bundling failed.", Colors.RED))
+        if rollback_hint:
+            print(rollback_hint)
         return 4
 
     # Run validation
@@ -923,6 +986,8 @@ def main():
     print("Validation:")
     if not run_validation_scripts(config):
         print(color("Validation failed.", Colors.RED))
+        if rollback_hint:
+            print(rollback_hint)
         return 5
 
     # Create commit
@@ -930,6 +995,8 @@ def main():
     print("Commit:")
     if not create_commit(config):
         print(color("Commit failed.", Colors.RED))
+        if rollback_hint:
+            print(rollback_hint)
         return 6
 
     # Push if requested

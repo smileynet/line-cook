@@ -186,9 +186,11 @@ The script performs these steps internally:
 1. Pre-flight checks (clean tree, on main, up to date)
 2. Version bump across all manifests
 3. CHANGELOG transformation ([Unreleased] → version section)
-4. **Bundle `line_loop` package** into `plugins/claude-code/scripts/line-loop.py`
+4. **Bundle `line_loop` package** into `plugins/claude-code/scripts/line-loop.py` (syntax check + size guard + smoke test)
 5. Run validation scripts
 6. Create release commit
+
+> **Tip:** Use `./dev/release.py --bundle` to test bundling independently during development.
 
 **Exit codes** (for diagnosing failures):
 | Code | Meaning |
