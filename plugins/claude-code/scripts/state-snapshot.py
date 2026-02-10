@@ -1,0 +1,548 @@
+#!/usr/bin/env python3
+"""
+state-snapshot.py - Full state collection for the prep phase.
+
+Replaces the inline "Collect State" block in prep: sync, roster gathering,
+hierarchy walk, and branch recommendation.
+
+Usage:
+    python3 plugins/claude-code/scripts/state-snapshot.py              # Human output
+    python3 plugins/claude-code/scripts/state-snapshot.py --json       # JSON output
+    python3 plugins/claude-code/scripts/state-snapshot.py --sync       # Force sync
+    python3 plugins/claude-code/scripts/state-snapshot.py --no-sync    # Skip sync
+
+Exit codes:
+    0: Success
+    1: Script error
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+def run_cmd(args, timeout=15):
+    """Run a command and return (returncode, stdout, stderr)."""
+    try:
+        result = subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout
+        )
+        return result.returncode, result.stdout.strip(), result.stderr.strip()
+    except FileNotFoundError:
+        return -1, "", "command not found: {}".format(args[0])
+    except subprocess.TimeoutExpired:
+        return -1, "", "timeout after {}s".format(timeout)
+
+
+def run_bd_json(args, timeout=15):
+    """Run a bd command with --json and parse the result.
+
+    Unwraps single-item list responses to dict. Returns None on error.
+    """
+    full_args = ["bd"] + args + ["--json"]
+    rc, out, err = run_cmd(full_args, timeout=timeout)
+    if rc != 0 or not out:
+        return None
+    try:
+        data = json.loads(out)
+        # bd sometimes returns a single-item list
+        if isinstance(data, list) and len(data) == 1:
+            return data[0]
+        return data
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _validate_bead_id(bid):
+    """Validate bead ID format to prevent malformed input in subprocess calls."""
+    return bool(bid and re.match(r'^[a-zA-Z0-9._-]+$', bid))
+
+
+def do_sync():
+    """Sync git and beads, return status dict."""
+    result = {"git": "skipped", "beads": "skipped"}
+
+    # Git sync
+    rc, _, _ = run_cmd(["git", "fetch", "origin"], timeout=30)
+    if rc != 0:
+        result["git"] = "fetch failed"
+    else:
+        rc_pull, _, _ = run_cmd(["git", "pull", "--rebase"], timeout=30)
+        result["git"] = "ok" if rc_pull == 0 else "pull failed"
+
+    # Beads sync
+    rc, _, _ = run_cmd(["bd", "sync"], timeout=30)
+    result["beads"] = "ok" if rc == 0 else "failed"
+
+    return result
+
+
+def get_project_info():
+    """Get basic project info."""
+    info = {"dir": os.getcwd(), "branch": None}
+    rc, out, _ = run_cmd(["git", "branch", "--show-current"])
+    if rc == 0:
+        info["branch"] = out or "(detached HEAD)"
+    return info
+
+
+def get_manual_summary():
+    """Read first 100 lines of AGENTS.md."""
+    agents_path = Path("AGENTS.md")
+    if not agents_path.exists():
+        return None
+    try:
+        lines = agents_path.read_text().splitlines()[:100]
+        return "\n".join(lines)
+    except OSError:
+        return None
+
+
+def get_roster():
+    """Gather ready, in_progress, and blocked items."""
+    roster = {"ready": [], "in_progress": [], "blocked": []}
+
+    # Ready items
+    rc, out, _ = run_cmd(["bd", "ready", "--json"], timeout=15)
+    if rc == 0 and out:
+        try:
+            data = json.loads(out)
+            if isinstance(data, list):
+                roster["ready"] = [
+                    _summarize_bead(b) for b in data
+                ]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # In-progress items
+    rc, out, _ = run_cmd(["bd", "list", "--status=in_progress", "--json"], timeout=15)
+    if rc == 0 and out:
+        try:
+            data = json.loads(out)
+            if isinstance(data, list):
+                roster["in_progress"] = [
+                    _summarize_bead(b) for b in data
+                ]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Blocked items
+    rc, out, _ = run_cmd(["bd", "blocked", "--json"], timeout=15)
+    if rc == 0 and out:
+        try:
+            data = json.loads(out)
+            if isinstance(data, list):
+                roster["blocked"] = [
+                    _summarize_bead(b) for b in data
+                ]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return roster
+
+
+def _summarize_bead(bead):
+    """Extract summary fields from a bead dict."""
+    if not isinstance(bead, dict):
+        return {"id": str(bead)}
+    return {
+        "id": bead.get("id", ""),
+        "title": bead.get("title", ""),
+        "priority": bead.get("priority"),
+        "type": bead.get("type") or bead.get("issue_type", ""),
+    }
+
+
+def suggest_next_task(roster):
+    """Suggest highest priority ready item. Drills into epics transparently.
+
+    Returns dict with 'suggestion' (task detail or None) and 'drill_path'
+    (list of IDs showing the drill-down reasoning).
+    """
+    ready = roster.get("ready", [])
+    if not ready:
+        return {"suggestion": None, "drill_path": []}
+
+    # Ready list is typically priority-sorted by bd
+    candidate = ready[0]
+    candidate_id = candidate.get("id", "")
+    if not _validate_bead_id(candidate_id):
+        return {"suggestion": None, "drill_path": []}
+
+    # Check if it's an epic — drill down to find first ready child
+    detail = run_bd_json(["show", candidate_id])
+    if detail and isinstance(detail, dict):
+        bead_type = detail.get("type") or detail.get("issue_type", "")
+        if bead_type == "epic":
+            drill_path = [candidate_id]
+            return _drill_epic_transparent(candidate_id, drill_path)
+        return {"suggestion": _extract_task_detail(detail), "drill_path": [candidate_id]}
+
+    suggestion = _extract_task_detail(candidate) if isinstance(candidate, dict) else None
+    return {"suggestion": suggestion, "drill_path": [candidate_id]}
+
+
+def _drill_epic_transparent(epic_id, drill_path, depth=0):
+    """Find first ready child of an epic, recording the drill path.
+
+    Returns dict with 'suggestion' and 'drill_path'. When no ready children
+    are found, returns None suggestion with drill_path showing what was checked.
+    """
+    if depth >= 5:
+        return {"suggestion": None, "drill_path": drill_path}
+
+    # Intentionally omit --all: we only want non-closed children for drill-down
+    rc, out, _ = run_cmd(["bd", "list", "--parent=" + epic_id, "--json"], timeout=15)
+    if rc != 0 or not out:
+        return {"suggestion": None, "drill_path": drill_path}
+
+    try:
+        children = json.loads(out)
+        if not isinstance(children, list):
+            return {"suggestion": None, "drill_path": drill_path}
+    except (json.JSONDecodeError, TypeError):
+        return {"suggestion": None, "drill_path": drill_path}
+
+    # Find first open/ready child
+    for child in children:
+        if not isinstance(child, dict):
+            continue
+        status = child.get("status", "")
+        if status in ("open", "ready"):
+            child_id = child.get("id", "")
+            drill_path.append(child_id)
+            child_type = child.get("type") or child.get("issue_type", "")
+            if child_type in ("epic", "feature"):
+                return _drill_epic_transparent(child_id, drill_path, depth + 1)
+            return {"suggestion": _extract_task_detail(child), "drill_path": drill_path}
+
+    return {"suggestion": None, "drill_path": drill_path}
+
+
+def _extract_task_detail(detail):
+    """Extract task detail from a bd show response."""
+    if not isinstance(detail, dict):
+        return None
+
+    description = detail.get("description", "") or ""
+
+    # First paragraph as summary
+    paragraphs = description.split("\n\n")
+    summary = paragraphs[0].strip() if paragraphs else ""
+
+    # Extract deliverables (lines starting with "- " after "Deliverable" heading)
+    deliverables = []
+    in_deliverables = False
+    for line in description.splitlines():
+        line_lower = line.lower().strip()
+        if "deliverable" in line_lower and (":" in line_lower or line_lower.startswith("#")):
+            in_deliverables = True
+            continue
+        if in_deliverables:
+            stripped = line.strip()
+            if stripped.startswith("- "):
+                deliverables.append(stripped[2:])
+            elif stripped and not stripped.startswith("-"):
+                in_deliverables = False
+
+    return {
+        "id": detail.get("id", ""),
+        "title": detail.get("title", ""),
+        "priority": detail.get("priority"),
+        "description_summary": summary[:500],
+        "deliverables": deliverables,
+    }
+
+
+def build_hierarchy(task_id):
+    """Walk parent chain to build epic→feature→task hierarchy."""
+    hierarchy = {"epic": None, "feature": None, "completed_siblings": []}
+
+    if not _validate_bead_id(task_id):
+        return hierarchy
+    detail = run_bd_json(["show", task_id])
+    if not detail or not isinstance(detail, dict):
+        return hierarchy
+
+    parent_id = detail.get("parent")
+    if not parent_id or not _validate_bead_id(parent_id):
+        return hierarchy
+
+    # Parent = feature (usually)
+    parent = run_bd_json(["show", parent_id])
+    if parent and isinstance(parent, dict):
+        parent_type = parent.get("type") or parent.get("issue_type", "")
+
+        if parent_type == "feature":
+            hierarchy["feature"] = {
+                "id": parent.get("id", ""),
+                "title": parent.get("title", ""),
+                "goal": _extract_goal(parent),
+                "progress": _calc_progress(parent_id),
+            }
+
+            # Walk up to epic
+            grandparent_id = parent.get("parent")
+            if grandparent_id:
+                grandparent = run_bd_json(["show", grandparent_id])
+                if grandparent and isinstance(grandparent, dict):
+                    hierarchy["epic"] = {
+                        "id": grandparent.get("id", ""),
+                        "title": grandparent.get("title", ""),
+                        "goal": _extract_goal(grandparent),
+                        "progress": _calc_progress(grandparent_id),
+                    }
+
+        elif parent_type == "epic":
+            hierarchy["epic"] = {
+                "id": parent.get("id", ""),
+                "title": parent.get("title", ""),
+                "goal": _extract_goal(parent),
+                "progress": _calc_progress(parent_id),
+            }
+
+        # Find completed siblings
+        rc, out, _ = run_cmd(["bd", "list", "--parent=" + parent_id, "--json"], timeout=15)
+        if rc == 0 and out:
+            try:
+                siblings = json.loads(out)
+                if isinstance(siblings, list):
+                    hierarchy["completed_siblings"] = [
+                        {"id": s.get("id", ""), "title": s.get("title", "")}
+                        for s in siblings
+                        if isinstance(s, dict) and s.get("status") == "closed"
+                    ]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    return hierarchy
+
+
+def _extract_goal(bead):
+    """Extract goal text (first line of description, max 200 chars)."""
+    description = (bead.get("description", "") or "").strip()
+    if not description:
+        return None
+    first_line = description.split("\n")[0].strip()
+    return first_line[:200] if first_line else None
+
+
+def _calc_progress(parent_id):
+    """Calculate child progress as 'closed/total' string."""
+    if not _validate_bead_id(parent_id):
+        return None
+    rc, out, _ = run_cmd(["bd", "list", "--parent=" + parent_id, "--json"], timeout=15)
+    if rc != 0 or not out:
+        return None
+    try:
+        children = json.loads(out)
+        if not isinstance(children, list):
+            return None
+        total = len(children)
+        closed = sum(
+            1 for c in children
+            if isinstance(c, dict) and c.get("status") == "closed"
+        )
+        return "{}/{}".format(closed, total)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def get_branch_recommendation(hierarchy, current_branch):
+    """Determine expected branch based on hierarchy.
+
+    Returns deterministic data: expected branch name, current branch,
+    and whether the expected branch exists. Agent decides what action to take.
+    """
+    rec = {
+        "expected": None,
+        "current": current_branch,
+        "branch_exists": False,
+    }
+
+    epic = hierarchy.get("epic")
+    feature = hierarchy.get("feature")
+    if not epic and not feature:
+        rec["expected"] = current_branch or "main"
+        rec["branch_exists"] = True  # expected matches current, exists by definition
+        return rec
+
+    # Determine branch: epic branch takes priority, feature branch as fallback
+    if epic:
+        branch_id = epic.get("id", "")
+        expected = "epic/{}".format(branch_id)
+    else:
+        branch_id = feature.get("id", "")
+        expected = "feature/{}".format(branch_id)
+    rec["expected"] = expected
+
+    # Check if expected branch exists
+    rc, out, _ = run_cmd(["git", "branch", "--list", expected])
+    rec["branch_exists"] = rc == 0 and bool(out.strip())
+
+    return rec
+
+
+def format_human(data):
+    """Format snapshot data as human-readable text."""
+    lines = ["# State Snapshot", ""]
+
+    project = data.get("project", {})
+    lines.append("## Project")
+    lines.append("  Directory: {}".format(project.get("dir", "")))
+    lines.append("  Branch: {}".format(project.get("branch", "unknown")))
+    lines.append("")
+
+    sync = data.get("sync", {})
+    if sync:
+        lines.append("## Sync")
+        lines.append("  Git: {}".format(sync.get("git", "skipped")))
+        lines.append("  Beads: {}".format(sync.get("beads", "skipped")))
+        lines.append("")
+
+    roster = data.get("roster", {})
+    lines.append("## Task Roster")
+    lines.append("  Ready: {}".format(len(roster.get("ready", []))))
+    lines.append("  In Progress: {}".format(len(roster.get("in_progress", []))))
+    lines.append("  Blocked: {}".format(len(roster.get("blocked", []))))
+
+    for item in roster.get("ready", [])[:5]:
+        lines.append("    [{}] {} (P{})".format(
+            item.get("id", "?"), item.get("title", ""), item.get("priority", "?")
+        ))
+    lines.append("")
+
+    suggestion_data = data.get("suggest_next_task", {})
+    suggestion = suggestion_data.get("suggestion") if suggestion_data else None
+    drill_path = suggestion_data.get("drill_path", []) if suggestion_data else []
+    if suggestion:
+        lines.append("## Suggested Next Task")
+        lines.append("  ID: {}".format(suggestion.get("id", "")))
+        lines.append("  Title: {}".format(suggestion.get("title", "")))
+        if suggestion.get("deliverables"):
+            lines.append("  Deliverables:")
+            for deliverable in suggestion["deliverables"]:
+                lines.append("    - {}".format(deliverable))
+        if drill_path:
+            lines.append("  Drill path: {}".format(" -> ".join(drill_path)))
+        lines.append("")
+    elif drill_path:
+        lines.append("## Suggested Next Task")
+        lines.append("  No ready task found")
+        lines.append("  Drill path checked: {}".format(" -> ".join(drill_path)))
+        lines.append("")
+
+    hierarchy = data.get("hierarchy", {})
+    if hierarchy.get("epic") or hierarchy.get("feature"):
+        lines.append("## Hierarchy")
+        if hierarchy.get("epic"):
+            epic = hierarchy["epic"]
+            lines.append("  Epic: {} - {} ({})".format(
+                epic.get("id", ""), epic.get("title", ""), epic.get("progress", "?")
+            ))
+        if hierarchy.get("feature"):
+            feature = hierarchy["feature"]
+            lines.append("  Feature: {} - {} ({})".format(
+                feature.get("id", ""), feature.get("title", ""), feature.get("progress", "?")
+            ))
+        if hierarchy.get("completed_siblings"):
+            sibling_strs = []
+            for s in hierarchy["completed_siblings"]:
+                if isinstance(s, dict):
+                    sibling_strs.append("{} ({})".format(
+                        s.get("id", ""), s.get("title", "")
+                    ))
+                else:
+                    sibling_strs.append(str(s))
+            lines.append("  Completed siblings: {}".format(
+                ", ".join(sibling_strs)
+            ))
+        lines.append("")
+
+    branch = data.get("branch_recommendation", {})
+    if branch.get("expected") and branch.get("expected") != branch.get("current"):
+        lines.append("## Branch Info")
+        lines.append("  Expected: {}".format(branch.get("expected", "")))
+        lines.append("  Current: {}".format(branch.get("current", "")))
+        lines.append("  Branch exists: {}".format(branch.get("branch_exists", False)))
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Collect full state snapshot for prep phase"
+    )
+    parser.add_argument(
+        "--json", action="store_true",
+        help="Output JSON instead of human-readable format"
+    )
+    sync_group = parser.add_mutually_exclusive_group()
+    sync_group.add_argument(
+        "--sync", action="store_true", default=False,
+        help="Force git fetch/pull and bd sync"
+    )
+    sync_group.add_argument(
+        "--no-sync", action="store_true", default=False,
+        help="Skip sync step entirely"
+    )
+
+    args = parser.parse_args()
+
+    data = {}
+
+    # Sync
+    if args.sync:
+        data["sync"] = do_sync()
+    elif not args.no_sync:
+        # Default: sync
+        data["sync"] = do_sync()
+    else:
+        data["sync"] = {"git": "skipped", "beads": "skipped"}
+
+    # Project info
+    data["project"] = get_project_info()
+
+    # Kitchen manual
+    manual = get_manual_summary()
+    if manual:
+        data["manual_summary"] = manual
+
+    # Roster
+    data["roster"] = get_roster()
+
+    # Suggest next task
+    data["suggest_next_task"] = suggest_next_task(data["roster"])
+
+    # Hierarchy (only if we have a suggestion)
+    task_id = None
+    suggestion = data["suggest_next_task"].get("suggestion")
+    if suggestion and isinstance(suggestion, dict):
+        task_id = suggestion.get("id")
+
+    if task_id:
+        data["hierarchy"] = build_hierarchy(task_id)
+    else:
+        data["hierarchy"] = {"epic": None, "feature": None, "completed_siblings": []}
+
+    # Branch recommendation
+    current_branch = data["project"].get("branch")
+    data["branch_recommendation"] = get_branch_recommendation(
+        data["hierarchy"], current_branch
+    )
+
+    if args.json:
+        print(json.dumps(data, indent=2))
+    else:
+        print(format_human(data))
+
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
