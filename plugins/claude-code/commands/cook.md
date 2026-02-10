@@ -24,12 +24,16 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 - Run `bd ready` to get available tasks
 - Select the highest priority task (lowest P number)
 
-**Check if selected item is an epic:**
+**Gather task context (epic check, prior context, tools):**
 ```bash
-bd show <id> --json
+# Collect task detail, epic detection, prior serve comments, retry context, and tools
+CONTEXT=$(python3 plugins/claude-code/scripts/kitchen-equipment.py <id> --json 2>/dev/null)
+echo "$CONTEXT"
 ```
 
-If `issue_type` is `epic`, the epic itself has no work to execute. Instead:
+The JSON output includes: `task`, `is_epic`, `epic_children`, `prior_context` (serve_comments, retry_context, has_rework), `tools`, and `planning_context`.
+
+If `is_epic` is true, the epic itself has no work to execute. Instead:
 
 1. Show the epic and its children:
    ```bash
@@ -83,15 +87,13 @@ Status: started"
 
 ### Step 1.5: Check for Prior Context
 
-Check for previous review findings and retry context in one pass:
+The `kitchen-equipment.py` output from Step 1 already includes `prior_context` with:
+- `prior_context.serve_comments`: extracted PHASE: SERVE feedback (capped at 2000 chars)
+- `prior_context.serve_comments_truncated`: whether comments were truncated
+- `prior_context.retry_context`: structured retry data from `.line-cook/retry-context.json`
+- `prior_context.has_rework`: true if any rework signals found
 
-```bash
-# Check for previous review findings and retry context
-echo "=== SERVE COMMENTS ==="
-bd comments list <id> 2>/dev/null | grep -A 20 "PHASE: SERVE" || echo "(none)"
-echo "=== RETRY CONTEXT ==="
-cat .line-cook/retry-context.json 2>/dev/null || echo "(none)"
-```
+Use this data directly — no additional subprocess calls needed.
 
 **If review findings exist (NEEDS_CHANGES):**
 1. Load findings from the serve comment
@@ -240,7 +242,6 @@ COOKING: <id> - <title>
 [3/N] <todo item> ... in progress
 
 Progress: 2/N complete
-
 TDD Phase: RED/GREEN/REFACTOR
 ```
 

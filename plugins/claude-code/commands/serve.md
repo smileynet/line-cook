@@ -25,29 +25,15 @@ After cooking (executing a task), you "serve" it for review before tidying up.
 **Otherwise:**
 - Identify from the collected output below
 
-Collect bead state, changes, and project context in one pass:
+Collect bead state and changes in one structured call:
 
 ```bash
-# Identify bead to review
-echo "=== RECENT CLOSED ==="
-bd list --status=closed --limit=1 2>/dev/null || echo "(none)"
-echo "=== IN PROGRESS ==="
-bd list --status=in_progress --limit=1 2>/dev/null || echo "(none)"
-
-# Collect changes
-echo "=== CHANGES ==="
-git diff 2>/dev/null
-echo "=== STAGED ==="
-git diff --cached 2>/dev/null
-echo "=== FILES ==="
-git status --porcelain
-echo "=== LAST COMMIT ==="
-git diff HEAD~1 2>/dev/null
-
-# Project context for review
-echo "=== PROJECT CONTEXT ==="
-head -50 CLAUDE.md 2>/dev/null || echo "(no CLAUDE.md)"
+# Collect review context: bead identification, git diffs (truncated at 200 lines), file status
+REVIEW=$(python3 plugins/claude-code/scripts/diff-collector.py --json 2>/dev/null)
+echo "$REVIEW"
 ```
+
+The JSON output includes: `bead` (auto-detected target), `changes` (unstaged/staged/last_commit diffs with `*_truncated` flags, files list). Diffs are capped at 200 lines each to prevent context window blowout.
 
 Then load the specific bead details (needs ID from collected output):
 ```bash
@@ -137,9 +123,9 @@ Based on sous-chef verdict:
 - No changes needed
 
 **If verdict is needs_changes:**
-- Do NOT continue to tidy
 - Report findings to user with SERVE_RESULT showing `next_step: /line:cook`
-- The user will rerun `/line:cook` with the review findings
+- User will rerun `/line:cook` with the review findings
+- Do NOT continue to tidy
 
 **If verdict is blocked:**
 - CRITICAL issues must be fixed before tidying

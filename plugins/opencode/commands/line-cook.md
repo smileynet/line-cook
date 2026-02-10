@@ -24,12 +24,16 @@ description: Select and execute a task with completion guardrails
 - Run `bd ready` to get available tasks
 - Select the highest priority task (lowest P number)
 
-**Check if selected item is an epic:**
+**Gather task context (epic check, prior context, tools):**
 ```bash
-bd show <id> --json
+# Collect task detail, epic detection, prior serve comments, retry context, and tools
+CONTEXT=$(python3 plugins/claude-code/scripts/kitchen-equipment.py <id> --json 2>/dev/null)
+echo "$CONTEXT"
 ```
 
-If `issue_type` is `epic`, the epic itself has no work to execute. Instead:
+The JSON output includes: `task`, `is_epic`, `epic_children`, `prior_context` (serve_comments, retry_context, has_rework), `tools`, and `planning_context`.
+
+If `is_epic` is true, the epic itself has no work to execute. Instead:
 
 1. Show the epic and its children:
    ```bash
@@ -156,7 +160,6 @@ COOKING: <id> - <title>
 [3/N] <todo item> ... in progress
 
 Progress: 2/N complete
-
 TDD Phase: RED/GREEN/REFACTOR
 ```
 
