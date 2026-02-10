@@ -235,7 +235,7 @@ def _get_children(parent_id):
         _parent_children_cache[parent_id] = None
         return None
 
-    rc, out, _ = run_cmd(["bd", "list", "--parent=" + parent_id, "--json"], timeout=15)
+    rc, out, _ = run_cmd(["bd", "list", "--parent=" + parent_id, "--all", "--json"], timeout=15)
     if rc != 0 or not out:
         _parent_children_cache[parent_id] = None
         return None
