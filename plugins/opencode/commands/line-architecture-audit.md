@@ -400,7 +400,7 @@ echo "Report saved to: $REPORT_PATH"
 
 ## Reference
 
-See [Architecture Audit Guide](../../docs/guidance/architecture-audit.md) for:
+See [Architecture Audit Guide](../../../docs/guidance/architecture-audit.md) for:
 - Complete code smell catalog
 - Refactoring technique reference
 - Quality checklist
