@@ -6,11 +6,17 @@ on:
     paths:
       - 'plugins/claude-code/.claude-plugin/plugin.json'
 
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +48,7 @@ jobs:
           CHANGES=$(awk -v ver="$VERSION" 'BEGIN{pat="^## \\[" ver "\\] -"} $0 ~ pat {flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md)
 
           if [ -z "$CHANGES" ]; then
-            CHANGES="See [CHANGELOG.md](https://github.com/smileynet/line-cook/blob/main/CHANGELOG.md) for details."
+            CHANGES="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
           fi
 
           {
@@ -63,7 +69,7 @@ jobs:
 
           **First-time install:**
           ```bash
-          /plugin marketplace add smileynet/line-cook
+          /plugin marketplace add ${{ github.repository }}
           /plugin install line@line-cook
           ```
 
@@ -74,11 +80,9 @@ jobs:
 
           ## Documentation
 
-          - **[README](https://github.com/smileynet/line-cook#readme)** - Full documentation and commands
+          - **[README](https://github.com/${{ github.repository }}#readme)** - Full documentation and commands
           - **New to Line Cook?** Run `/line:getting-started` for an interactive tutorial
           EOF
-          # Strip leading spaces from heredoc (YAML indentation artifact)
-          sed -i 's/^          //' /tmp/release-notes.md
 
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "${{ steps.version.outputs.tag }}" \
