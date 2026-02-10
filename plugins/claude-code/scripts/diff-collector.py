@@ -3,7 +3,7 @@
 diff-collector.py - Gather review context for serve phase.
 
 Identifies the target bead, collects git diffs (unstaged, staged,
-last commit), and reads project context.
+last commit) with truncation to prevent context window blowout.
 
 Usage:
     python3 plugins/claude-code/scripts/diff-collector.py               # Auto-detect bead
@@ -20,7 +20,8 @@ import json
 import re
 import subprocess
 import sys
-from pathlib import Path
+
+MAX_DIFF_LINES = 200
 
 
 def run_cmd(args, timeout=15):
@@ -49,29 +50,27 @@ def find_target_bead(explicit_id=None):
         return _get_bead_detail(explicit_id)
 
     # Try recently closed first (matches template: serve reviews completed work)
-    rc, out, _ = run_cmd(["bd", "list", "--status=closed", "--json"], timeout=15)
-    if rc == 0 and out:
-        try:
-            data = json.loads(out)
-            if isinstance(data, list) and data:
-                first_item = data[0] if isinstance(data[0], dict) else None
-                if first_item:
-                    return _normalize_bead(first_item)
-        except (json.JSONDecodeError, TypeError):
-            pass
+    closed_bead = _find_first_bead_by_status("closed")
+    if closed_bead:
+        return closed_bead
 
     # Fall back to in-progress
-    rc, out, _ = run_cmd(["bd", "list", "--status=in_progress", "--json"], timeout=15)
-    if rc == 0 and out:
-        try:
-            data = json.loads(out)
-            if isinstance(data, list) and data:
-                first_item = data[0] if isinstance(data[0], dict) else None
-                if first_item:
-                    return _normalize_bead(first_item)
-        except (json.JSONDecodeError, TypeError):
-            pass
+    return _find_first_bead_by_status("in_progress")
 
+
+def _find_first_bead_by_status(status):
+    """Find first bead with given status, returning normalized dict or None."""
+    rc, out, _ = run_cmd(["bd", "list", f"--status={status}", "--json"], timeout=15)
+    if rc != 0 or not out:
+        return None
+    try:
+        data = json.loads(out)
+        if isinstance(data, list) and data:
+            first_item = data[0] if isinstance(data[0], dict) else None
+            if first_item and _validate_bead_id(first_item.get("id", "")):
+                return _normalize_bead(first_item)
+    except (json.JSONDecodeError, TypeError):
+        pass
     return None
 
 
@@ -103,54 +102,57 @@ def _normalize_bead(bead):
     }
 
 
+def _truncate_diff(diff_text):
+    """Truncate diff to MAX_DIFF_LINES. Returns (text, was_truncated)."""
+    if not diff_text:
+        return "", False
+    lines = diff_text.splitlines()
+    if len(lines) <= MAX_DIFF_LINES:
+        return diff_text, False
+    truncated = "\n".join(lines[:MAX_DIFF_LINES])
+    truncated += "\n... [{} lines truncated]".format(len(lines) - MAX_DIFF_LINES)
+    return truncated, True
+
+
 def collect_changes():
-    """Collect git diff information."""
+    """Collect git diff information with truncation."""
     changes = {
         "unstaged": "",
+        "unstaged_truncated": False,
         "staged": "",
+        "staged_truncated": False,
         "last_commit": "",
+        "last_commit_truncated": False,
         "files": [],
     }
 
     # Unstaged diff
     rc, out, _ = run_cmd(["git", "diff"], timeout=30)
     if rc == 0:
-        changes["unstaged"] = out
+        changes["unstaged"], changes["unstaged_truncated"] = _truncate_diff(out)
 
     # Staged diff
     rc, out, _ = run_cmd(["git", "diff", "--cached"], timeout=30)
     if rc == 0:
-        changes["staged"] = out
+        changes["staged"], changes["staged_truncated"] = _truncate_diff(out)
 
     # Last commit diff (skip if repo has no prior commit)
     rc, _, _ = run_cmd(["git", "rev-parse", "HEAD~1"])
     if rc == 0:
         rc, out, _ = run_cmd(["git", "diff", "HEAD~1"], timeout=30)
         if rc == 0:
-            changes["last_commit"] = out
+            changes["last_commit"], changes["last_commit_truncated"] = _truncate_diff(out)
 
     # File status list
     rc, out, _ = run_cmd(["git", "status", "--porcelain"])
     if rc == 0 and out:
         for line in out.splitlines():
-            if len(line) >= 4:  # porcelain format: XY<space>path (min 4 chars)
+            if len(line) >= 4:  # porcelain: "XY path" (renames show "XY old -> new")
                 status = line[:2].strip()
                 path = line[3:]
                 changes["files"].append({"path": path, "status": status})
 
     return changes
-
-
-def get_project_context():
-    """Read first 50 lines of CLAUDE.md for project context."""
-    claude_md = Path("CLAUDE.md")
-    if not claude_md.exists():
-        return None
-    try:
-        lines = claude_md.read_text().splitlines()[:50]
-        return "\n".join(lines)
-    except OSError:
-        return None
 
 
 def format_human(data):
@@ -181,15 +183,16 @@ def format_human(data):
     staged_lines = len(changes.get("staged", "").splitlines())
     commit_lines = len(changes.get("last_commit", "").splitlines())
     lines.append("## Diff Summary")
-    lines.append("  Unstaged: {} lines".format(unstaged_lines))
-    lines.append("  Staged: {} lines".format(staged_lines))
-    lines.append("  Last commit: {} lines".format(commit_lines))
+    lines.append("  Unstaged: {} lines{}".format(
+        unstaged_lines, " (TRUNCATED)" if changes.get("unstaged_truncated") else ""
+    ))
+    lines.append("  Staged: {} lines{}".format(
+        staged_lines, " (TRUNCATED)" if changes.get("staged_truncated") else ""
+    ))
+    lines.append("  Last commit: {} lines{}".format(
+        commit_lines, " (TRUNCATED)" if changes.get("last_commit_truncated") else ""
+    ))
     lines.append("")
-
-    if data.get("project_context"):
-        lines.append("## Project Context")
-        lines.append("  (First 50 lines of CLAUDE.md loaded)")
-        lines.append("")
 
     return "\n".join(lines)
 
@@ -211,12 +214,10 @@ def main():
 
     bead = find_target_bead(args.bead_id)
     changes = collect_changes()
-    project_context = get_project_context()
 
     data = {
         "bead": bead,
         "changes": changes,
-        "project_context": project_context,
     }
 
     if args.json:

@@ -10,30 +10,15 @@
 
 ### Step 1: Collect State
 
-Sync local state, load context, and gather kitchen roster in one pass:
+Sync local state, load context, and gather kitchen roster in one structured call:
 
 ```bash
-# Sync
-git fetch origin 2>&1 && git pull --rebase 2>&1
-[ -d .beads ] && bd sync 2>&1 || true
-
-# Project info
-echo "=== PROJECT ==="
-echo "DIR: $(pwd)"
-echo "BRANCH: $(git branch --show-current)"
-
-# Kitchen manual (work structure, terminology, conventions)
-echo "=== KITCHEN MANUAL ==="
-head -100 AGENTS.md 2>/dev/null || echo "(no AGENTS.md)"
-
-# Task state
-echo "=== READY ==="
-bd ready 2>/dev/null || echo "(no beads configured)"
-echo "=== IN PROGRESS ==="
-bd list --status=in_progress 2>/dev/null || echo "(none)"
-echo "=== BLOCKED ==="
-bd blocked 2>/dev/null || echo "(none)"
+# Collect all state: sync, project info, roster, suggestion, hierarchy, branch
+STATE=$(python3 plugins/claude-code/scripts/state-snapshot.py --json 2>/dev/null)
+echo "$STATE"
 ```
+
+The JSON output includes: `sync`, `project`, `roster` (ready/in_progress/blocked), `suggest_next_task` (with drill_path), `hierarchy` (epic/feature/completed_siblings), and `branch_recommendation`.
 
 ### Step 2: Branching Strategy
 
@@ -56,39 +41,22 @@ Before outputting the summary, determine the recommended next task and its hiera
 
 #### 3a: Find Next Ready Task
 
-1. Get the highest priority ready item from `bd ready`
-2. Check if it's an epic: `bd show <id> --json` and check `issue_type`
+The `state-snapshot.py` output includes `suggest_next_task` with:
+- `suggest_next_task.suggestion`: the recommended task (already drilled through epics)
+- `suggest_next_task.drill_path`: list of IDs showing epic → feature → task drill-down
 
-**If the top item is an epic:**
-- Epics themselves don't contain work - their children do
-- Find the first ready child task: `bd list --parent=<epic-id>` filtered by ready (open + unblocked)
-- Recommend that child task instead
-
-**If no ready tasks but epics have unstarted children:**
-- Check epic children that are open but not blocked
-- Recommend starting with those
+Use this directly. **Fallback** (if `suggestion` is null): manually check `roster.ready` and drill into epics:
+1. Get the highest priority ready item
+2. If it's an epic, find its first ready child via `bd list --parent=<epic-id>`
 
 #### 3b: Gather Parent Hierarchy
 
-Once you have identified the next task, gather its parent chain:
+The `state-snapshot.py` output already includes `hierarchy` with:
+- `hierarchy.epic`: epic ID, title, goal, and progress (closed/total)
+- `hierarchy.feature`: feature ID, title, goal, and progress
+- `hierarchy.completed_siblings`: list of completed sibling tasks with IDs and titles
 
-```bash
-TASK_JSON=$(bd show <task-id> --json)
-PARENT_ID=$(echo $TASK_JSON | jq -r '.[0].parent // empty')
-
-if [ -n "$PARENT_ID" ]; then
-  FEATURE_JSON=$(bd show $PARENT_ID --json)
-  TOTAL_SIBLINGS=$(bd list --parent=$PARENT_ID | wc -l)
-  CLOSED_SIBLINGS=$(bd list --parent=$PARENT_ID --status=closed)
-
-  EPIC_ID=$(echo $FEATURE_JSON | jq -r '.[0].parent // empty')
-  if [ -n "$EPIC_ID" ]; then
-    EPIC_JSON=$(bd show $EPIC_ID --json)
-    TOTAL_FEATURES=$(bd list --parent=$EPIC_ID | wc -l)
-    CLOSED_FEATURES=$(bd list --parent=$EPIC_ID --status=closed | wc -l)
-  fi
-fi
-```
+Use this data directly — no additional subprocess calls needed.
 
 #### 3c: Extract Task Intent
 

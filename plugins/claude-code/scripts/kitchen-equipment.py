@@ -105,14 +105,16 @@ def get_prior_context(task_id):
     """Load prior serve comments and retry context."""
     context = {
         "serve_comments": None,
+        "serve_comments_truncated": False,
         "retry_context": None,
         "has_rework": False,
     }
 
     # Extract serve comments from bd
-    serve_comments = _extract_serve_comments(task_id)
-    if serve_comments:
-        context["serve_comments"] = serve_comments
+    serve_result = _extract_serve_comments(task_id)
+    if serve_result:
+        context["serve_comments"] = serve_result["text"]
+        context["serve_comments_truncated"] = serve_result["truncated"]
         context["has_rework"] = True
 
     # Load retry context file
@@ -129,8 +131,15 @@ def get_prior_context(task_id):
     return context
 
 
+MAX_SERVE_COMMENT_CHARS = 2000
+
+
 def _extract_serve_comments(task_id):
-    """Extract PHASE: SERVE comments from bd comments list."""
+    """Extract PHASE: SERVE comments from bd comments list.
+
+    Caps output at MAX_SERVE_COMMENT_CHARS to prevent context bloat.
+    Returns dict with 'text' and 'truncated' keys, or None if no comments.
+    """
     rc, out, _ = run_cmd(["bd", "comments", "list", task_id], timeout=15)
     if rc != 0 or not out:
         return None
@@ -146,7 +155,14 @@ def _extract_serve_comments(task_id):
         if in_serve_section:
             serve_lines.append(line)
 
-    return "\n".join(serve_lines) if serve_lines else None
+    if not serve_lines:
+        return None
+
+    text = "\n".join(serve_lines)
+    truncated = len(text) > MAX_SERVE_COMMENT_CHARS
+    if truncated:
+        text = text[:MAX_SERVE_COMMENT_CHARS] + "\n... [truncated]"
+    return {"text": text, "truncated": truncated}
 
 
 def detect_tools():
@@ -154,45 +170,56 @@ def detect_tools():
 
     Returns dict with test/build/lint keys set to command string or None.
     """
-    tools = {"test": None, "build": None, "lint": None}
     project_root = Path(".")
+    return {
+        "test": _detect_test_tool(project_root),
+        "build": _detect_build_tool(project_root),
+        "lint": _detect_lint_tool(project_root),
+    }
 
-    # Test tool detection
+
+def _detect_test_tool(project_root):
+    """Detect test command from project files."""
     if (project_root / "package.json").exists():
-        tools["test"] = "npm test"
-    elif (project_root / "pytest.ini").exists() or (project_root / "pyproject.toml").exists() or (project_root / "setup.py").exists():
-        tools["test"] = "pytest"
-    elif (project_root / "go.mod").exists():
-        tools["test"] = "go test"
-    elif (project_root / "Cargo.toml").exists():
-        tools["test"] = "cargo test"
-    elif (project_root / "Makefile").exists():
-        tools["test"] = "make test"
-
-    # Build tool detection
+        return "npm test"
+    if (project_root / "pytest.ini").exists() or (project_root / "pyproject.toml").exists() or (project_root / "setup.py").exists():
+        return "pytest"
+    if (project_root / "go.mod").exists():
+        return "go test"
+    if (project_root / "Cargo.toml").exists():
+        return "cargo test"
     if (project_root / "Makefile").exists():
-        tools["build"] = "make"
-    elif (project_root / "package.json").exists():
-        tools["build"] = "npm run build"
-    elif (project_root / "go.mod").exists():
-        tools["build"] = "go build"
-    elif (project_root / "Cargo.toml").exists():
-        tools["build"] = "cargo build"
+        return "make test"
+    return None
 
-    # Lint tool detection
+
+def _detect_build_tool(project_root):
+    """Detect build command from project files."""
+    if (project_root / "Makefile").exists():
+        return "make"
+    if (project_root / "package.json").exists():
+        return "npm run build"
+    if (project_root / "go.mod").exists():
+        return "go build"
+    if (project_root / "Cargo.toml").exists():
+        return "cargo build"
+    return None
+
+
+def _detect_lint_tool(project_root):
+    """Detect lint command from project files."""
     if (project_root / "ruff.toml").exists() or (project_root / ".ruff.toml").exists():
-        tools["lint"] = "ruff"
-    elif (project_root / ".eslintrc.js").exists() or (project_root / ".eslintrc.json").exists():
-        tools["lint"] = "eslint"
-    elif (project_root / "pyproject.toml").exists():
+        return "ruff"
+    if (project_root / ".eslintrc.js").exists() or (project_root / ".eslintrc.json").exists():
+        return "eslint"
+    if (project_root / "pyproject.toml").exists():
         try:
             content = (project_root / "pyproject.toml").read_text()
             if "[tool.ruff]" in content:
-                tools["lint"] = "ruff"
+                return "ruff"
         except OSError:
             pass
-
-    return tools
+    return None
 
 
 def get_ready_list():
@@ -224,49 +251,50 @@ def load_planning_context(description):
     """
     if not description:
         return None
-    cwd = Path.cwd().resolve()
-    for line in description.splitlines():
-        stripped = line.strip().lower()
-        if stripped.startswith("planning context:"):
-            path_str = line.strip().split(":", 1)[1].strip()
-            ctx_path = Path(path_str)
-            # Validate path is within project directory
-            try:
-                resolved = ctx_path.resolve()
-                if not resolved.is_relative_to(cwd):
-                    return None
-            except (OSError, ValueError):
-                return None
-            if ctx_path.is_dir():
-                # Read README.md or first .md file in the directory
-                readme = ctx_path / "README.md"
-                if readme.exists():
-                    try:
-                        return readme.read_text()[:5000]
-                    except OSError:
-                        return None
-                md_files = list(ctx_path.glob("*.md"))
-                if md_files:
-                    try:
-                        return md_files[0].read_text()[:5000]
-                    except OSError:
-                        return None
-            elif ctx_path.is_file():
-                try:
-                    return ctx_path.read_text()[:5000]
-                except OSError:
-                    return None
+
+    context_path = _extract_planning_context_path(description)
+    if not context_path:
+        return None
+
+    if context_path.is_dir():
+        return _read_directory_context(context_path)
+    if context_path.is_file():
+        return _read_file_safe(context_path, max_chars=5000)
     return None
 
 
-def get_kitchen_manual():
-    """Read first 100 lines of AGENTS.md."""
-    agents_path = Path("AGENTS.md")
-    if not agents_path.exists():
-        return None
+def _extract_planning_context_path(description):
+    """Extract and validate planning context path from description."""
+    cwd = Path.cwd().resolve()
+    for line in description.splitlines():
+        if line.strip().lower().startswith("planning context:"):
+            path_str = line.strip().split(":", 1)[1].strip()
+            ctx_path = Path(path_str)
+            try:
+                resolved = ctx_path.resolve()
+                if resolved.is_relative_to(cwd):
+                    return ctx_path
+            except (OSError, ValueError):
+                pass
+    return None
+
+
+def _read_directory_context(directory):
+    """Read README.md or first .md file from directory."""
+    readme = directory / "README.md"
+    if readme.exists():
+        return _read_file_safe(readme, max_chars=5000)
+
+    md_files = list(directory.glob("*.md"))
+    if md_files:
+        return _read_file_safe(md_files[0], max_chars=5000)
+    return None
+
+
+def _read_file_safe(file_path, max_chars=5000):
+    """Read file content safely with size limit."""
     try:
-        lines = agents_path.read_text().splitlines()[:100]
-        return "\n".join(lines)
+        return file_path.read_text()[:max_chars]
     except OSError:
         return None
 
@@ -312,7 +340,9 @@ def format_human(data):
     if context.get("has_rework"):
         lines.append("## Prior Context (REWORK)")
         if context.get("serve_comments"):
-            lines.append("  Serve feedback:")
+            lines.append("  Serve feedback{}:".format(
+                " (TRUNCATED)" if context.get("serve_comments_truncated") else ""
+            ))
             for line in context["serve_comments"].splitlines()[:10]:
                 lines.append("    {}".format(line))
         if context.get("retry_context"):
@@ -332,11 +362,6 @@ def format_human(data):
     if data.get("planning_context"):
         lines.append("## Planning Context")
         lines.append("  (Loaded from description path)")
-        lines.append("")
-
-    if data.get("kitchen_manual"):
-        lines.append("## Kitchen Manual")
-        lines.append("  (First 100 lines of AGENTS.md loaded)")
         lines.append("")
 
     return "\n".join(lines)
@@ -391,9 +416,6 @@ def main():
     # Load planning context from description
     planning_context = load_planning_context(task.get("description", ""))
 
-    # Load kitchen manual (AGENTS.md)
-    kitchen_manual = get_kitchen_manual()
-
     data = {
         "task": task,
         "is_epic": is_epic,
@@ -401,7 +423,6 @@ def main():
         "prior_context": prior_context,
         "tools": tools,
         "planning_context": planning_context,
-        "kitchen_manual": kitchen_manual,
     }
 
     if args.json:

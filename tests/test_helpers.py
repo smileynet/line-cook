@@ -23,19 +23,16 @@ SCRIPTS_DIR = REPO_ROOT / "plugins" / "claude-code" / "scripts"
 def run_script(script_name, args=None, timeout=30):
     """Run a helper script and return (returncode, stdout, stderr)."""
     script_path = SCRIPTS_DIR / script_name
-    script_args = args or []
-    cmd = [sys.executable, str(script_path)] + script_args
+    cmd = [sys.executable, str(script_path)] + (args or [])
     result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout,
-        cwd=str(REPO_ROOT),
+        cmd, capture_output=True, text=True, timeout=timeout, cwd=str(REPO_ROOT)
     )
     return result.returncode, result.stdout, result.stderr
 
 
 def parse_json_output(script_name, args=None, timeout=30):
     """Run script with --json and parse output."""
-    base_args = args or []
-    json_args = base_args + ["--json"]
+    json_args = (args or []) + ["--json"]
     returncode, stdout, stderr = run_script(script_name, json_args, timeout=timeout)
     if returncode != 0:
         raise AssertionError(
@@ -198,6 +195,11 @@ class TestStateSnapshot(unittest.TestCase):
         self.assertNotIn("action", rec)
         self.assertNotIn("reason", rec)
 
+    def test_no_manual_summary_field(self):
+        """manual_summary field was removed (agent already has AGENTS.md)."""
+        data = parse_json_output("state-snapshot.py", ["--no-sync"])
+        self.assertNotIn("manual_summary", data)
+
 
 class TestKitchenEquipment(unittest.TestCase):
     """Tests for kitchen-equipment.py."""
@@ -247,17 +249,25 @@ class TestKitchenEquipment(unittest.TestCase):
         self.assertNotIn("auto_selected", data)
         self.assertEqual(data["task"]["id"], bead_id)
 
-    def test_real_bead_has_kitchen_manual(self):
-        """Kitchen manual is loaded from AGENTS.md when available."""
+    def test_no_kitchen_manual_field(self):
+        """kitchen_manual field was removed (agent already has AGENTS.md)."""
         bead_id = find_any_bead_id()
         if not bead_id:
             self.skipTest("No beads available")
 
         data = parse_json_output("kitchen-equipment.py", [bead_id])
-        self.assertIn("kitchen_manual", data)
-        if (REPO_ROOT / "AGENTS.md").exists():
-            self.assertIsNotNone(data["kitchen_manual"])
-            self.assertTrue(len(data["kitchen_manual"]) > 0)
+        self.assertNotIn("kitchen_manual", data)
+
+    def test_prior_context_has_truncation_flag(self):
+        """Prior context includes serve_comments_truncated flag."""
+        bead_id = find_any_bead_id()
+        if not bead_id:
+            self.skipTest("No beads available")
+
+        data = parse_json_output("kitchen-equipment.py", [bead_id])
+        prior = data.get("prior_context", {})
+        self.assertIn("serve_comments_truncated", prior)
+        self.assertIsInstance(prior["serve_comments_truncated"], bool)
 
     def test_real_bead_has_planning_context_key(self):
         """Planning context key is present in output."""
@@ -286,10 +296,10 @@ class TestDiffCollector(unittest.TestCase):
         data = parse_json_output("diff-collector.py")
         self.assertIn("bead", data)
         self.assertIn("changes", data)
-        self.assertIn("project_context", data)
+        self.assertNotIn("project_context", data)
 
     def test_changes_structure(self):
-        """Changes section has expected fields."""
+        """Changes section has expected fields including truncation flags."""
         data = parse_json_output("diff-collector.py")
         changes = data["changes"]
         self.assertIn("unstaged", changes)
@@ -297,6 +307,13 @@ class TestDiffCollector(unittest.TestCase):
         self.assertIn("last_commit", changes)
         self.assertIn("files", changes)
         self.assertIsInstance(changes["files"], list)
+        # Truncation flags present
+        self.assertIn("unstaged_truncated", changes)
+        self.assertIn("staged_truncated", changes)
+        self.assertIn("last_commit_truncated", changes)
+        self.assertIsInstance(changes["unstaged_truncated"], bool)
+        self.assertIsInstance(changes["staged_truncated"], bool)
+        self.assertIsInstance(changes["last_commit_truncated"], bool)
 
     def test_bead_has_status_and_priority(self):
         """Bead dict includes status and priority fields."""
@@ -307,12 +324,10 @@ class TestDiffCollector(unittest.TestCase):
             self.assertIn("priority", bead)
             self.assertIn("type", bead)
 
-    def test_project_context_loaded(self):
-        """Project context reads from CLAUDE.md."""
+    def test_no_project_context_field(self):
+        """project_context field was removed (agent already has CLAUDE.md)."""
         data = parse_json_output("diff-collector.py")
-        if (REPO_ROOT / "CLAUDE.md").exists():
-            self.assertIsNotNone(data["project_context"])
-            self.assertTrue(len(data["project_context"]) > 0)
+        self.assertNotIn("project_context", data)
 
 
 class TestPlanValidator(unittest.TestCase):
