@@ -29,24 +29,23 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 - Use that task ID directly
 
 **Otherwise:**
-- Run `bd ready` to get available tasks
+- Call kitchen-equipment.py without a task ID to fetch ready task list
 - Select the highest priority task (lowest P number)
+- Call kitchen-equipment.py again with the selected task ID
 
 **Gather task context (epic check, prior context, tools):**
 ```bash
-# Collect task detail, epic detection, prior serve comments, retry context, and tools
+# Without <id>: returns ready_list for task selection
+# With <id>: returns full task context (epic check, prior context, tools)
 CONTEXT=$(python3 plugins/claude-code/scripts/kitchen-equipment.py <id> --json 2>/dev/null)
 echo "$CONTEXT"
 ```
 
-The JSON output includes: `task`, `is_epic`, `epic_children`, `prior_context` (serve_comments, retry_context, has_rework), `tools`, and `planning_context`.
+The JSON output includes: `task`, `is_epic`, `epic_children`, `prior_context`, `tools`, and `planning_context`.
 
 If `is_epic` is true, the epic itself has no work to execute. Instead:
 
-1. Show the epic and its children:
-   ```bash
-   bd list --parent=<epic-id> --all
-   ```
+1. Use `epic_children` from the kitchen-equipment.py output (already fetched)
 
 2. Find the first ready (unblocked, open) child and select that instead
 
@@ -159,13 +158,8 @@ Add issues to TodoWrite in severity order: critical → major → minor.
 
 ### Step 2: Load Recipe
 
-Load the task details (the recipe):
-
-```bash
-bd show <id>
-```
-
-Review the task description, acceptance criteria, and any dependencies. This is the recipe for what will be cooked.
+The task details (the recipe) are already in the kitchen-equipment.py output from Step 1.
+Review `task.description`, acceptance criteria, and any dependencies.
 
 ### Step 3: Load Ingredients
 @ENDIF_CLAUDECODE@
@@ -180,9 +174,8 @@ Load relevant context files and documentation (the ingredients):
 3. **Related code** - Read files relevant to the task
 4. **Dependencies** - Check what this task builds on
 5. **Planning context** - Check for design rationale:
-   - Get task's parent chain: `bd show <id> --json` -> parent -> epic
-   - Read epic description, look for `Planning context:` line
-   - If found, read `README.md` (always) and `architecture.md` (for patterns/constraints)
+   - Use `planning_context` from the kitchen-equipment.py output (already fetched in Step 1)
+   - If a context folder is referenced, read `README.md` (always) and `architecture.md` (for patterns/constraints)
    - Graceful no-op if no context folder exists
 
 Use Read, Glob, and Grep tools to gather necessary context before starting implementation.
