@@ -114,6 +114,13 @@ log_success "Initialized beads (prefix: demo)"
 bd import < "$DEMO_DIR/issues.jsonl" >/dev/null 2>&1
 log_success "Imported demo issues"
 
+# Set up parent relationships (bd import doesn't preserve parent field)
+bd update demo-001.1 --parent demo-001 >/dev/null 2>&1
+bd update demo-001.1.1 --parent demo-001.1 >/dev/null 2>&1
+bd update demo-001.1.2 --parent demo-001.1 >/dev/null 2>&1
+bd update demo-100.1 --parent demo-100 >/dev/null 2>&1
+log_success "Set parent relationships"
+
 # Set up dependency
 bd dep add demo-001.1.2 demo-001.1.1 >/dev/null 2>&1
 log_success "Added dependency: demo-001.1.2 depends on demo-001.1.1"
