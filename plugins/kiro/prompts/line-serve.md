@@ -20,7 +20,7 @@ After cooking (executing a task), you "serve" it for review before tidying up.
 **Otherwise:**
 - Identify from the collected output below
 
-Collect bead state and changes in one structured call:
+Collect review context in one call:
 
 ```bash
 # Collect review context: bead identification, git diffs (truncated at 200 lines), file status
@@ -28,12 +28,9 @@ REVIEW=$(python3 plugins/claude-code/scripts/diff-collector.py --json 2>/dev/nul
 echo "$REVIEW"
 ```
 
-The JSON output includes: `bead` (auto-detected target), `changes` (unstaged/staged/last_commit diffs with `*_truncated` flags, files list). Diffs are capped at 200 lines each to prevent context window blowout.
+The JSON output includes: `bead`, `changes`. Diffs are capped at 200 lines each to prevent context window blowout.
 
-Then load the specific bead details (needs ID from collected output):
-```bash
-bd show <id>
-```
+The bead details are in the JSON's `bead` field — use this directly for review context.
 
 ### Step 2: Perform Code Review
 
