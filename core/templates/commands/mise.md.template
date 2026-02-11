@@ -6,7 +6,7 @@ allowed-tools: Bash, Write, Read, Glob, Grep, Task, AskUserQuestion, Skill, WebF
 ---
 
 @IF_KIRO@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 @ENDIF_KIRO@
 
 ## Summary
@@ -37,14 +37,14 @@ Like `/@NAMESPACE@run` orchestrates the execution cycle (prep→cook→serve→t
 ### Step 1: Start Planning Chain
 
 @IF_CLAUDECODE@
-**If `skip-brainstorm` in $ARGUMENTS or requirements are crystal clear:**
+**If the user specified `skip-brainstorm` or requirements are crystal clear:**
   Invoke `Skill(skill="@NAMESPACE@scope")`.
 
 **Otherwise:**
   Invoke `Skill(skill="@NAMESPACE@brainstorm", args="$ARGUMENTS")`.
 @ENDIF_CLAUDECODE@
 @IF_OPENCODE@
-**If `skip-brainstorm` in $ARGUMENTS or requirements are crystal clear:**
+**If the user specified `skip-brainstorm` or requirements are crystal clear:**
   Run `/@NAMESPACE@scope`.
 
 **Otherwise:**

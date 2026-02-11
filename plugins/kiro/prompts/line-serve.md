@@ -1,4 +1,4 @@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 
 ## Summary
 
@@ -16,7 +16,7 @@ After cooking (executing a task), you "serve" it for review before tidying up.
 
 ### Step 1: Collect Review Context
 
-**If `$ARGUMENTS` provided:**
+**If the user provided a bead ID:**
 - Use that bead ID directly
 
 **Otherwise:**
@@ -24,9 +24,13 @@ After cooking (executing a task), you "serve" it for review before tidying up.
 
 Collect review context in one call:
 
+#### Find Script
+
+Locate `diff-collector.py`:
+
 ```bash
 # Collect review context: bead identification, git diffs (truncated at 200 lines), file status
-REVIEW=$(python3 plugins/claude-code/scripts/diff-collector.py --json 2>/dev/null)
+REVIEW=$(python3 <path-to-diff-collector.py> --json 2>/dev/null)
 echo "$REVIEW"
 ```
 

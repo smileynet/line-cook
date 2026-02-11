@@ -22,8 +22,8 @@ This phase transforms exploration into a structured, reviewable plan. Output is 
 
 ### Step 1: Load Context
 
-**If `$ARGUMENTS` provided:**
-- Use `$ARGUMENTS` as the brainstorm document path or direct requirements input
+**If the user provided a path or requirements:**
+- Use the input as the brainstorm document path or direct requirements
 - If it's a file path, read it as the brainstorm document
 - If it's descriptive text, use it as direct requirements
 

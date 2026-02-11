@@ -23,8 +23,8 @@ This phase transforms the approved menu plan into actionable beads and creates l
 
 ### Step 1: Validate Menu Plan Exists
 
-**If `$ARGUMENTS` provided:**
-- Use `$ARGUMENTS` as the path to the menu-plan YAML file
+**If the user provided a menu-plan path:**
+- Use it as the path to the menu-plan YAML file
 
 **Otherwise:**
 - Use the default path `docs/planning/menu-plan.yaml`

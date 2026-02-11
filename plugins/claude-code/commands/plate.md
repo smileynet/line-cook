@@ -18,7 +18,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite
 
 ### Step 1: Identify Feature to Validate
 
-**If `$ARGUMENTS` provided:**
+**If the user provided a feature bead ID:**
 - Use that feature ID directly
 
 **Otherwise:**

@@ -1,4 +1,4 @@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 
 ## Summary
 
@@ -22,7 +22,7 @@ Wait for prep to complete.
 
 Read and follow `line-cook.md` to execute work.
 
-**If `$ARGUMENTS` provided:** Pass the task ID to cook for explicit task selection.
+**If the user provided a task ID:** Pass the task ID to cook for explicit task selection.
 
 **Otherwise:** Cook will auto-select the highest priority ready task.
 

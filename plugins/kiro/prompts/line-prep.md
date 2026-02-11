@@ -1,4 +1,4 @@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 
 ## Summary
 
@@ -14,9 +14,13 @@
 
 Sync local state, load context, and gather kitchen roster in one structured call:
 
+#### Find Script
+
+Locate `state-snapshot.py`:
+
 ```bash
 # Collect all state: sync, project info, roster, suggestion, hierarchy, branch
-STATE=$(python3 plugins/claude-code/scripts/state-snapshot.py --json 2>/dev/null)
+STATE=$(python3 <path-to-state-snapshot.py> --json 2>/dev/null)
 echo "$STATE"
 ```
 

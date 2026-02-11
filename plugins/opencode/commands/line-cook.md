@@ -18,7 +18,7 @@ description: Select and execute a task with completion guardrails
 
 ### Step 1: Select Task
 
-**If `$ARGUMENTS` provided:**
+**If the user provided a task ID:**
 - Use that task ID directly
 
 **Otherwise:**
@@ -27,10 +27,15 @@ description: Select and execute a task with completion guardrails
 - Call kitchen-equipment.py again with the selected task ID
 
 **Gather task context (epic check, prior context, tools):**
+
+#### Find Script
+
+Locate `kitchen-equipment.py`:
+
 ```bash
 # Without <id>: returns ready_list for task selection
 # With <id>: returns full task context (epic check, prior context, tools)
-CONTEXT=$(python3 plugins/claude-code/scripts/kitchen-equipment.py <id> --json 2>/dev/null)
+CONTEXT=$(python3 <path-to-kitchen-equipment.py> <id> --json 2>/dev/null)
 echo "$CONTEXT"
 ```
 

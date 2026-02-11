@@ -6,7 +6,7 @@ allowed-tools: Bash, Read
 ---
 
 @IF_KIRO@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 @ENDIF_KIRO@
 
 **Output this guide to the user.** Do not act on it - display it for reference.
@@ -183,21 +183,23 @@ Or just run `/@NAMESPACE@run` for the full cycle.
 For batch processing multiple tasks, use the external script wrapper instead of running `/@NAMESPACE@run` manually each time:
 
 ```bash
-# Run with default 25 iterations
+# Run with default 25 iterations (recommended)
 /@NAMESPACE@loop
 
-# Or invoke the script directly
-python3 plugins/claude-code/scripts/line-loop.py
+# Or invoke the script directly (path depends on installation)
+python3 <path-to-line-loop.py>
 
 # Run with custom limit
-python3 plugins/claude-code/scripts/line-loop.py --max-iterations 10
+python3 <path-to-line-loop.py> --max-iterations 10
 
 # JSON output for automation
-python3 plugins/claude-code/scripts/line-loop.py --json --output report.json
+python3 <path-to-line-loop.py> --json --output report.json
 
 # Control behavior
-python3 plugins/claude-code/scripts/line-loop.py --stop-on-blocked --max-retries 1
+python3 <path-to-line-loop.py> --stop-on-blocked --max-retries 1
 ```
+
+> **Note:** The `line-loop.py` path varies by installation. Use `/@NAMESPACE@loop` for the standard approach — it discovers the script automatically.
 
 ### Options
 

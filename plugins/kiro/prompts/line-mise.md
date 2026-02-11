@@ -1,4 +1,4 @@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 
 ## Summary
 
@@ -20,7 +20,7 @@ Like `@line-run` orchestrates the execution cycle (prep→cook→serve→tidy), 
 
 ### Step 1: Start Planning Chain
 
-**If `skip-brainstorm` in $ARGUMENTS or requirements are crystal clear:**
+**If the user specified `skip-brainstorm` or requirements are crystal clear:**
   Run `@line-scope`.
 
 **Otherwise:**
