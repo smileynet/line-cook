@@ -11,21 +11,33 @@ Structured AI workflow execution for disciplined development.
 
 - Starting a work session with "work"
 - Running individual workflow steps: "mise", "prep", "cook", "serve", "tidy", "plate"
+- Planning phases: "brainstorm", "scope", "finalize"
 - Managing beads issues during execution
+- Architecture decisions, audits, and quality checks
 - Understanding workflow guardrails
 
 ## Quick Reference
 
 | Command | Purpose |
 |---------|---------|
-| "mise" or "plan" | Plan work breakdown before implementation |
+| "brainstorm" | Explore problem space (divergent thinking) |
+| "scope" | Structure work breakdown (convergent thinking) |
+| "finalize" | Convert plan to beads and test specs |
+| "mise" or "plan" | Full planning (brainstorm→scope→finalize) |
 | "prep" | Sync git, show ready tasks |
 | "cook" | Claim and execute a task with TDD cycle |
 | "serve" | AI peer review of completed work |
 | "tidy" | Commit, sync beads, push |
 | "plate" | Validate completed feature |
-| "run" | Full run (mise→prep→cook→serve→tidy→plate) |
-| "work" | Quick cycle (prep→cook→serve→tidy) |
+| "run" or "work" | Full execution cycle |
+| "decision" | Manage architecture decisions (ADRs) |
+| "architecture-audit" | Audit codebase architecture |
+| "plan-audit" | Audit planning quality |
+| "help" | Show available commands |
+| "loop" | Manage autonomous loop |
+| "getting started" | Show workflow guide |
+
+Use `@line-<command>` syntax for explicit invocation (e.g., `@line-brainstorm`, `@line-cook`).
 
 ## Core Workflow
 

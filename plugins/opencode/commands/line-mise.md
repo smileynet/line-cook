@@ -2,6 +2,7 @@
 description: Create work breakdown before starting implementation (orchestrates brainstorm→scope→finalize)
 ---
 
+
 ## Summary
 
 **Mise en place orchestrator: brainstorm → scope → finalize.** Primary entry point for planning work.

@@ -3,6 +3,7 @@ description: Create work breakdown before starting implementation (orchestrates 
 allowed-tools: Bash, Write, Read, Glob, Grep, Task, AskUserQuestion, Skill, WebFetch, WebSearch
 ---
 
+
 ## Summary
 
 **Mise en place orchestrator: brainstorm → scope → finalize.** Primary entry point for planning work.

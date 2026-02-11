@@ -3,6 +3,7 @@ description: Contextual help for Line Cook commands
 allowed-tools: Bash, Read, Glob
 ---
 
+
 ## Summary
 
 **Show available commands with contextual suggestions.** Helps users discover and navigate Line Cook commands.

@@ -3,6 +3,7 @@ description: Audit bead/plan structure, dependencies, and quality with auto-fix
 allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 ---
 
+
 ## Summary
 
 **Validate bead content quality and structure.** Complements `bd doctor` (system-level) with content-level validation.

@@ -5,6 +5,10 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite
 @ENDIF_CLAUDECODE@
 ---
 
+@IF_KIRO@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+@ENDIF_KIRO@
+
 ## Summary
 
 **File discovered issues, commit changes, and push to remote.** Part of prep → cook → serve → tidy.

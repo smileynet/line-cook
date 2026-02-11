@@ -2,6 +2,7 @@
 description: Validate completed feature and create acceptance documentation
 ---
 
+
 ## Summary
 
 **Validate completed features and create acceptance documentation.** Final step before feature completion.

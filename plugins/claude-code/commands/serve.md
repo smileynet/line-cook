@@ -3,6 +3,7 @@ description: Review changes via headless Claude and file issues
 allowed-tools: Bash, Read, Glob, Grep, Edit, TodoWrite, Task
 ---
 
+
 ## Summary
 
 **Review changes via headless Claude.** Part of prep → cook → serve → tidy.

@@ -2,6 +2,7 @@
 description: Audit codebase architecture, code smells, and quality metrics
 ---
 
+
 ## Summary
 
 **Analyze codebase structure and detect code smells.** Complements `/line-plan-audit` (bead quality) with code-level analysis.

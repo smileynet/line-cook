@@ -50,48 +50,52 @@ def main() -> None:
     (kiro_dir / "scripts").mkdir(parents=True, exist_ok=True)
     (kiro_dir / "prompts").mkdir(parents=True, exist_ok=True)
 
-    # Copy agent configurations
-    print("Installing agent configurations...")
-    agent_src = script_dir / "agents" / "line-cook.json"
-    agent_dst = kiro_dir / "agents" / "line-cook.json"
-
-    # Load, transform paths if global, and save
-    try:
-        with open(agent_src) as f:
-            agent_config = json.load(f)
-    except FileNotFoundError:
-        sys.exit(f"Error: {agent_src} not found")
-    except json.JSONDecodeError as e:
-        sys.exit(f"Error: Invalid JSON in {agent_src}: {e}")
-
+    # Path transformer for global install (converts .kiro/ to absolute paths)
     if args.global_install:
-        # Transform .kiro/ paths to absolute paths for global install
-        # Use full path instead of ~ because skill:// URIs don't expand tilde
         home_kiro = str(Path.home() / ".kiro")
 
         def transform_path(obj):
+            """Transform .kiro/ paths to absolute paths for global install.
+            Use full path instead of ~ because skill:// URIs don't expand tilde."""
             if isinstance(obj, str):
                 return obj.replace(".kiro/", f"{home_kiro}/")
-            elif isinstance(obj, list):
+            if isinstance(obj, list):
                 return [transform_path(item) for item in obj]
-            elif isinstance(obj, dict):
+            if isinstance(obj, dict):
                 return {k: transform_path(v) for k, v in obj.items()}
             return obj
+    else:
+        def transform_path(obj):
+            return obj
+
+    # Copy agent configurations
+    agents_src = script_dir / "agents"
+    agent_files = sorted(agents_src.glob("*.json"))
+    if not agent_files:
+        sys.exit(f"Error: No agent JSON files found in {agents_src}")
+    print(f"Installing agent configurations ({len(agent_files)} agents)...")
+    for agent_file in agent_files:
+        try:
+            with open(agent_file) as f:
+                agent_config = json.load(f)
+        except json.JSONDecodeError as e:
+            sys.exit(f"Error: Invalid JSON in {agent_file}: {e}")
 
         agent_config = transform_path(agent_config)
-
-    with open(agent_dst, "w") as f:
-        json.dump(agent_config, f, indent=2)
-        f.write("\n")
+        agent_dst = kiro_dir / "agents" / agent_file.name
+        with open(agent_dst, "w") as f:
+            json.dump(agent_config, f, indent=2)
+            f.write("\n")
 
     # Copy steering files
-    print("Installing steering files...")
     steering_src = script_dir / "steering"
-    md_files = list(steering_src.glob("*.md"))
-    if not md_files:
+    steering_files = list(steering_src.glob("*.md"))
+    if steering_files:
+        print("Installing steering files...")
+        for md_file in steering_files:
+            shutil.copy(md_file, kiro_dir / "steering" / md_file.name)
+    else:
         print("  Warning: No steering files found")
-    for md_file in md_files:
-        shutil.copy(md_file, kiro_dir / "steering" / md_file.name)
 
     # Copy skills
     print("Installing skills...")
@@ -117,13 +121,13 @@ def main() -> None:
     # Copy hook scripts (supports both .sh and .py scripts)
     scripts_src = script_dir / "scripts"
     if scripts_src.exists():
-        scripts = list(scripts_src.glob("*.sh")) + list(scripts_src.glob("*.py"))
-        if scripts:
+        hook_scripts = list(scripts_src.glob("*.sh")) + list(scripts_src.glob("*.py"))
+        if hook_scripts:
             print("Installing hook scripts...")
-            for script in scripts:
-                dst = kiro_dir / "scripts" / script.name
-                shutil.copy(script, dst)
-                dst.chmod(dst.stat().st_mode | 0o100)  # Make executable (user only)
+            for script in hook_scripts:
+                script_dst = kiro_dir / "scripts" / script.name
+                shutil.copy(script, script_dst)
+                script_dst.chmod(script_dst.stat().st_mode | 0o100)  # Make executable (user only)
 
     print()
     print("Installation complete!")
@@ -131,25 +135,33 @@ def main() -> None:
     print(f"Installed to: {kiro_dir}")
     print()
     print("Files installed:")
-    print("  agents/line-cook.json      - Agent configuration")
-    print("  steering/line-cook.md      - Workflow instructions")
-    print("  steering/beads.md          - Beads quick reference")
-    print("  steering/session.md        - Session protocols")
+    for agent_file in agent_files:
+        print(f"  agents/{agent_file.name}")
+    print("  steering/*.md              - Workflow instructions")
     print("  skills/line-cook/SKILL.md  - Lazy-loaded documentation")
-    print("  prompts/line-*.md          - @prompt invocations")
+    prompt_count = len(list((kiro_dir / "prompts").glob("*.md")))
+    print(f"  prompts/line-*.md          - {prompt_count} @prompt invocations")
     print()
     print("Next steps:")
     print("  1. Start Kiro CLI with: kiro-cli --agent line-cook")
     print("  2. Use @line-prep, @line-cook, etc. or natural language")
     print()
     print("Available @prompts:")
+    print("  @line-brainstorm      - Explore problem space")
+    print("  @line-scope           - Structure work breakdown")
+    print("  @line-finalize        - Convert plan to beads")
+    print("  @line-mise            - Full planning (brainstorm→scope→finalize)")
     print("  @line-prep            - Sync state, show ready tasks")
     print("  @line-cook            - Execute task with TDD cycle")
     print("  @line-serve           - Review changes")
     print("  @line-tidy            - Commit and push")
-    print("  @line-mise            - Create work breakdown")
     print("  @line-plate           - Validate feature")
     print("  @line-run             - Full workflow cycle")
+    print("  @line-decision        - Manage architecture decisions")
+    print("  @line-architecture-audit - Audit codebase architecture")
+    print("  @line-plan-audit      - Audit planning quality")
+    print("  @line-help            - Show help")
+    print("  @line-loop            - Manage autonomous loop")
     print("  @line-getting-started - Show workflow guide")
 
 

@@ -1,3 +1,5 @@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+
 **Output this guide to the user.** Do not act on it - display it for reference.
 
 ---

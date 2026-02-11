@@ -2,6 +2,7 @@
 description: Select and execute a task with completion guardrails
 ---
 
+
 ## Summary
 
 **Execute a task with guardrails ensuring completion.** Part of prep → cook → serve → tidy.

@@ -5,6 +5,10 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 @ENDIF_CLAUDECODE@
 ---
 
+@IF_KIRO@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+@ENDIF_KIRO@
+
 ## Summary
 
 @IF_CLAUDECODE@

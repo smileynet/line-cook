@@ -1,3 +1,5 @@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+
 ## Summary
 
 **Control the autonomous line-loop process.** Provides start/status/stop/tail subcommands for managing background loop execution.

@@ -3,6 +3,7 @@ description: Validate completed feature and create acceptance documentation
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite
 ---
 
+
 ## Summary
 
 **Validate completed features and create acceptance documentation.** Final step before feature completion.

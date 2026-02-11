@@ -3,6 +3,7 @@ description: Audit codebase architecture, code smells, and quality metrics
 allowed-tools: Bash, Read, Glob, Grep, Task
 ---
 
+
 ## Summary
 
 **Analyze codebase structure and detect code smells.** Complements `/line:plan-audit` (bead quality) with code-level analysis.

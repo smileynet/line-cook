@@ -2,6 +2,7 @@
 description: Manage autonomous loop execution from TUI
 ---
 
+
 ## Summary
 
 **Control the autonomous line-loop process.** Provides start/status/stop/tail subcommands for managing background loop execution.

@@ -1,3 +1,5 @@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+
 ## Summary
 
 **Run the full prep → cook → serve → tidy cycle.** Primary entry point for focused work sessions.

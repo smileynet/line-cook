@@ -3,6 +3,7 @@ description: Create structured work breakdown (convergent thinking)
 allowed-tools: Bash, Read, Write, Glob, Grep, Task, AskUserQuestion, Skill
 ---
 
+
 ## Summary
 
 **Convergent thinking phase: structure, scope, decompose.** Second phase of mise en place.

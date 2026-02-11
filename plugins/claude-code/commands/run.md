@@ -3,6 +3,7 @@ description: Run full workflow cycle (prep→cook→serve→tidy)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQuestion, Skill
 ---
 
+
 ## Summary
 
 **Expeditor orchestrates full workflow: prep → cook → serve → tidy → plate.** Primary entry point for focused work sessions.

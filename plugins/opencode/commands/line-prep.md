@@ -2,6 +2,7 @@
 description: Sync state, load context, show ready tasks
 ---
 
+
 ## Summary
 
 **Sync state and identify ready tasks.** Part of prep → cook → serve → tidy.

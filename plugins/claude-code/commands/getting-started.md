@@ -3,6 +3,7 @@ description: Workflow guide with full bead reference
 allowed-tools: Bash, Read
 ---
 
+
 **Output this guide to the user.** Do not act on it - display it for reference.
 
 ---
