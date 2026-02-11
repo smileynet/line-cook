@@ -63,12 +63,11 @@ Review BDD tests for quality:
 
 ### Step 4: Create Feature Acceptance Documentation
 
-Create acceptance documentation using the multi-course meal template:
+Create acceptance documentation using the multi-course meal format:
 
-1. Copy the template to `docs/features/<feature-id>-acceptance.md`:
+1. Create `docs/features/<feature-id>-acceptance.md` with the sections below:
    ```bash
    mkdir -p docs/features
-   cp docs/templates/feature-acceptance.md docs/features/<feature-id>-acceptance.md
    ```
 
 2. Fill in the template sections:
@@ -80,9 +79,6 @@ Create acceptance documentation using the multi-course meal template:
    - **Kitchen Notes** - Capture limitations, ideas, deployment info
    - **Related Orders** - Link to completed tasks and related features
 
-3. Remove the "Usage Instructions" section from the filled template
-
-See [`docs/templates/feature-acceptance.md`](../../../docs/templates/feature-acceptance.md) for the full template.
 
 ### Step 5: Update CHANGELOG.md
 

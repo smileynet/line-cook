@@ -72,16 +72,16 @@ Based on exploration, provide a recommendation:
 
 Write the brainstorm document to `docs/planning/brainstorm-<name>.md`.
 
-**Use the template at `docs/templates/brainstorm.md`** as the starting point.
+Structure the document with these sections: Problem Statement, User Perspective, Technical Exploration, Approaches Considered, Risks and Unknowns, Recommended Direction, Next Steps.
 
 ### Step 5b: Create Planning Context Folder
 
 Create `docs/planning/context-<name>/` with initial context files:
 
-1. Copy templates from `docs/templates/planning-context/` (or create directly)
-2. Populate README.md with Problem, Approach, Key Decisions from brainstorm
-3. Populate architecture.md with technical patterns/constraints discovered
-4. Seed decisions.log with brainstorm decisions
+1. Create `docs/planning/context-<name>/` directory
+2. Create README.md with Problem, Approach, Key Decisions from brainstorm
+3. Create architecture.md with technical patterns/constraints discovered
+4. Create decisions.log with brainstorm decisions (`YYYY-MM-DD | brainstorm | <decision> | <rationale>`)
 
 ### Step 6: Handoff
 
