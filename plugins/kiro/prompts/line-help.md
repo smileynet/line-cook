@@ -1,3 +1,5 @@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+
 ## Summary
 
 **Show available commands with contextual suggestions.** Helps users discover and navigate Line Cook commands.

@@ -3,6 +3,7 @@ description: Sync state, load context, show ready tasks
 allowed-tools: Bash, Read, Glob
 ---
 
+
 ## Summary
 
 **Sync state and identify ready tasks.** Part of prep → cook → serve → tidy.

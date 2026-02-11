@@ -1,3 +1,5 @@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+
 ## Summary
 
 **Manage architecture decision records (ADRs) for this project.** ADRs capture the "why" behind significant design choices - persistent, project-level decisions that guide future context recovery.

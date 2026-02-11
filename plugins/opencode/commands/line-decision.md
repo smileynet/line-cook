@@ -2,6 +2,7 @@
 description: Record, list, or supersede architecture decisions (ADRs)
 ---
 
+
 ## Summary
 
 **Manage architecture decision records (ADRs) for this project.** ADRs capture the "why" behind significant design choices - persistent, project-level decisions that guide future context recovery.

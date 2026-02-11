@@ -3,6 +3,7 @@ description: Explore problem space before planning (divergent thinking)
 allowed-tools: Bash, Read, Write, Glob, Grep, Task, AskUserQuestion, Skill, WebFetch, WebSearch
 ---
 
+
 ## Summary
 
 **Divergent thinking phase: explore, question, research.** First phase of mise en place.
@@ -33,7 +34,7 @@ Ask clarifying questions to understand what we're solving:
 - How will we know it works?
 - What would the user be able to do?
 
-**Use AskUserQuestion** if requirements are unclear. Don't assume.
+**Use AskUserQuestion** if requirements are unclear. Do not assume.
 
 ### Step 2: Explore Technical Approaches
 

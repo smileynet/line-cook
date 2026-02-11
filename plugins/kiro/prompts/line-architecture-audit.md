@@ -1,3 +1,5 @@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+
 ## Summary
 
 **Analyze codebase structure and detect code smells.** Complements `@line-plan-audit` (bead quality) with code-level analysis.

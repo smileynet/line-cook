@@ -1,3 +1,5 @@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+
 ## Summary
 
 **File discovered issues, commit changes, and push to remote.** Part of prep → cook → serve → tidy.

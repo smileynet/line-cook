@@ -5,6 +5,10 @@ allowed-tools: Bash, Write, Read, Glob, Grep, Task, AskUserQuestion, Skill, WebF
 @ENDIF_CLAUDECODE@
 ---
 
+@IF_KIRO@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+@ENDIF_KIRO@
+
 ## Summary
 
 **Mise en place orchestrator: brainstorm → scope → finalize.** Primary entry point for planning work.

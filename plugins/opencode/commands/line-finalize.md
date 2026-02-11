@@ -2,6 +2,7 @@
 description: Convert plan to beads and create test specifications (execution)
 ---
 
+
 ## Summary
 
 **Execution phase: create beads, write test specs, persist.** Third and final phase of mise en place.

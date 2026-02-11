@@ -1,3 +1,5 @@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+
 ## Summary
 
 **Divergent thinking phase: explore, question, research.** First phase of mise en place.
@@ -28,7 +30,7 @@ Ask clarifying questions to understand what we're solving:
 - How will we know it works?
 - What would the user be able to do?
 
-**Ask questions** if requirements are unclear. Don't assume.
+**Ask questions** if requirements are unclear. Do not assume.
 
 ### Step 2: Explore Technical Approaches
 

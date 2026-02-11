@@ -5,6 +5,10 @@ allowed-tools: Bash, Read, Glob
 @ENDIF_CLAUDECODE@
 ---
 
+@IF_KIRO@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+@ENDIF_KIRO@
+
 ## Summary
 
 **Sync state and identify ready tasks.** Part of prep → cook → serve → tidy.

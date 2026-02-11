@@ -3,6 +3,7 @@ description: Select and execute a task with completion guardrails
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQuestion
 ---
 
+
 ## Summary
 
 **Execute a task with guardrails ensuring completion.** Part of prep → cook → serve → tidy.

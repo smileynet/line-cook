@@ -2,6 +2,7 @@
 description: Create structured work breakdown (convergent thinking)
 ---
 
+
 ## Summary
 
 **Convergent thinking phase: structure, scope, decompose.** Second phase of mise en place.

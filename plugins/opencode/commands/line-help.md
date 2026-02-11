@@ -2,6 +2,7 @@
 description: Contextual help for Line Cook commands
 ---
 
+
 ## Summary
 
 **Show available commands with contextual suggestions.** Helps users discover and navigate Line Cook commands.

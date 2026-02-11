@@ -3,6 +3,7 @@ description: Commit changes, sync beads, and push to remote
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite
 ---
 
+
 ## Summary
 
 **File discovered issues, commit changes, and push to remote.** Part of prep → cook → serve → tidy.

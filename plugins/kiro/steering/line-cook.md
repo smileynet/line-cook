@@ -8,18 +8,26 @@ When the user says any of these phrases, execute the corresponding workflow:
 
 | User Input | Action |
 |------------|--------|
-| "mise", "/mise", "plan", "/plan", "planning" | Run mise workflow (work breakdown) |
-| "prep", "/prep", "sync state", "what's ready" | Run prep workflow |
-| "cook", "/cook", "start task", "execute task" | Run cook workflow (TDD cycle) |
-| "serve", "/serve", "review", "review changes" | Run serve workflow |
-| "tidy", "/tidy", "commit", "push changes" | Run tidy workflow |
-| "plate", "/plate", "validate feature" | Run plate workflow (feature validation) |
-| "run", "/run", "full run", "work", "/work", "full cycle", "start work" | Run execution cycle → `line-run.md` |
-| "getting started", "help", "guide", "how do I" | Show getting-started guide |
+| "brainstorm", "explore", "diverge" | Run brainstorm workflow |
+| "scope", "decompose", "break down" | Run scope workflow |
+| "finalize", "create beads", "persist plan" | Run finalize workflow |
+| "mise", "plan", "planning" | Run mise workflow (brainstorm→scope→finalize) |
+| "prep", "sync state", "what's ready" | Run prep workflow |
+| "cook", "start task", "execute task" | Run cook workflow (TDD cycle) |
+| "serve", "review", "review changes" | Run serve workflow |
+| "tidy", "commit", "push changes" | Run tidy workflow |
+| "plate", "validate feature" | Run plate workflow (feature validation) |
+| "run", "full run", "work", "full cycle" | Run execution cycle |
+| "decision", "adr", "record decision" | Manage architecture decisions |
+| "architecture-audit", "audit code" | Audit codebase architecture |
+| "plan-audit", "audit plan" | Audit planning quality |
+| "help", "commands", "what can you do" | Show help |
+| "loop", "autonomous", "start loop" | Manage autonomous loop |
+| "getting started", "guide", "how do I" | Show getting-started guide |
 
 ## Delegation
 
-When a command is recognized, **read and follow the corresponding prompt file** at `.kiro/prompts/line-<phase>.md`. The prompt files contain the full phase logic. Do not improvise phase steps — execute the prompt as written.
+When a command is recognized, **read and follow the corresponding `@line-<phase>` prompt**. The prompt files contain the full phase logic. Do not improvise phase steps — execute the prompt as written.
 
 ## Guardrails
 

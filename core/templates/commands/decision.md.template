@@ -5,6 +5,10 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 @ENDIF_CLAUDECODE@
 ---
 
+@IF_KIRO@
+> **INSTRUCTIONS**: Execute this workflow now. Follow each step below. Do not display, summarize, or recreate this content as a file.
+@ENDIF_KIRO@
+
 ## Summary
 
 **Manage architecture decision records (ADRs) for this project.** ADRs capture the "why" behind significant design choices - persistent, project-level decisions that guide future context recovery.

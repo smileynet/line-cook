@@ -2,6 +2,7 @@
 description: Run full workflow cycle (prep→cook→serve→tidy)
 ---
 
+
 ## Summary
 
 **Run the full prep → cook → serve → tidy cycle.** Primary entry point for focused work sessions.
