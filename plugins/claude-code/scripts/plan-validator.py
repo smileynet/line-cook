@@ -22,7 +22,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -233,7 +233,7 @@ def check_acceptance_criteria(beads):
             continue
 
         bid = bead.get("id", "")
-        description = bead.get("description", "") or ""
+        description = bead.get("description") or ""
 
         criteria_count = _count_acceptance_criteria(description)
 
@@ -261,22 +261,21 @@ def _count_acceptance_criteria(description):
     in_ac_section = False
 
     for line in description.splitlines():
-        line_lower = line.lower().strip()
+        line_stripped = line.strip()
+        line_lower = line_stripped.lower()
 
         # Check for AC section header
-        if "acceptance criteria" in line_lower or ("acceptance" in line_lower and "criteria" in line_lower):
+        if "acceptance criteria" in line_lower:
             in_ac_section = True
             continue
 
         if in_ac_section:
-            line_stripped = line.strip()
             # Count list items
-            if line_stripped.startswith("- ") or line_stripped.startswith("* ") or re.match(r"^\d+\.", line_stripped):
+            if line_stripped.startswith(("- ", "* ")) or re.match(r"^\d+\.", line_stripped):
                 criteria_count += 1
-            # Check for section end
-            elif line_stripped and not line_stripped.startswith("#"):
-                if line_stripped.startswith("##") or line_stripped.startswith("Deliverable"):
-                    in_ac_section = False
+            # Check for section end (new heading or "Deliverable")
+            elif line_stripped.startswith("##") or line_stripped.startswith("Deliverable"):
+                in_ac_section = False
 
     return criteria_count
 
@@ -290,9 +289,9 @@ def check_user_story(beads):
             continue
 
         bid = bead.get("id", "")
-        description_lower = (bead.get("description", "") or "").lower()
+        description_lower = (bead.get("description") or "").lower()
 
-        has_story = "as a" in description_lower and "i want" in description_lower and "so that" in description_lower
+        has_story = all(phrase in description_lower for phrase in ("as a", "i want", "so that"))
         if not has_story:
             findings.append({
                 "check": "USER_STORY",
@@ -313,7 +312,7 @@ def check_deliverable(beads):
             continue
 
         bid = bead.get("id", "")
-        description_lower = (bead.get("description", "") or "").lower()
+        description_lower = (bead.get("description") or "").lower()
 
         if "deliverable" not in description_lower:
             findings.append({
@@ -387,7 +386,7 @@ def check_planning_context(beads):
             continue
 
         bid = bead.get("id", "")
-        description = bead.get("description", "") or ""
+        description = bead.get("description") or ""
 
         # Check for planning context reference in description
         has_context_ref = "planning context:" in description.lower()
@@ -443,7 +442,8 @@ def check_acceptance_docs(beads):
 def check_stale_in_progress(beads):
     """In-progress items older than 7 days."""
     findings = []
-    cutoff = datetime.now() - timedelta(days=7)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=7)
 
     for bead in beads:
         if bead.get("status") != "in_progress":
@@ -454,11 +454,11 @@ def check_stale_in_progress(beads):
 
         if updated:
             try:
-                # Try ISO format
                 dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-                dt = dt.replace(tzinfo=None)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
                 if dt < cutoff:
-                    days = (datetime.now() - dt).days
+                    days = (now - dt).days
                     findings.append({
                         "check": "STALE",
                         "bead": bid,
@@ -475,7 +475,8 @@ def check_stale_in_progress(beads):
 def check_old_open(beads):
     """Open items older than 30 days."""
     findings = []
-    cutoff = datetime.now() - timedelta(days=30)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=30)
 
     for bead in beads:
         if bead.get("status") != "open":
@@ -487,9 +488,10 @@ def check_old_open(beads):
         if created:
             try:
                 dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
-                dt = dt.replace(tzinfo=None)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
                 if dt < cutoff:
-                    days = (datetime.now() - dt).days
+                    days = (now - dt).days
                     findings.append({
                         "check": "OLD_OPEN",
                         "bead": bid,
@@ -523,15 +525,15 @@ def check_nearly_complete(beads, beads_by_id):
         if len(children) < 2:
             continue
 
-        closed = sum(1 for c in children if c.get("status") == "closed")
-        pct = closed / len(children)
+        closed_count = sum(1 for c in children if c.get("status") == "closed")
+        pct = closed_count / len(children)
         if pct >= 0.8:
             findings.append({
                 "check": "NEARLY_COMPLETE",
                 "bead": bid,
                 "severity": "info",
                 "message": "Feature {}/{} children closed ({:.0%})".format(
-                    closed, len(children), pct
+                    closed_count, len(children), pct
                 ),
             })
 
@@ -607,7 +609,7 @@ def calc_stats(beads):
 
     total = len(beads)
     closed = by_status.get("closed", 0)
-    progress_pct = round(closed / total * 100) if total > 0 else 0
+    progress_pct = round(100 * closed / total) if total > 0 else 0
 
     return {
         "by_tier": by_tier,
