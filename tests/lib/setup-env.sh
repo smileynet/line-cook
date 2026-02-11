@@ -61,6 +61,9 @@ bd init --prefix=tc >/dev/null 2>&1
 # Import mock beads issues from JSONL
 bd import -i "$FIXTURES_DIR/mock-beads/issues.jsonl" >/dev/null 2>&1
 
+# Set up parent relationships (bd import doesn't preserve parent field)
+bd update tc-005 --parent tc-retro >/dev/null 2>&1
+
 # Add dependency (tc-003 depends on tc-001)
 bd dep add tc-003 tc-001 >/dev/null 2>&1
 

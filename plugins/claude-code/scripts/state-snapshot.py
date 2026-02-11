@@ -134,6 +134,12 @@ def suggest_next_task(roster):
     if not ready:
         return {"suggestion": None, "drill_path": []}
 
+    # Build blocked IDs set to avoid suggesting blocked tasks during drill-down
+    blocked_ids = {
+        b.get("id", "") for b in roster.get("blocked", [])
+        if isinstance(b, dict)
+    }
+
     candidate = ready[0]
     candidate_id = candidate.get("id", "")
     if not _validate_bead_id(candidate_id):
@@ -146,19 +152,23 @@ def suggest_next_task(roster):
 
     bead_type = detail.get("type") or detail.get("issue_type", "")
     if bead_type == "epic":
-        return _drill_epic_transparent(candidate_id, [candidate_id])
+        return _drill_epic_transparent(candidate_id, [candidate_id], blocked_ids=blocked_ids)
 
     return {"suggestion": _extract_task_detail(detail), "drill_path": [candidate_id]}
 
 
-def _drill_epic_transparent(epic_id, drill_path, depth=0):
+def _drill_epic_transparent(epic_id, drill_path, depth=0, blocked_ids=None):
     """Find first ready child of an epic, recording the drill path.
 
     Returns dict with 'suggestion' and 'drill_path'. When no ready children
     are found, returns None suggestion with drill_path showing what was checked.
+    Skips children whose ID is in blocked_ids (already fetched from roster).
     """
     if depth >= 5:
         return {"suggestion": None, "drill_path": drill_path}
+
+    if blocked_ids is None:
+        blocked_ids = set()
 
     # Intentionally omit --all: we only want non-closed children for drill-down
     rc, out, _ = run_cmd(["bd", "list", "--parent=" + epic_id, "--json"], timeout=15)
@@ -172,17 +182,19 @@ def _drill_epic_transparent(epic_id, drill_path, depth=0):
     except (json.JSONDecodeError, TypeError):
         return {"suggestion": None, "drill_path": drill_path}
 
-    # Find first open/ready child
+    # Find first open/ready child, skipping blocked tasks
     for child in children:
         if not isinstance(child, dict):
             continue
+        child_id = child.get("id", "")
+        if child_id in blocked_ids:
+            continue
         status = child.get("status", "")
         if status in ("open", "ready"):
-            child_id = child.get("id", "")
             drill_path.append(child_id)
             child_type = child.get("type") or child.get("issue_type", "")
             if child_type in ("epic", "feature"):
-                return _drill_epic_transparent(child_id, drill_path, depth + 1)
+                return _drill_epic_transparent(child_id, drill_path, depth + 1, blocked_ids=blocked_ids)
             return {"suggestion": _extract_task_detail(child), "drill_path": drill_path}
 
     return {"suggestion": None, "drill_path": drill_path}
