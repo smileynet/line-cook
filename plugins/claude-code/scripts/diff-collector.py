@@ -64,7 +64,7 @@ def _find_first_bead_by_status(status):
     For closed status, sorts by most recently updated to pick the right bead
     in multi-task sessions.
     """
-    cmd = ["bd", "list", f"--status={status}", "--json"]
+    cmd = ["bd", "list", "--status={}".format(status), "--json"]
     if status == "closed":
         cmd.extend(["--sort=updated", "--reverse", "--limit=5"])
     rc, out, _ = run_cmd(cmd, timeout=15)

@@ -73,7 +73,7 @@ Each command is a checkpoint. Nothing is permanent until `git push`.
 
 ## Part 2: Planning with /mise
 
-Before any code is written, you need a plan. Line Cook provides the `/line:mise` command to guide you through structured planning with three phases: brainstorm, plan, and finalize.
+Before any code is written, you need a plan. Line Cook provides the `/line:mise` command to guide you through structured planning with three phases: brainstorm, scope, and finalize.
 
 ### The Three-Phase Planning Workflow
 
@@ -84,7 +84,7 @@ Before any code is written, you need a plan. Line Cook provides the `/line:mise`
 
 Each phase produces a reviewable artifact:
 - **Brainstorm** outputs `docs/planning/brainstorm-<name>.md`
-- **Plan** outputs `docs/planning/menu-plan.yaml`
+- **Scope** outputs `docs/planning/menu-plan.yaml`
 - **Finalize** creates beads + test specifications
 
 Between each phase, `/mise` pauses for your review. This prevents premature commitment and lets you iterate at each level.
@@ -758,9 +758,9 @@ Audit categorizes findings by severity:
 
 | Level | Color | Meaning | Action |
 |-------|-------|---------|--------|
-| **Critical** | 🔴 Red | Must fix | Orphans, depth violations, circular deps |
-| **Warning** | 🟡 Yellow | Should fix | Missing priority, thin criteria, stale items |
-| **Info** | 🔵 Blue | Suggestion | User story format, documentation ideas |
+| **Critical** | Red | Must fix | Orphans, depth violations, circular deps |
+| **Warning** | Yellow | Should fix | Missing priority, thin criteria, stale items |
+| **Info** | Blue | Suggestion | User story format, documentation ideas |
 
 Critical issues block work—fix them immediately. Warnings indicate quality drift—address them soon. Suggestions are optional improvements.
 
@@ -987,6 +987,12 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 | `/line:tidy` | Commit, file findings, push |
 | `/line:plate` | Validate completed feature (BDD acceptance) |
 | `/line:run` | Full execution cycle |
+
+| Utility Commands | Purpose |
+|------------------|---------|
+| `/line:decision` | Record or view architecture decisions |
+| `/line:help` | Contextual help for commands |
+| `/line:loop` | Autonomous multi-cycle execution |
 
 | Beads Command | Purpose |
 |---------------|---------|

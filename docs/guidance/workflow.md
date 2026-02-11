@@ -338,12 +338,13 @@ See [TDD/BDD Workflow](./tdd-bdd.md) for details.
 
 **What happens:**
 1. Show diff of changes
-2. Sous-chef agent reviews:
+2. Polisher agent simplifies and refines code for clarity and consistency
+3. Sous-chef agent reviews:
    - Correctness (logic, edge cases)
    - Security (input validation, injection)
    - Style (naming, consistency)
    - Completeness (fully addresses task)
-3. Report findings
+4. Report findings
 
 **Output:**
 
@@ -618,7 +619,8 @@ See [Epic-Level Testing](./epic-testing.md) for project-type-specific guidance.
 |-------|-------|--------|
 | **RED** | Taster | Test isolation, naming, structure |
 | **GREEN** | Automatic | Tests pass, builds, no lint errors |
-| **REFACTOR** | Sous-chef | Correctness, security, style, completeness |
+| **SERVE (pre-review)** | Polisher | Code clarity, consistency, maintainability |
+| **SERVE (review)** | Sous-chef | Correctness, security, style, completeness |
 | **PLATE (Feature)** | Maître | Acceptance criteria, BDD structure |
 | **PLATE (Epic)** | Critic | User journeys, E2E coverage, integration |
 

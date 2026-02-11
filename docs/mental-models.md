@@ -22,7 +22,7 @@ AI coding assistants don't have unlimited memory. Every message adds to the cont
 Work in **sessions**—bounded units of work with clear start and end points.
 
 ```
-Session = Prep → Work → Verify → Commit → Push
+Session = Prep → Cook → Serve → Tidy → Push
 ```
 
 Each session:

@@ -5,7 +5,7 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | Term | Meaning | Context |
 |------|---------|---------|
 | **Mise** | Create work breakdown before starting | `/mise` phase |
-| **Audit** | Validate bead structure and quality | `/plan-audit` phase |
+| **Plan Audit** | Validate bead structure and quality | `/plan-audit` phase |
 | **Prep** | Sync git, show ready tasks | `/prep` phase |
 | **Cook** | Execute task with TDD cycle | `/cook` phase |
 | **Serve** | Review code changes | `/serve` phase |
@@ -19,6 +19,12 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | **Expeditor** | Subagent that orchestrates full workflow | `/run` phase |
 | **ORDER_UP** | Signal emitted when task is ready for review | End of cook phase |
 | **GOOD_TO_GO** | Assessment from sous-chef indicating code is ready to commit | After serve phase |
+| **Polisher** | Subagent that simplifies and refines code before review | `/serve` phase |
+| **Critic** | Subagent that reviews epic-level E2E and smoke test coverage | `/plate` phase (epics) |
+| **Loop** | Autonomous multi-cycle execution across tasks | `/loop` command |
+| **Architecture Audit** | Analyze codebase structure, code smells, and quality metrics | `/architecture-audit` command |
+| **Decision** | Record, list, or supersede architecture decision records (ADRs) | `/decision` command |
+| **Help** | Contextual help for Line Cook commands | `/help` command |
 | **Tracer** | Task that proves one aspect of a feature through all layers | Planning methodology |
 | **Feature Complete** | All tasks for a feature closed, ready for plate phase | `/plate` phase trigger |
 | **Acceptance Report** | Document validating feature against acceptance criteria | Created in plate |

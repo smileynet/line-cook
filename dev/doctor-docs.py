@@ -40,10 +40,10 @@ COMMAND_REQUIRED_FIELDS = {"description", "allowed-tools"}
 AGENT_REQUIRED_FIELDS = {"name", "description", "tools"}
 
 # Required sections in README.md
-README_REQUIRED_SECTIONS = {"getting started", "installation", "usage"}
+README_REQUIRED_SECTIONS = {"quick start", "installation", "workflow"}
 
 # Required sections in AGENTS.md
-AGENTS_REQUIRED_SECTIONS = {"agents", "taster", "sous-chef", "maitre"}
+AGENTS_REQUIRED_SECTIONS = {"agents", "taster", "sous-chef", "maître"}
 
 
 def parse_version(version: str) -> tuple[int, ...]:
@@ -239,7 +239,8 @@ def check_changelog_format(repo_root: Path) -> DocResult:
         result.warnings.append("CHANGELOG.md has no version entries")
     else:
         versions = [v for v, _ in version_matches]
-        result.info.append(f"CHANGELOG.md has {len(versions)} version entries: {versions[:5]}")
+        preview_count = min(5, len(versions))
+        result.info.append(f"CHANGELOG.md has {len(versions)} version entries: {versions[:preview_count]}")
 
         # Validate date format (ISO 8601: YYYY-MM-DD)
         date_pattern = r"^\d{4}-\d{2}-\d{2}$"

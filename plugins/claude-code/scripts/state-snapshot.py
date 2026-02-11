@@ -205,7 +205,7 @@ def _extract_task_detail(detail):
     if not isinstance(detail, dict):
         return None
 
-    description = detail.get("description", "") or ""
+    description = detail.get("description", "")
 
     # First paragraph as summary
     paragraphs = description.split("\n\n")
@@ -325,7 +325,7 @@ def build_hierarchy(task_id):
 
 def _extract_goal(bead):
     """Extract goal text (first line of description, max 200 chars)."""
-    description = (bead.get("description", "") or "").strip()
+    description = bead.get("description", "").strip()
     if not description:
         return None
     first_line = description.split("\n")[0].strip()
