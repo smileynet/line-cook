@@ -337,6 +337,12 @@ EOF
     bd import -i "$FIXTURES_DIR/epic-hierarchy/issues.jsonl" >/dev/null 2>&1
     log_success "Imported epic hierarchy (epic→feature→tasks)"
 
+    # Set up parent relationships (bd import doesn't preserve parent field)
+    bd update smoke-feat-001 --parent smoke-epic-001 >/dev/null 2>&1
+    bd update smoke-task-001 --parent smoke-feat-001 >/dev/null 2>&1
+    bd update smoke-task-002 --parent smoke-feat-001 >/dev/null 2>&1
+    log_success "Set parent relationships for epic hierarchy"
+
     # Create a simple CLAUDE.md for the test project
     cat > CLAUDE.md << 'EOF'
 # Epic Smoke Test Project

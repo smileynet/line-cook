@@ -59,8 +59,15 @@ def find_target_bead(explicit_id=None):
 
 
 def _find_first_bead_by_status(status):
-    """Find first bead with given status, returning normalized dict or None."""
-    rc, out, _ = run_cmd(["bd", "list", f"--status={status}", "--json"], timeout=15)
+    """Find first bead with given status, returning normalized dict or None.
+
+    For closed status, sorts by most recently updated to pick the right bead
+    in multi-task sessions.
+    """
+    cmd = ["bd", "list", f"--status={status}", "--json"]
+    if status == "closed":
+        cmd.extend(["--sort=updated", "--reverse", "--limit=5"])
+    rc, out, _ = run_cmd(cmd, timeout=15)
     if rc != 0 or not out:
         return None
     try:
