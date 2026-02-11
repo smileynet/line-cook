@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Local development install instructions in AGENTS.md for all three platforms
+
+### Fixed
+- Kiro inline arguments now work for brainstorm, plate, scope, and finalize (`$ARGUMENTS` support)
+- Kiro prompts now work in non-line-cook projects by inlining template references
+- Kiro prompts no longer get summarized by the AI (strengthened execution directives)
+- Plan validator no longer crashes on timestamps with negative UTC offsets
+
 ## [0.13.0] - 2026-02-10
 ### Added
 - Full command parity across all three platforms (Claude Code, OpenCode, Kiro)
