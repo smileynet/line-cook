@@ -11,22 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full command parity across all three platforms (Claude Code, OpenCode, Kiro)
   - `architecture-audit`, `decision`, `help`, `plan-audit`, and `loop` now available on OpenCode and Kiro via shared template system
   - All platforms now have 16 commands each
-- Validation CI workflow runs health, parity, and documentation checks on every push and PR
-- Release pipeline safety guards: smoke test after bundling, size guard to catch duplication regressions, and automatic rollback on failure
 
 ### Changed
-- Prep, cook, and serve commands now use structured Python helper scripts instead of inline bash for data collection
-  - Reduces context bloat and eliminates fragile shell pipelines
-  - Helper scripts (state-snapshot, kitchen-equipment, diff-collector) return truncated, deterministic JSON
-- Helper scripts no longer make agent-level decisions (e.g., task auto-selection); they return data and let agents decide
+- Prep, cook, and serve commands now use structured helper scripts instead of inline bash, reducing context bloat and eliminating fragile shell pipelines
 - Kiro prompts now include instruction preamble so the AI treats them as workflow commands rather than passive documentation
 
 ### Fixed
 - Kiro installer now deploys all 6 agent configurations (was only installing line-cook.json)
 - Hierarchy progress counts now include closed children, fixing empty completed-siblings display
 - Blocked tasks are correctly skipped during epic drill-down instead of being selected as next work
-- Closed beads in diff-collector now sorted by recency for more useful review context
-- Cook and serve templates no longer run redundant subprocess calls that duplicated data already provided by helper scripts
+- Plan validator no longer crashes on timestamps with negative UTC offsets
 
 ## [0.12.0] - 2026-02-08
 ### Added
