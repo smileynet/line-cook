@@ -11,8 +11,14 @@ line-cook/
 │   │   ├── commands/          # Generated (from core/templates) + native
 │   │   ├── agents/            # Generated (from core/templates)
 │   │   └── scripts/
-│   │       ├── line-loop.py   # Bundled from core/line_loop
-│   │       └── menu-plan-to-beads.sh
+│   │       ├── diff-collector.py     # Collects diffs for serve review
+│   │       ├── kitchen-equipment.py  # Tool/dependency checks
+│   │       ├── line-loop.py          # Bundled from core/line_loop
+│   │       ├── menu-plan-to-beads.sh # Converts menu plan YAML to beads
+│   │       ├── metrics-collector.py  # Project metrics gathering
+│   │       ├── plan-validator.py     # Validates menu plan structure
+│   │       ├── preflight.py          # Pre-execution checks
+│   │       └── state-snapshot.py     # Captures bead state snapshot
 │   ├── opencode/              # OpenCode plugin
 │   │   ├── package.json       # Plugin manifest
 │   │   ├── src/               # TypeScript source
@@ -60,7 +66,8 @@ line-cook/
 ├── .github/
 │   └── workflows/             # CI/CD automation
 │       ├── ci.yml             # Continuous integration (OpenCode)
-│       └── release.yml        # Automated releases
+│       ├── release.yml        # Automated releases
+│       └── validate.yml       # Validation checks
 ├── AGENTS.md                  # Dev reference (not shipped)
 ├── CHANGELOG.md
 ├── CLAUDE.md

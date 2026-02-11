@@ -65,6 +65,8 @@ graph LR
 | `/serve` | Review code changes |
 | `/tidy` | Commit and push changes |
 | `/plate` | Validate completed feature |
+| `/plan-audit` | Validate bead structure and quality |
+| `/loop` | Autonomous multi-cycle execution |
 | `/run` | Run full workflow cycle |
 
 > **Session boundary:** After `/tidy` pushes your work, start a new session or clear context before the next task.

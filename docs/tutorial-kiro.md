@@ -1,6 +1,6 @@
 # Tutorial: From Brainstorm to First Work Cycle
 
-This tutorial walks you through the complete journey from initial brainstorming with an LLM to confident use of the full `work` command. By the end, you'll understand each phase of the workflow and what to watch for as it runs.
+This tutorial walks you through the complete journey from initial brainstorming with an LLM to confident use of the full `@line-run` command. By the end, you'll understand each phase of the workflow and what to watch for as it runs.
 
 **Prerequisites:**
 - [beads](https://github.com/steveyegge/beads) installed (`bd` command available)
@@ -43,18 +43,19 @@ These are different modes. Don't mix them.
 | Define scope | Verify before done |
 | Create beads | File discoveries, don't act on them |
 
-**The handoff:** After creating beads, clear your context. Start fresh with `prep` for focused execution.
+**The handoff:** After creating beads, clear your context. Start fresh with `@line-prep` for focused execution.
 
 ### Progressive Trust
 
 Build confidence gradually:
 
 ```
-MANUAL      →  BEADS      →  INDIVIDUAL  →  WORK
-(you type)     (bd ready)    (prep,cook)    (work)
+MANUAL      →  BEADS      →  INDIVIDUAL      →  RUN
+(you type)     (bd ready)    (@line-prep,       (@line-run)
+                              @line-cook)
 ```
 
-Start by running commands separately. Graduate to `work` once you understand each phase and trust the output.
+Start by running commands separately. Graduate to `@line-run` once you understand each phase and trust the output.
 
 ### Guardrails as Recovery Points
 
@@ -71,40 +72,40 @@ Each command is a checkpoint. Nothing is permanent until `git push`.
 
 ---
 
-## Part 2: Planning with mise
+## Part 2: Planning with @line-mise
 
-Before any code is written, you need a plan. Line Cook provides the `mise` command to guide you through structured planning with three phases: brainstorm, plan, and finalize.
+Before any code is written, you need a plan. Line Cook provides the `@line-mise` command to guide you through structured planning with three phases: brainstorm, scope, and finalize.
 
 ### The Three-Phase Planning Workflow
 
 ```
-brainstorm → plan → finalize
-(divergent)   (convergent)   (execution prep)
+@line-brainstorm → @line-scope → @line-finalize
+   (divergent)      (convergent)    (execution prep)
 ```
 
 Each phase produces a reviewable artifact:
 - **Brainstorm** outputs `docs/planning/brainstorm-<name>.md`
-- **Plan** outputs `docs/planning/menu-plan.yaml`
+- **Scope** outputs `docs/planning/menu-plan.yaml`
 - **Finalize** creates beads + test specifications
 
-Between each phase, `mise` pauses for your review. This prevents premature commitment and lets you iterate at each level.
+Between each phase, `@line-mise` pauses for your review. This prevents premature commitment and lets you iterate at each level.
 
 ### Example: Building a Reading List CLI
 
-Let's say you want to build a simple CLI tool to track books you're reading. Instead of manually brainstorming, we'll use `mise` to structure the planning.
+Let's say you want to build a simple CLI tool to track books you're reading. Instead of manually brainstorming, we'll use `@line-mise` to structure the planning.
 
-### Step 1: Run brainstorm
+### Step 1: Run @line-brainstorm
 
 Start the planning cycle:
 
 ```
-mise
+@line-mise
 ```
 
 Or run brainstorm directly for more control:
 
 ```
-brainstorm
+@line-brainstorm
 ```
 
 Claude will ask clarifying questions:
@@ -154,7 +155,7 @@ Ready to proceed to planning phase?
 - Resolve any open questions
 - Then continue to create structured plan
 
-Continue to plan? [Y/n]
+Continue to @line-scope? [Y/n]
 ```
 
 ### Step 2: Review the Brainstorm
@@ -167,9 +168,9 @@ Before proceeding, you can review `docs/planning/brainstorm-reading-cli.md`. Thi
 
 If anything looks wrong, edit the document or ask Claude to adjust before continuing.
 
-### Step 3: Run plan
+### Step 3: Run @line-scope
 
-After confirming, Claude runs the plan phase:
+After confirming, Claude runs the scope phase:
 
 ```
 MENU PLAN CREATED
@@ -193,7 +194,7 @@ Ready to commit to beads and create test specs?
 - Make any edits to the YAML file
 - Then continue to create beads
 
-Continue to finalize? [Y/n]
+Continue to @line-finalize? [Y/n]
 ```
 
 ### Step 4: Review the Menu Plan
@@ -234,7 +235,7 @@ This is your chance to:
 - Refine acceptance criteria
 - Change dependencies
 
-### Step 5: Run finalize
+### Step 5: Run @line-finalize
 
 After confirming, Claude converts the plan to beads:
 
@@ -261,7 +262,7 @@ READY TO WORK
 Available tasks:
   lc-002 [P1] Implement JSON file storage
 
-NEXT STEP: Run prep to start working on tasks
+NEXT STEP: Run @line-prep to start working on tasks
 ```
 
 ### What Was Created
@@ -287,20 +288,20 @@ lc-001: Core CLI (epic)
 If requirements are already clear, skip directly to planning:
 
 ```
-mise skip-brainstorm
+@line-mise skip-brainstorm
 ```
 
 Or run phases individually for maximum control:
 
 ```bash
 # Just explore
-brainstorm
+@line-brainstorm
 
 # Already have brainstorm, need structure
-plan
+@line-scope
 
 # Already have menu plan, need beads
-finalize
+@line-finalize
 ```
 
 ### Clear Context Before Execution
@@ -310,18 +311,18 @@ Planning is done. Before starting execution, **clear your context** (new convers
 - No confusion between planning discussion and task work
 - Clean session boundaries
 
-Then start fresh with `prep`.
+Then start fresh with `@line-prep`.
 
 ---
 
 ## Part 4: Starting Your First Session
 
-Now let's see how `prep` shows you what's ready to work on.
+Now let's see how `@line-prep` shows you what's ready to work on.
 
 ### Run Prep
 
 ```
-prep
+@line-prep
 ```
 
 Watch the output carefully:
@@ -343,9 +344,9 @@ EPIC IN FOCUS:
 NEXT TASK (part of epic):
   lc-002 [P2] Implement JSON storage  ← Auto-selected (no blockers)
 
-New to line-cook? Say "getting started" for workflow guide.
+New to line-cook? Run @line-getting-started for workflow guide.
 
-NEXT STEP: cook lc-002
+NEXT STEP: @line-cook lc-002
 ```
 
 ### What Prep Does
@@ -361,18 +362,18 @@ Prep will never recommend a blocked task. It respects your dependency structure.
 
 ## Part 5: Cooking Your First Task
 
-This is where work happens. Run `cook` to execute the recommended task.
+This is where work happens. Run `@line-cook` to execute the recommended task.
 
 ### Run Cook
 
 ```
-cook
+@line-cook
 ```
 
 Or specify the task explicitly:
 
 ```
-cook lc-002
+@line-cook lc-002
 ```
 
 ### What to Watch
@@ -439,7 +440,7 @@ Findings (to file in tidy):
   Improvements:
     - "Consider adding timestamps to entries"
 
-NEXT STEP: serve (review) or tidy (commit)
+NEXT STEP: @line-serve (review) or @line-tidy (commit)
 ```
 
 Cook won't mark a task complete if tests fail or code doesn't compile.
@@ -448,7 +449,7 @@ Cook won't mark a task complete if tests fail or code doesn't compile.
 
 ## Part 6: Serving - Getting a Second Opinion
 
-Before committing, `serve` invokes a separate Claude instance to review your changes. This is AI peer review.
+Before committing, `@line-serve` invokes a separate Claude instance to review your changes. This is AI peer review.
 
 ### What is Headless Claude?
 
@@ -464,7 +465,7 @@ Serve spawns a headless Claude with:
 ### Run Serve
 
 ```
-serve
+@line-serve
 ```
 
 ### What Serve Does
@@ -498,7 +499,7 @@ Positive notes:
   - Comprehensive test coverage
   - Clear function naming
 
-NEXT STEP: tidy
+NEXT STEP: @line-tidy
 ```
 
 ### Verdicts
@@ -518,7 +519,7 @@ Tidy is where everything gets captured and pushed. Nothing is lost.
 ### Run Tidy
 
 ```
-tidy
+@line-tidy
 ```
 
 ### What Tidy Does
@@ -588,7 +589,7 @@ Ready Tasks (3):
 
 ## Part 8: Plate - Feature Acceptance
 
-While tidy completes individual tasks, `plate` validates entire features. Use it when all tasks for a feature are complete and you're ready for BDD acceptance testing.
+While tidy completes individual tasks, `@line-plate` validates entire features. Use it when all tasks for a feature are complete and you're ready for BDD acceptance testing.
 
 ### Task vs Feature Workflows
 
@@ -604,13 +605,13 @@ Not every task needs plate. Run it when:
 ### Run Plate
 
 ```
-plate <feature-id>
+@line-plate <feature-id>
 ```
 
 Or let it auto-detect close-eligible features:
 
 ```
-plate
+@line-plate
 ```
 
 ### What Plate Does
@@ -625,12 +626,12 @@ plate
 
 ## Part 9: Graduating to Full Automation
 
-Now that you understand each phase, you can use `work` to run them all together.
+Now that you understand each phase, you can use `@line-run` to run them all together.
 
 ### The Full Cycle
 
 ```
-work
+@line-run
 ```
 
 This runs: **prep → cook → serve → tidy**
@@ -660,7 +661,7 @@ SUMMARY: Implemented 'add' command with title and author arguments.
 
 ### The Session Boundary
 
-Notice that `work` ends with a push. This is a **session boundary**—the natural point to clear context and start fresh.
+Notice that `@line-run` ends with a push. This is a **session boundary**—the natural point to clear context and start fresh.
 
 For the next task, start a new conversation or compact context. Each work cycle is designed to complete independently, preventing context bloat and keeping execution focused.
 
@@ -668,17 +669,153 @@ For the next task, start a new conversation or compact context. Each work cycle 
 
 | Situation | Command |
 |-----------|---------|
-| Exploring what's available | `prep` |
-| Debugging cook issues | `cook` alone |
+| Exploring what's available | `@line-prep` |
+| Debugging cook issues | `@line-cook` alone |
 | Skipping review for trivial changes | prep → cook → tidy |
-| Understanding the review process | `serve` alone |
-| Just committing and pushing | `tidy` |
+| Understanding the review process | `@line-serve` alone |
+| Just committing and pushing | `@line-tidy` |
 
-### When to Use work
+### When to Use @line-run
 
 - You're confident in the workflow
 - You want focused execution without interruption
 - The task is well-defined and ready
+
+---
+
+## Part 10: Mid-Project Hygiene with @line-plan-audit
+
+While the prep → cook → serve → tidy cycle handles individual tasks, `@line-plan-audit` is your tool for stepping back and checking overall project health. It's not part of the execution loop—it's a hygiene tool you reach for periodically.
+
+### When Things Get Messy
+
+After many work cycles, beads accumulate. Scope changes, discoveries get filed, priorities shift. Your carefully planned hierarchy can drift:
+
+- Orphaned tasks pointing to deleted parents
+- Features missing acceptance criteria
+- Stale items no one's touched in weeks
+- Completed features without acceptance documentation
+
+Audit helps you catch these before they become problems.
+
+### What Audit Checks
+
+Audit examines your beads across four categories:
+
+| Category | What It Checks |
+|----------|----------------|
+| **Structural** | Hierarchy depth, orphan references, circular dependencies |
+| **Quality** | Acceptance criteria, priorities, types, user story format |
+| **Health** | Stale items, nearly complete features, work distribution |
+| **Verification** | Acceptance docs for closed features, test coverage |
+
+### Run a Quick Hygiene Check
+
+```
+@line-plan-audit
+```
+
+Sample output:
+
+```
+AUDIT: Active Items
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Scope: 12 open items (3 epics, 4 features, 5 tasks)
+
+Health Summary:
+  ✓ No structural issues
+  ⚠ 2 quality warnings
+  ℹ 1 suggestion
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WARNINGS (should fix):
+
+[Quality] lc-023: Missing priority
+  → Task has no priority set, defaults to P2
+  Fix: bd update lc-023 --priority=2
+
+[Quality] lc-018: Thin acceptance criteria
+  → Feature has only 1 criterion (recommend 2-4)
+  Review: bd show lc-018
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SUGGESTIONS (consider):
+
+[Quality] lc-015: User story format
+  → Feature description doesn't follow "As a... I want... so that..."
+  This is optional but improves clarity.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run @line-plan-audit --fix to auto-fix safe issues.
+```
+
+### Understanding Findings
+
+Audit categorizes findings by severity:
+
+| Level | Color | Meaning | Action |
+|-------|-------|---------|--------|
+| **Critical** | Red | Must fix | Orphans, depth violations, circular deps |
+| **Warning** | Yellow | Should fix | Missing priority, thin criteria, stale items |
+| **Info** | Blue | Suggestion | User story format, documentation ideas |
+
+Critical issues block work—fix them immediately. Warnings indicate quality drift—address them soon. Suggestions are optional improvements.
+
+### Auto-Fixing Safe Issues
+
+Some issues have obvious, safe fixes:
+
+```
+@line-plan-audit --fix
+```
+
+What auto-fix handles:
+- **Missing priority** → Sets to P2 (medium)
+- **Missing type** → Infers from context (task under feature, etc.)
+- **Empty labels** → Removes empty label arrays
+
+What needs manual review:
+- Orphan references (which parent should it have?)
+- Thin acceptance criteria (what's missing?)
+- Stale items (still relevant?)
+
+### Scopes for Different Situations
+
+| Scope | Command | Use Case |
+|-------|---------|----------|
+| `active` | `@line-plan-audit` | Quick check of open items |
+| `full` | `@line-plan-audit full` | Comprehensive audit including work verification |
+| `<id>` | `@line-plan-audit lc-001` | Check a specific epic/feature and its children |
+
+The `full` scope also verifies:
+- Closed features have acceptance documentation
+- Test specs exist for TDD-marked tasks
+- No zombie items (closed but still blocking others)
+
+### When to Audit
+
+Run audit periodically—it's cheap and catches drift early:
+
+- **Weekly** or after several work cycles
+- **Before milestones** or releases
+- **When onboarding** to a new project
+- **When something feels off** or confusing
+- **After significant scope changes**
+
+### Audit vs bd doctor
+
+These tools check different things:
+
+| Tool | Level | What It Checks |
+|------|-------|----------------|
+| `bd doctor` | System | Installation, hooks, git sync, permissions |
+| `@line-plan-audit` | Content | Hierarchy, quality, health, verification |
+
+Run `bd doctor` when beads commands fail. Run `@line-plan-audit` when your project structure needs a checkup.
 
 ---
 
@@ -690,13 +827,13 @@ Here's how to develop a sustainable workflow with Line Cook.
 
 **Start of day:**
 ```
-prep
+@line-prep
 ```
 See what's ready. Get oriented. Check if anything is blocked.
 
 **During work:**
 ```
-work
+@line-run
 ```
 Run focused cycles. One task at a time. Trust the process.
 
@@ -711,9 +848,10 @@ Make sure your last cycle finished with `git push`. Work isn't done until pushed
 Periodically check your project health:
 
 ```bash
-bd stats        # Overall counts
-bd blocked      # What's waiting on what
-bd ready        # What you can work on
+bd stats             # Overall counts
+bd blocked           # What's waiting on what
+bd ready             # What you can work on
+@line-plan-audit     # Bead health and quality
 ```
 
 ### The Parking Lot
@@ -750,7 +888,7 @@ The good news: prep is read-only. Nothing you do here changes code. If something
 |---------|----------|
 | Beads out of sync | `bd sync` to pull latest |
 | Merge conflicts | Ask Claude to help resolve, then `bd sync` |
-| Wrong task selected | Specify task explicitly: `cook lc-xxx` |
+| Wrong task selected | Specify task explicitly: `@line-cook lc-xxx` |
 
 ### During Cook
 
@@ -774,8 +912,8 @@ Rejection here is normal and healthy. It means the safety net caught something. 
 
 | Problem | Solution |
 |---------|----------|
-| Review rejected | Fix issues, run `serve` again |
-| Reviewer found critical bug | Return to cook, fix, re-run serve |
+| Review rejected | Fix issues, run `@line-serve` again |
+| Reviewer found critical bug | Return to cook, fix, re-run `@line-serve` |
 | Auto-fix made wrong change | `git diff` to review, `git checkout <file>` to undo |
 
 ### During Tidy
@@ -798,7 +936,7 @@ Sometimes you lose track of where you are. Maybe context got too long, maybe you
 |---------|----------|
 | Confused about state | `bd show <task-id>` to see task details |
 | Lost track of progress | `bd stats` and `bd ready` to survey |
-| Context too long | Clear context, run `prep` to resume |
+| Context too long | Clear context, run `@line-prep` to resume |
 | Need to abandon session | `git checkout .` to discard, task stays open |
 
 ### The Nuclear Option
@@ -811,7 +949,7 @@ git pull                    # Sync with remote
 bd sync                     # Sync beads
 ```
 
-Then start fresh with `prep`. Your beads are still there—the work tracking survives even a full reset. You haven't lost your place, just your uncommitted changes.
+Then start fresh with `@line-prep`. Your beads are still there—the work tracking survives even a full reset. You haven't lost your place, just your uncommitted changes.
 
 ---
 
@@ -820,7 +958,7 @@ Then start fresh with `prep`. Your beads are still there—the work tracking sur
 You now understand the complete Line Cook workflow. Here are your next steps:
 
 1. **Try it** - Run through this tutorial with a real project
-2. **Build trust** - Start with individual commands, graduate to `work`
+2. **Build trust** - Start with individual commands, graduate to `@line-run`
 3. **Develop rhythm** - Use the daily pattern to build sustainable habits
 
 The goal is confident, focused execution. Line Cook handles the discipline so you can focus on the work.
@@ -831,20 +969,31 @@ The goal is confident, focused execution. Line Cook handles the discipline so yo
 
 | Planning Commands | Purpose |
 |-------------------|---------|
-| `mise` | Full planning cycle with pause points |
-| `brainstorm` | Explore problem space (divergent) |
-| `plan` | Create structured breakdown (convergent) |
-| `finalize` | Convert plan to beads + test specs |
+| `@line-mise` | Full planning cycle with pause points |
+| `@line-brainstorm` | Explore problem space (divergent) |
+| `@line-scope` | Create structured breakdown (convergent) |
+| `@line-finalize` | Convert plan to beads + test specs |
+
+| Hygiene Commands | Purpose |
+|------------------|---------|
+| `@line-plan-audit` | Validate bead structure and quality |
+| `@line-architecture-audit` | Analyze code structure and smells |
 
 | Execution Commands | Purpose |
 |--------------------|---------|
-| `getting started` | Quick workflow guide |
-| `prep` | Sync and show ready work |
-| `cook` | Execute a task with guardrails |
-| `serve` | AI peer review |
-| `tidy` | Commit, file findings, push |
-| `plate` | Validate completed feature (BDD acceptance) |
-| `work` | Full execution cycle |
+| `@line-getting-started` | Quick workflow guide |
+| `@line-prep` | Sync and show ready work |
+| `@line-cook` | Execute a task with guardrails |
+| `@line-serve` | AI peer review |
+| `@line-tidy` | Commit, file findings, push |
+| `@line-plate` | Validate completed feature (BDD acceptance) |
+| `@line-run` | Full execution cycle |
+
+| Utility Commands | Purpose |
+|------------------|---------|
+| `@line-decision` | Record or view architecture decisions |
+| `@line-help` | Contextual help for commands |
+| `@line-loop` | Autonomous multi-cycle execution |
 
 | Beads Command | Purpose |
 |---------------|---------|
