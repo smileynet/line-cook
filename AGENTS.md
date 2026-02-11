@@ -352,7 +352,35 @@ Review agents are also generated from shared templates to prevent drift between 
 
 ## Installation
 
-See [README.md#installation](README.md#installation) for platform-specific installation instructions.
+> See [README.md#installation](README.md#installation) for end-user installation instructions.
+
+### Local Development Install
+
+After cloning the repo and editing templates, install locally to test changes:
+
+**Claude Code** — Plugin installed via marketplace; no local install step needed for command content changes. Re-run `/clear` in a new session to pick up edits.
+
+**Kiro:**
+```bash
+python3 plugins/kiro/install.py --global   # Install to ~/.kiro/
+python3 plugins/kiro/install.py --local    # Install to .kiro/ (current project only)
+```
+
+**OpenCode** (requires [bun](https://bun.sh)):
+```bash
+plugins/opencode/install.sh               # Build + install to ~/.config/opencode/
+```
+
+> **Tip:** If `bun` is installed but not on PATH (e.g. Claude Code's bash environment doesn't source `.zshrc`), prefix with `PATH="$HOME/.bun/bin:$PATH"`.
+
+### After Template Changes
+
+Always sync before installing:
+```bash
+./dev/sync-commands.sh                     # Regenerate platform-specific files
+python3 plugins/kiro/install.py --global   # Re-install Kiro
+plugins/opencode/install.sh               # Re-install OpenCode
+```
 
 > **Important - Command Discovery:** Claude Code caches commands based on `plugin.json` version. After adding new commands, bump the version and run `/clear` in a new session.
 

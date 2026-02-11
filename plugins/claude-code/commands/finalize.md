@@ -16,11 +16,19 @@ This phase transforms the approved menu plan into actionable beads and creates l
 - BDD specs: `tests/features/<feature-name>.feature` (Gherkin)
 - TDD specs: `tests/specs/<task-name>.md` (for tasks with `tdd: true`)
 
+**Arguments:** `$ARGUMENTS` (optional) - Path to menu-plan.yaml
+
 ---
 
 ## Process
 
 ### Step 1: Validate Menu Plan Exists
+
+**If `$ARGUMENTS` provided:**
+- Use `$ARGUMENTS` as the path to the menu-plan YAML file
+
+**Otherwise:**
+- Use the default path `docs/planning/menu-plan.yaml`
 
 Check that the menu plan exists and is ready for conversion:
 

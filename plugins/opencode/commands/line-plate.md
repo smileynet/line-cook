@@ -7,6 +7,8 @@ description: Validate completed feature and create acceptance documentation
 
 **Validate completed features and create acceptance documentation.** Final step before feature completion.
 
+**Arguments:** `$ARGUMENTS` (optional) - Feature bead ID to validate
+
 **STOP after completing.** Show NEXT STEP and wait for user.
 
 ---
@@ -15,15 +17,11 @@ description: Validate completed feature and create acceptance documentation
 
 ### Step 1: Identify Feature to Validate
 
-Select the feature to validate:
+**If `$ARGUMENTS` provided:**
+- Use that feature ID directly
 
-```bash
-# Option 1: Use argument
-/plate <feature-id>
-
-# Option 2: Find recently completed features
-bd list --status=closed --type=feature --limit=5
-```
+**Otherwise:**
+- Find recently completed features: `bd list --status=closed --type=feature --limit=5`
 
 **Important:** Only run plate phase on fully completed features (all child tasks closed).
 

@@ -13,6 +13,8 @@ This phase transforms exploration into a structured, reviewable plan. Output is 
 **Input:** Brainstorm document (optional) or direct requirements
 **Output:** `docs/planning/menu-plan.yaml`
 
+**Arguments:** `$ARGUMENTS` (optional) - Path to brainstorm document or direct requirements
+
 **STOP after creating menu plan.** Wait for user approval before committing.
 
 ---
@@ -20,6 +22,14 @@ This phase transforms exploration into a structured, reviewable plan. Output is 
 ## Process
 
 ### Step 1: Load Context
+
+**If `$ARGUMENTS` provided:**
+- Use `$ARGUMENTS` as the brainstorm document path or direct requirements input
+- If it's a file path, read it as the brainstorm document
+- If it's descriptive text, use it as direct requirements
+
+**Otherwise:**
+- Look for planning context automatically (below)
 
 Look for planning context:
 

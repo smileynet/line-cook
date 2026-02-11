@@ -17,11 +17,20 @@ This phase focuses on understanding the problem before structuring a solution. O
 
 **Output:** `docs/planning/brainstorm-<name>.md`
 
+**Arguments:** `$ARGUMENTS` (optional) - Topic or problem description to brainstorm
+
 ---
 
 ## Process
 
 ### Step 1: Understand the Problem
+
+**If `$ARGUMENTS` provided:**
+- Use `$ARGUMENTS` as the initial problem statement
+- Proceed with exploration — skip asking "what should we brainstorm?"
+
+**Otherwise:**
+- Ask the user what they'd like to brainstorm
 
 Ask clarifying questions to understand what we're solving:
 
