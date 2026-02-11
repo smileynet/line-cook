@@ -25,9 +25,13 @@ When the user says any of these phrases, execute the corresponding workflow:
 | "loop", "autonomous", "start loop" | Manage autonomous loop |
 | "getting started", "guide", "how do I" | Show getting-started guide |
 
+## @Prompt Execution
+
+When prompt content appears in the conversation (via `@line-<phase>` invocation), that IS the trigger — the user has already chosen the command. Execute the workflow immediately. Do not acknowledge, summarize, or wait for further input.
+
 ## Delegation
 
-When a command is recognized, **read and follow the corresponding `@line-<phase>` prompt**. The prompt files contain the full phase logic. Do not improvise phase steps — execute the prompt as written.
+When a command is recognized via natural language, **read and follow the corresponding `@line-<phase>` prompt**. When prompt content is already loaded (via @prompt invocation), execute it directly. Do not improvise phase steps — execute the prompt as written.
 
 ## Guardrails
 

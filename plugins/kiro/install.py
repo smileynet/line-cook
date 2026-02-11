@@ -39,6 +39,15 @@ def main() -> None:
     if args.global_install:
         kiro_dir = Path.home() / ".kiro"
         print("Installing line-cook for Kiro CLI (global)...")
+        # Warn if local .kiro/ would shadow global install
+        local_kiro = Path.cwd() / ".kiro"
+        if local_kiro.is_dir():
+            print()
+            print(f"  ⚠  Local .kiro/ directory detected at {local_kiro}")
+            print("     Local installations take precedence over global. Consider:")
+            print(f"     - Remove local: rm -rf {local_kiro}")
+            print("     - Or re-run with --local")
+            print()
     else:
         kiro_dir = Path(".kiro")
         print("Installing line-cook for Kiro CLI (local)...")
