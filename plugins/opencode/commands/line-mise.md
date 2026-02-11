@@ -23,7 +23,7 @@ Like `/line-run` orchestrates the execution cycle (prep→cook→serve→tidy), 
 
 ### Step 1: Start Planning Chain
 
-**If `skip-brainstorm` in $ARGUMENTS or requirements are crystal clear:**
+**If the user specified `skip-brainstorm` or requirements are crystal clear:**
   Run `/line-scope`.
 
 **Otherwise:**

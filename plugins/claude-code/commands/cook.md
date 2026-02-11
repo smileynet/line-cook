@@ -18,7 +18,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 
 ### Step 1: Select Task
 
-**If `$ARGUMENTS` provided:**
+**If the user provided a task ID:**
 - Use that task ID directly
 
 **Otherwise:**
@@ -27,10 +27,26 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TodoWrite, AskUserQues
 - Call kitchen-equipment.py again with the selected task ID
 
 **Gather task context (epic check, prior context, tools):**
+
+#### Find Script
+
+Locate `kitchen-equipment.py`:
+
+1. **Plugin installation** (most common):
+   ```
+   Glob(pattern="**/scripts/kitchen-equipment.py", path="~/.claude/plugins")
+   ```
+   Usually: `~/.claude/plugins/cache/line-cook-marketplace/line/<version>/scripts/kitchen-equipment.py`
+
+2. **Current project** (for development):
+   ```
+   Glob(pattern="**/scripts/kitchen-equipment.py")
+   ```
+
 ```bash
 # Without <id>: returns ready_list for task selection
 # With <id>: returns full task context (epic check, prior context, tools)
-CONTEXT=$(python3 plugins/claude-code/scripts/kitchen-equipment.py <id> --json 2>/dev/null)
+CONTEXT=$(python3 <path-to-kitchen-equipment.py> <id> --json 2>/dev/null)
 echo "$CONTEXT"
 ```
 

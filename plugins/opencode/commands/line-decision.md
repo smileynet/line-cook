@@ -13,7 +13,7 @@ Storage: `docs/decisions/NNNN-slug.md` with YAML frontmatter and Nygard's 4-sect
 
 ## Arguments
 
-Parse `$ARGUMENTS` to determine the action:
+Parse the user's input to determine the action:
 
 | Input | Action |
 |-------|--------|
@@ -115,7 +115,7 @@ Total decisions: N (N accepted, N superseded, N deprecated)
 
 ## List Flow
 
-When `$ARGUMENTS` is `list`:
+When the user specified `list`:
 
 1. Read `docs/decisions/README.md`
 2. Also scan `docs/decisions/[0-9]*.md` files to get current status from frontmatter
@@ -139,7 +139,7 @@ Use `+` for accepted, `x` for superseded, `-` for deprecated.
 
 ## Show Flow
 
-When `$ARGUMENTS` matches `show NNN`:
+When the user specified `show NNN`:
 
 1. Find the file matching the number: `docs/decisions/NNN*.md` (pad to 4 digits)
 2. Read and display the full ADR content
@@ -149,7 +149,7 @@ When `$ARGUMENTS` matches `show NNN`:
 
 ## Supersede Flow
 
-When `$ARGUMENTS` matches `supersede NNN`:
+When the user specified `supersede NNN`:
 
 ### Step 1: Read existing ADR
 
@@ -184,7 +184,7 @@ Update the old decision's row to show `superseded` status and add the new decisi
 
 - If `docs/decisions/` doesn't exist, create it and `docs/decisions/README.md` with the initial template
 - If a decision number doesn't match any file, report clearly which number was requested and list available decisions
-- If `$ARGUMENTS` doesn't match any known action, default to the Create flow
+- If the user's input doesn't match any known action, default to the Create flow
 
 ---
 

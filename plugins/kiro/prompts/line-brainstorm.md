@@ -1,4 +1,4 @@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 
 ## Summary
 
@@ -16,8 +16,8 @@ This phase focuses on understanding the problem before structuring a solution. O
 
 ### Step 1: Understand the Problem
 
-**If `$ARGUMENTS` provided:**
-- Use `$ARGUMENTS` as the initial problem statement
+**If the user provided a topic or problem description:**
+- Use it as the initial problem statement
 - Proceed with exploration — skip asking "what should we brainstorm?"
 
 **Otherwise:**

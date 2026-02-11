@@ -17,7 +17,7 @@ description: Validate completed feature and create acceptance documentation
 
 ### Step 1: Identify Feature to Validate
 
-**If `$ARGUMENTS` provided:**
+**If the user provided a feature bead ID:**
 - Use that feature ID directly
 
 **Otherwise:**

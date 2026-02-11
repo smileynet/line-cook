@@ -25,7 +25,7 @@ Wait for prep to complete.
 
 Read and follow `line-cook.md` to execute work.
 
-**If `$ARGUMENTS` provided:** Pass the task ID to cook for explicit task selection.
+**If the user provided a task ID:** Pass the task ID to cook for explicit task selection.
 
 **Otherwise:** Cook will auto-select the highest priority ready task.
 

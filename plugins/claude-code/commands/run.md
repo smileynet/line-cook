@@ -36,7 +36,7 @@ Wait for prep to complete.
 
 Invoke the cook command to execute work:
 
-**If `$ARGUMENTS` provided:**
+**If the user provided a task ID:**
 ```
 Skill(skill="line:cook", args="$ARGUMENTS")
 ```

@@ -1,4 +1,4 @@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 
 ## Summary
 
@@ -12,7 +12,7 @@
 
 ### Step 1: Check for Detailed Help Request
 
-**If `$ARGUMENTS` provided:**
+**If the user asked about a specific command:**
 - Show detailed help for that specific command
 - Skip to Step 5
 
@@ -125,15 +125,15 @@ Tip: Run @line-tidy to commit changes before starting new work.
 
 ### Step 5: Output Detailed Help (If Command Specified)
 
-**If `$ARGUMENTS` is a command name:**
+**If the user specified a command name:**
 
 Read the command file and output detailed help:
 
 ```bash
-COMMAND_FILE="commands/${ARGUMENTS#line-}.md"
+COMMAND_FILE="commands/${COMMAND#line-}.md"
 if [ ! -f "$COMMAND_FILE" ]; then
   # Try without prefix
-  COMMAND_FILE="commands/$ARGUMENTS.md"
+  COMMAND_FILE="commands/$COMMAND.md"
 fi
 ```
 

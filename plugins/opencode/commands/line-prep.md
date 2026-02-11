@@ -17,9 +17,13 @@ description: Sync state, load context, show ready tasks
 
 Sync local state, load context, and gather kitchen roster in one structured call:
 
+#### Find Script
+
+Locate `state-snapshot.py`:
+
 ```bash
 # Collect all state: sync, project info, roster, suggestion, hierarchy, branch
-STATE=$(python3 plugins/claude-code/scripts/state-snapshot.py --json 2>/dev/null)
+STATE=$(python3 <path-to-state-snapshot.py> --json 2>/dev/null)
 echo "$STATE"
 ```
 

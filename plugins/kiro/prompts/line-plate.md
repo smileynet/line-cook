@@ -1,4 +1,4 @@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. The user's message following this prompt is your input.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
 
 ## Summary
 
@@ -14,7 +14,7 @@
 
 ### Step 1: Identify Feature to Validate
 
-**If `$ARGUMENTS` provided:**
+**If the user provided a feature bead ID:**
 - Use that feature ID directly
 
 **Otherwise:**

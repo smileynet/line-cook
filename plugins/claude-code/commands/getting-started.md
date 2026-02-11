@@ -163,21 +163,23 @@ Or just run `/line:run` for the full cycle.
 For batch processing multiple tasks, use the external script wrapper instead of running `/line:run` manually each time:
 
 ```bash
-# Run with default 25 iterations
+# Run with default 25 iterations (recommended)
 /line:loop
 
-# Or invoke the script directly
-python3 plugins/claude-code/scripts/line-loop.py
+# Or invoke the script directly (path depends on installation)
+python3 <path-to-line-loop.py>
 
 # Run with custom limit
-python3 plugins/claude-code/scripts/line-loop.py --max-iterations 10
+python3 <path-to-line-loop.py> --max-iterations 10
 
 # JSON output for automation
-python3 plugins/claude-code/scripts/line-loop.py --json --output report.json
+python3 <path-to-line-loop.py> --json --output report.json
 
 # Control behavior
-python3 plugins/claude-code/scripts/line-loop.py --stop-on-blocked --max-retries 1
+python3 <path-to-line-loop.py> --stop-on-blocked --max-retries 1
 ```
+
+> **Note:** The `line-loop.py` path varies by installation. Use `/line:loop` for the standard approach — it discovers the script automatically.
 
 ### Options
 

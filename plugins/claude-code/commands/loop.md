@@ -254,10 +254,10 @@ Use this `$LOOP_DIR` for all file paths in subsequent commands.
 
 ### Parse Subcommand
 
-Extract the subcommand from `$ARGUMENTS`:
+Extract the subcommand from the user's input:
 
 ```
-$ARGUMENTS examples:
+Input examples:
   "start"                      -> subcommand: start
   "start --max-iterations 10"  -> subcommand: start, max_iterations: 10
   "watch"                      -> subcommand: watch
@@ -321,7 +321,7 @@ Search the plugin installation directory for `line-loop.py`:
    ```
    Glob(pattern="**/scripts/line-loop.py", path="~/.claude/plugins")
    ```
-   Typically located at: `~/.claude/plugins/marketplaces/line-cook-marketplace/line/scripts/line-loop.py`
+   Usually: `~/.claude/plugins/cache/line-cook-marketplace/line/<version>/scripts/line-loop.py`
 
 2. **Current project** (for development):
    ```
@@ -741,7 +741,7 @@ View detailed history of loop iterations including all tool actions captured dur
 ### Parse Arguments
 
 ```
-$ARGUMENTS examples:
+Input examples:
   "history"                    -> Show summary of all iterations
   "history --iteration 3"      -> Show details for iteration 3 only
   "history --actions"          -> Include full action list for each iteration
