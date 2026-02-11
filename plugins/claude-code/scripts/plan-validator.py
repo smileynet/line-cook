@@ -455,7 +455,8 @@ def check_stale_in_progress(beads):
         if updated:
             try:
                 # Try ISO format
-                dt = datetime.fromisoformat(updated.replace("Z", "+00:00").split("+")[0])
+                dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                dt = dt.replace(tzinfo=None)
                 if dt < cutoff:
                     days = (datetime.now() - dt).days
                     findings.append({
@@ -485,7 +486,8 @@ def check_old_open(beads):
 
         if created:
             try:
-                dt = datetime.fromisoformat(created.replace("Z", "+00:00").split("+")[0])
+                dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                dt = dt.replace(tzinfo=None)
                 if dt < cutoff:
                     days = (datetime.now() - dt).days
                     findings.append({
