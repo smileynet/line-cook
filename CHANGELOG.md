@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-02-11
 ### Fixed
 - Prep, cook, and serve commands now work correctly when Line Cook is installed as a marketplace plugin (script paths are discovered dynamically instead of using hardcoded project-relative paths)
 - Kiro prompt preamble now accurately describes how inline arguments are passed
@@ -310,7 +311,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.13.2...HEAD
+[0.13.2]: https://github.com/smileynet/line-cook/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/smileynet/line-cook/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/smileynet/line-cook/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/smileynet/line-cook/compare/v0.11.0...v0.12.0
