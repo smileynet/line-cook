@@ -1,4 +1,4 @@
-**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included text after the @prompt name, that text is the input argument — use it directly, do not ask for it again.
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included any text in their message, that text is the input argument — use it directly, do not ask for it again.
 
 **Output this guide to the user.** Do not act on it - display it for reference.
 
