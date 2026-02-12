@@ -130,15 +130,28 @@ Process checklist items systematically with TDD guardrails:
     # Should FAIL
     ```
 
-   **Automatic test quality review:**
+    **Automatic test quality review (CRITICAL):**
 
-   Before proceeding to GREEN, review your test code for quality:
-   - Tests are isolated, fast, repeatable
-   - Clear test names and error messages
-   - Proper structure (Setup-Execute-Validate-Cleanup)
-   - No anti-patterns (shared mutable state, flaky assertions, implementation coupling)
+    Delegate to taster agent for test quality review:
+    ```
+    Use task tool to invoke taster agent:
+    Task(description="Review test code for quality", prompt="Review test code for <package/feature> for quality, checking:
+    - Tests are isolated, fast, repeatable
+    - Clear test names and error messages
+    - Proper structure (Setup-Execute-Validate-Cleanup)
+    - No anti-patterns
 
-   **Address critical issues before GREEN phase.**
+    Report any critical issues that must be addressed before proceeding.", agent="taster")
+    ```
+
+    **If taster unavailable:** Review tests manually against the checklist above.
+
+    **Address critical issues before GREEN phase.** The taster agent will:
+    - Verify tests are isolated, fast, repeatable
+    - Check for clear test names and error messages
+    - Ensure proper structure (Setup-Execute-Validate-Cleanup)
+    - Identify anti-patterns
+    - Provide critical issue blocking if needed
 
 2. **GREEN**: Implement minimal code
    ```bash

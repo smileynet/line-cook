@@ -42,17 +42,34 @@ Execute tests to verify feature works end-to-end:
 - Re-run tests
 - Do NOT proceed with plate phase until tests pass
 
-### Step 3: Review BDD Test Quality
+### Step 3: Review BDD Test Quality with Maitre
 
-Review BDD tests for quality:
+Delegate BDD test quality review to maitre agent:
 
-**Verify:**
+```
+Use task tool to invoke maitre agent:
+Task(description="Review feature test quality", prompt="Review BDD tests for feature <feature-id>
+
+Feature: <feature-title>
+Acceptance criteria:
+- <criteria 1>
+- <criteria 2>
+- <criteria 3>
+
+Verify:
 - All acceptance criteria have tests
 - Given-When-Then structure used
 - Tests map to acceptance criteria
 - User perspective documented
 - Error scenarios included
 - Tests exercise real system operations, not mocked simulations
+
+Report any critical issues before proceeding with plate phase.", agent="maitre")
+```
+
+**If maitre unavailable:** Review BDD tests manually using the checklist above.
+
+**Wait for BDD quality assessment.**
 
 **If critical issues found:**
 - Address issues
@@ -99,41 +116,140 @@ Close the feature bead to mark completion:
 bd close <feature-id>
 ```
 
-### Step 6b: Archive Planning Context (If Epic Complete)
+### Step 6b: Epic Plate Phase (If Last Feature)
 
 After closing the feature, check if all sibling features under the parent epic are now closed:
 
 ```bash
+# Get parent epic
 PARENT=$(bd show <feature-id> --json | jq -r '.[0].parent // empty')
+
+if [ -n "$PARENT" ]; then
+  # Check if all children are closed
+  TOTAL=$(bd list --parent=$PARENT --json | jq 'length')
+  CLOSED=$(bd list --parent=$PARENT --json | jq '[.[] | select(.status == "closed")] | length')
+
+  if [ "$TOTAL" -eq "$CLOSED" ]; then
+    echo "All features complete — triggering epic plate phase"
+    # Continue to Step 6c for epic validation
+  fi
+fi
 ```
 
-If parent exists and all children are closed:
-1. Read epic description, find `Planning context:` path
-2. Update context README status to `archived`
-3. Include in commit
+**Graceful no-op:** If no parent epic or siblings still open — skip epic plate steps.
 
-Graceful no-op if no parent epic, no context link, or siblings still open.
+### Step 6c: Epic E2E Review with Critic (If Epic Complete)
+
+When all features of an epic are closed, invoke the critic agent for E2E review:
+
+```
+Use task tool to invoke critic agent:
+Task(description="Review epic E2E coverage", prompt="Review E2E test coverage for epic <epic-id>
+
+Epic: <epic-title>
+Features completed:
+- <feature-1>
+- <feature-2>
+- <feature-3>
+
+Verify:
+- Critical user journeys are tested end-to-end
+- Cross-feature integration points are validated
+- Smoke tests exist for critical paths
+- Testing approach fits project type
+- No major antipatterns
+- Tests exercise real system interfaces, not mocked simulations
+
+Report any critical issues before closing the epic.", agent="critic")
+```
+
+**If critic unavailable:** Perform inline E2E review using the checklist above.
+
+**Wait for E2E coverage assessment.**
+
+**If FAIL or NEEDS_WORK with critical issues:**
+- Address issues
+- Re-run E2E review
+- Do NOT close epic until coverage is adequate
+
+### Step 6d: Create Epic Acceptance Documentation (If Epic Complete)
+
+Create epic acceptance documentation:
+
+1. Create `docs/features/<epic-id>-acceptance.md`:
+   ```bash
+   mkdir -p docs/features
+   ```
+
+2. Fill in the sections:
+   - **Service Overview** - Epic capability and features included
+   - **Guest Journey Validation** - E2E user journeys tested
+   - **Smoke Test Results** - Critical path validation
+   - **Cross-Feature Integration** - How features work together
+   - **Kitchen Staff Sign-Off** - All agent approvals
+   - **Guest Experience** - How users can use the capability
+   - **Related Work** - Links to feature acceptance reports
+
+### Step 6e: Archive Planning Context (If Epic Complete)
+
+Archive the planning context if one exists:
+
+```bash
+EPIC_DESC=$(bd show $PARENT --json | jq -r '.[0].description')
+CONTEXT_PATH=$(echo "$EPIC_DESC" | grep -oP 'Planning context: \K.*')
+
+if [ -n "$CONTEXT_PATH" ]; then
+  # Update context README status to archived
+  sed -i 's/^**Status:** .*/\*\*Status:\*\* archived/' "$CONTEXT_PATH/README.md"
+  git add "$CONTEXT_PATH/README.md"
+fi
+```
+
+**Graceful no-op:** If no planning context link — skip this step.
+
+### Step 6f: Close Epic (If Epic Complete)
+
+Close the parent epic bead:
+
+```bash
+bd close $PARENT
+```
 
 ### Step 7: Commit and Push
 
 Commit acceptance documentation and CHANGELOG:
 
 ```bash
+# For feature-only plate:
 git add docs/features/<feature-id>-acceptance.md CHANGELOG.md
 git commit -m "feat: complete <feature-title> (<feature-id>)
 
 Feature validation complete:
 - All acceptance criteria verified
-- BDD tests approved
+- BDD tests approved by maitre
 - Smoke tests passing
 
 Acceptance report: docs/features/<feature-id>-acceptance.md"
+
+# For epic plate (include epic artifacts):
+git add docs/features/<feature-id>-acceptance.md docs/features/<epic-id>-acceptance.md CHANGELOG.md
+git commit -m "feat: complete <epic-title> (<epic-id>)
+
+Epic validation complete:
+- All features plated and accepted
+- Critical user journeys validated by critic
+- E2E and smoke tests passing
+- Cross-feature integration verified
+
+Epic report: docs/features/<epic-id>-acceptance.md"
 
 bd sync
 git push
 ```
 
 ### Step 8: Output Summary
+
+**For feature-only plate:**
 
 ```
 PLATE PHASE COMPLETE
@@ -149,8 +265,8 @@ Acceptance Criteria:
 
 Quality Assurance:
   [✓] Tests passing
-  [✓] BDD tests reviewed
-  [✓] Code review complete
+  [✓] BDD tests approved (maitre)
+  [✓] Code review complete (sous-chef)
 
 Deliverables:
   - Acceptance report: docs/features/<feature-id>-acceptance.md
@@ -161,6 +277,41 @@ Commit: <hash>
 ───────────────────────────────────────────
 
 NEXT STEP: Continue with next feature or task
+```
+
+**For epic plate (last feature triggers epic completion):**
+
+```
+EPIC PLATE COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Epic: <epic-id> - <epic-title>
+Status: Full service validated
+
+Features Plated:
+  [✓] <feature-1>
+  [✓] <feature-2>
+  [✓] <feature-3>
+
+User Journey Validation:
+  [✓] <Journey 1> - tested end-to-end
+  [✓] <Journey 2> - tested end-to-end
+
+Quality Assurance:
+  [✓] All smoke tests passing
+  [✓] E2E coverage approved (critic)
+  [✓] Cross-feature integration verified
+
+Deliverables:
+  - Feature report: docs/features/<feature-id>-acceptance.md
+  - Epic report: docs/features/<epic-id>-acceptance.md
+  - CHANGELOG.md updated
+  - Feature and epic beads closed
+
+Commit: <hash>
+───────────────────────────────────────────
+
+NEXT STEP: Continue with next epic or feature
 ```
 
 ## Error Handling
@@ -197,7 +348,7 @@ Critical Issues:
 
 Actions:
   1. Address critical BDD issues
-  2. Re-run BDD review
+  2. Re-run BDD review with maitre
   3. Retry @line-plate <feature-id>
 
 ───────────────────────────────────────────
@@ -208,7 +359,7 @@ Actions:
 The plate phase ensures features are production-ready before completion:
 
 1. **End-to-end validation** - All tests must pass
-2. **BDD quality** - Tests must meet quality bar
+2. **BDD quality** - Tests must meet quality bar (maitre review)
 3. **Documentation** - Acceptance report provides comprehensive record
 4. **Changelog** - Track feature delivery for users
 

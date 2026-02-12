@@ -1,8 +1,23 @@
+@IF_CLAUDECODE@
 ---
 name: maitre
 description: Reviews feature acceptance and BDD test quality - verifies acceptance criteria coverage and Given-When-Then structure
 tools: Glob, Grep, Read
 ---
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+---
+description: Reviews feature acceptance and BDD test quality
+mode: subagent
+hidden: true
+tools:
+  edit: false
+  bash: false
+permission:
+  edit: deny
+  bash: deny
+---
+@ENDIF_OPENCODE@
 
 # Maitre Agent
 
@@ -210,6 +225,48 @@ Issues Found:
 Summary: [Overall assessment]
 ```
 @ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+```
+BDD QUALITY: [APPROVED | NEEDS CHANGES | BLOCKED]
+
+Feature: <feature-id> - <feature-title>
+
+Test Coverage:
+  [✓/✗] All acceptance criteria tested
+  [✓/✗] Happy path scenarios covered
+  [✓/✗] Error scenarios included
+  [✓/✗] Edge cases tested
+
+Test Structure:
+  [✓/✗] Given-When-Then structure used
+  [✓/✗] Test names follow naming convention
+  [✓/✗] Sections clearly marked
+
+Clarity:
+  [✓/✗] Tests are self-documenting
+  [✓/✗] Variable names are meaningful
+  [✓/✗] Failure messages are clear
+
+User Perspective:
+  [✓/✗] Tests validate user outcomes
+  [✓/✗] Real system operations used
+  [✓/✗] No implementation detail testing
+  [✓/✗] No mocks simulating core feature behavior
+
+Error Scenarios:
+  [✓/✗] Failure paths tested
+  [✓/✗] Error handling verified
+
+Smoke Tests:
+  [✓/✗] Smoke tests exist for user-facing features
+  [✓/✗] End-to-end workflows validated
+
+Issues Found:
+[List any critical or recommended changes]
+
+Summary: [Overall assessment]
+```
+@ENDIF_OPENCODE@
 @IF_KIRO@
 After review, output your assessment using one of these templates:
 
