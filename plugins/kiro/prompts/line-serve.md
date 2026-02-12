@@ -38,44 +38,94 @@ The JSON output includes: `bead`, `changes`. Diffs are capped at 200 lines each 
 
 The bead details are in the JSON's `bead` field — use this directly for review context.
 
-### Step 2: Perform Code Review
+### Step 2: Polish Changes
 
-Review the changes with focus on:
+Before review, automatically refine code for clarity. Extract modified files from the REVIEW JSON's `changes.files` array.
 
-1. **Correctness** - Logic errors, edge cases, error handling
-2. **Security** - Input validation, secrets exposure, injection risks
-3. **Style** - Naming, consistency with codebase patterns
-4. **Completeness** - Does it fully address the task?
+```
+Use task tool to invoke polisher agent:
+Task(description="Polish code changes", prompt="Polish the following files for clarity and consistency:
 
-For each issue found, categorize:
-- **Severity**: critical | major | minor | nit
-- **File/line**: Location
-- **Issue**: Description
-- **Suggestion**: How to fix
-- **Auto-fixable**: true | false
+<list of modified files from REVIEW JSON changes.files>
 
-### Step 3: Process Review Results
+Apply these principles:
+- Preserve exact functionality (never change behavior)
+- Reduce unnecessary complexity
+- Improve naming clarity
+- Follow project conventions from CLAUDE.md
+- Remove dead code and redundancy
+- Avoid nested ternaries (prefer if/else or switch)
 
-Based on review findings:
+Output: List of refinements made (file:line - change)", agent="polisher")
+```
 
-**If no issues found:**
-- Verdict: APPROVED
-- Proceed to Step 4
+**If polisher unavailable:** Skip polishing and proceed directly to code review.
 
-**If issues found but non-blocking:**
-- Verdict: NEEDS_CHANGES
+**After polisher completes:**
+- If changes were made, stage them: `git add <polished files>`
+- Proceed to sous-chef review
+
+### Step 3: Code Review
+
+Delegate to sous-chef (reviewer) agent:
+
+```
+Use task tool to invoke sous-chef agent:
+Task(description="Review code changes for task <id>", prompt="Review the following changes for task: <bead title>
+
+Task ID: <id>
+Task description: <brief description>
+
+Changes to review:
+<git diff output or diff HEAD~1>
+
+Project context:
+<CLAUDE.md summary if available>
+
+Review checklist:
+- Correctness: Logic errors, edge cases, error handling
+- Security: Input validation, secrets exposure, injection risks
+- Style: Naming, consistency with codebase patterns
+- Completeness: Does it fully address the task?
+
+Output format:
+1. Summary: Brief overall assessment
+2. Verdict: ready_for_tidy | needs_changes | blocked
+3. Issues found:
+   - Severity: critical | major | minor | nit
+   - File/line: Location
+   - Issue: Description
+   - Suggestion: How to fix
+   - Auto-fixable: true | false
+4. Positive notes: What was done well
+
+CRITICAL: If verdict is 'blocked', explain why and what must be fixed.", agent="sous-chef")
+```
+
+**If sous-chef unavailable:** Perform inline review using the checklist above.
+
+Wait for reviewer assessment. Address critical issues before proceeding to tidy.
+
+### Step 4: Process Review Results
+
+Based on sous-chef verdict:
+
+**If verdict is ready_for_tidy:**
+- Proceed to Step 5
+- No changes needed
+
+**If verdict is needs_changes:**
 - Report findings to user with SERVE_RESULT showing `next_step: @line-cook`
 - User will rerun `@line-cook` with the review findings
 - Do NOT continue to tidy
 
-**If critical issues found:**
-- Verdict: BLOCKED
+**If verdict is blocked:**
 - CRITICAL issues must be fixed before tidying
 - Report blocking issues to user
 - Recommend not proceeding to `@line-tidy` until fixed
 - Keep task as in_progress
 
-### Step 4: Record and Report Results
+### Step 5: Record and Report Results
 
 **Record via comment:**
 ```bash
@@ -134,7 +184,7 @@ NEXT STEP: @line-tidy (if APPROVED) or @line-cook (if NEEDS_CHANGES)
 
 ## Error Handling
 
-If review cannot be completed (tool failure, timeout, etc.):
+If the sous-chef agent or review cannot be completed (tool failure, timeout, etc.):
 
 ```
 ⚠️ REVIEW SKIPPED

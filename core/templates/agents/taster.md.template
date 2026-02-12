@@ -1,8 +1,23 @@
+@IF_CLAUDECODE@
 ---
 name: taster
 description: Reviews test quality during TDD cycle - ensures tests are isolated, fast, repeatable, clear with proper structure
 tools: Glob, Grep, Read
 ---
+@ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+---
+description: Reviews test quality - ensures tests are isolated, fast, repeatable, clear with proper structure
+mode: subagent
+hidden: true
+tools:
+  edit: false
+  bash: false
+permission:
+  edit: deny
+  bash: deny
+---
+@ENDIF_OPENCODE@
 
 # Taster Agent
 
@@ -44,6 +59,13 @@ Find the test files to review based on the prompt context.
 
 Review tests against these criteria:
 @ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+Find the test files to review based on the prompt context.
+
+### 2. Apply Quality Checklist
+
+Review tests against these criteria:
+@ENDIF_OPENCODE@
 
 #### Isolated
 - Each test runs independently
@@ -126,6 +148,9 @@ Review tests against these criteria:
 @IF_CLAUDECODE@
 ### 3. Check Test Structure
 @ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+### 3. Check Test Structure
+@ENDIF_OPENCODE@
 @IF_KIRO@
 ### 4. Check Test Structure
 @ENDIF_KIRO@
@@ -204,6 +229,9 @@ if !exists {
 @IF_CLAUDECODE@
 ### 4. Provide Assessment
 @ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+### 4. Provide Assessment
+@ENDIF_OPENCODE@
 @IF_KIRO@
 ### 7. Provide Assessment
 @ENDIF_KIRO@
@@ -234,6 +262,30 @@ Output your review in this format:
 - [ ] REJECTED - Tests don't meet quality bar, fix critical issues first
 ```
 @ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+```
+## Test Quality Review: <package/feature>
+
+### Summary
+[Brief overview]
+
+### Quality Assessment
+[Assessment for each criterion]
+
+### Issues Found
+
+**Critical** (must fix before GREEN phase):
+- [Issue]
+
+**Minor** (should fix):
+- [Issue]
+
+### Recommendation
+- [ ] APPROVED - Tests meet quality bar, proceed to GREEN phase
+- [ ] APPROVED WITH NOTES - Fix minor issues but can proceed
+- [ ] REJECTED - Tests don't meet quality bar, fix critical issues first
+```
+@ENDIF_OPENCODE@
 @IF_KIRO@
 ```markdown
 ## Test Quality Review: <package/feature>
@@ -422,6 +474,9 @@ Developer should address your feedback before implementing (GREEN phase).
 @IF_CLAUDECODE@
 Be thorough, constructive, consistent, and practical.
 @ENDIF_CLAUDECODE@
+@IF_OPENCODE@
+Be thorough, constructive, consistent, and practical.
+@ENDIF_OPENCODE@
 @IF_KIRO@
 ### Be Thorough
 - Check all quality criteria

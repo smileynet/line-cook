@@ -188,12 +188,24 @@ Agents for Line Cook development (not shipped with the plugin):
 
 ### OpenCode Plugin (plugins/opencode/)
 
-OpenCode plugin uses OpenCode's built-in agent system:
+OpenCode plugin uses markdown commands in `plugins/opencode/commands/` and agent files in `plugins/opencode/agents/`:
 
 | Component | Type | Purpose |
 |----------|------|---------|
-| **Commands** | OpenCode plugin | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-run`, `/line-getting-started`, `/line-architecture-audit`, `/line-decision`, `/line-help`, `/line-loop`, `/line-plan-audit` |
-| **Kiro Agents** | OpenCode agents | taster, sous-chef (via OpenCode's agent system) |
+| **Commands** | OpenCode commands | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-run`, `/line-getting-started`, `/line-architecture-audit`, `/line-decision`, `/line-help`, `/line-loop`, `/line-plan-audit` |
+| **Agents** | OpenCode subagents | taster, polisher, sous-chef, maitre, critic (markdown files in `plugins/opencode/agents/`) |
+
+### OpenCode Subagents (plugins/opencode/agents/)
+
+OpenCode subagents are defined as markdown files with YAML frontmatter (mode: subagent, hidden: true). They are invoked via `Task(... agent="<name>")` during workflow phases:
+
+| Agent | Phase | Purpose |
+|-------|-------|---------|
+| **taster** | Cook (RED) | Reviews test quality |
+| **polisher** | Serve | Refines code for clarity before review |
+| **sous-chef** | Serve | Reviews code changes |
+| **maitre** | Plate (Feature) | Reviews feature acceptance |
+| **critic** | Plate (Epic) | Reviews E2E and user journey coverage |
 
 ### chef
 
@@ -324,7 +336,7 @@ Data flow:
 
 ```
 core/templates/commands/  ──sync──>  plugins/{claude-code,opencode,kiro}
-core/templates/agents/    ──sync──>  plugins/{claude-code,kiro}
+core/templates/agents/    ──sync──>  plugins/{claude-code,opencode,kiro}
 core/line_loop/           ──bundle──> plugins/claude-code/scripts/line-loop.py
 
 External marketplace references:
@@ -354,19 +366,19 @@ Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), 
 
 ### Agent Template Synchronization
 
-Review agents are also generated from shared templates to prevent drift between Claude Code and Kiro.
+Review agents are also generated from shared templates to prevent drift between Claude Code, OpenCode, and Kiro.
 
 **Agent template system:**
 - Source templates live in `core/templates/agents/` (5 templates)
-- Same conditional block syntax as commands: `@IF_CLAUDECODE@`, `@IF_KIRO@`
+- Same conditional block syntax as commands: `@IF_CLAUDECODE@`, `@IF_OPENCODE@`, `@IF_KIRO@`
 - No `@NAMESPACE@` substitution needed (agents don't reference command namespaces)
-- No OpenCode output — OpenCode uses Claude Code's `plugins/claude-code/agents/` directory directly
 
 **Platform differences handled automatically:**
 - Claude Code: YAML frontmatter with `name`, `description`, `tools`, plus concise review format
+- OpenCode: YAML frontmatter with `description`, `mode`, `hidden`, `tools`, `permission`, concise review format (mirrors Claude Code)
 - Kiro: No frontmatter (steering files only), includes context-loading instructions (`bd show`, `git diff`), detailed checklists, red flags, code examples, and anti-pattern sections
 
-**Synced agents:** All 5 review agents — sous-chef, taster, maitre, polisher, critic
+**Synced agents:** All 5 review agents — sous-chef, taster, maitre, polisher, critic (to all three platforms)
 
 **NOT templatized:**
 - Kiro JSON agent configs (`plugins/kiro/agents/*.json`) — platform-specific metadata

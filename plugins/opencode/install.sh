@@ -7,6 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OPENCODE_PLUGINS="${HOME}/.config/opencode/plugins"
 OPENCODE_COMMANDS="${HOME}/.config/opencode/commands"
+OPENCODE_AGENTS="${HOME}/.config/opencode/agents"
 
 echo "Installing line-cook plugin for OpenCode..."
 
@@ -23,8 +24,7 @@ else
 fi
 
 # Create directories if they don't exist
-mkdir -p "$OPENCODE_PLUGINS"
-mkdir -p "$OPENCODE_COMMANDS"
+mkdir -p "$OPENCODE_PLUGINS" "$OPENCODE_COMMANDS" "$OPENCODE_AGENTS"
 
 # Copy plugin files
 echo "Installing plugin..."
@@ -35,13 +35,22 @@ cp "$SCRIPT_DIR/package.json" "$OPENCODE_PLUGINS/line-cook-package.json"
 echo "Installing commands..."
 cp "$SCRIPT_DIR/commands/"*.md "$OPENCODE_COMMANDS/"
 
+# Copy agent files
+echo "Installing agents..."
+if ls "$SCRIPT_DIR/agents/"*.md 1> /dev/null 2>&1; then
+    cp "$SCRIPT_DIR/agents/"*.md "$OPENCODE_AGENTS/"
+fi
+
 echo ""
 echo "Installation complete!"
 echo ""
 echo "Plugin installed to: $OPENCODE_PLUGINS/line-cook-plugin.js"
 echo ""
 echo "Commands installed:"
-ls -1 "$OPENCODE_COMMANDS/line-"*.md 2>/dev/null | xargs -I{} basename {} | sed 's/.md$//' | sed 's/^/  \//'
+ls -1 "$OPENCODE_COMMANDS/line-"*.md 2>/dev/null | xargs -I{} basename {} | sed 's/.md$//; s/^/  \//'
+echo ""
+echo "Agents installed:"
+ls -1 "$OPENCODE_AGENTS/"*.md 2>/dev/null | xargs -I{} basename {} | sed 's/.md$//; s/^/  /'
 echo ""
 echo "Next steps:"
 echo "  1. Restart OpenCode"
