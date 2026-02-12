@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Prep, cook, and serve commands now work correctly when Line Cook is installed as a marketplace plugin (script paths are discovered dynamically instead of using hardcoded project-relative paths)
+- Kiro prompt preamble now accurately describes how inline arguments are passed
+
 ## [0.13.1] - 2026-02-11
 ### Added
 - Local development install instructions in AGENTS.md for all three platforms
