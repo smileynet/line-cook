@@ -107,6 +107,18 @@ cp -r ~/line-cook/plugins/kiro/* ~/.kiro/
 ```
 > [Full tutorial](docs/tutorial-kiro.md)
 
+## Spice Rack
+
+Domain-specific addons that enhance Line Cook's planning workflow. Spices load automatically during `/mise` when Claude detects relevant project context.
+
+| Spice | What it adds |
+|-------|-------------|
+| [game-spice](https://github.com/smileynet/game-spice) | MLP scoping, core loop design, game planning anti-patterns |
+
+```bash
+/plugin install game-spice@line-cook
+```
+
 ## Learn More
 
 - [Claude Code Tutorial](docs/tutorial-claude-code.md) — Complete walkthrough

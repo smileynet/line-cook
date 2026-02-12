@@ -33,6 +33,7 @@ The theme is a **recognition aid**, not a **learning barrier**. Always include t
 | Shift Notes | Commit message | Flavor text only |
 | House Book | Git remote | Flavor text only |
 | Tasting Dish | Minimal e2e proof | Flavor text only |
+| Spice | Domain knowledge addon plugin | Plugin type |
 | ORDER_UP | Task ready for review | Internal signal |
 | GOOD_TO_GO | Review passed | Internal signal |
 
@@ -96,6 +97,34 @@ Line Cook provides separate implementations for each:
 
 - **beads** (`bd`) - Git-native issue tracking for multi-session work
 - **Claude Code** or **OpenCode** - AI coding assistant
+
+## Spice Rack (Domain Addon Plugins)
+
+**Spices** are skills-only plugins that add domain-specific knowledge to Line Cook's planning workflow. They load automatically during `/mise` (brainstorm, scope, finalize) when Claude detects relevant project context.
+
+### How Spices Work
+
+- Each spice is a separate GitHub repo with `.claude-plugin/plugin.json` + `skills/` directory
+- Listed in line-cook's `marketplace.json` via GitHub source reference
+- Users install alongside the core plugin: `/plugin install game-spice@line-cook`
+- Skills activate by keyword matching in SKILL.md frontmatter descriptions
+- No commands, agents, or scripts — pure knowledge that enhances existing workflow
+
+### Available Spices
+
+| Spice | Repo | What it adds |
+|-------|------|-------------|
+| **game-spice** | [smileynet/game-spice](https://github.com/smileynet/game-spice) | MLP scoping, core loop design, MDA framework, game planning anti-patterns |
+
+### Creating a New Spice
+
+1. Create repo: `smileynet/<domain>-spice`
+2. Add `.claude-plugin/plugin.json` with name `<domain>-spice`
+3. Add `skills/<skill-name>/SKILL.md` for each knowledge area
+4. Add entry to line-cook's `.claude-plugin/marketplace.json` with GitHub source
+5. Add row to this table and README's Spice Rack section
+
+See [ADR-0014](docs/decisions/0014-spice-plugins-for-domain-knowledge.md) for design rationale.
 
 ## Agent Definitions
 
@@ -297,6 +326,9 @@ Data flow:
 core/templates/commands/  ──sync──>  plugins/{claude-code,opencode,kiro}
 core/templates/agents/    ──sync──>  plugins/{claude-code,kiro}
 core/line_loop/           ──bundle──> plugins/claude-code/scripts/line-loop.py
+
+External marketplace references:
+  smileynet/game-spice       ──github──> marketplace.json (domain addon)
 ```
 
 See [Project Structure](docs/dev/project-structure.md) for full directory layout.

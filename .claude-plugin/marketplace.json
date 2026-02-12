@@ -7,7 +7,19 @@
   "plugins": [
     {
       "name": "line",
-      "source": "./plugins/claude-code/"
+      "source": "./plugins/claude-code/",
+      "description": "Simple workflow orchestration for Claude Code sessions",
+      "category": "productivity"
+    },
+    {
+      "name": "game-spice",
+      "source": {
+        "source": "github",
+        "repo": "smileynet/game-spice"
+      },
+      "description": "Game design spice — MLP scoping, core loop frameworks, and anti-patterns",
+      "category": "domain-knowledge",
+      "tags": ["game-design", "spice", "planning"]
     }
   ]
 }

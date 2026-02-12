@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- game-spice plugin in marketplace — game design planning knowledge for mise workflow
+- "Spice Rack" documentation in README and AGENTS.md for domain addon plugins
+
 ## [0.13.2] - 2026-02-11
 ### Fixed
 - Prep, cook, and serve commands now work correctly when Line Cook is installed as a marketplace plugin (script paths are discovered dynamically instead of using hardcoded project-relative paths)
