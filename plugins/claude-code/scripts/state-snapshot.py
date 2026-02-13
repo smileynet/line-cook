@@ -378,6 +378,59 @@ def get_branch_recommendation(hierarchy, current_branch):
     }
 
 
+def detect_plate_ready():
+    """Detect features and epics that are ready to plate/close-service.
+
+    A feature is plate-ready when all its children are closed.
+    An epic is close-service-ready when all its children are closed.
+
+    Reuses _parent_children_cache to avoid extra subprocess calls.
+
+    Returns dict with 'features' and 'epics' lists.
+    """
+    result = {"features": [], "epics": []}
+
+    # Get all open features and epics
+    for issue_type, key in [("feature", "features"), ("epic", "epics")]:
+        rc, out, _ = run_cmd(
+            ["bd", "list", "--status=open", "--type=" + issue_type, "--json"],
+            timeout=15
+        )
+        if rc != 0 or not out:
+            continue
+        try:
+            items = json.loads(out)
+            if not isinstance(items, list):
+                continue
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            item_id = item.get("id", "")
+            if not _validate_bead_id(item_id):
+                continue
+
+            children = _get_children(item_id)
+            if children is None or not children:
+                continue
+
+            total = len(children)
+            closed = sum(
+                1 for c in children
+                if isinstance(c, dict) and c.get("status") == "closed"
+            )
+            if total == closed:
+                result[key].append({
+                    "id": item_id,
+                    "title": item.get("title", ""),
+                    "progress": "{}/{}".format(closed, total),
+                })
+
+    return result
+
+
 def format_human(data):
     """Format snapshot data as human-readable text."""
     lines = ["# State Snapshot", ""]
@@ -462,6 +515,21 @@ def format_human(data):
         lines.append("  Branch exists: {}".format(branch.get("branch_exists", False)))
         lines.append("")
 
+    plate_ready = data.get("plate_ready", {})
+    ready_features = plate_ready.get("features", [])
+    ready_epics = plate_ready.get("epics", [])
+    if ready_features or ready_epics:
+        lines.append("## Ready to Close")
+        for f in ready_features:
+            lines.append("  FEATURE: {} - {} ({} tasks closed)".format(
+                f.get("id", ""), f.get("title", ""), f.get("progress", "?")
+            ))
+        for e in ready_epics:
+            lines.append("  EPIC: {} - {} ({} features closed)".format(
+                e.get("id", ""), e.get("title", ""), e.get("progress", "?")
+            ))
+        lines.append("")
+
     return "\n".join(lines)
 
 
@@ -489,14 +557,11 @@ def main():
 
     data = {}
 
-    # Sync
-    if args.sync:
-        data["sync"] = do_sync()
-    elif not args.no_sync:
-        # Default: sync
-        data["sync"] = do_sync()
-    else:
+    # Sync (default is to sync; --no-sync skips it)
+    if args.no_sync:
         data["sync"] = {"git": "skipped", "beads": "skipped"}
+    else:
+        data["sync"] = do_sync()
 
     # Project info
     data["project"] = get_project_info()
@@ -523,6 +588,9 @@ def main():
     data["branch_recommendation"] = get_branch_recommendation(
         data["hierarchy"], current_branch
     )
+
+    # Plate readiness detection
+    data["plate_ready"] = detect_plate_ready()
 
     if args.json:
         print(json.dumps(data, indent=2))

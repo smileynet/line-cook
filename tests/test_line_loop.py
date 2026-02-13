@@ -458,6 +458,10 @@ class TestDefaultPhaseTimeouts(unittest.TestCase):
         """Plate phase default timeout is 600 seconds."""
         self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['plate'], 600)
 
+    def test_default_close_service_timeout(self):
+        """Close-service phase default timeout is 900 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['close-service'], 900)
+
     def test_default_max_task_failures(self):
         """Default max task failures is 3."""
         self.assertEqual(line_loop.DEFAULT_MAX_TASK_FAILURES, 3)

@@ -39,7 +39,7 @@ STATE=$(python3 <path-to-state-snapshot.py> --json 2>/dev/null)
 echo "$STATE"
 ```
 
-The JSON output includes: `sync`, `project`, `roster` (ready/in_progress/blocked), `suggest_next_task` (with drill_path), `hierarchy` (epic/feature/completed_siblings), and `branch_recommendation`.
+The JSON output includes: `sync`, `project`, `roster` (ready/in_progress/blocked), `suggest_next_task` (with drill_path), `hierarchy` (epic/feature/completed_siblings), `branch_recommendation`, and `plate_ready` (features/epics ready to close).
 
 ### Step 2: Branching Strategy
 
@@ -126,6 +126,16 @@ EPIC: <epic-id> [P<n>] <epic-title>
         ... (list completed siblings)
 
 ───────────────────────────────────────────
+READY TO CLOSE (only if plate_ready items exist)
+───────────────────────────────────────────
+
+FEATURE: <feature-id> - <feature-title> (<progress> tasks closed)
+  → Run /line:plate <feature-id>
+
+EPIC: <epic-id> - <epic-title> (<progress> features closed)
+  → Run /line:close-service <epic-id>
+
+───────────────────────────────────────────
 NEXT TASK
 ───────────────────────────────────────────
 
@@ -140,6 +150,8 @@ INTENDED CHANGE:
 
 NEXT STEP: /line:cook <task-id>
 ```
+
+**When plate-ready items exist:** Suggest plate/close-service as the NEXT STEP instead of cook. Only suggest cook when there are no plate-ready items.
 
 **Standalone task (no parent hierarchy):**
 ```

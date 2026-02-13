@@ -68,7 +68,7 @@ Skill(skill="line:tidy")
 
 Tidy will file beads for discovered work, commit all changes, sync beads, and push to remote.
 
-### Step 5: Check for Plate Phase (Feature Completion)
+### Step 5: Check for Feature/Epic Completion
 
 After tidying, check if the task completed a feature:
 
@@ -79,40 +79,17 @@ bd show <task-id>
 
 **If task has a parent feature AND all sibling tasks are closed:**
 
-1. Run feature validation:
-   ```bash
-   <test command>  # e.g., go test ./..., pytest, npm test, cargo test
-   <feature test command>  # e.g., go test -run TestFeature, pytest tests/features/, npm test -- --grep "Feature"
+1. Run plate phase for the feature:
+   ```
+   Skill(skill="line:plate", args="<feature-id>")
    ```
 
-2. Delegate to maître (BDD quality) subagent:
+2. Wait for plate to complete. Plate handles maître review, acceptance docs, and CHANGELOG.
+
+3. If plate output shows "EPIC READY TO CLOSE", run close-service:
    ```
-   Use Task tool to invoke maître subagent:
-   Task(description="Review feature test quality", prompt="Review BDD tests for feature <feature-id>
-
-   Feature: <feature-title>
-   Acceptance criteria:
-   - <criteria 1>
-   - <criteria 2>
-   - <criteria 3>
-
-   Verify:
-   - All acceptance criteria have tests
-   - Given-When-Then structure used
-   - Tests map to acceptance criteria
-   - User perspective documented
-   - Error scenarios included
-
-   Report any critical issues before proceeding with plate phase.", subagent_type="maitre")
+   Skill(skill="line:close-service", args="<epic-id>")
    ```
-
-3. Wait for BDD quality assessment. Address any critical issues.
-
-4. If BDD tests pass quality bar, proceed with plate phase:
-   - Create feature acceptance documentation
-   - Update CHANGELOG.md
-   - Close feature bead
-   - Commit and push feature report
 
 **If no feature completed, skip plate phase and proceed to Step 6.**
 

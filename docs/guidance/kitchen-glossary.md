@@ -11,6 +11,7 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | **Serve** | Review code changes | `/serve` phase |
 | **Tidy** | Commit and push changes | `/tidy` phase |
 | **Plate** | Validate completed feature | `/plate` phase |
+| **Close Service** | Validate completed epic (all features plated) | `/close-service` phase |
 | **Run** | Run full workflow cycle | `/run` phase |
 | **Chef** | Subagent that executes tasks with TDD cycle | `/cook` phase |
 | **Sous-Chef** | Subagent that reviews code changes | `/serve` phase |
@@ -20,7 +21,7 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | **ORDER_UP** | Signal emitted when task is ready for review | End of cook phase |
 | **GOOD_TO_GO** | Assessment from sous-chef indicating code is ready to commit | After serve phase |
 | **Polisher** | Subagent that simplifies and refines code before review | `/serve` phase |
-| **Critic** | Subagent that reviews epic-level E2E and smoke test coverage | `/plate` phase (epics) |
+| **Critic** | Subagent that reviews epic-level E2E and smoke test coverage | `/close-service` phase |
 | **Loop** | Autonomous multi-cycle execution across tasks | `/loop` command |
 | **Architecture Audit** | Analyze codebase structure, code smells, and quality metrics | `/architecture-audit` command |
 | **Decision** | Record, list, or supersede architecture decision records (ADRs) | `/decision` command |
