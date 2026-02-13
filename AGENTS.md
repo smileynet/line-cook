@@ -242,7 +242,7 @@ OpenCode subagents are defined as markdown files with YAML frontmatter (mode: su
   - Verify style (naming, consistency with codebase patterns)
   - Assess completeness (fully addresses the task?)
 - **Critical issues**: Block tidy phase (require fixes)
-- **Output**: `ready_for_tidy`, `needs_changes`, or `blocked` assessment
+- **Output**: `APPROVED`, `NEEDS_CHANGES`, or `BLOCKED` assessment
 
 ### taster
 

@@ -105,7 +105,17 @@ Use the PARENT value from output as `--parent` for all code/project findings. If
 
 ### Step 2: File Discovered Issues
 
-Review findings from `/line:cook` and `/line:serve` and create beads with full context.
+Collect findings from cook and serve phases. Findings may be in:
+1. **In-context output** (available in single-session `/run` cycles)
+2. **Bead comments** (persist across sessions and `/clear`)
+
+**Always check bead comments** for the current task to recover findings from prior sessions:
+```bash
+bd comments show $TASK_ID
+```
+Look for `PHASE: COOK` and `PHASE: SERVE` comments containing `Findings:` sections.
+
+Create beads for all findings with full context.
 
 **Code/project findings** (file as siblings under parent feature/epic):
 ```bash
@@ -189,60 +199,30 @@ bd comments add <id> "RESEARCH FINDINGS:
 - Option evaluated → Comment on research task
 - Decision made → Update task description
 
-### Step 3: Review In-Progress Issues
+### Step 3: Close Current Task
 
-Using the IN PROGRESS list from Step 1, review each in-progress issue:
-- If task appears complete based on git changes → `bd close <id>`
-- If task is incomplete → leave as-is (will be picked up next session)
-- If status is unclear → create a P4 bead to review later
+Close the task that was just cooked (the one identified by `$TASK_ID`):
 
-**Do NOT ask the user** - make a reasonable judgment or file a bead.
+```bash
+bd close $TASK_ID
+```
 
-### Step 4: Check for Epic Closures and Branch Merges
+**Other in-progress tasks** from the IN PROGRESS list should be left as-is. Do NOT attempt to infer completion of other tasks from git changes — that requires too much guesswork for a non-interactive command. They will be picked up in their own cook/serve/tidy cycles.
+
+### Step 4: Check for Epic Completion
 
 Using the EPIC ELIGIBLE list from Step 1, check if any epics are now eligible for closure (all children complete).
 
 If epics are eligible:
-1. Close them: `bd epic close-eligible`
-2. For each closed epic, **merge the epic branch to main**:
-   ```bash
-   for EPIC_ID in $(bd epic close-eligible --dry-run --json 2>/dev/null | jq -r '.[].id' || true); do
-     EPIC_BRANCH="epic/$EPIC_ID"
-     CURRENT=$(git branch --show-current)
 
-     if [ "$CURRENT" = "$EPIC_BRANCH" ]; then
-       EPIC_TITLE=$(bd show $EPIC_ID --json | jq -r '.[0].title')
+**Do NOT close epics or merge branches here.** Epic closure requires E2E validation via `/line:close-service`. Instead, note eligible epics for the session summary and suggest the next step.
 
-       # Checkout main and merge
-       git checkout main
-       git pull --rebase
+```bash
+# Get children for the summary
+bd list --parent=<epic-id> --all --json
+```
 
-       if git merge --no-ff $EPIC_BRANCH -m "Merge epic $EPIC_ID: $EPIC_TITLE"; then
-         # Success - delete branch and push
-         git branch -d $EPIC_BRANCH
-         git push origin main
-         git push origin --delete $EPIC_BRANCH 2>/dev/null || true
-       else
-         # Merge conflict - abort and create bug bead
-         git merge --abort
-         git checkout $EPIC_BRANCH
-
-         bd create --title="Resolve merge conflict for epic $EPIC_ID" \
-           --type=bug --priority=1 \
-           --description="Epic $EPIC_ID ($EPIC_TITLE) completed but merge to main failed due to conflicts."
-
-         echo "⚠️ MERGE CONFLICT - manual resolution required"
-       fi
-     fi
-   done
-   ```
-
-3. Get children for the summary:
-   ```bash
-   bd list --parent=<epic-id> --all --json
-   ```
-
-**Note:** Epic closures are significant milestones and are highlighted in the session summary.
+**Note:** Epic closures are significant milestones that require the full close-service quality gate (E2E validation, critic review, acceptance documentation). Tidy only detects eligibility.
 
 ### Step 5: Commit Changes with Kitchen Log
 
@@ -339,45 +319,21 @@ Push: <success|failed>"
 
 ### Step 9: Output Kitchen Report
 
-**If an epic was closed**, output the epic completion banner first:
+**If an epic is eligible for closure**, output the epic ready banner first:
 
 ```
 ════════════════════════════════════════════
-  EPIC COMPLETE: <epic-id> - <epic-title>
-  Branch: epic/<epic-id> merged to main
+  EPIC READY TO CLOSE: <epic-id> - <epic-title>
 ════════════════════════════════════════════
 
-Children completed (<count>):
+All children completed (<count>):
   ✓ <id>: <title>
   ✓ <id>: <title>
   ✓ <id>: <title>
   ...
 
-Impact:
-  <1-2 sentence description of what capability/improvement is now complete,
-   derived from the epic description>
-
-════════════════════════════════════════════
-```
-
-**If merge failed (conflict):**
-
-```
-════════════════════════════════════════════
-  EPIC COMPLETE: <epic-id> - <epic-title>
-════════════════════════════════════════════
-
-⚠️ MERGE CONFLICT
-Epic branch could not be merged to main.
-
-Conflicts require manual resolution:
-  1. Resolve conflicts manually
-  2. git add <resolved-files>
-  3. git commit
-  4. git push origin main
-  5. git branch -d epic/<epic-id>
-
-Bug bead created: <new-bead-id>
+NEXT STEP: Run /line:close-service <epic-id>
+  (E2E validation, critic review, acceptance docs, branch merge)
 
 ════════════════════════════════════════════
 ```
@@ -414,8 +370,8 @@ Problems encountered:
 Issues closed: <count>
   ✓ <id>: <title>
 
-Epics completed: <count>
-  ★ <epic-id>: <title> (<N> children)
+Epics ready to close: <count>
+  ★ <epic-id>: <title> (<N> children) → run /line:close-service
 
 Issues filed: <count>
   Under parent (<parent-id>):

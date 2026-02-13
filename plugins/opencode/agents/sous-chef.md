@@ -78,9 +78,9 @@ Assign severity to each issue:
 
 ### Step 4: Determine Verdict
 
-- **ready_for_tidy**: No issues or only nits. Code is acceptable to proceed.
-- **needs_changes**: Minor or major issues found that should be addressed but aren't blocking.
-- **blocked**: Critical issues that MUST be fixed before proceeding. Reserved for security vulnerabilities, data integrity risks, or crash-inducing bugs.
+- **APPROVED**: No issues or only nits. Code is acceptable to proceed.
+- **NEEDS_CHANGES**: Minor or major issues found that should be addressed but aren't blocking.
+- **BLOCKED**: Critical issues that MUST be fixed before proceeding. Reserved for security vulnerabilities, data integrity risks, or crash-inducing bugs.
 
 ## Output Format
 
@@ -89,7 +89,7 @@ Provide your review in this exact structure:
 ```
 ## Review Summary
 
-**Verdict: [ready_for_tidy | needs_changes | blocked]**
+**Verdict: [APPROVED | NEEDS_CHANGES | BLOCKED]**
 
 **Overview:** [1-2 sentence summary of the code quality and main findings]
 
@@ -139,9 +139,9 @@ When uncertain about severity:
 - If it's purely preferential → nit
 
 When uncertain about verdict:
-- Any critical issue → blocked
-- Multiple major issues or major + several minor → needs_changes
-- Only minor issues and nits → ready_for_tidy (mention issues but don't block)
-- Only nits → ready_for_tidy
+- Any critical issue → BLOCKED
+- Multiple major issues or major + several minor → NEEDS_CHANGES
+- Only minor issues and nits → APPROVED (mention issues but don't block)
+- Only nits → APPROVED
 
 You are the last line of defense before code moves forward. Be thorough but fair, critical but constructive.

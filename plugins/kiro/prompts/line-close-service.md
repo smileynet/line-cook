@@ -155,9 +155,9 @@ Close the epic bead to mark completion:
 bd close <epic-id>
 ```
 
-### Step 8: Commit and Push
+### Step 8: Commit Acceptance Documentation
 
-Commit acceptance documentation and CHANGELOG:
+Commit acceptance documentation and CHANGELOG on the epic branch:
 
 ```bash
 git add docs/features/<epic-id>-acceptance.md CHANGELOG.md
@@ -172,6 +172,11 @@ Epic validation complete:
 Epic report: docs/features/<epic-id>-acceptance.md"
 
 bd sync
+```
+
+### Step 8.5: Push Changes
+
+```bash
 git push
 ```
 
@@ -276,6 +281,7 @@ The close-service phase validates epics after all features have been individuall
 3. **Documentation** - Epic acceptance report provides comprehensive record
 4. **Changelog** - Track epic delivery for users
 5. **Context archival** - Planning context marked as archived
+6. **Branch merge** - Epic branch merged to main (Claude Code only)
 
 **When to run:**
 - After all child features for an epic are plated (closed)
@@ -301,4 +307,5 @@ This command takes an epic ID as argument. It will:
 5. Archive planning context
 6. Update CHANGELOG.md
 7. Close epic bead
-8. Commit and push
+8. Commit acceptance docs
+9. Merge epic branch to main (Claude Code only)
