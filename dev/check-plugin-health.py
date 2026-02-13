@@ -36,6 +36,7 @@ class VersionInfo:
     plugin_json: Optional[str] = None
     opencode_version: Optional[str] = None
     opencode_plugin_version: Optional[str] = None
+    kiro_version: Optional[str] = None
     changelog_latest: Optional[str] = None
 
 
@@ -89,6 +90,17 @@ def extract_opencode_info(repo_root: Path) -> tuple[Optional[str], Optional[str]
         return None, None, None, None, None
 
 
+def extract_kiro_version(repo_root: Path) -> Optional[str]:
+    """Extract VERSION constant from Kiro install.py."""
+    install_path = repo_root / "plugins" / "kiro" / "install.py"
+    if not install_path.exists():
+        return None
+
+    content = install_path.read_text()
+    match = re.search(r'^VERSION = "([^"]+)"', content, re.MULTILINE)
+    return match.group(1) if match else None
+
+
 def extract_changelog_version(repo_root: Path) -> Optional[str]:
     """Extract latest version from CHANGELOG.md."""
     changelog_path = repo_root / "CHANGELOG.md"
@@ -104,60 +116,36 @@ def extract_changelog_version(repo_root: Path) -> Optional[str]:
     return matches[0] if matches else None
 
 
+def _count_files(repo_root: Path, platform_dirs: dict[str, tuple[str, str]]) -> dict[str, int]:
+    """Count matching files in each platform directory.
+
+    Args:
+        repo_root: Repository root path
+        platform_dirs: Maps platform name to (relative_dir, glob_pattern)
+    """
+    counts = {}
+    for platform, (rel_dir, pattern) in platform_dirs.items():
+        directory = repo_root / rel_dir
+        counts[platform] = len(list(directory.glob(pattern))) if directory.exists() else 0
+    return counts
+
+
 def count_commands(repo_root: Path) -> dict[str, int]:
     """Count commands on each platform."""
-    counts = {}
-
-    # Claude Code commands
-    claude_code_dir = repo_root / "plugins" / "claude-code" / "commands"
-    if claude_code_dir.exists():
-        counts["claude_code"] = len(list(claude_code_dir.glob("*.md")))
-    else:
-        counts["claude_code"] = 0
-
-    # OpenCode commands
-    opencode_dir = repo_root / "plugins" / "opencode" / "commands"
-    if opencode_dir.exists():
-        counts["opencode"] = len(list(opencode_dir.glob("*.md")))
-    else:
-        counts["opencode"] = 0
-
-    # Kiro steering files (commands)
-    kiro_dir = repo_root / "plugins" / "kiro" / "steering"
-    if kiro_dir.exists():
-        counts["kiro"] = len(list(kiro_dir.glob("*.md")))
-    else:
-        counts["kiro"] = 0
-
-    return counts
+    return _count_files(repo_root, {
+        "claude_code": ("plugins/claude-code/commands", "*.md"),
+        "opencode": ("plugins/opencode/commands", "*.md"),
+        "kiro": ("plugins/kiro/prompts", "*.md"),
+    })
 
 
 def count_agents(repo_root: Path) -> dict[str, int]:
     """Count agents on each platform."""
-    counts = {}
-
-    # Claude Code agents
-    claude_code_dir = repo_root / "plugins" / "claude-code" / "agents"
-    if claude_code_dir.exists():
-        counts["claude_code"] = len(list(claude_code_dir.glob("*.md")))
-    else:
-        counts["claude_code"] = 0
-
-    # OpenCode agents
-    opencode_dir = repo_root / "plugins" / "opencode" / "agents"
-    if opencode_dir.exists():
-        counts["opencode"] = len(list(opencode_dir.glob("*.md")))
-    else:
-        counts["opencode"] = 0
-
-    # Kiro agents
-    kiro_dir = repo_root / "plugins" / "kiro" / "agents"
-    if kiro_dir.exists():
-        counts["kiro"] = len(list(kiro_dir.glob("*.json")))
-    else:
-        counts["kiro"] = 0
-
-    return counts
+    return _count_files(repo_root, {
+        "claude_code": ("plugins/claude-code/agents", "*.md"),
+        "opencode": ("plugins/opencode/agents", "*.md"),
+        "kiro": ("plugins/kiro/agents", "*.json"),
+    })
 
 
 def check_version_parity(versions: VersionInfo, skip_changelog: bool = False) -> HealthResult:
@@ -172,6 +160,8 @@ def check_version_parity(versions: VersionInfo, skip_changelog: bool = False) ->
         all_versions["package.json (version)"] = versions.opencode_version
     if versions.opencode_plugin_version:
         all_versions["package.json (opencode.version)"] = versions.opencode_plugin_version
+    if versions.kiro_version:
+        all_versions["install.py (Kiro)"] = versions.kiro_version
     if not skip_changelog and versions.changelog_latest:
         all_versions["CHANGELOG.md"] = versions.changelog_latest
 
@@ -269,16 +259,9 @@ def check_agent_counts(counts: dict[str, int]) -> HealthResult:
 
     result.info.append(f"Agent counts: {counts}")
 
-    # Claude Code and Kiro should have agents
-    if counts.get("claude_code", 0) == 0:
-        result.warnings.append("Claude Code has no agents defined")
-
-    if counts.get("kiro", 0) == 0:
-        result.warnings.append("Kiro has no agents defined")
-
-    # OpenCode missing agents is expected (flagged as info, not warning)
-    if counts.get("opencode", 0) == 0:
-        result.info.append("OpenCode has no agents (expected - not yet implemented)")
+    for platform in ("claude_code", "opencode", "kiro"):
+        if counts.get(platform, 0) == 0:
+            result.warnings.append(f"{platform} has no agents defined")
 
     return result
 
@@ -414,12 +397,14 @@ def main():
     # Extract information
     plugin_version, plugin_name, plugin_author, plugin_repo = extract_plugin_json_info(repo_root)
     opencode_version, opencode_plugin_version, opencode_name, opencode_author, opencode_repo = extract_opencode_info(repo_root)
+    kiro_version = extract_kiro_version(repo_root)
     changelog_version = extract_changelog_version(repo_root)
 
     versions = VersionInfo(
         plugin_json=plugin_version,
         opencode_version=opencode_version,
         opencode_plugin_version=opencode_plugin_version,
+        kiro_version=kiro_version,
         changelog_latest=changelog_version
     )
 

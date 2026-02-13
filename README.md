@@ -96,16 +96,17 @@ brew install steveyegge/beads/bd
 
 **OpenCode:**
 ```bash
-opencode plugin install https://github.com/smileynet/line-cook
+git clone https://github.com/smileynet/line-cook.git ~/line-cook
+cd ~/line-cook/plugins/opencode && ./install.sh
 ```
-> [Full tutorial](docs/tutorial-opencode.md)
+> Update: `cd ~/line-cook && git pull && plugins/opencode/install.sh` | [Full tutorial](docs/tutorial-opencode.md)
 
 **Kiro:**
 ```bash
 git clone https://github.com/smileynet/line-cook.git ~/line-cook
-cp -r ~/line-cook/plugins/kiro/* ~/.kiro/
+python3 ~/line-cook/plugins/kiro/install.py
 ```
-> [Full tutorial](docs/tutorial-kiro.md)
+> Update: `cd ~/line-cook && git pull && python3 plugins/kiro/install.py` | [Full tutorial](docs/tutorial-kiro.md)
 
 ## Spice Rack
 

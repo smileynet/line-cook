@@ -22,9 +22,10 @@ kiro/
 │   ├── maitre.md
 │   ├── polisher.md
 │   └── critic.md
-├── prompts/          # @prompt invocations (16 prompts)
+├── prompts/          # @prompt invocations (17 prompts)
 │   ├── line-architecture-audit.md
 │   ├── line-brainstorm.md
+│   ├── line-close-service.md
 │   ├── line-cook.md
 │   ├── line-decision.md
 │   ├── line-finalize.md
@@ -66,6 +67,7 @@ Use `@line-<phase>` for explicit workflow control:
 | `@line-plate` | Validate completed feature |
 | `@line-run` | Full cycle (prep→cook→serve→tidy) |
 | `@line-decision` | Manage architecture decisions |
+| `@line-close-service` | Validate and close completed epic |
 | `@line-architecture-audit` | Audit codebase architecture |
 | `@line-plan-audit` | Audit planning quality |
 | `@line-help` | Show available commands |
@@ -94,6 +96,7 @@ The steering file teaches the agent to recognize these phrases:
 | "serve", "review" | Run serve workflow |
 | "tidy", "commit" | Run tidy workflow |
 | "plate", "validate feature" | Validate completed feature |
+| "close-service", "close epic" | Validate and close completed epic |
 | "run", "full run", "full cycle" | Full run cycle |
 | "decision", "adr" | Manage architecture decisions |
 | "architecture-audit", "audit code" | Audit codebase architecture |

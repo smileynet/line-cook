@@ -3,10 +3,12 @@
 
 Usage:
     ./install.py [--global | --local]
+    ./install.py --version
 
 Options:
-    --global  Install to ~/.kiro/ (default)
-    --local   Install to .kiro/ in current directory
+    --global   Install to ~/.kiro/ (default)
+    --local    Install to .kiro/ in current directory
+    --version  Print version and exit
 """
 
 import argparse
@@ -15,9 +17,16 @@ import shutil
 import sys
 from pathlib import Path
 
+VERSION = "0.14.0"
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Install line-cook for Kiro CLI")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"line-cook v{VERSION} (Kiro)",
+    )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--global",
@@ -38,7 +47,7 @@ def main() -> None:
 
     if args.global_install:
         kiro_dir = Path.home() / ".kiro"
-        print("Installing line-cook for Kiro CLI (global)...")
+        print(f"Installing line-cook v{VERSION} for Kiro CLI (global)...")
         # Warn if local .kiro/ would shadow global install
         local_kiro = Path.cwd() / ".kiro"
         if local_kiro.is_dir():
@@ -50,7 +59,7 @@ def main() -> None:
             print()
     else:
         kiro_dir = Path(".kiro")
-        print("Installing line-cook for Kiro CLI (local)...")
+        print(f"Installing line-cook v{VERSION} for Kiro CLI (local)...")
 
     # Create directories
     (kiro_dir / "agents").mkdir(parents=True, exist_ok=True)
@@ -165,6 +174,7 @@ def main() -> None:
     print("  @line-serve           - Review changes")
     print("  @line-tidy            - Commit and push")
     print("  @line-plate           - Validate feature")
+    print("  @line-close-service   - Validate and close epic")
     print("  @line-run             - Full workflow cycle")
     print("  @line-decision        - Manage architecture decisions")
     print("  @line-architecture-audit - Audit codebase architecture")

@@ -32,9 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kiro prompt preamble now accurately describes how inline arguments are passed
 
 ## [0.13.1] - 2026-02-11
-### Added
-- Local development install instructions in AGENTS.md for all three platforms
-
 ### Fixed
 - Kiro inline arguments now work for brainstorm, plate, scope, and finalize (`$ARGUMENTS` support)
 - Kiro prompts now work in non-line-cook projects by inlining template references
@@ -117,9 +114,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Renamed `/line:audit` → `/line:plan-audit` to clarify scope (audits beads and plans, not code)
-- README restructured following Diataxis framework for better navigation
-  - Tutorials, how-to guides, reference, and explanation sections clearly separated
-  - Condensed content with improved discoverability
 
 ## [0.9.0] - 2026-02-04
 ### Added
@@ -150,7 +144,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bead delta tracking (newly closed/filed items after each iteration)
   - Task hierarchy display (parent feature/epic context)
   - Feature completion banners
-- Enhanced `/line:loop` documentation with architecture diagrams, troubleshooting guides, and module reference
 
 ### Changed
 - `/line:mise` now uses interactive handoff chain instead of running all phases sequentially
@@ -184,8 +177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Optional `--report` flag to generate dated report
 - `watch` subcommand for live progress with milestones and context
 - `history` subcommand for viewing iteration history with action details
-- Smart default behavior (no args: watch if running, start if not)
-- Action-level visibility tracking every tool call during iterations
+- Running `/loop` with no arguments automatically shows status if already running, or starts a new loop if not
 - Progress reporting with before/after state snapshots
 - Circuit breaker to prevent runaway failures (5 consecutive in 10-iteration window)
 - Epic completion detection and celebration workflow
@@ -242,14 +234,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - NEEDS_CHANGES verdict now properly loops back to cook phase for rework
 - Updated Kiro prompts to handle NEEDS_CHANGES rework loop correctly
 - Fixed `/line:plan` references to use correct `/line:mise` command name
-
-### Documentation
-- Updated AGENTS.md to match actual repository structure
-- Removed obsolete CAPSULE_MIGRATION_PLAN.md
-
-### Internal
-- Added stale test directory cleanup in smoke tests
-- Rebuilt opencode plugin with latest changes
 
 ## [0.8.0] - 2026-01-26
 
