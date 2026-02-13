@@ -22,3 +22,5 @@ Run `/decision` to create, list, or supersede decisions.
 | [0011](0011-template-synced-review-agents.md) | Template-synced review agents | accepted | 2026-02-07 | architecture, agents |
 | [0012](0012-steering-delegates-to-prompts.md) | Steering delegates to prompts | accepted | 2026-02-07 | architecture, kiro, agents |
 | [0013](0013-github-actions-hardening.md) | GitHub Actions hardening | accepted | 2026-02-10 | ci, security, github-actions |
+| [0014](0014-spice-plugins-for-domain-knowledge.md) | Spice plugins for domain knowledge | accepted | 2026-02-11 | plugins, architecture, naming |
+| [0015](0015-shared-modules-vs-bundled-scripts.md) | Shared modules vs bundled scripts | accepted | 2026-02-13 | architecture, plugins |
