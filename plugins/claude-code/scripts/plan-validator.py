@@ -20,23 +20,11 @@ Exit codes:
 import argparse
 import json
 import re
-import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-
-def run_cmd(args, timeout=15):
-    """Run a command and return (returncode, stdout, stderr)."""
-    try:
-        result = subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout
-        )
-        return result.returncode, result.stdout.strip(), result.stderr.strip()
-    except FileNotFoundError:
-        return -1, "", "command not found: {}".format(args[0])
-    except subprocess.TimeoutExpired:
-        return -1, "", "timeout after {}s".format(timeout)
+from helpers import run_cmd
 
 
 def _validate_bead_id(bid):

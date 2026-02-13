@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+from helpers import run_cmd
 
 
 @dataclass
@@ -59,19 +60,6 @@ class PreflightResult:
     passed: bool = True
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-
-
-def run_cmd(args, timeout=10):
-    """Run a command and return (returncode, stdout, stderr)."""
-    try:
-        result = subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout
-        )
-        return result.returncode, result.stdout.strip(), result.stderr.strip()
-    except FileNotFoundError:
-        return -1, "", "command not found: {}".format(args[0])
-    except subprocess.TimeoutExpired:
-        return -1, "", "timeout after {}s".format(timeout)
 
 
 def check_git():
