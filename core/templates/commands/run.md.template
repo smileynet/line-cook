@@ -87,7 +87,24 @@ Invoke the serve command for peer review:
 Skill(skill="@NAMESPACE@serve")
 ```
 
-Wait for review to complete. Serve will invoke sous-chef subagent for code review and categorize any issues found.
+Wait for review to complete. Serve will invoke sous-chef subagent for code review and output a SERVE_RESULT block.
+
+**Check the SERVE_RESULT verdict from serve output:**
+
+- **APPROVED** (`continue: true`) → proceed to Step 4
+- **NEEDS_CHANGES** (`continue: true`, `next_step: /@NAMESPACE@cook`) → loop back to Step 2 (rework)
+- **SKIPPED** (`continue: true`, `retry_recommended: true`) → proceed to Step 4 with retry note
+- **BLOCKED** (`continue: false`) → STOP and wait for user decision (see Error Handling)
+
+**On NEEDS_CHANGES verdict (Rework Loop):**
+1. Reopen the task: `bd update <id> --status=in_progress`
+2. Re-invoke cook (task will detect rework mode via serve comments):
+   ```
+   Skill(skill="@NAMESPACE@cook", args="<task-id>")
+   ```
+3. Re-invoke serve
+4. Repeat until APPROVED or BLOCKED
+5. Maximum 3 rework attempts before requiring user decision
 @ENDIF_CLAUDECODE@
 @IF_OPENCODE@
 Read and follow `line-serve.md` for peer review.
@@ -225,9 +242,61 @@ If any step fails:
 @IF_CLAUDECODE@
 1. **Prep fails** - Report sync error, stop workflow
 2. **Cook fails** - Report what went wrong, offer to continue to tidy (to save progress)
-3. **Serve fails** - Note review was skipped, continue to tidy
+3. **Serve verdict** - Check SERVE_RESULT (see below)
 4. **Tidy fails** - Report push error, create bead for follow-up
 5. **Plate fails** - Note feature validation incomplete, create bead for follow-up
+
+### Serve Verdict Handling
+
+After serve completes, check the SERVE_RESULT block:
+
+| Verdict | continue | Action |
+|---------|----------|--------|
+| `APPROVED` | true | Continue to tidy |
+| `NEEDS_CHANGES` | true | Loop back to cook (rework) |
+| `SKIPPED` | true | Continue to tidy with retry recommendation |
+| `BLOCKED` | false | **STOP workflow** - require user decision |
+
+**On NEEDS_CHANGES verdict (Rework Loop):**
+1. Reopen the task: `bd update <id> --status=in_progress`
+2. Re-invoke cook with the task ID (task will detect rework mode via serve comments)
+3. Re-invoke serve
+4. Repeat until APPROVED or BLOCKED
+5. Maximum 3 rework attempts before requiring user decision
+
+```
+REWORK REQUIRED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Review found issues that should be addressed:
+
+<list issues from SERVE_RESULT>
+
+Looping back to /@NAMESPACE@cook for rework (attempt <n>/3)...
+```
+
+**On BLOCKED verdict:**
+```
+WORKFLOW STOPPED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Review found blocking issues that must be addressed:
+
+<list blocking issues from SERVE_RESULT>
+
+Options:
+1. Fix the issues, then run /@NAMESPACE@run again
+2. Override: run /@NAMESPACE@tidy directly (skips review gate)
+3. Abandon: leave changes uncommitted for manual handling
+
+Waiting for user decision...
+```
+
+**On SKIPPED verdict (API error):**
+```
+Review skipped due to API error. Continuing to tidy.
+Recommendation: Run /@NAMESPACE@serve manually after tidy completes.
+```
 
 ```
 WORK CYCLE: Incomplete

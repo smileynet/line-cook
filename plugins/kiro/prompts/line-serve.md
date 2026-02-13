@@ -38,34 +38,9 @@ The JSON output includes: `bead`, `changes`. Diffs are capped at 200 lines each 
 
 The bead details are in the JSON's `bead` field — use this directly for review context.
 
-### Step 2: Polish Changes
+### Step 2: Code Review
 
-Before review, automatically refine code for clarity. Extract modified files from the REVIEW JSON's `changes.files` array.
-
-```
-Use task tool to invoke polisher agent:
-Task(description="Polish code changes", prompt="Polish the following files for clarity and consistency:
-
-<list of modified files from REVIEW JSON changes.files>
-
-Apply these principles:
-- Preserve exact functionality (never change behavior)
-- Reduce unnecessary complexity
-- Improve naming clarity
-- Follow project conventions from CLAUDE.md
-- Remove dead code and redundancy
-- Avoid nested ternaries (prefer if/else or switch)
-
-Output: List of refinements made (file:line - change)", agent="polisher")
-```
-
-**If polisher unavailable:** Skip polishing and proceed directly to code review.
-
-**After polisher completes:**
-- If changes were made, stage them: `git add <polished files>`
-- Proceed to sous-chef review
-
-### Step 3: Code Review
+Review the developer's original code first, before any polishing. This ensures the reviewer sees unmodified developer intent without anchoring on polisher changes.
 
 Delegate to sous-chef (reviewer) agent:
 
@@ -90,7 +65,7 @@ Review checklist:
 
 Output format:
 1. Summary: Brief overall assessment
-2. Verdict: ready_for_tidy | needs_changes | blocked
+2. Verdict: APPROVED | NEEDS_CHANGES | BLOCKED
 3. Issues found:
    - Severity: critical | major | minor | nit
    - File/line: Location
@@ -99,27 +74,56 @@ Output format:
    - Auto-fixable: true | false
 4. Positive notes: What was done well
 
-CRITICAL: If verdict is 'blocked', explain why and what must be fixed.", agent="sous-chef")
+CRITICAL: If verdict is 'BLOCKED', explain why and what must be fixed.", agent="sous-chef")
 ```
 
 **If sous-chef unavailable:** Perform inline review using the checklist above.
 
-Wait for reviewer assessment. Address critical issues before proceeding to tidy.
+Wait for reviewer assessment.
+
+### Step 3: Polish Changes (APPROVED only)
+
+**Only run polisher if sous-chef verdict is APPROVED.** Skip polishing on NEEDS_CHANGES or BLOCKED.
+
+Extract modified files from the REVIEW JSON's `changes.files` array.
+
+```
+Use task tool to invoke polisher agent:
+Task(description="Polish code changes", prompt="Polish the following files for clarity and consistency:
+
+<list of modified files from REVIEW JSON changes.files>
+
+Apply these principles:
+- Preserve exact functionality (never change behavior)
+- Reduce unnecessary complexity
+- Improve naming clarity
+- Follow project conventions from CLAUDE.md
+- Remove dead code and redundancy
+- Avoid nested ternaries (prefer if/else or switch)
+
+Output: List of refinements made (file:line - change)", agent="polisher")
+```
+
+**If polisher unavailable:** Skip polishing and proceed directly to Step 4.
+
+**After polisher completes:**
+- If changes were made, stage and commit them separately: `git add <polished files> && git commit -m "polish: refine <task-id> for clarity"`
+
 
 ### Step 4: Process Review Results
 
 Based on sous-chef verdict:
 
-**If verdict is ready_for_tidy:**
+**If verdict is APPROVED:**
+- Polisher ran in Step 3 (or was skipped)
 - Proceed to Step 5
-- No changes needed
 
-**If verdict is needs_changes:**
+**If verdict is NEEDS_CHANGES:**
 - Report findings to user with SERVE_RESULT showing `next_step: @line-cook`
 - User will rerun `@line-cook` with the review findings
-- Do NOT continue to tidy
+- Do NOT run polisher, do NOT continue to tidy
 
-**If verdict is blocked:**
+**If verdict is BLOCKED:**
 - CRITICAL issues must be fixed before tidying
 - Report blocking issues to user
 - Recommend not proceeding to `@line-tidy` until fixed
@@ -131,7 +135,7 @@ Based on sous-chef verdict:
 ```bash
 bd comments add <bead-id> "PHASE: SERVE
 Status: completed
-Verdict: <approved|needs_changes|blocked>
+Verdict: <APPROVED|NEEDS_CHANGES|BLOCKED>
 Issues: <count> found (<auto-fixed>, <to-file>)
 Summary: <brief assessment>"
 ```

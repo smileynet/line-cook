@@ -20,7 +20,7 @@ Options considered:
 
 ## Decision
 
-We will use three review agents, each tied to a specific workflow phase: taster (test quality during cook's RED phase), sous-chef (code correctness during serve), and maître (BDD acceptance coverage before plate). Each agent has read-only tool access and produces a structured verdict — `ready_for_tidy`, `needs_changes`, or `blocked` — that gates progression to the next phase.
+We will use three review agents, each tied to a specific workflow phase: taster (test quality during cook's RED phase), sous-chef (code correctness during serve), and maître (BDD acceptance coverage before plate). Each agent has read-only tool access and produces a structured verdict — `APPROVED`, `NEEDS_CHANGES`, or `BLOCKED` — that gates progression to the next phase.
 
 Read-only tooling is deliberate: reviewers examine, they don't fix. This prevents reviewers from silently papering over issues and ensures the implementing agent addresses feedback explicitly.
 

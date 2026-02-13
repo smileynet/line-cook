@@ -161,9 +161,9 @@ Close the epic bead to mark completion:
 bd close <epic-id>
 ```
 
-### Step 8: Commit and Push
+### Step 8: Commit Acceptance Documentation
 
-Commit acceptance documentation and CHANGELOG:
+Commit acceptance documentation and CHANGELOG on the epic branch:
 
 ```bash
 git add docs/features/<epic-id>-acceptance.md CHANGELOG.md
@@ -178,6 +178,44 @@ Epic validation complete:
 Epic report: docs/features/<epic-id>-acceptance.md"
 
 bd sync
+```
+
+### Step 8.5: Merge Epic Branch to Main
+
+After validation passes and documentation is committed, merge the epic branch:
+
+```bash
+EPIC_BRANCH="epic/<epic-id>"
+CURRENT=$(git branch --show-current)
+
+if [ "$CURRENT" = "$EPIC_BRANCH" ]; then
+  EPIC_TITLE=$(bd show <epic-id> --json | jq -r '.[0].title')
+
+  # Checkout main and merge
+  git checkout main
+  git pull --rebase
+
+  if git merge --no-ff $EPIC_BRANCH -m "Merge epic <epic-id>: $EPIC_TITLE"; then
+    # Success - delete branch and push
+    git branch -d $EPIC_BRANCH
+    git push origin main
+    git push origin --delete $EPIC_BRANCH 2>/dev/null || true
+  else
+    # Merge conflict - abort and return to epic branch
+    git merge --abort
+    git checkout $EPIC_BRANCH
+
+    bd create --title="Resolve merge conflict for epic <epic-id>" \
+      --type=bug --priority=1 \
+      --description="Epic <epic-id> ($EPIC_TITLE) completed but merge to main failed due to conflicts."
+
+    echo "⚠️ MERGE CONFLICT - manual resolution required"
+  fi
+fi
+```
+
+**If not on an epic branch** (e.g., working directly on main), skip the merge step and just push:
+```bash
 git push
 ```
 
@@ -208,11 +246,35 @@ Deliverables:
   - Epic report: docs/features/<epic-id>-acceptance.md
   - CHANGELOG.md updated
   - Epic bead closed
+  - Branch: epic/<epic-id> merged to main
 
 Commit: <hash>
 ───────────────────────────────────────────
 
 NEXT STEP: Continue with next epic or feature
+```
+
+**If merge failed (conflict):**
+
+```
+SERVICE CLOSED (with merge conflict)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Epic: <epic-id> - <epic-title>
+Status: ✅ Validated but merge failed
+
+⚠️ MERGE CONFLICT
+Epic branch could not be merged to main.
+
+Conflicts require manual resolution:
+  1. Resolve conflicts manually
+  2. git add <resolved-files>
+  3. git commit
+  4. git push origin main
+  5. git branch -d epic/<epic-id>
+
+Bug bead created: <new-bead-id>
+───────────────────────────────────────────
 ```
 
 ## Error Handling
@@ -282,6 +344,7 @@ The close-service phase validates epics after all features have been individuall
 3. **Documentation** - Epic acceptance report provides comprehensive record
 4. **Changelog** - Track epic delivery for users
 5. **Context archival** - Planning context marked as archived
+6. **Branch merge** - Epic branch merged to main (Claude Code only)
 
 **When to run:**
 - After all child features for an epic are plated (closed)
@@ -307,4 +370,5 @@ This command takes an epic ID as argument. It will:
 5. Archive planning context
 6. Update CHANGELOG.md
 7. Close epic bead
-8. Commit and push
+8. Commit acceptance docs
+9. Merge epic branch to main (Claude Code only)
