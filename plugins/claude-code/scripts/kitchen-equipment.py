@@ -19,24 +19,18 @@ Exit codes:
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
-from helpers import run_cmd, run_bd_json
-
-
-def _validate_bead_id(bid):
-    """Validate bead ID format to prevent malformed input in subprocess calls."""
-    return bool(bid and re.match(r'^[a-zA-Z0-9._-]+$', bid))
+from helpers import run_cmd, run_bd_json, validate_bead_id
 
 
 def get_task_detail(task_id):
     """Fetch full task details from bd."""
-    if not _validate_bead_id(task_id):
+    if not validate_bead_id(task_id):
         return None
     detail = run_bd_json(["show", task_id])
-    if not detail or not isinstance(detail, dict):
+    if not isinstance(detail, dict):
         return None
     return {
         "id": detail.get("id", ""),

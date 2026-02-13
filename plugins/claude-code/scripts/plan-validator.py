@@ -24,37 +24,22 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from helpers import run_cmd
-
-
-def _validate_bead_id(bid):
-    """Validate bead ID format to prevent malformed input in subprocess calls."""
-    return bool(bid and re.match(r'^[a-zA-Z0-9._-]+$', bid))
+from helpers import run_cmd, run_bd_json, validate_bead_id
 
 
 def _fetch_bead(bead_id):
     """Fetch a single bead by ID, returning dict or None."""
-    if not _validate_bead_id(bead_id):
+    if not validate_bead_id(bead_id):
         return None
-    rc, out, _ = run_cmd(["bd", "show", bead_id, "--json"], timeout=15)
-    if rc != 0 or not out:
-        return None
-    try:
-        data = json.loads(out)
-        if isinstance(data, list) and len(data) == 1:
-            data = data[0]
-        if isinstance(data, dict):
-            return data
-    except (json.JSONDecodeError, TypeError):
-        pass
-    return None
+    data = run_bd_json(["show", bead_id])
+    return data if isinstance(data, dict) else None
 
 
 def _collect_children(parent_id, beads, seen, depth=0, max_depth=2):
     """Recursively collect children up to max_depth levels."""
     if depth >= max_depth:
         return
-    if not _validate_bead_id(parent_id):
+    if not validate_bead_id(parent_id):
         return
     rc, out, _ = run_cmd(
         ["bd", "list", "--parent=" + parent_id, "--all", "--json"], timeout=15
@@ -103,7 +88,7 @@ def load_beads(scope):
                 pass
     else:
         # Specific bead ID — walk parent chain up, then get recursive children
-        if not _validate_bead_id(scope):
+        if not validate_bead_id(scope):
             return []
         bead_data = _fetch_bead(scope)
         if bead_data:

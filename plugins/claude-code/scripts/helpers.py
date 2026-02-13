@@ -1,10 +1,17 @@
 """Shared helpers for Line Cook scripts.
 
-Provides run_cmd and run_bd_json to avoid duplication across helper scripts.
+Provides validate_bead_id, run_cmd, and run_bd_json to avoid duplication
+across helper scripts.
 """
 
 import json
+import re
 import subprocess
+
+
+def validate_bead_id(bid):
+    """Validate bead ID format to prevent malformed input in subprocess calls."""
+    return bool(bid and re.match(r'^[a-zA-Z0-9._-]+$', bid))
 
 
 def run_cmd(args, timeout=15):

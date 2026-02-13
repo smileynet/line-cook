@@ -19,15 +19,9 @@ Exit codes:
 import argparse
 import json
 import os
-import re
 import sys
 
-from helpers import run_cmd, run_bd_json
-
-
-def _validate_bead_id(bid):
-    """Validate bead ID format to prevent malformed input in subprocess calls."""
-    return bool(bid and re.match(r'^[a-zA-Z0-9._-]+$', bid))
+from helpers import run_cmd, run_bd_json, validate_bead_id
 
 
 def do_sync():
@@ -111,11 +105,11 @@ def suggest_next_task(roster):
 
     candidate = ready[0]
     candidate_id = candidate.get("id", "")
-    if not _validate_bead_id(candidate_id):
+    if not validate_bead_id(candidate_id):
         return {"suggestion": None, "drill_path": []}
 
     detail = run_bd_json(["show", candidate_id])
-    if not detail or not isinstance(detail, dict):
+    if not isinstance(detail, dict):
         suggestion = _extract_task_detail(candidate) if isinstance(candidate, dict) else None
         return {"suggestion": suggestion, "drill_path": [candidate_id]}
 
@@ -212,7 +206,7 @@ def _get_children(parent_id):
     if parent_id in _parent_children_cache:
         return _parent_children_cache[parent_id]
 
-    if not _validate_bead_id(parent_id):
+    if not validate_bead_id(parent_id):
         _parent_children_cache[parent_id] = None
         return None
 
@@ -237,19 +231,19 @@ def build_hierarchy(task_id):
     """Walk parent chain to build epic→feature→task hierarchy."""
     hierarchy = {"epic": None, "feature": None, "completed_siblings": []}
 
-    if not _validate_bead_id(task_id):
+    if not validate_bead_id(task_id):
         return hierarchy
     detail = run_bd_json(["show", task_id])
-    if not detail or not isinstance(detail, dict):
+    if not isinstance(detail, dict):
         return hierarchy
 
     parent_id = detail.get("parent")
-    if not parent_id or not _validate_bead_id(parent_id):
+    if not parent_id or not validate_bead_id(parent_id):
         return hierarchy
 
     # Parent = feature (usually)
     parent = run_bd_json(["show", parent_id])
-    if parent and isinstance(parent, dict):
+    if isinstance(parent, dict):
         parent_type = parent.get("type") or parent.get("issue_type", "")
 
         if parent_type == "feature":
@@ -264,7 +258,7 @@ def build_hierarchy(task_id):
             grandparent_id = parent.get("parent")
             if grandparent_id:
                 grandparent = run_bd_json(["show", grandparent_id])
-                if grandparent and isinstance(grandparent, dict):
+                if isinstance(grandparent, dict):
                     hierarchy["epic"] = {
                         "id": grandparent.get("id", ""),
                         "title": grandparent.get("title", ""),
@@ -378,7 +372,7 @@ def detect_plate_ready():
             if not isinstance(item, dict):
                 continue
             item_id = item.get("id", "")
-            if not _validate_bead_id(item_id):
+            if not validate_bead_id(item_id):
                 continue
 
             children = _get_children(item_id)
