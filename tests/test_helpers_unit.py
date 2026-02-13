@@ -11,7 +11,46 @@ from unittest.mock import patch, MagicMock
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "claude-code" / "scripts"))
 
-from helpers import run_cmd, run_bd_json
+from helpers import run_cmd, run_bd_json, validate_bead_id
+
+
+class TestValidateBeadId(unittest.TestCase):
+    """Test validate_bead_id() function."""
+
+    def test_valid_simple_id(self):
+        """Simple alphanumeric ID is valid."""
+        self.assertTrue(validate_bead_id("lc-1"))
+
+    def test_valid_dotted_id(self):
+        """Dotted hierarchy ID is valid."""
+        self.assertTrue(validate_bead_id("lc-7qb.5"))
+
+    def test_valid_complex_id(self):
+        """Complex ID with dots, dashes, underscores is valid."""
+        self.assertTrue(validate_bead_id("proj_abc-123.4.5"))
+
+    def test_rejects_empty_string(self):
+        """Empty string is invalid."""
+        self.assertFalse(validate_bead_id(""))
+
+    def test_rejects_none(self):
+        """None is invalid."""
+        self.assertFalse(validate_bead_id(None))
+
+    def test_rejects_shell_injection(self):
+        """Shell metacharacters are rejected."""
+        self.assertFalse(validate_bead_id("lc-1; rm -rf /"))
+        self.assertFalse(validate_bead_id("lc-1 && echo pwned"))
+
+    def test_rejects_spaces(self):
+        """Spaces are rejected."""
+        self.assertFalse(validate_bead_id("lc 1"))
+
+    def test_rejects_special_chars(self):
+        """Special characters beyond allowed set are rejected."""
+        self.assertFalse(validate_bead_id("lc@1"))
+        self.assertFalse(validate_bead_id("lc/1"))
+        self.assertFalse(validate_bead_id("lc$1"))
 
 
 class TestRunCmd(unittest.TestCase):

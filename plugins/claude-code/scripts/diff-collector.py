@@ -17,23 +17,17 @@ Exit codes:
 
 import argparse
 import json
-import re
 import sys
 
-from helpers import run_cmd
+from helpers import run_cmd, run_bd_json, validate_bead_id
 
 MAX_DIFF_LINES = 200
-
-
-def _validate_bead_id(bid):
-    """Validate bead ID format to prevent malformed input in subprocess calls."""
-    return bool(bid and re.match(r'^[a-zA-Z0-9._-]+$', bid))
 
 
 def find_target_bead(explicit_id=None):
     """Find the bead to review. Checks explicit, then recent closed, then in_progress."""
     if explicit_id:
-        if not _validate_bead_id(explicit_id):
+        if not validate_bead_id(explicit_id):
             return None
         return _get_bead_detail(explicit_id)
 
@@ -62,7 +56,7 @@ def _find_first_bead_by_status(status):
         data = json.loads(out)
         if isinstance(data, list) and data:
             first_item = data[0] if isinstance(data[0], dict) else None
-            if first_item and _validate_bead_id(first_item.get("id", "")):
+            if first_item and validate_bead_id(first_item.get("id", "")):
                 return _normalize_bead(first_item)
     except (json.JSONDecodeError, TypeError):
         pass
@@ -71,18 +65,8 @@ def _find_first_bead_by_status(status):
 
 def _get_bead_detail(bead_id):
     """Fetch full bead details via bd show --json."""
-    rc, out, _ = run_cmd(["bd", "show", bead_id, "--json"], timeout=15)
-    if rc != 0 or not out:
-        return None
-    try:
-        data = json.loads(out)
-        if isinstance(data, list) and len(data) == 1:
-            data = data[0]
-        if isinstance(data, dict):
-            return _normalize_bead(data)
-    except (json.JSONDecodeError, TypeError):
-        pass
-    return None
+    data = run_bd_json(["show", bead_id])
+    return _normalize_bead(data) if isinstance(data, dict) else None
 
 
 def _normalize_bead(bead):
