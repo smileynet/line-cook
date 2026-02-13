@@ -63,12 +63,7 @@ git diff               # If not committed yet
 - Resource management (memory leaks, unclosed handles)
 - Concurrency issues (race conditions, deadlocks)
 - Type safety and type coercion issues
-@IF_CLAUDECODE@
 - Off-by-one errors in loops/indexing
-@ENDIF_CLAUDECODE@
-@IF_OPENCODE@
-- Off-by-one errors in loops/indexing
-@ENDIF_OPENCODE@
 
 @IF_KIRO@
 **Red flags**:
@@ -185,6 +180,7 @@ Assign severity to each issue:
 - **NEEDS_CHANGES**: Minor or major issues found that should be addressed but aren't blocking.
 - **BLOCKED**: Critical issues that MUST be fixed before proceeding. Reserved for security vulnerabilities, data integrity risks, or crash-inducing bugs.
 @ENDIF_OPENCODE@
+
 @IF_KIRO@
 - **APPROVED**: Code meets quality bar, proceed to commit.
 - **NEEDS_CHANGES**: Critical/major issues should be addressed before committing.
