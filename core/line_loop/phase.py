@@ -1,7 +1,7 @@
 """Phase execution for line-loop.
 
 Functions for running workflow phases:
-- run_phase: Execute a single phase (cook, serve, tidy, plate)
+- run_phase: Execute a single phase (cook, serve, tidy, plate, close-service)
 - run_subprocess: Run command with timeout
 - check_idle: Check if phase has been idle beyond threshold
 - detect_kitchen_complete: Detect KITCHEN_COMPLETE signal
@@ -122,10 +122,10 @@ def run_phase(
     idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
     idle_action: str = DEFAULT_IDLE_ACTION
 ) -> PhaseResult:
-    """Invoke a single Line Cook skill phase (cook, serve, tidy, plate).
+    """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
 
     Args:
-        phase: Phase name (cook, serve, tidy, plate)
+        phase: Phase name (cook, serve, tidy, plate, close-service)
         cwd: Working directory
         args: Optional arguments (e.g., task ID for cook)
         timeout: Override default phase timeout (takes precedence over phase_timeouts)

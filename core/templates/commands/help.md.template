@@ -98,6 +98,7 @@ EXECUTION (do work)
 /@NAMESPACE@serve        Review changes (sous-chef)
 /@NAMESPACE@tidy         Commit and push
 /@NAMESPACE@plate        Validate completed feature
+/@NAMESPACE@close-service  Validate completed epic
 
 REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -179,7 +180,7 @@ Command not found: <argument>
 
 Available commands:
   Planning: mise, brainstorm, scope, finalize, plan-audit, architecture-audit, decision
-  Execution: run, prep, cook, serve, tidy, plate
+  Execution: run, prep, cook, serve, tidy, plate, close-service
   Reference: getting-started, loop, help
 
 Run /@NAMESPACE@help for overview.
@@ -206,6 +207,7 @@ Quick reference for all commands:
 | `/@NAMESPACE@serve` | Execution | Review changes (sous-chef subagent) |
 | `/@NAMESPACE@tidy` | Execution | Commit and push |
 | `/@NAMESPACE@plate` | Execution | Validate completed feature (maître subagent) |
+| `/@NAMESPACE@close-service` | Execution | Validate completed epic (critic subagent) |
 | `/@NAMESPACE@getting-started` | Reference | Workflow guide with bead reference |
 | `/@NAMESPACE@loop` | Reference | Autonomous loop management |
 | `/@NAMESPACE@help` | Reference | Contextual help for Line Cook commands |
@@ -226,6 +228,8 @@ PLANNING CYCLE              EXECUTION CYCLE
                             /tidy
                                   ↓
                             /plate (if feature complete)
+                                  ↓
+                            /close-service (if epic complete)
 
 /mise (orchestrator)        /run (orchestrator)
 ```

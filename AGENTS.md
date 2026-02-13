@@ -40,10 +40,10 @@ The theme is a **recognition aid**, not a **learning barrier**. Always include t
 ## Overview
 
 ```
-/mise ─────────────────────────────────→ /prep → /cook → /serve → /tidy → /plate
-  │                                         ↓       ↓       ↓        ↓        ↓
-  ├─ /brainstorm → brainstorm.md          sync   execute  review   commit  validate
-  ├─ /scope → menu-plan.yaml
+/mise ─────────────────────────────────→ /prep → /cook → /serve → /tidy → /plate → /close-service
+  │                                         ↓       ↓       ↓        ↓        ↓            ↓
+  ├─ /brainstorm → brainstorm.md          sync   execute  review   commit  validate    validate
+  ├─ /scope → menu-plan.yaml                                              (feature)     (epic)
   └─ /finalize → beads + specs
 ```
 
@@ -64,6 +64,7 @@ Or use `/run` to run the full execution cycle, `/mise` to run the full planning 
 | `/serve` | Review code changes |
 | `/tidy` | Commit and push changes |
 | `/plate` | Validate completed feature |
+| `/close-service` | Validate completed epic |
 | `/run` | Run full workflow cycle |
 
 ## Platform Command Naming
@@ -158,6 +159,7 @@ Claude Code uses slash commands instead of agents:
 | **/line:serve** | Serve phase | Review code changes |
 | **/line:tidy** | Tidy phase | Commit and push changes |
 | **/line:plate** | Plate phase | Validate completed feature |
+| **/line:close-service** | Close-service phase | Validate completed epic |
 | **/line:run** | Execution orchestrator | Prep→cook→serve→tidy orchestration |
 | **/line:architecture-audit** | Code quality | Analyze codebase structure and code smells |
 | **/line:decision** | ADR management | Record, list, or supersede architecture decisions |
@@ -174,7 +176,7 @@ Claude Code subagents are specialized agents invoked during workflow phases:
 | **polisher** | Serve | Refines code for clarity before review |
 | **sous-chef** | Serve | Reviews code changes |
 | **maître** | Plate (Feature) | Reviews feature acceptance |
-| **critic** | Plate (Epic) | Reviews E2E and user journey coverage |
+| **critic** | Close-service (Epic) | Reviews E2E and user journey coverage |
 
 ### Project-Specific Agents (.claude/agents/)
 
@@ -192,7 +194,7 @@ OpenCode plugin uses markdown commands in `plugins/opencode/commands/` and agent
 
 | Component | Type | Purpose |
 |----------|------|---------|
-| **Commands** | OpenCode commands | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-run`, `/line-getting-started`, `/line-architecture-audit`, `/line-decision`, `/line-help`, `/line-loop`, `/line-plan-audit` |
+| **Commands** | OpenCode commands | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-close-service`, `/line-run`, `/line-getting-started`, `/line-architecture-audit`, `/line-decision`, `/line-help`, `/line-loop`, `/line-plan-audit` |
 | **Agents** | OpenCode subagents | taster, polisher, sous-chef, maitre, critic (markdown files in `plugins/opencode/agents/`) |
 
 ### OpenCode Subagents (plugins/opencode/agents/)
@@ -205,7 +207,7 @@ OpenCode subagents are defined as markdown files with YAML frontmatter (mode: su
 | **polisher** | Serve | Refines code for clarity before review |
 | **sous-chef** | Serve | Reviews code changes |
 | **maitre** | Plate (Feature) | Reviews feature acceptance |
-| **critic** | Plate (Epic) | Reviews E2E and user journey coverage |
+| **critic** | Close-service (Epic) | Reviews E2E and user journey coverage |
 
 ### chef
 
@@ -274,7 +276,7 @@ OpenCode subagents are defined as markdown files with YAML frontmatter (mode: su
   - Verify smoke tests exist for critical paths
   - Ensure testing approach fits project type
   - Identify antipatterns (ice cream cone, flaky tests)
-- **Trigger**: Automatically during epic plate (when last feature completes)
+- **Trigger**: Automatically during close-service (when last feature completes)
 - **Output**: E2E coverage assessment (PASS, NEEDS_WORK, or FAIL)
 - **Documentation**: See [Epic-Level Testing](docs/guidance/epic-testing.md)
 
@@ -350,7 +352,7 @@ See [Project Structure](docs/dev/project-structure.md) for full directory layout
 Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), OpenCode (`plugins/opencode/commands/`), and Kiro (`plugins/kiro/prompts/`). All are generated from shared templates to prevent drift.
 
 **Template system:**
-- Source templates live in `core/templates/commands/` (16 templates)
+- Source templates live in `core/templates/commands/` (17 templates)
 - Use placeholders for platform-specific differences:
   - `@NAMESPACE@` - Command prefix (`line:` for Claude Code, `line-` for OpenCode/Kiro)
   - `@IF_CLAUDECODE@`...`@ENDIF_CLAUDECODE@` - Claude Code only content
@@ -362,7 +364,7 @@ Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), 
 - OpenCode: `/line-cook` (hyphen separator), simplified step numbering
 - Kiro: `@line-cook` (at-sign prefix), same content as OpenCode but no YAML frontmatter
 
-**Synced commands:** All 16 — architecture-audit, brainstorm, cook, decision, finalize, getting-started, help, loop, mise, plan-audit, plate, prep, run, scope, serve, tidy
+**Synced commands:** All 17 — architecture-audit, brainstorm, close-service, cook, decision, finalize, getting-started, help, loop, mise, plan-audit, plate, prep, run, scope, serve, tidy
 
 ### Agent Template Synchronization
 

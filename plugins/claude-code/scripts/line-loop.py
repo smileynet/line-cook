@@ -79,10 +79,11 @@ EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})
 
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
-    'cook': 1200,   # 20 min - Main work phase: TDD cycle, file edits, test runs
-    'serve': 600,   # 10 min - Code review by sous-chef subagent
-    'tidy': 240,    # 4 min - Commit, bd sync, git push
-    'plate': 600,   # 10 min - BDD review via maître, acceptance doc
+    'cook': 1200,           # 20 min - Main work phase: TDD cycle, file edits, test runs
+    'serve': 600,           # 10 min - Code review by sous-chef subagent
+    'tidy': 240,            # 4 min - Commit, bd sync, git push
+    'plate': 600,           # 10 min - BDD review via maître, acceptance doc
+    'close-service': 900,   # 15 min - Critic E2E review + epic acceptance doc
 }
 
 
@@ -421,8 +422,8 @@ class ServeFeedback:
 
 @dataclass
 class PhaseResult:
-    """Result from running a single workflow phase (cook, serve, tidy, plate)."""
-    phase: str           # cook, serve, tidy, plate
+    """Result from running a single workflow phase (cook, serve, tidy, plate, close-service)."""
+    phase: str           # cook, serve, tidy, plate, close-service
     success: bool        # True if phase completed without error
     output: str          # Full output from the phase
     exit_code: int       # Process exit code
@@ -1075,10 +1076,10 @@ def run_phase(
     idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
     idle_action: str = DEFAULT_IDLE_ACTION
 ) -> PhaseResult:
-    """Invoke a single Line Cook skill phase (cook, serve, tidy, plate).
+    """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
 
     Args:
-        phase: Phase name (cook, serve, tidy, plate)
+        phase: Phase name (cook, serve, tidy, plate, close-service)
         cwd: Working directory
         args: Optional arguments (e.g., task ID for cook)
         timeout: Override default phase timeout (takes precedence over phase_timeouts)
@@ -2138,12 +2139,14 @@ def print_epic_completion(epic: dict):
     print(f"  +{'-' * (content_width + 2)}+")
 
 
-def check_epic_completion(cwd: Path) -> list[dict]:
-    """Check for newly completable epics and close them.
+def detect_eligible_epics(cwd: Path) -> list[str]:
+    """Detect epics eligible for closure (all children closed).
 
-    Returns list of completed epic summaries for display.
+    Detection only — does NOT close epics. Callers should use
+    run_phase("close-service") to close each epic with full validation.
+
+    Returns list of epic IDs eligible for closure.
     """
-    # Check what's eligible for closure
     try:
         result = run_subprocess(
             ["bd", "epic", "close-eligible", "--dry-run", "--json"],
@@ -2156,7 +2159,6 @@ def check_epic_completion(cwd: Path) -> list[dict]:
         if not eligible:
             return []
 
-        # eligible is a list of epic IDs or epic objects
         epic_ids = []
         for item in eligible:
             if isinstance(item, str) and item:
@@ -2166,10 +2168,9 @@ def check_epic_completion(cwd: Path) -> list[dict]:
                 if epic_id:
                     epic_ids.append(epic_id)
 
-        if not epic_ids:
-            return []
-
-        logger.info(f"Found {len(epic_ids)} epic(s) eligible for closure: {epic_ids}")
+        if epic_ids:
+            logger.info(f"Found {len(epic_ids)} epic(s) eligible for closure: {epic_ids}")
+        return epic_ids
 
     except subprocess.TimeoutExpired:
         logger.warning("Timeout checking epic closure eligibility")
@@ -2181,22 +2182,29 @@ def check_epic_completion(cwd: Path) -> list[dict]:
         logger.debug(f"Error checking epic closure eligibility: {e}")
         return []
 
-    # Close eligible epics
-    try:
-        result = run_subprocess(["bd", "epic", "close-eligible"], BD_COMMAND_TIMEOUT, cwd)
-        if result.returncode != 0:
-            logger.warning(f"Failed to close eligible epics: {result.stderr}")
-            return []
-    except subprocess.TimeoutExpired:
-        logger.warning("Timeout closing eligible epics")
-        return []
-    except Exception as e:
-        logger.warning(f"Error closing eligible epics: {e}")
+
+def check_epic_completion(cwd: Path) -> list[dict]:
+    """Detect newly completable epics and close them via close-service.
+
+    Uses detect_eligible_epics for detection, then run_phase("close-service")
+    for each epic to ensure full validation (critic review, acceptance docs).
+
+    Returns list of completed epic summaries for display.
+    """
+    epic_ids = detect_eligible_epics(cwd)
+    if not epic_ids:
         return []
 
-    # Build and display summaries
     summaries = []
     for epic_id in epic_ids:
+        logger.info(f"Running close-service for epic {epic_id}")
+        cs_result = run_phase("close-service", cwd, args=epic_id)
+
+        if cs_result.error:
+            logger.warning(f"Close-service failed for epic {epic_id}: {cs_result.error}")
+            continue
+
+        logger.info(f"Close-service completed for epic {epic_id}")
         epic = get_epic_summary(epic_id, cwd)
         summaries.append(epic)
         print_epic_completion(epic)
@@ -2698,17 +2706,27 @@ def run_iteration(
                 # Check if completing the feature completes an epic
                 epic_complete, epic_id = check_epic_completion_after_feature(feature_id, cwd)
                 if epic_complete and epic_id:
-                    logger.info(f"Epic {epic_id} complete - all features closed")
-                    report = generate_epic_closure_report(epic_id, cwd)
+                    logger.info(f"Epic {epic_id} complete - running close-service phase")
                     if not json_output:
-                        print(report)
+                        print_phase_progress("close-service", "start")
 
-                    # Close the epic
-                    try:
-                        run_subprocess(["bd", "close", epic_id], BD_COMMAND_TIMEOUT, cwd)
-                        logger.info(f"Closed epic {epic_id}")
-                    except Exception as e:
-                        logger.warning(f"Failed to close epic {epic_id}: {e}")
+                    if progress_state:
+                        progress_state.start_phase("close-service")
+                    cs_result = run_phase("close-service", cwd, args=epic_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+                    all_actions.extend(cs_result.actions)
+                    all_output.append("\n=== CLOSE-SERVICE PHASE ===\n")
+                    all_output.append(cs_result.output)
+
+                    if cs_result.error:
+                        if not json_output:
+                            print_phase_progress("close-service", "error", cs_result.duration_seconds,
+                                               cs_result.error or "failed")
+                        logger.warning(f"Close-service phase error for epic {epic_id}: {cs_result.error}")
+                    else:
+                        if not json_output:
+                            print_phase_progress("close-service", "done", cs_result.duration_seconds,
+                                               f"{_action_dots(len(cs_result.actions))}{len(cs_result.actions)} actions, epic {epic_id} validated")
+                        logger.info(f"Close-service phase completed for epic {epic_id}")
 
     duration = (datetime.now() - start_time).total_seconds()
 

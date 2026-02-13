@@ -367,8 +367,8 @@ class ServeFeedback:
 
 @dataclass
 class PhaseResult:
-    """Result from running a single workflow phase (cook, serve, tidy, plate)."""
-    phase: str           # cook, serve, tidy, plate
+    """Result from running a single workflow phase (cook, serve, tidy, plate, close-service)."""
+    phase: str           # cook, serve, tidy, plate, close-service
     success: bool        # True if phase completed without error
     output: str          # Full output from the phase
     exit_code: int       # Process exit code

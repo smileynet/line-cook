@@ -43,7 +43,7 @@ Read and follow `line-tidy.md` to file discovered work, commit, and push.
 
 Tidy files discovered work, commits, syncs, and pushes.
 
-### Step 5: Check for Feature Completion
+### Step 5: Check for Feature/Epic Completion
 
 After tidying, check if the task completed a feature:
 
@@ -52,9 +52,11 @@ bd show <task-id>
 ```
 
 **If task has a parent feature AND all sibling tasks are closed:**
-- Run @line-plate to validate the feature
-- Create acceptance documentation
-- Close feature bead
+1. Run @line-plate to validate the feature:
+   - Read and follow `line-plate.md`
+
+2. If plate output shows "EPIC READY TO CLOSE", run close-service:
+   - Read and follow `line-close-service.md`
 
 ### Step 6: Cycle Summary
 
