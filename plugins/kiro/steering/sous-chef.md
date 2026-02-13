@@ -40,6 +40,7 @@ git diff               # If not committed yet
 - Resource management (memory leaks, unclosed handles)
 - Concurrency issues (race conditions, deadlocks)
 - Type safety and type coercion issues
+- Off-by-one errors in loops/indexing
 
 **Red flags**:
 - Logic that doesn't match requirements
