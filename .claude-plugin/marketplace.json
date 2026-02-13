@@ -14,9 +14,8 @@
     {
       "name": "game-spice",
       "source": {
-        "source": "github",
-        "repo": "smileynet/game-spice",
-        "ref": "v0.1.1"
+        "source": "url",
+        "url": "https://github.com/smileynet/game-spice.git"
       },
       "description": "Game design spice — MLP scoping, core loop frameworks, and anti-patterns",
       "category": "domain-knowledge",
