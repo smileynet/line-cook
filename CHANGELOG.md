@@ -8,8 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- game-spice plugin in marketplace — game design planning knowledge for mise workflow
-- "Spice Rack" documentation in README and AGENTS.md for domain addon plugins
+- `/close-service` command — dedicated epic closure with critic review, acceptance documentation, and branch merge. Epics now get the same quality gate treatment that features get from `/plate`
+- `/prep` shows "READY TO CLOSE" section when completed features or epics are waiting to be plated or closed
+- OpenCode users now get all 5 review agents (taster, polisher, sous-chef, maitre, critic) — previously Claude Code only
+- game-spice plugin in marketplace — game design planning knowledge for the mise workflow
+- "Spice Rack" pattern for domain addon plugins documented in README and AGENTS.md
+
+### Changed
+- `/plate` focuses on feature validation only — use `/close-service` for epics
+- `/run` automatically reworks failed reviews instead of proceeding to tidy (up to 3 attempts before asking for help)
+- `/serve` reviews your original code first, then polishes only after approval — no more reviewing already-polished code
+- `/tidy` no longer silently closes epics — epic closure now goes through `/close-service` so you get proper E2E validation
+
+### Fixed
+- `/run` no longer skips straight to tidy when serve finds issues
+- `/tidy` no longer accidentally closes unrelated in-progress tasks
+- Review findings now survive `/clear` — tidy reads bead comments instead of relying on conversation context
 
 ## [0.13.2] - 2026-02-11
 ### Fixed

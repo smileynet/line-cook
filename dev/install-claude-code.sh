@@ -41,6 +41,15 @@ cat > "$MARKETPLACE_DIR/.claude-plugin/marketplace.json" << EOF
       "source": "./line",
       "description": "Task-focused workflow orchestration - prep, cook, serve, tidy, work",
       "version": "$VERSION"
+    },
+    {
+      "name": "game-spice",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/smileynet/game-spice.git"
+      },
+      "description": "Game design spice — MLP scoping, core loop frameworks, and anti-patterns",
+      "category": "domain-knowledge"
     }
   ]
 }
