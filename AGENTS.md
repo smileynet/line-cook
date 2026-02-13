@@ -567,6 +567,7 @@ vim CHANGELOG.md  # Add your changes under [Unreleased]
 |------|----------|
 | `plugins/claude-code/.claude-plugin/plugin.json` | `version` |
 | `plugins/opencode/package.json` | `version` AND `opencode.version` |
+| `plugins/kiro/install.py` | `VERSION` constant |
 | `CHANGELOG.md` | New version section from [Unreleased] |
 
 ### Release Procedure
@@ -613,11 +614,21 @@ python3 -c "from pathlib import Path; import sys; sys.path.insert(0, 'dev'); fro
 ./dev/doctor-docs.py
 
 # 6. Commit and push
-git add CHANGELOG.md plugins/claude-code/.claude-plugin/plugin.json plugins/opencode/package.json plugins/claude-code/scripts/line-loop.py
+git add CHANGELOG.md plugins/claude-code/.claude-plugin/plugin.json plugins/opencode/package.json plugins/kiro/install.py plugins/claude-code/scripts/line-loop.py
 git commit -m "chore(release): vX.Y.Z"
 bd sync
 git push
 ```
+
+### Per-Platform Publishing
+
+How each plugin reaches end users after `git push`:
+
+| Platform | Distribution | Update Path | Trigger |
+|----------|-------------|-------------|---------|
+| **Claude Code** | Marketplace | `/plugin update line` | GitHub Actions creates release when `plugin.json` version changes on `main` → marketplace picks it up → users update via CLI |
+| **OpenCode** | Git clone | `git pull && plugins/opencode/install.sh` | `dist/` artifact is committed so users don't need `bun`. Pull gets new version, install script copies to `~/.config/opencode/` |
+| **Kiro** | Git clone | `git pull && python3 plugins/kiro/install.py` | Pull gets new version, install script handles path transforms for global vs local install |
 
 ### What to Track in CHANGELOG.md
 
@@ -643,6 +654,17 @@ The changelog is for **plugin users** — people who install Line Cook and use i
 - Internal refactoring with no user impact
 
 **Litmus test:** Would a plugin user notice this change while using Line Cook in their project? If the answer is "only if they read the source code" or "only if they contribute to Line Cook," exclude it.
+
+**Examples:**
+
+Good (user value clear):
+- `/prep` shows "READY TO CLOSE" section when completed features are waiting
+- Running `/loop` with no arguments automatically shows status if already running, or starts a new loop if not
+
+Bad (too technical / internal):
+- "Action-level visibility tracking every tool call during iterations"
+- "README restructured following Diataxis framework"
+- "Local development install instructions in AGENTS.md for all three platforms"
 
 ### When to Release
 

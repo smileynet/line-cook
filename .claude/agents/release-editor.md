@@ -101,6 +101,17 @@ If the [Unreleased] section is empty, help populate it from git history:
 
    **Litmus test:** Would a plugin user notice this change while using Line Cook in their project? If the answer is "only if they read the source code" or "only if they contribute to Line Cook," exclude it.
 
+   **Examples:**
+
+   Good (user value clear):
+   - `/prep` shows "READY TO CLOSE" section when completed features are waiting
+   - Running `/loop` with no arguments automatically shows status if already running, or starts a new loop if not
+
+   Bad (too technical / internal):
+   - "Action-level visibility tracking every tool call during iterations"
+   - "README restructured following Diataxis framework"
+   - "Local development install instructions in AGENTS.md for all three platforms"
+
 4. **Categorize included changes:**
    - `feat:` to commands/agents → Added
    - `fix:` to commands/agents → Fixed
@@ -297,10 +308,11 @@ Which would you prefer?
 
 ### Version Locations
 
-Three files need matching versions:
-1. `plugins/claude-code/.claude-plugin/plugin.json` - line 4
-2. `plugins/opencode/package.json` - line 3
-3. `plugins/opencode/package.json` - line 15 (opencode.version)
+Four locations across three files need matching versions:
+1. `plugins/claude-code/.claude-plugin/plugin.json` - `version` field
+2. `plugins/opencode/package.json` - `version` field
+3. `plugins/opencode/package.json` - `opencode.version` field
+4. `plugins/kiro/install.py` - `VERSION` constant
 
 The release script handles this automatically.
 

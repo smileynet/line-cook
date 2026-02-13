@@ -157,8 +157,7 @@ def changelog_has_unreleased_content(repo_root: Path) -> bool:
         return False
 
     unreleased_content = unreleased_match.group(1).strip()
-    # Check if there's actual content (not just whitespace)
-    return len(unreleased_content) > 0
+    return bool(unreleased_content)
 
 
 def preflight_checks(config: ReleaseConfig) -> PreflightResult:
@@ -226,6 +225,28 @@ def update_json_file(file_path: Path, updates: dict[str, str], dry_run: bool = F
         return False
 
 
+def update_kiro_version(file_path: Path, version: str, dry_run: bool = False) -> bool:
+    """Update VERSION constant in Kiro install.py."""
+    try:
+        content = file_path.read_text()
+        new_content = re.sub(
+            r'^VERSION = "[\d.]+"',
+            f'VERSION = "{version}"',
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        if new_content == content:
+            print(f"  {color('✗', Colors.RED)} Could not find VERSION constant in {file_path}")
+            return False
+        if not dry_run:
+            file_path.write_text(new_content)
+        return True
+    except FileNotFoundError:
+        print(f"  {color('✗', Colors.RED)} {file_path} not found")
+        return False
+
+
 def update_versions(config: ReleaseConfig) -> bool:
     """Update version in all required files."""
     success = True
@@ -244,6 +265,13 @@ def update_versions(config: ReleaseConfig) -> bool:
         "opencode.version": config.version
     }, config.dry_run):
         print(f"  {color('✓', Colors.GREEN)} plugins/opencode/package.json (2 locations)")
+    else:
+        success = False
+
+    # Update Kiro install.py VERSION constant
+    kiro_path = config.repo_root / "plugins" / "kiro" / "install.py"
+    if update_kiro_version(kiro_path, config.version, config.dry_run):
+        print(f"  {color('✓', Colors.GREEN)} plugins/kiro/install.py")
     else:
         success = False
 
@@ -294,14 +322,14 @@ def update_changelog(config: ReleaseConfig) -> bool:
         new_version_link = f"[{config.version}]: {repo_url}/compare/v{previous}...v{config.version}"
 
         # Insert after [Unreleased] link line
-        before_insert = new_content
-        new_content = re.sub(
+        updated_content = re.sub(
             r"(\[Unreleased\]: https://github\.com/[^\n]+\n)",
             f"\\1{new_version_link}\n",
             new_content
         )
-        if new_content == before_insert:
+        if updated_content == new_content:
             print(f"  {color('⚠', Colors.YELLOW)} Could not insert version comparison link")
+        new_content = updated_content
 
         if not config.dry_run:
             changelog_path.write_text(new_content)
@@ -635,6 +663,66 @@ def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
     return True
 
 
+def build_opencode_plugin(repo_root: Path, dry_run: bool = False) -> bool:
+    """Build OpenCode plugin dist artifact.
+
+    Runs bun install && bun run build in plugins/opencode/ to rebuild
+    the dist/line-cook-plugin.js artifact after version bump.
+
+    Returns True if build succeeded, False if bun unavailable or build failed.
+    """
+    import shutil as _shutil
+
+    if not _shutil.which("bun"):
+        print(f"  {color('⚠', Colors.YELLOW)} bun not found — skipping OpenCode build")
+        print(f"    Install bun (https://bun.sh) to include dist rebuild in releases")
+        return False
+
+    if dry_run:
+        print(f"  {color('○', Colors.BLUE)} Would run: bun install && bun run build in plugins/opencode/")
+        return True
+
+    opencode_dir = repo_root / "plugins" / "opencode"
+
+    # Install dependencies
+    result = subprocess.run(
+        ["bun", "install"],
+        capture_output=True, text=True,
+        cwd=opencode_dir,
+    )
+    if result.returncode != 0:
+        print(f"  {color('✗', Colors.RED)} bun install failed")
+        if result.stderr:
+            for line in result.stderr.strip().splitlines()[:3]:
+                print(f"      {line}")
+        return False
+
+    # Build
+    result = subprocess.run(
+        ["bun", "run", "build"],
+        capture_output=True, text=True,
+        cwd=opencode_dir,
+    )
+    if result.returncode != 0:
+        print(f"  {color('✗', Colors.RED)} bun run build failed")
+        if result.stderr:
+            for line in result.stderr.strip().splitlines()[:3]:
+                print(f"      {line}")
+        return False
+
+    print(f"  {color('✓', Colors.GREEN)} Built OpenCode plugin")
+
+    # Stage the dist artifact
+    dist_file = "plugins/opencode/dist/line-cook-plugin.js"
+    code, _ = run_git(["add", dist_file])
+    if code == 0:
+        print(f"  {color('✓', Colors.GREEN)} Staged {dist_file}")
+    else:
+        print(f"  {color('⚠', Colors.YELLOW)} Could not stage {dist_file}")
+
+    return True
+
+
 def run_validation_scripts(config: ReleaseConfig) -> bool:
     """Run validation scripts and report results."""
     scripts = [
@@ -686,8 +774,9 @@ def create_commit(config: ReleaseConfig) -> bool:
     files_to_stage = [
         "plugins/claude-code/.claude-plugin/plugin.json",
         "plugins/opencode/package.json",
+        "plugins/kiro/install.py",
         "CHANGELOG.md",
-        "plugins/claude-code/scripts/line-loop.py"  # Bundled for distribution
+        "plugins/claude-code/scripts/line-loop.py",  # Bundled for distribution
     ]
 
     for file in files_to_stage:
@@ -987,6 +1076,13 @@ def main():
     if not bundle_line_loop(config.repo_root, config.dry_run):
         print(color("Bundling failed.", Colors.RED))
         return rollback(4)
+
+    # Build OpenCode plugin
+    print()
+    print("Building OpenCode plugin:")
+    if not build_opencode_plugin(config.repo_root, config.dry_run):
+        # Non-fatal — warn but continue
+        print(f"  {color('⚠', Colors.YELLOW)} OpenCode build skipped (see above)")
 
     # Run validation
     print()
