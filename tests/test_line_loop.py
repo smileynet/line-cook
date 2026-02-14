@@ -26,6 +26,18 @@ def make_snapshot(beads):
     return snapshot
 
 
+def make_iteration_result(**overrides):
+    """Create an IterationResult with sensible defaults for testing."""
+    defaults = dict(
+        iteration=1, task_id="t-1", task_title="Test",
+        outcome="completed", duration_seconds=10.0,
+        serve_verdict="APPROVED", commit_hash="abc123",
+        success=True
+    )
+    defaults.update(overrides)
+    return line_loop.IterationResult(**defaults)
+
+
 class TestParseServeResult(unittest.TestCase):
     """Test parse_serve_result() function."""
 
@@ -227,7 +239,7 @@ class TestCircuitBreaker(unittest.TestCase):
         self.assertFalse(cb.is_open())
 
     def test_circuit_opens_after_failures(self):
-        """Circuit opens after threshold consecutive failures."""
+        """Circuit opens after reaching failure threshold in window."""
         cb = line_loop.CircuitBreaker(failure_threshold=3, window_size=5)
         cb.record(False)
         cb.record(False)
@@ -236,13 +248,32 @@ class TestCircuitBreaker(unittest.TestCase):
         self.assertTrue(cb.is_open())
 
     def test_success_keeps_circuit_closed(self):
-        """Successes keep the circuit closed."""
+        """Enough successes in window keep failure count below threshold."""
         cb = line_loop.CircuitBreaker(failure_threshold=3, window_size=5)
         cb.record(False)
         cb.record(False)
-        cb.record(True)  # Success interrupts failures
-        cb.record(False)
+        cb.record(True)  # Successes keep failure count below threshold
+        cb.record(True)
+        cb.record(True)
+        # 2 failures, 3 successes → 2 < 3 threshold → stays closed
         self.assertFalse(cb.is_open())
+
+    def test_full_window_evaluated_not_just_tail(self):
+        """Circuit breaker evaluates full window, not just last N items.
+
+        Pattern [F,F,F,F,F,S,F,F,F,F] has 9/10 failures.
+        Bug: checking only last 5 items gives [S,F,F,F,F] = 4 failures,
+        which doesn't trip the breaker despite 90% failure rate.
+        """
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        # Record pattern: 5 failures, 1 success, 4 failures
+        for _ in range(5):
+            cb.record(False)
+        cb.record(True)
+        for _ in range(4):
+            cb.record(False)
+        # 9/10 failures — should trip
+        self.assertTrue(cb.is_open())
 
     def test_reset_clears_state(self):
         """Reset clears all recorded results."""
@@ -447,20 +478,20 @@ class TestDefaultPhaseTimeouts(unittest.TestCase):
         self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['cook'], 1200)
 
     def test_default_serve_timeout(self):
-        """Serve phase default timeout is 600 seconds."""
-        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['serve'], 600)
+        """Serve phase default timeout is 450 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['serve'], 450)
 
     def test_default_tidy_timeout(self):
         """Tidy phase default timeout is 240 seconds."""
         self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['tidy'], 240)
 
     def test_default_plate_timeout(self):
-        """Plate phase default timeout is 600 seconds."""
-        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['plate'], 600)
+        """Plate phase default timeout is 450 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['plate'], 450)
 
     def test_default_close_service_timeout(self):
-        """Close-service phase default timeout is 900 seconds."""
-        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['close-service'], 900)
+        """Close-service phase default timeout is 750 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['close-service'], 750)
 
     def test_default_max_task_failures(self):
         """Default max task failures is 3."""
@@ -708,6 +739,45 @@ class TestBeadSnapshotProperties(unittest.TestCase):
         self.assertEqual(s.ready_work_ids, [])
         self.assertEqual(s.in_progress_ids, [])
         self.assertEqual(s.closed_ids, [])
+
+    def test_index_not_in_repr(self):
+        """_index field is excluded from repr."""
+        s = self._make_snapshot()
+        s.get_by_id("f-001")  # triggers index build
+        r = repr(s)
+        self.assertNotIn("_index", r)
+
+    def test_index_not_in_equality(self):
+        """_index field is excluded from equality comparison."""
+        s1 = self._make_snapshot()
+        s2 = self._make_snapshot()
+        s2.timestamp = s1.timestamp  # normalize timestamp
+        s1.get_by_id("f-001")  # build index on s1 only
+        self.assertEqual(s1, s2)
+
+    def test_index_is_none_before_first_access(self):
+        """_index starts as None (lazy)."""
+        s = self._make_snapshot()
+        self.assertIsNone(s._index)
+
+    def test_index_built_on_first_get_by_id(self):
+        """_index is populated after first get_by_id call."""
+        s = self._make_snapshot()
+        s.get_by_id("f-001")
+        self.assertIsNotNone(s._index)
+        self.assertIsInstance(s._index, dict)
+
+    def test_index_contains_all_beads(self):
+        """_index maps all bead IDs across ready, in_progress, closed."""
+        s = self._make_snapshot()
+        s.get_by_id("f-001")  # triggers build
+        self.assertEqual(set(s._index.keys()), {"e-001", "f-001", "t-001", "t-002", "t-003"})
+
+    def test_get_by_id_empty_snapshot_with_index(self):
+        """get_by_id on empty snapshot returns None and builds empty index."""
+        s = line_loop.BeadSnapshot()
+        self.assertIsNone(s.get_by_id("anything"))
+        self.assertEqual(s._index, {})
 
 
 class TestBeadDelta(unittest.TestCase):
@@ -1476,6 +1546,118 @@ class TestIterationResultClosedEpics(unittest.TestCase):
         self.assertEqual(result.closed_epics, ["lc-abc", "lc-def"])
 
 
+class TestDetectWorkedTaskTargetPreference(unittest.TestCase):
+    """Test detect_worked_task target_task_id preference."""
+
+    def test_target_preferred_over_dot_heuristic_ready_to_closed(self):
+        """When multiple tasks move ready→closed, target_task_id is preferred."""
+        # Before: two tasks ready
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+            closed=[],
+        )
+        # After: both closed
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+        )
+        # Without target: dot-count heuristic would pick lc-001.1.1 (more dots)
+        result_no_target = line_loop.detect_worked_task(before, after)
+        self.assertEqual(result_no_target, "lc-001.1.1")
+
+        # With target: should prefer lc-001.2 even though it has fewer dots
+        result_with_target = line_loop.detect_worked_task(before, after, target_task_id="lc-001.2")
+        self.assertEqual(result_with_target, "lc-001.2")
+
+    def test_target_preferred_in_progress_to_closed(self):
+        """When multiple tasks move in_progress→closed, target_task_id is preferred."""
+        before = line_loop.BeadSnapshot(
+            in_progress=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            in_progress=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+        )
+        # Without target: dot-count heuristic picks lc-001.1.1
+        result_no_target = line_loop.detect_worked_task(before, after)
+        self.assertEqual(result_no_target, "lc-001.1.1")
+
+        # With target: should prefer lc-001.2
+        result_with_target = line_loop.detect_worked_task(before, after, target_task_id="lc-001.2")
+        self.assertEqual(result_with_target, "lc-001.2")
+
+    def test_target_preferred_ready_to_in_progress(self):
+        """When multiple tasks move ready→in_progress, target_task_id is preferred."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+            ],
+            in_progress=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            in_progress=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-002")
+        self.assertEqual(result, "lc-002")
+
+    def test_target_absent_falls_back_to_heuristic(self):
+        """When target_task_id is not in the changed set, falls back to dot-count."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+        )
+        # Target not in the changed set — falls back to dot-count heuristic
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-999")
+        self.assertEqual(result, "lc-001.1.1")
+
+    def test_none_target_uses_heuristic(self):
+        """When target_task_id is None, uses existing heuristic (backwards compat)."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id=None)
+        self.assertEqual(result, "lc-001.1.1")
+
+
 class TestReopenTaskForRetry(unittest.TestCase):
     """Test _reopen_task_for_retry() helper."""
 
@@ -1812,6 +1994,1095 @@ class TestClosedEpicsPopulated(unittest.TestCase):
             )
 
         self.assertEqual(result.closed_epics, [])
+
+
+class TestCircuitBreakerPatterns(unittest.TestCase):
+    """Integration tests for circuit breaker with various failure patterns.
+
+    Validates that the circuit breaker correctly evaluates the full sliding
+    window under different failure distributions: intermittent, burst,
+    recovery after tripping, and window sliding.
+    """
+
+    def _make_breaker(self, threshold=5, window=10):
+        """Create a circuit breaker with given parameters."""
+        return line_loop.CircuitBreaker(failure_threshold=threshold, window_size=window)
+
+    def test_intermittent_alternating_trips(self):
+        """Alternating [S,F,S,F,S,F,S,F,S,F] has 5 failures — trips at threshold."""
+        cb = self._make_breaker(threshold=5, window=10)
+        for _ in range(5):
+            cb.record(True)
+            cb.record(False)
+        # 5 successes, 5 failures in window of 10
+        self.assertTrue(cb.is_open())
+
+    def test_intermittent_below_threshold(self):
+        """Alternating [S,F,S,F,S,F,S,F,S,S] has 4 failures — stays closed."""
+        cb = self._make_breaker(threshold=5, window=10)
+        for _ in range(4):
+            cb.record(True)
+            cb.record(False)
+        cb.record(True)
+        cb.record(True)
+        # 6 successes, 4 failures — below threshold
+        self.assertFalse(cb.is_open())
+
+    def test_burst_at_start(self):
+        """[F,F,F,F,F,S,S,S,S,S] — 5 failures in window trips the breaker."""
+        cb = self._make_breaker(threshold=5, window=10)
+        for _ in range(5):
+            cb.record(False)
+        for _ in range(5):
+            cb.record(True)
+        self.assertTrue(cb.is_open())
+
+    def test_burst_at_end(self):
+        """[S,S,S,S,S,F,F,F,F,F] — 5 failures in window trips the breaker."""
+        cb = self._make_breaker(threshold=5, window=10)
+        for _ in range(5):
+            cb.record(True)
+        for _ in range(5):
+            cb.record(False)
+        self.assertTrue(cb.is_open())
+
+    def test_recovery_after_tripping(self):
+        """After tripping, adding enough successes slides failures out of window."""
+        cb = self._make_breaker(threshold=5, window=10)
+        # Trip it: 5 failures
+        for _ in range(5):
+            cb.record(False)
+        self.assertTrue(cb.is_open())
+        # Add 6 successes — window slides to [F,F,F,F,S,S,S,S,S,S] (4 failures < 5 threshold)
+        for _ in range(6):
+            cb.record(True)
+        self.assertFalse(cb.is_open())
+
+    def test_window_sliding_pushes_old_failures_out(self):
+        """Old failures slide out as new successes are recorded."""
+        cb = self._make_breaker(threshold=3, window=5)
+        # Record 3 failures — trips
+        cb.record(False)
+        cb.record(False)
+        cb.record(False)
+        self.assertTrue(cb.is_open())
+        # Add 3 successes — window becomes [F,F,F,S,S,S], keeps last 5: [F,F,S,S,S]
+        # 2 failures — below threshold
+        cb.record(True)
+        cb.record(True)
+        cb.record(True)
+        self.assertFalse(cb.is_open())
+
+    def test_scattered_failures_accumulate(self):
+        """Scattered failures throughout window accumulate correctly."""
+        cb = self._make_breaker(threshold=4, window=8)
+        # Pattern: [F,S,S,F,S,F,S,F] — 4 failures, 4 successes
+        pattern = [False, True, True, False, True, False, True, False]
+        for success in pattern:
+            cb.record(success)
+        self.assertTrue(cb.is_open())
+
+    def test_exact_threshold_boundary(self):
+        """Exactly threshold-1 failures stays closed, threshold trips."""
+        cb = self._make_breaker(threshold=3, window=10)
+        cb.record(False)
+        cb.record(False)
+        self.assertFalse(cb.is_open())  # 2 < 3
+        cb.record(False)
+        self.assertTrue(cb.is_open())   # 3 >= 3
+
+    def test_minimum_window_fill(self):
+        """Circuit breaker requires at least failure_threshold records before tripping."""
+        cb = self._make_breaker(threshold=5, window=10)
+        # Only 4 failures recorded (< threshold items total)
+        for _ in range(4):
+            cb.record(False)
+        self.assertFalse(cb.is_open())
+        # Fifth failure makes it trip
+        cb.record(False)
+        self.assertTrue(cb.is_open())
+
+
+class TestDetectWorkedTaskWithTarget(unittest.TestCase):
+    """Integration tests for detect_worked_task with multi-task scenarios.
+
+    Validates target_task_id preference across different state transitions:
+    multiple tasks closing simultaneously, mixed state changes, and
+    fallback behavior when target is not in the changed set.
+    """
+
+    def test_three_tasks_close_target_preferred(self):
+        """When 3 tasks close simultaneously, target is preferred."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep", "task"),
+                make_bead("lc-001.1.2", "Mid", "task"),
+                make_bead("lc-001.2", "Shallow", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep", "task"),
+                make_bead("lc-001.1.2", "Mid", "task"),
+                make_bead("lc-001.2", "Shallow", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-001.2")
+        self.assertEqual(result, "lc-001.2")
+
+    def test_mixed_state_transitions_target_in_progress(self):
+        """Target moves to in_progress while other tasks also change."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+                make_bead("lc-003", "Task C", "task"),
+            ],
+            in_progress=[],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-003", "Task C", "task")],
+            in_progress=[make_bead("lc-002", "Task B", "task")],
+            closed=[make_bead("lc-001", "Task A", "task")],
+        )
+        # lc-002 moved to in_progress — should be detected as the worked task
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-002")
+        self.assertEqual(result, "lc-002")
+
+    def test_target_not_in_any_changed_set(self):
+        """When target didn't change at all, heuristic picks deepest."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep", "task"),
+                make_bead("lc-001.2", "Shallow", "task"),
+                make_bead("lc-999", "Target", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-999", "Target", "task")],
+            closed=[
+                make_bead("lc-001.1.1", "Deep", "task"),
+                make_bead("lc-001.2", "Shallow", "task"),
+            ],
+        )
+        # lc-999 is still ready — not in changed set, fallback to heuristic
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-999")
+        self.assertEqual(result, "lc-001.1.1")  # deepest by dot count
+
+    def test_no_state_changes_returns_none(self):
+        """When nothing changed, returns None regardless of target."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-001", "Task", "task")],
+        )
+        result = line_loop.detect_worked_task(snapshot, snapshot, target_task_id="lc-001")
+        self.assertIsNone(result)
+
+    def test_target_in_new_in_progress_preferred_over_other(self):
+        """When multiple tasks move to in_progress, target is preferred."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+            ],
+            in_progress=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            in_progress=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-002")
+        self.assertEqual(result, "lc-002")
+
+    def test_feature_and_task_close_target_is_task(self):
+        """When task + parent feature both close, target picks the task."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001", "Feature", "feature"),
+                make_bead("lc-001.1", "Task", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001", "Feature", "feature"),
+                make_bead("lc-001.1", "Task", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-001.1")
+        self.assertEqual(result, "lc-001.1")
+
+
+class TestCircuitBreakerSkipListInteraction(unittest.TestCase):
+    """Integration tests for circuit breaker + skip list working together.
+
+    In the loop, both systems track failures independently:
+    - CircuitBreaker: stops the entire loop on too many overall failures
+    - SkipList: skips individual tasks after repeated failures
+
+    These tests verify the combined behavior.
+    """
+
+    def test_skip_list_fills_before_circuit_breaker(self):
+        """Task gets skipped (3 failures) before circuit breaker trips (5 failures)."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=3)
+
+        task_id = "lc-001"
+        # First 2 failures: not yet skipped, breaker still closed
+        for _ in range(2):
+            cb.record(False)
+            self.assertFalse(sl.record_failure(task_id))
+            self.assertFalse(cb.is_open())
+
+        # Third failure: task becomes skipped, breaker still closed
+        cb.record(False)
+        sl.record_failure(task_id)
+        self.assertTrue(sl.is_skipped(task_id))
+        self.assertFalse(cb.is_open())
+
+    def test_circuit_breaker_trips_before_single_task_skipped(self):
+        """Multiple tasks failing can trip circuit breaker before any single task is skipped."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=3)
+
+        # 5 different tasks each fail once
+        for i in range(5):
+            task_id = f"lc-{i:03d}"
+            cb.record(False)
+            sl.record_failure(task_id)
+
+        # Circuit breaker tripped but no task is individually skipped
+        self.assertTrue(cb.is_open())
+        self.assertEqual(sl.get_skipped_ids(), set())
+
+    def test_success_clears_skip_list_but_not_breaker(self):
+        """Success on a task clears its skip list entry but breaker still has the failures."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=3)
+
+        # Record 2 failures for task
+        cb.record(False)
+        cb.record(False)
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-001")
+
+        # Task succeeds
+        cb.record(True)
+        sl.record_success("lc-001")
+
+        # Skip list cleared for task, but breaker still has 2 failures in window
+        self.assertFalse(sl.is_skipped("lc-001"))
+        self.assertEqual(sl.failed_tasks, {})
+        # Breaker window: [F, F, S] — 2 failures, below threshold of 5
+        self.assertFalse(cb.is_open())
+
+    def test_all_tasks_skipped_breaker_may_not_trip(self):
+        """All tasks can be skipped without the circuit breaker tripping."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=2)
+
+        # Two tasks each fail 2 times — both skipped, only 4 total failures
+        sl.record_failure("lc-001")
+        cb.record(False)
+        sl.record_failure("lc-001")
+        cb.record(False)
+        sl.record_failure("lc-002")
+        cb.record(False)
+        sl.record_failure("lc-002")
+        cb.record(False)
+
+        self.assertTrue(sl.is_skipped("lc-001"))
+        self.assertTrue(sl.is_skipped("lc-002"))
+        self.assertEqual(sl.get_skipped_ids(), {"lc-001", "lc-002"})
+        # 4 failures < 5 threshold
+        self.assertFalse(cb.is_open())
+
+    def test_both_trip_simultaneously(self):
+        """Both systems can trigger at the same time."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=5)
+
+        task_id = "lc-001"
+        for _ in range(5):
+            cb.record(False)
+            sl.record_failure(task_id)
+
+        # Both should be triggered
+        self.assertTrue(cb.is_open())
+        self.assertTrue(sl.is_skipped(task_id))
+
+    def test_skip_list_independent_across_tasks(self):
+        """Each task's skip list counter is independent while breaker tracks all."""
+        cb = line_loop.CircuitBreaker(failure_threshold=6, window_size=10)
+        sl = line_loop.SkipList(max_failures=3)
+
+        # 3 failures on lc-001 (gets skipped), 2 on lc-002 (not skipped)
+        for _ in range(3):
+            sl.record_failure("lc-001")
+            cb.record(False)
+        for _ in range(2):
+            sl.record_failure("lc-002")
+            cb.record(False)
+
+        self.assertTrue(sl.is_skipped("lc-001"))
+        self.assertFalse(sl.is_skipped("lc-002"))
+        # 5 total failures in breaker window — below threshold of 6
+        self.assertFalse(cb.is_open())
+
+    def test_reset_breaker_doesnt_affect_skip_list(self):
+        """Resetting the circuit breaker doesn't clear the skip list."""
+        cb = line_loop.CircuitBreaker(failure_threshold=3, window_size=5)
+        sl = line_loop.SkipList(max_failures=3)
+
+        for _ in range(3):
+            cb.record(False)
+            sl.record_failure("lc-001")
+
+        self.assertTrue(cb.is_open())
+        self.assertTrue(sl.is_skipped("lc-001"))
+
+        cb.reset()
+        self.assertFalse(cb.is_open())
+        self.assertTrue(sl.is_skipped("lc-001"))  # Skip list unaffected
+
+
+class TestBuildEpicAncestorMap(unittest.TestCase):
+    """Test build_epic_ancestor_map function."""
+
+    def test_empty_snapshot(self):
+        """Empty snapshot returns empty map."""
+        snapshot = make_snapshot([])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result, {})
+
+    def test_task_directly_under_epic(self):
+        """Task directly under an epic maps to that epic."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        task = make_bead("task-1", "My Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["task-1"], "epic-1")
+
+    def test_task_under_feature_under_epic(self):
+        """Task under feature under epic maps to the epic."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        feature = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        task = make_bead("task-1", "Task", "task", parent="feat-1")
+        snapshot = make_snapshot([epic, feature, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["task-1"], "epic-1")
+
+    def test_orphan_task_maps_to_none(self):
+        """Task with no parent maps to None."""
+        task = make_bead("task-1", "Orphan", "task")
+        snapshot = make_snapshot([task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertIn("task-1", result)
+        self.assertIsNone(result["task-1"])
+
+    def test_task_under_feature_no_epic(self):
+        """Task under a feature with no epic ancestor maps to None."""
+        feature = make_bead("feat-1", "Feature", "feature")
+        task = make_bead("task-1", "Task", "task", parent="feat-1")
+        snapshot = make_snapshot([feature, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertIsNone(result["task-1"])
+
+    def test_multiple_tasks_same_epic(self):
+        """Multiple tasks under the same epic all map correctly."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        feat = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        task_a = make_bead("task-a", "Task A", "task", parent="feat-1")
+        task_b = make_bead("task-b", "Task B", "task", parent="feat-1")
+        snapshot = make_snapshot([epic, feat, task_a, task_b])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["task-a"], "epic-1")
+        self.assertEqual(result["task-b"], "epic-1")
+
+    def test_tasks_under_different_epics(self):
+        """Tasks under different epics map to their respective epics."""
+        epic_a = make_bead("epic-a", "Epic A", "epic")
+        epic_b = make_bead("epic-b", "Epic B", "epic")
+        task_a = make_bead("task-a", "Task A", "task", parent="epic-a")
+        task_b = make_bead("task-b", "Task B", "task", parent="epic-b")
+        snapshot = make_snapshot([epic_a, epic_b, task_a, task_b])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["task-a"], "epic-a")
+        self.assertEqual(result["task-b"], "epic-b")
+
+    def test_epics_excluded_from_walk(self):
+        """Epics in ready list are not walked (ready_work filters them)."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        task = make_bead("task-1", "Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        # Only task should be in the map, epic is not a ready_work item
+        self.assertIn("task-1", result)
+        # Epic itself should only appear if encountered as intermediate during walk
+        # (it is NOT walked as a starting point)
+
+    def test_dangling_parent_maps_to_none(self):
+        """Task whose parent is not in the snapshot maps to None."""
+        task = make_bead("task-1", "Task", "task", parent="nonexistent")
+        snapshot = make_snapshot([task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertIsNone(result["task-1"])
+
+    def test_feature_as_ready_work(self):
+        """Features in ready_work are also walked."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        feature = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        snapshot = make_snapshot([epic, feature])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["feat-1"], "epic-1")
+
+    def test_intermediate_beads_cached(self):
+        """Intermediate beads encountered during walk are cached."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        feature = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        task = make_bead("task-1", "Task", "task", parent="feat-1")
+        snapshot = make_snapshot([epic, feature, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        # Both the task and the intermediate feature should be cached
+        self.assertEqual(result["task-1"], "epic-1")
+        self.assertIn("feat-1", result)
+        self.assertEqual(result["feat-1"], "epic-1")
+
+
+class TestAncestorMapIntegration(unittest.TestCase):
+    """Test that callers work with ancestor_map parameter."""
+
+    def test_detect_first_epic_with_map(self):
+        """detect_first_epic uses ancestor_map when provided."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        task = make_bead("task-1", "Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        ancestor_map = {"task-1": "epic-1"}
+        result = line_loop.detect_first_epic(
+            snapshot, set(), set(), Path("/tmp"),
+            ancestor_map=ancestor_map
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "epic-1")
+
+    def test_detect_first_epic_excludes_with_map(self):
+        """detect_first_epic respects excluded_ids when using ancestor_map."""
+        epic = make_bead("epic-r", "Retrospective", "epic")
+        task = make_bead("task-1", "Task", "task", parent="epic-r")
+        snapshot = make_snapshot([epic, task])
+        ancestor_map = {"task-1": "epic-r"}
+        result = line_loop.detect_first_epic(
+            snapshot, {"epic-r"}, set(), Path("/tmp"),
+            ancestor_map=ancestor_map
+        )
+        self.assertIsNone(result)
+
+    def test_filter_excluded_with_map(self):
+        """_filter_excluded_epics uses ancestor_map when provided."""
+        from line_loop.loop import _filter_excluded_epics
+        epic_r = make_bead("epic-r", "Retro", "epic")
+        epic_n = make_bead("epic-n", "Normal", "epic")
+        task_r = make_bead("task-r", "Retro Task", "task", parent="epic-r")
+        task_n = make_bead("task-n", "Normal Task", "task", parent="epic-n")
+        snapshot = make_snapshot([epic_r, epic_n, task_r, task_n])
+        ancestor_map = {"task-r": "epic-r", "task-n": "epic-n"}
+        result = _filter_excluded_epics(
+            [task_r, task_n], {"epic-r"}, snapshot, Path("/tmp"),
+            ancestor_map=ancestor_map
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].id, "task-n")
+
+    def test_get_next_ready_task_epic_filter_with_map(self):
+        """get_next_ready_task uses ancestor_map for epic filtering."""
+        epic_a = make_bead("epic-a", "Epic A", "epic")
+        epic_b = make_bead("epic-b", "Epic B", "epic")
+        task_a = make_bead("task-a", "Task A", "task", parent="epic-a")
+        task_b = make_bead("task-b", "Task B", "task", parent="epic-b")
+        snapshot = make_snapshot([epic_a, epic_b, task_a, task_b])
+        ancestor_map = {"task-a": "epic-a", "task-b": "epic-b"}
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, epic_filter="epic-a",
+            ancestor_map=ancestor_map
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "task-a")
+
+    def test_get_next_ready_task_excluded_with_map(self):
+        """get_next_ready_task uses ancestor_map for excluded epic filtering."""
+        epic_r = make_bead("epic-r", "Retro", "epic")
+        epic_n = make_bead("epic-n", "Normal", "epic")
+        task_r = make_bead("task-r", "Retro Task", "task", parent="epic-r")
+        task_n = make_bead("task-n", "Normal Task", "task", parent="epic-n")
+        snapshot = make_snapshot([epic_r, epic_n, task_r, task_n])
+        ancestor_map = {"task-r": "epic-r", "task-n": "epic-n"}
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, excluded_epic_ids={"epic-r"},
+            ancestor_map=ancestor_map
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "task-n")
+
+
+class TestCachedGetTaskInfo(unittest.TestCase):
+    """Test _cached_get_task_info() caching helper."""
+
+    def test_returns_cached_value_without_subprocess(self):
+        """Returns cached value and does not call get_task_info."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_task_info
+
+        cache = {"lc-001": {"id": "lc-001", "title": "Cached Task"}}
+        with patch("line_loop.iteration.get_task_info") as mock_gti:
+            result = _cached_get_task_info("lc-001", Path("/tmp"), cache)
+            self.assertEqual(result["title"], "Cached Task")
+            mock_gti.assert_not_called()
+
+    def test_populates_cache_on_miss(self):
+        """Calls get_task_info and stores result on cache miss."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_task_info
+
+        cache = {}
+        with patch("line_loop.iteration.get_task_info",
+                    return_value={"id": "lc-002", "title": "Fresh"}) as mock_gti:
+            result = _cached_get_task_info("lc-002", Path("/tmp"), cache)
+            self.assertEqual(result["title"], "Fresh")
+            mock_gti.assert_called_once_with("lc-002", Path("/tmp"))
+            self.assertIn("lc-002", cache)
+
+    def test_caches_none_result(self):
+        """Caches None when get_task_info returns None (avoids re-query)."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_task_info
+
+        cache = {}
+        with patch("line_loop.iteration.get_task_info", return_value=None) as mock_gti:
+            result1 = _cached_get_task_info("lc-bad", Path("/tmp"), cache)
+            result2 = _cached_get_task_info("lc-bad", Path("/tmp"), cache)
+            self.assertIsNone(result1)
+            self.assertIsNone(result2)
+            mock_gti.assert_called_once()  # Only called once, second from cache
+
+
+class TestCachedGetChildren(unittest.TestCase):
+    """Test _cached_get_children() caching helper."""
+
+    def test_returns_cached_value_without_subprocess(self):
+        """Returns cached children without calling get_children."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_children
+
+        children = [{"id": "t-1", "status": "closed"}]
+        cache = {"f-001": children}
+        with patch("line_loop.iteration.get_children") as mock_gc:
+            result = _cached_get_children("f-001", Path("/tmp"), cache)
+            self.assertEqual(result, children)
+            mock_gc.assert_not_called()
+
+    def test_populates_cache_on_miss(self):
+        """Calls get_children and stores result on cache miss."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_children
+
+        children = [{"id": "t-1", "status": "closed"}, {"id": "t-2", "status": "closed"}]
+        cache = {}
+        with patch("line_loop.iteration.get_children", return_value=children) as mock_gc:
+            result = _cached_get_children("f-002", Path("/tmp"), cache)
+            self.assertEqual(len(result), 2)
+            mock_gc.assert_called_once_with("f-002", Path("/tmp"))
+            self.assertIn("f-002", cache)
+
+    def test_caches_empty_list_result(self):
+        """Caches empty list when get_children returns [] (avoids re-query)."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_children
+
+        cache = {}
+        with patch("line_loop.iteration.get_children", return_value=[]) as mock_gc:
+            result1 = _cached_get_children("f-empty", Path("/tmp"), cache)
+            result2 = _cached_get_children("f-empty", Path("/tmp"), cache)
+            self.assertEqual(result1, [])
+            self.assertEqual(result2, [])
+            mock_gc.assert_called_once()
+
+
+class TestFeatureCompletionWithCache(unittest.TestCase):
+    """Test check_feature_completion with task_info_cache parameter."""
+
+    def test_uses_provided_cache(self):
+        """check_feature_completion uses cache for get_task_info lookups."""
+        from unittest.mock import patch
+        task_info_cache = {
+            "t-001": {"id": "t-001", "parent": "f-001", "issue_type": "task"},
+            "f-001": {"id": "f-001", "issue_type": "feature", "parent": "e-001"},
+        }
+        children_cache = {
+            "f-001": [{"id": "t-001", "status": "closed"}],
+        }
+        with patch("line_loop.iteration.get_task_info") as mock_gti, \
+             patch("line_loop.iteration.get_children") as mock_gc:
+            complete, feature_id = line_loop.check_feature_completion(
+                "t-001", Path("/tmp"),
+                task_info_cache=task_info_cache,
+                children_cache=children_cache
+            )
+            self.assertTrue(complete)
+            self.assertEqual(feature_id, "f-001")
+            # Should NOT call subprocess (all from cache)
+            mock_gti.assert_not_called()
+            mock_gc.assert_not_called()
+
+    def test_populates_cache_for_reuse(self):
+        """check_feature_completion populates cache for later use."""
+        from unittest.mock import patch
+        task_info_cache = {}
+        children_cache = {}
+
+        task_data = {"id": "t-001", "parent": "f-001", "issue_type": "task"}
+        feature_data = {"id": "f-001", "issue_type": "feature", "parent": "e-001"}
+        children_data = [{"id": "t-001", "status": "closed"}]
+
+        with patch("line_loop.iteration.get_task_info",
+                    side_effect=lambda tid, cwd: {"t-001": task_data, "f-001": feature_data}.get(tid)), \
+             patch("line_loop.iteration.get_children", return_value=children_data):
+            complete, feature_id = line_loop.check_feature_completion(
+                "t-001", Path("/tmp"),
+                task_info_cache=task_info_cache,
+                children_cache=children_cache
+            )
+            self.assertTrue(complete)
+            # Cache should now contain both task and feature info
+            self.assertIn("t-001", task_info_cache)
+            self.assertIn("f-001", task_info_cache)
+            self.assertIn("f-001", children_cache)
+
+    def test_backwards_compatible_without_cache(self):
+        """check_feature_completion works without cache parameters (backwards compat)."""
+        from unittest.mock import patch
+        task_data = {"id": "t-001", "parent": "f-001", "issue_type": "task"}
+        feature_data = {"id": "f-001", "issue_type": "feature"}
+        children_data = [{"id": "t-001", "status": "closed"}]
+
+        with patch("line_loop.iteration.get_task_info",
+                    side_effect=lambda tid, cwd: {"t-001": task_data, "f-001": feature_data}.get(tid)), \
+             patch("line_loop.iteration.get_children", return_value=children_data):
+            complete, feature_id = line_loop.check_feature_completion("t-001", Path("/tmp"))
+            self.assertTrue(complete)
+            self.assertEqual(feature_id, "f-001")
+
+
+class TestEpicCompletionAfterFeatureWithCache(unittest.TestCase):
+    """Test check_epic_completion_after_feature with cache."""
+
+    def test_uses_provided_cache(self):
+        """check_epic_completion_after_feature uses cache for lookups."""
+        from unittest.mock import patch
+        task_info_cache = {
+            "f-001": {"id": "f-001", "parent": "e-001", "issue_type": "feature"},
+            "e-001": {"id": "e-001", "issue_type": "epic"},
+        }
+        children_cache = {
+            "e-001": [{"id": "f-001", "status": "closed"}],
+        }
+        with patch("line_loop.iteration.get_task_info") as mock_gti, \
+             patch("line_loop.iteration.get_children") as mock_gc:
+            complete, epic_id = line_loop.check_epic_completion_after_feature(
+                "f-001", Path("/tmp"),
+                task_info_cache=task_info_cache,
+                children_cache=children_cache
+            )
+            self.assertTrue(complete)
+            self.assertEqual(epic_id, "e-001")
+            mock_gti.assert_not_called()
+            mock_gc.assert_not_called()
+
+    def test_shared_cache_with_feature_check(self):
+        """Shared cache between feature and epic checks avoids re-queries."""
+        from unittest.mock import patch
+        # Simulate: feature check populated cache, epic check reuses it
+        task_info_cache = {
+            "t-001": {"id": "t-001", "parent": "f-001", "issue_type": "task"},
+            "f-001": {"id": "f-001", "parent": "e-001", "issue_type": "feature"},
+        }
+        children_cache = {
+            "f-001": [{"id": "t-001", "status": "closed"}],
+        }
+        # Only the epic info and children need to be fetched
+        with patch("line_loop.iteration.get_task_info",
+                    side_effect=lambda tid, cwd: {"e-001": {"id": "e-001", "issue_type": "epic"}}.get(tid)) as mock_gti, \
+             patch("line_loop.iteration.get_children",
+                    return_value=[{"id": "f-001", "status": "closed"}]) as mock_gc:
+            complete, epic_id = line_loop.check_epic_completion_after_feature(
+                "f-001", Path("/tmp"),
+                task_info_cache=task_info_cache,
+                children_cache=children_cache
+            )
+            self.assertTrue(complete)
+            # Only epic info needed from subprocess (feature was cached)
+            mock_gti.assert_called_once_with("e-001", Path("/tmp"))
+
+    def test_backwards_compatible_without_cache(self):
+        """check_epic_completion_after_feature works without cache parameters."""
+        from unittest.mock import patch
+        feature_data = {"id": "f-001", "parent": "e-001", "issue_type": "feature"}
+        epic_data = {"id": "e-001", "issue_type": "epic"}
+        children_data = [{"id": "f-001", "status": "closed"}]
+
+        with patch("line_loop.iteration.get_task_info",
+                    side_effect=lambda tid, cwd: {"f-001": feature_data, "e-001": epic_data}.get(tid)), \
+             patch("line_loop.iteration.get_children", return_value=children_data):
+            complete, epic_id = line_loop.check_epic_completion_after_feature("f-001", Path("/tmp"))
+            self.assertTrue(complete)
+            self.assertEqual(epic_id, "e-001")
+
+
+class TestSnapshotTitleLookup(unittest.TestCase):
+    """Test getting task title from snapshot to avoid subprocess calls."""
+
+    def test_title_from_snapshot(self):
+        """Task title can be retrieved from snapshot without subprocess."""
+        from line_loop.iteration import _get_title_from_snapshot_or_cache
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("t-001", "Ready Task", "task")],
+            in_progress=[make_bead("t-002", "Active Task", "task")],
+        )
+        self.assertEqual(_get_title_from_snapshot_or_cache("t-001", snapshot, {}), "Ready Task")
+        self.assertEqual(_get_title_from_snapshot_or_cache("t-002", snapshot, {}), "Active Task")
+
+    def test_title_from_task_info_cache(self):
+        """Task title falls back to task_info_cache."""
+        from line_loop.iteration import _get_title_from_snapshot_or_cache
+        snapshot = line_loop.BeadSnapshot()
+        cache = {"t-003": {"id": "t-003", "title": "Cached Title"}}
+        self.assertEqual(_get_title_from_snapshot_or_cache("t-003", snapshot, cache), "Cached Title")
+
+    def test_returns_none_when_not_found(self):
+        """Returns None when title not in snapshot or cache."""
+        from line_loop.iteration import _get_title_from_snapshot_or_cache
+        snapshot = line_loop.BeadSnapshot()
+        self.assertIsNone(_get_title_from_snapshot_or_cache("t-999", snapshot, {}))
+
+
+class TestFindingsCount(unittest.TestCase):
+    """Test findings_count field on IterationResult."""
+
+    def test_findings_count_defaults_to_zero(self):
+        """IterationResult.findings_count defaults to 0."""
+        result = make_iteration_result()
+        self.assertEqual(result.findings_count, 0)
+
+    def test_findings_count_can_be_set(self):
+        """IterationResult.findings_count can be set explicitly."""
+        result = make_iteration_result(findings_count=3)
+        self.assertEqual(result.findings_count, 3)
+
+    def test_findings_count_from_delta_newly_filed(self):
+        """findings_count matches len(delta.newly_filed) when derived."""
+        delta = line_loop.BeadDelta(
+            newly_closed=[],
+            newly_filed=[
+                make_bead("bug-001", "Bug 1"),
+                make_bead("bug-002", "Bug 2"),
+            ]
+        )
+        # Mimics the computation in run_iteration
+        findings_count = len(delta.newly_filed) if delta else 0
+        result = make_iteration_result(findings_count=findings_count, delta=delta)
+        self.assertEqual(result.findings_count, 2)
+        self.assertEqual(result.findings_count, len(delta.newly_filed))
+
+    def test_findings_count_zero_when_delta_none(self):
+        """findings_count is 0 when delta is None."""
+        delta = None
+        findings_count = len(delta.newly_filed) if delta else 0
+        result = make_iteration_result(findings_count=findings_count)
+        self.assertEqual(result.findings_count, 0)
+
+    def test_findings_count_zero_when_newly_filed_empty(self):
+        """findings_count is 0 when delta has empty newly_filed."""
+        delta = line_loop.BeadDelta(newly_closed=[], newly_filed=[])
+        findings_count = len(delta.newly_filed) if delta else 0
+        result = make_iteration_result(findings_count=findings_count, delta=delta)
+        self.assertEqual(result.findings_count, 0)
+
+
+class TestPrintHumanIterationFindings(unittest.TestCase):
+    """Test that print_human_iteration displays findings count."""
+
+    def test_shows_findings_when_positive(self):
+        """Findings line printed when findings_count > 0."""
+        import io
+        import contextlib
+        result = make_iteration_result(findings_count=3)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_human_iteration(result)
+        output = buf.getvalue()
+        self.assertIn("Findings: 3 filed", output)
+
+    def test_no_findings_line_when_zero(self):
+        """Findings line not printed when findings_count is 0."""
+        import io
+        import contextlib
+        result = make_iteration_result(findings_count=0)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_human_iteration(result)
+        output = buf.getvalue()
+        self.assertNotIn("Findings:", output)
+
+
+class TestSerializeFindingsCount(unittest.TestCase):
+    """Test findings_count in serialization functions."""
+
+    def test_serialize_for_status_includes_findings_count(self):
+        """serialize_iteration_for_status includes findings_count."""
+        from line_loop.loop import serialize_iteration_for_status
+        result = make_iteration_result(findings_count=2)
+        data = serialize_iteration_for_status(result)
+        self.assertIn("findings_count", data)
+        self.assertEqual(data["findings_count"], 2)
+
+    def test_serialize_full_includes_findings_count(self):
+        """serialize_full_iteration includes findings_count."""
+        from line_loop.loop import serialize_full_iteration
+        result = make_iteration_result(findings_count=5)
+        data = serialize_full_iteration(result)
+        self.assertIn("findings_count", data)
+        self.assertEqual(data["findings_count"], 5)
+
+    def test_serialize_for_status_zero_findings(self):
+        """serialize_iteration_for_status includes findings_count even when 0."""
+        from line_loop.loop import serialize_iteration_for_status
+        result = make_iteration_result(findings_count=0)
+        data = serialize_iteration_for_status(result)
+        self.assertIn("findings_count", data)
+        self.assertEqual(data["findings_count"], 0)
+
+
+class TestPeriodicSync(unittest.TestCase):
+    """Test periodic_sync function for long-running loop resilience."""
+
+    def test_sync_runs_bd_sync(self):
+        """periodic_sync calls bd sync subprocess with correct args."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.loop import periodic_sync
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+        cwd = Path("/tmp/test")
+
+        with patch("line_loop.loop.run_subprocess", return_value=mock_result) as mock_run:
+            result = periodic_sync(cwd)
+
+        self.assertTrue(result)
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0]
+        self.assertEqual(args[0], ["bd", "sync"])
+        self.assertEqual(args[2], cwd)
+
+    def test_sync_uses_git_sync_timeout(self):
+        """periodic_sync uses GIT_SYNC_TIMEOUT for bd sync."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.loop import periodic_sync
+        from line_loop.config import GIT_SYNC_TIMEOUT
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("line_loop.loop.run_subprocess", return_value=mock_result) as mock_run:
+            periodic_sync(Path("/tmp/test"))
+
+        args = mock_run.call_args[0]
+        self.assertEqual(args[1], GIT_SYNC_TIMEOUT)
+
+    def test_sync_returns_false_on_failure(self):
+        """periodic_sync returns False when bd sync fails."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.loop import periodic_sync
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "sync failed"
+
+        with patch("line_loop.loop.run_subprocess", return_value=mock_result):
+            result = periodic_sync(Path("/tmp/test"))
+
+        self.assertFalse(result)
+
+    def test_sync_returns_false_on_timeout(self):
+        """periodic_sync returns False on subprocess timeout."""
+        import subprocess
+        from unittest.mock import patch
+        from line_loop.loop import periodic_sync
+
+        with patch("line_loop.loop.run_subprocess", side_effect=subprocess.TimeoutExpired("bd sync", 60)):
+            result = periodic_sync(Path("/tmp/test"))
+
+        self.assertFalse(result)
+
+    def test_sync_returns_false_on_exception(self):
+        """periodic_sync returns False on unexpected exception."""
+        from unittest.mock import patch
+        from line_loop.loop import periodic_sync
+
+        with patch("line_loop.loop.run_subprocess", side_effect=OSError("no such file")):
+            result = periodic_sync(Path("/tmp/test"))
+
+        self.assertFalse(result)
+
+    def test_config_has_periodic_sync_interval(self):
+        """PERIODIC_SYNC_INTERVAL is defined in config."""
+        from line_loop.config import PERIODIC_SYNC_INTERVAL
+
+        self.assertIsInstance(PERIODIC_SYNC_INTERVAL, int)
+        self.assertEqual(PERIODIC_SYNC_INTERVAL, 5)
+
+    def test_should_periodic_sync_true_at_interval(self):
+        """should_periodic_sync returns True at interval multiples."""
+        from line_loop.loop import should_periodic_sync
+
+        self.assertTrue(should_periodic_sync(5, 5))
+        self.assertTrue(should_periodic_sync(10, 5))
+        self.assertTrue(should_periodic_sync(15, 5))
+
+    def test_should_periodic_sync_false_between_intervals(self):
+        """should_periodic_sync returns False between intervals."""
+        from line_loop.loop import should_periodic_sync
+
+        self.assertFalse(should_periodic_sync(1, 5))
+        self.assertFalse(should_periodic_sync(3, 5))
+        self.assertFalse(should_periodic_sync(4, 5))
+
+    def test_should_periodic_sync_false_at_zero(self):
+        """should_periodic_sync returns False at iteration 0 (no sync before first iteration)."""
+        from line_loop.loop import should_periodic_sync
+
+        self.assertFalse(should_periodic_sync(0, 5))
+
+
+class TestIdleDetection(unittest.TestCase):
+    """Test check_idle() with various time deltas."""
+
+    def test_none_last_action_returns_false(self):
+        """No actions yet (None) means not idle."""
+        self.assertFalse(line_loop.check_idle(None, 180))
+
+    def test_recent_action_not_idle(self):
+        """Action 10 seconds ago with 180s threshold is not idle."""
+        from datetime import datetime, timedelta
+        recent = datetime.now() - timedelta(seconds=10)
+        self.assertFalse(line_loop.check_idle(recent, 180))
+
+    def test_past_threshold_is_idle(self):
+        """Action 200 seconds ago with 180s threshold is idle."""
+        from datetime import datetime, timedelta
+        old = datetime.now() - timedelta(seconds=200)
+        self.assertTrue(line_loop.check_idle(old, 180))
+
+    def test_at_threshold_is_idle(self):
+        """Action exactly at threshold boundary is considered idle (>=)."""
+        from datetime import datetime, timedelta
+        exact = datetime.now() - timedelta(seconds=180)
+        self.assertTrue(line_loop.check_idle(exact, 180))
+
+    def test_just_under_threshold_not_idle(self):
+        """Action 1 second under threshold is not idle."""
+        from datetime import datetime, timedelta
+        almost = datetime.now() - timedelta(seconds=179)
+        self.assertFalse(line_loop.check_idle(almost, 180))
+
+    def test_zero_seconds_ago_not_idle(self):
+        """Action just now is not idle."""
+        from datetime import datetime
+        self.assertFalse(line_loop.check_idle(datetime.now(), 180))
+
+    def test_short_timeout_with_brief_idle(self):
+        """Short timeout (5s) with 10s idle is detected."""
+        from datetime import datetime, timedelta
+        past_threshold = datetime.now() - timedelta(seconds=10)
+        self.assertTrue(line_loop.check_idle(past_threshold, 5))
+
+    def test_zero_timeout_any_action_is_idle(self):
+        """Zero timeout means any past action triggers idle."""
+        from datetime import datetime, timedelta
+        one_second_ago = datetime.now() - timedelta(seconds=1)
+        self.assertTrue(line_loop.check_idle(one_second_ago, 0))
+
+
+class TestDefaultPhaseIdleTimeouts(unittest.TestCase):
+    """Test per-phase idle timeout configuration."""
+
+    def test_cook_idle_timeout(self):
+        """Cook phase idle timeout is 180 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['cook'], 180)
+
+    def test_serve_idle_timeout(self):
+        """Serve phase idle timeout is 300 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['serve'], 300)
+
+    def test_tidy_idle_timeout(self):
+        """Tidy phase idle timeout is 90 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['tidy'], 90)
+
+    def test_plate_idle_timeout(self):
+        """Plate phase idle timeout is 300 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['plate'], 300)
+
+    def test_close_service_idle_timeout(self):
+        """Close-service phase idle timeout is 600 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['close-service'], 600)
+
+
+class TestResolveIdleTimeout(unittest.TestCase):
+    """Test idle timeout resolution logic."""
+
+    def test_cook_returns_phase_default(self):
+        """Cook phase resolves to 180s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("cook", None), 180)
+
+    def test_serve_returns_phase_default(self):
+        """Serve phase resolves to 300s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("serve", None), 300)
+
+    def test_tidy_returns_phase_default(self):
+        """Tidy phase resolves to 90s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("tidy", None), 90)
+
+    def test_plate_returns_phase_default(self):
+        """Plate phase resolves to 300s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("plate", None), 300)
+
+    def test_close_service_returns_phase_default(self):
+        """Close-service phase resolves to 600s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("close-service", None), 600)
+
+    def test_explicit_override_takes_precedence(self):
+        """Explicit idle_timeout overrides per-phase default."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("cook", 60), 60)
+        self.assertEqual(resolve_idle_timeout("tidy", 500), 500)
+
+    def test_unknown_phase_falls_back_to_global_default(self):
+        """Unknown phase uses DEFAULT_IDLE_TIMEOUT as fallback."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("unknown-phase", None), line_loop.DEFAULT_IDLE_TIMEOUT)
 
 
 if __name__ == "__main__":

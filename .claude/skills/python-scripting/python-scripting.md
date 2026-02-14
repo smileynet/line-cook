@@ -249,8 +249,7 @@ class CircuitBreaker:
         """True if too many recent failures."""
         if len(self.window) < self.failure_threshold:
             return False
-        recent = self.window[-self.failure_threshold:]
-        return sum(1 for s in recent if not s) >= self.failure_threshold
+        return sum(1 for s in self.window if not s) >= self.failure_threshold
 ```
 
 ## Anti-Patterns

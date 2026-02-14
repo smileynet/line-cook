@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class CircuitBreaker:
-    """Stops loop after too many consecutive failures."""
+    """Stops loop after too many failures within a sliding window."""
     failure_threshold: int = 5
     window_size: int = CIRCUIT_BREAKER_WINDOW_SIZE
     window: list = field(default_factory=list)
@@ -75,7 +75,7 @@ class CircuitBreaker:
         """Check if circuit breaker has tripped (too many failures)."""
         if len(self.window) < self.failure_threshold:
             return False
-        recent_failures = sum(1 for s in self.window[-self.failure_threshold:] if not s)
+        recent_failures = sum(1 for s in self.window if not s)
         return recent_failures >= self.failure_threshold
 
     def reset(self):
@@ -275,10 +275,15 @@ class BeadSnapshot:
     in_progress: list[BeadInfo] = field(default_factory=list)
     closed: list[BeadInfo] = field(default_factory=list)
     timestamp: str = ""
+    _index: Optional[dict[str, BeadInfo]] = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
+
+    def _build_index(self) -> dict[str, BeadInfo]:
+        """Build dict mapping bead ID to BeadInfo across all lists."""
+        return {b.id: b for b in self.ready + self.in_progress + self.closed}
 
     @property
     def ready_ids(self) -> list[str]:
@@ -303,11 +308,10 @@ class BeadSnapshot:
         return [b.id for b in self.closed]
 
     def get_by_id(self, bead_id: str) -> Optional[BeadInfo]:
-        """Look up a BeadInfo by ID across all lists."""
-        for b in self.ready + self.in_progress + self.closed:
-            if b.id == bead_id:
-                return b
-        return None
+        """Look up a BeadInfo by ID across all lists. Uses lazy dict index for O(1) lookup."""
+        if self._index is None:
+            self._index = self._build_index()
+        return self._index.get(bead_id)
 
 
 @dataclass
@@ -467,6 +471,9 @@ class IterationResult:
 
     # Bead delta (what changed during this iteration)
     delta: Optional[BeadDelta] = None
+
+    # Findings filed during this iteration (from delta.newly_filed)
+    findings_count: int = 0
 
     # Epics closed during this iteration (for branch merge in run_loop)
     closed_epics: list[str] = field(default_factory=list)
