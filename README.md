@@ -40,20 +40,19 @@ bd init              # Initialize beads in your project
 
 ## Workflow
 
-```mermaid
-graph LR
-    subgraph planning ["Planning Cycle (/mise)"]
-        A["/brainstorm"] --> B["/scope"]
-        B --> C["/finalize"]
-    end
-    subgraph execution ["Execution Cycle (/run)"]
-        D["/prep"] --> E["/cook"] --> F["/serve"] --> G["/tidy"]
-    end
-    C --> D
-    G --> |next task| D
-
-    style planning fill:#4a1d6e,stroke:#9333ea,color:#e9d5ff
-    style execution fill:#134e4a,stroke:#14b8a6,color:#99f6e4
+```
+  Planning (/mise)                    Execution (/run)
+ ┌─────────────────────────┐   ┌──────────────────────────────────┐
+ │                         │   │                                  │
+ │ /brainstorm             │   │                                  │
+ │      ↓                  │   │                                  │
+ │   /scope                │   │                                  │
+ │      ↓                  │   │                                  │
+ │   /finalize ────────────┼──►│ /prep → /cook → /serve → /tidy ─┼─┐
+ │                         │   │                                  │ │
+ └─────────────────────────┘   └──────────────────────────────────┘ │
+                                      ▲          next task         │
+                                      └───────────────────────────┘
 ```
 
 | Command | What happens |
