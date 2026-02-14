@@ -309,7 +309,9 @@ def serialize_iteration_for_status(result: IterationResult) -> dict:
         "completed_at": datetime.now().isoformat(),
         # Action counts for watch mode
         "action_count": result.total_actions,
-        "action_types": result.action_counts
+        "action_types": result.action_counts,
+        # Findings filed during iteration
+        "findings_count": result.findings_count
     }
 
 
@@ -348,6 +350,7 @@ def serialize_full_iteration(result: IterationResult) -> dict:
         },
         "action_count": result.total_actions,
         "action_types": result.action_counts,
+        "findings_count": result.findings_count,
         "actions": [serialize_action(a) for a in result.actions]
     }
     if result.delta:
@@ -1445,6 +1448,7 @@ def run_loop(
                         "ready": i.after_ready,
                         "in_progress": i.after_in_progress
                     },
+                    "findings_count": i.findings_count,
                     **({
                         "delta": {
                             "newly_closed": [{"id": b.id, "title": b.title, "type": b.issue_type} for b in i.delta.newly_closed],
