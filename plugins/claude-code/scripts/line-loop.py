@@ -330,10 +330,15 @@ class BeadSnapshot:
     in_progress: list[BeadInfo] = field(default_factory=list)
     closed: list[BeadInfo] = field(default_factory=list)
     timestamp: str = ""
+    _index: Optional[dict[str, BeadInfo]] = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
+
+    def _build_index(self) -> dict[str, BeadInfo]:
+        """Build dict mapping bead ID to BeadInfo across all lists."""
+        return {b.id: b for b in self.ready + self.in_progress + self.closed}
 
     @property
     def ready_ids(self) -> list[str]:
@@ -358,11 +363,10 @@ class BeadSnapshot:
         return [b.id for b in self.closed]
 
     def get_by_id(self, bead_id: str) -> Optional[BeadInfo]:
-        """Look up a BeadInfo by ID across all lists."""
-        for b in self.ready + self.in_progress + self.closed:
-            if b.id == bead_id:
-                return b
-        return None
+        """Look up a BeadInfo by ID across all lists. Uses lazy dict index for O(1) lookup."""
+        if self._index is None:
+            self._index = self._build_index()
+        return self._index.get(bead_id)
 
 
 @dataclass
