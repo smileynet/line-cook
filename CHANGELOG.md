@@ -8,10 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Resilient long-running execution (lc-egd.4)
-  - Periodic bd sync every 5 iterations keeps bead state fresh during multi-hour loops
-  - Per-phase idle timeouts (cook: 180s, serve: 300s, tidy: 90s, plate: 300s, close-service: 600s)
-  - Tuned phase timeouts: serve/plate reduced from 600s to 450s, close-service from 900s to 750s
+- Line Loop Process Optimization (lc-egd)
+  - Correct loop failure handling: circuit breaker, skip list, and escalation for repeated task failures (lc-egd.1)
+  - Reduced iteration overhead: cached hierarchy maps and snapshot-first task selection (lc-egd.2)
+  - Autonomous findings tracking: findings_count in IterationResult for watch-mode visibility (lc-egd.3)
+  - Resilient long-running execution: periodic bd sync, per-phase idle timeouts, tuned phase timeouts (lc-egd.4)
 
 ## [0.14.0] - 2026-02-12
 ### Added
