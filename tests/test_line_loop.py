@@ -2342,5 +2342,183 @@ class TestCircuitBreakerSkipListInteraction(unittest.TestCase):
         self.assertTrue(sl.is_skipped("lc-001"))  # Skip list unaffected
 
 
+class TestBuildEpicAncestorMap(unittest.TestCase):
+    """Test build_epic_ancestor_map function."""
+
+    def test_empty_snapshot(self):
+        """Empty snapshot returns empty map."""
+        snapshot = make_snapshot([])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result, {})
+
+    def test_task_directly_under_epic(self):
+        """Task directly under an epic maps to that epic."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        task = make_bead("task-1", "My Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["task-1"], "epic-1")
+
+    def test_task_under_feature_under_epic(self):
+        """Task under feature under epic maps to the epic."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        feature = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        task = make_bead("task-1", "Task", "task", parent="feat-1")
+        snapshot = make_snapshot([epic, feature, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["task-1"], "epic-1")
+
+    def test_orphan_task_maps_to_none(self):
+        """Task with no parent maps to None."""
+        task = make_bead("task-1", "Orphan", "task")
+        snapshot = make_snapshot([task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertIn("task-1", result)
+        self.assertIsNone(result["task-1"])
+
+    def test_task_under_feature_no_epic(self):
+        """Task under a feature with no epic ancestor maps to None."""
+        feature = make_bead("feat-1", "Feature", "feature")
+        task = make_bead("task-1", "Task", "task", parent="feat-1")
+        snapshot = make_snapshot([feature, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertIsNone(result["task-1"])
+
+    def test_multiple_tasks_same_epic(self):
+        """Multiple tasks under the same epic all map correctly."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        feat = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        task_a = make_bead("task-a", "Task A", "task", parent="feat-1")
+        task_b = make_bead("task-b", "Task B", "task", parent="feat-1")
+        snapshot = make_snapshot([epic, feat, task_a, task_b])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["task-a"], "epic-1")
+        self.assertEqual(result["task-b"], "epic-1")
+
+    def test_tasks_under_different_epics(self):
+        """Tasks under different epics map to their respective epics."""
+        epic_a = make_bead("epic-a", "Epic A", "epic")
+        epic_b = make_bead("epic-b", "Epic B", "epic")
+        task_a = make_bead("task-a", "Task A", "task", parent="epic-a")
+        task_b = make_bead("task-b", "Task B", "task", parent="epic-b")
+        snapshot = make_snapshot([epic_a, epic_b, task_a, task_b])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["task-a"], "epic-a")
+        self.assertEqual(result["task-b"], "epic-b")
+
+    def test_epics_excluded_from_walk(self):
+        """Epics in ready list are not walked (ready_work filters them)."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        task = make_bead("task-1", "Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        # Only task should be in the map, epic is not a ready_work item
+        self.assertIn("task-1", result)
+        # Epic itself should only appear if encountered as intermediate during walk
+        # (it is NOT walked as a starting point)
+
+    def test_dangling_parent_maps_to_none(self):
+        """Task whose parent is not in the snapshot maps to None."""
+        task = make_bead("task-1", "Task", "task", parent="nonexistent")
+        snapshot = make_snapshot([task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertIsNone(result["task-1"])
+
+    def test_feature_as_ready_work(self):
+        """Features in ready_work are also walked."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        feature = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        snapshot = make_snapshot([epic, feature])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        self.assertEqual(result["feat-1"], "epic-1")
+
+    def test_intermediate_beads_cached(self):
+        """Intermediate beads encountered during walk are cached."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        feature = make_bead("feat-1", "Feature", "feature", parent="epic-1")
+        task = make_bead("task-1", "Task", "task", parent="feat-1")
+        snapshot = make_snapshot([epic, feature, task])
+        result = line_loop.build_epic_ancestor_map(snapshot, Path("/tmp"))
+        # Both the task and the intermediate feature should be cached
+        self.assertEqual(result["task-1"], "epic-1")
+        self.assertIn("feat-1", result)
+        self.assertEqual(result["feat-1"], "epic-1")
+
+
+class TestAncestorMapIntegration(unittest.TestCase):
+    """Test that callers work with ancestor_map parameter."""
+
+    def test_detect_first_epic_with_map(self):
+        """detect_first_epic uses ancestor_map when provided."""
+        epic = make_bead("epic-1", "My Epic", "epic")
+        task = make_bead("task-1", "Task", "task", parent="epic-1")
+        snapshot = make_snapshot([epic, task])
+        ancestor_map = {"task-1": "epic-1"}
+        result = line_loop.detect_first_epic(
+            snapshot, set(), set(), Path("/tmp"),
+            ancestor_map=ancestor_map
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "epic-1")
+
+    def test_detect_first_epic_excludes_with_map(self):
+        """detect_first_epic respects excluded_ids when using ancestor_map."""
+        epic = make_bead("epic-r", "Retrospective", "epic")
+        task = make_bead("task-1", "Task", "task", parent="epic-r")
+        snapshot = make_snapshot([epic, task])
+        ancestor_map = {"task-1": "epic-r"}
+        result = line_loop.detect_first_epic(
+            snapshot, {"epic-r"}, set(), Path("/tmp"),
+            ancestor_map=ancestor_map
+        )
+        self.assertIsNone(result)
+
+    def test_filter_excluded_with_map(self):
+        """_filter_excluded_epics uses ancestor_map when provided."""
+        from line_loop.loop import _filter_excluded_epics
+        epic_r = make_bead("epic-r", "Retro", "epic")
+        epic_n = make_bead("epic-n", "Normal", "epic")
+        task_r = make_bead("task-r", "Retro Task", "task", parent="epic-r")
+        task_n = make_bead("task-n", "Normal Task", "task", parent="epic-n")
+        snapshot = make_snapshot([epic_r, epic_n, task_r, task_n])
+        ancestor_map = {"task-r": "epic-r", "task-n": "epic-n"}
+        result = _filter_excluded_epics(
+            [task_r, task_n], {"epic-r"}, snapshot, Path("/tmp"),
+            ancestor_map=ancestor_map
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].id, "task-n")
+
+    def test_get_next_ready_task_epic_filter_with_map(self):
+        """get_next_ready_task uses ancestor_map for epic filtering."""
+        epic_a = make_bead("epic-a", "Epic A", "epic")
+        epic_b = make_bead("epic-b", "Epic B", "epic")
+        task_a = make_bead("task-a", "Task A", "task", parent="epic-a")
+        task_b = make_bead("task-b", "Task B", "task", parent="epic-b")
+        snapshot = make_snapshot([epic_a, epic_b, task_a, task_b])
+        ancestor_map = {"task-a": "epic-a", "task-b": "epic-b"}
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, epic_filter="epic-a",
+            ancestor_map=ancestor_map
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "task-a")
+
+    def test_get_next_ready_task_excluded_with_map(self):
+        """get_next_ready_task uses ancestor_map for excluded epic filtering."""
+        epic_r = make_bead("epic-r", "Retro", "epic")
+        epic_n = make_bead("epic-n", "Normal", "epic")
+        task_r = make_bead("task-r", "Retro Task", "task", parent="epic-r")
+        task_n = make_bead("task-n", "Normal Task", "task", parent="epic-n")
+        snapshot = make_snapshot([epic_r, epic_n, task_r, task_n])
+        ancestor_map = {"task-r": "epic-r", "task-n": "epic-n"}
+        result = line_loop.get_next_ready_task(
+            Path("/tmp"), snapshot=snapshot, excluded_epic_ids={"epic-r"},
+            ancestor_map=ancestor_map
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "task-n")
+
+
 if __name__ == "__main__":
     unittest.main()
