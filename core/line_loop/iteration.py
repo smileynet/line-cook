@@ -972,11 +972,15 @@ def detect_eligible_epics(cwd: Path) -> list[str]:
         return []
 
 
-def check_epic_completion(cwd: Path) -> list[dict]:
+def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> list[dict]:
     """Detect newly completable epics and close them via close-service.
 
     Uses detect_eligible_epics for detection, then run_phase("close-service")
     for each epic to ensure full validation (critic review, acceptance docs).
+
+    Args:
+        cwd: Working directory containing the .beads project.
+        exclude_ids: Optional set of epic IDs to skip (already handled by caller).
 
     Returns list of completed epic summaries for display.
     """
@@ -986,6 +990,9 @@ def check_epic_completion(cwd: Path) -> list[dict]:
 
     summaries = []
     for epic_id in epic_ids:
+        if exclude_ids and epic_id in exclude_ids:
+            logger.debug(f"Skipping epic {epic_id} (already handled by iteration)")
+            continue
         logger.info(f"Running close-service for epic {epic_id}")
         cs_result = run_phase("close-service", cwd, args=epic_id)
 

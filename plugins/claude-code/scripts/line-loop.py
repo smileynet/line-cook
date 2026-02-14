@@ -2186,11 +2186,15 @@ def detect_eligible_epics(cwd: Path) -> list[str]:
         return []
 
 
-def check_epic_completion(cwd: Path) -> list[dict]:
+def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> list[dict]:
     """Detect newly completable epics and close them via close-service.
 
     Uses detect_eligible_epics for detection, then run_phase("close-service")
     for each epic to ensure full validation (critic review, acceptance docs).
+
+    Args:
+        cwd: Working directory containing the .beads project.
+        exclude_ids: Optional set of epic IDs to skip (already handled by caller).
 
     Returns list of completed epic summaries for display.
     """
@@ -2200,6 +2204,9 @@ def check_epic_completion(cwd: Path) -> list[dict]:
 
     summaries = []
     for epic_id in epic_ids:
+        if exclude_ids and epic_id in exclude_ids:
+            logger.debug(f"Skipping epic {epic_id} (already handled by iteration)")
+            continue
         logger.info(f"Running close-service for epic {epic_id}")
         cs_result = run_phase("close-service", cwd, args=epic_id)
 
@@ -3958,7 +3965,7 @@ def run_loop(
         # (e.g., external closes, or iteration's hierarchy walk didn't reach epic)
         if result.success:
             already_handled = set(result.closed_epics)
-            epic_summaries = check_epic_completion(cwd)
+            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled)
             if epic_summaries:
                 # Merge epic branches to main for each completed epic
                 for epic in epic_summaries:
@@ -3970,7 +3977,7 @@ def run_loop(
                     if merged and not json_output:
                         print(f"  Branch: epic/{epic_id} merged to main")
                     elif merge_error == "merge_conflict" and not json_output:
-                        print(f"  WARNING: Merge conflict: epic/{epic_id} could not be merged")
+                        print(f"  WARNING: Merge conflict for epic/{epic_id}")
                         print(f"           Bug bead created for manual resolution")
 
                 # Update status file with epic completions
