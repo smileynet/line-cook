@@ -2520,5 +2520,245 @@ class TestAncestorMapIntegration(unittest.TestCase):
         self.assertEqual(result[0], "task-n")
 
 
+class TestCachedGetTaskInfo(unittest.TestCase):
+    """Test _cached_get_task_info() caching helper."""
+
+    def test_returns_cached_value_without_subprocess(self):
+        """Returns cached value and does not call get_task_info."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_task_info
+
+        cache = {"lc-001": {"id": "lc-001", "title": "Cached Task"}}
+        with patch("line_loop.iteration.get_task_info") as mock_gti:
+            result = _cached_get_task_info("lc-001", Path("/tmp"), cache)
+            self.assertEqual(result["title"], "Cached Task")
+            mock_gti.assert_not_called()
+
+    def test_populates_cache_on_miss(self):
+        """Calls get_task_info and stores result on cache miss."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_task_info
+
+        cache = {}
+        with patch("line_loop.iteration.get_task_info",
+                    return_value={"id": "lc-002", "title": "Fresh"}) as mock_gti:
+            result = _cached_get_task_info("lc-002", Path("/tmp"), cache)
+            self.assertEqual(result["title"], "Fresh")
+            mock_gti.assert_called_once_with("lc-002", Path("/tmp"))
+            self.assertIn("lc-002", cache)
+
+    def test_caches_none_result(self):
+        """Caches None when get_task_info returns None (avoids re-query)."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_task_info
+
+        cache = {}
+        with patch("line_loop.iteration.get_task_info", return_value=None) as mock_gti:
+            result1 = _cached_get_task_info("lc-bad", Path("/tmp"), cache)
+            result2 = _cached_get_task_info("lc-bad", Path("/tmp"), cache)
+            self.assertIsNone(result1)
+            self.assertIsNone(result2)
+            mock_gti.assert_called_once()  # Only called once, second from cache
+
+
+class TestCachedGetChildren(unittest.TestCase):
+    """Test _cached_get_children() caching helper."""
+
+    def test_returns_cached_value_without_subprocess(self):
+        """Returns cached children without calling get_children."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_children
+
+        children = [{"id": "t-1", "status": "closed"}]
+        cache = {"f-001": children}
+        with patch("line_loop.iteration.get_children") as mock_gc:
+            result = _cached_get_children("f-001", Path("/tmp"), cache)
+            self.assertEqual(result, children)
+            mock_gc.assert_not_called()
+
+    def test_populates_cache_on_miss(self):
+        """Calls get_children and stores result on cache miss."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_children
+
+        children = [{"id": "t-1", "status": "closed"}, {"id": "t-2", "status": "closed"}]
+        cache = {}
+        with patch("line_loop.iteration.get_children", return_value=children) as mock_gc:
+            result = _cached_get_children("f-002", Path("/tmp"), cache)
+            self.assertEqual(len(result), 2)
+            mock_gc.assert_called_once_with("f-002", Path("/tmp"))
+            self.assertIn("f-002", cache)
+
+    def test_caches_empty_list_result(self):
+        """Caches empty list when get_children returns [] (avoids re-query)."""
+        from unittest.mock import patch
+        from line_loop.iteration import _cached_get_children
+
+        cache = {}
+        with patch("line_loop.iteration.get_children", return_value=[]) as mock_gc:
+            result1 = _cached_get_children("f-empty", Path("/tmp"), cache)
+            result2 = _cached_get_children("f-empty", Path("/tmp"), cache)
+            self.assertEqual(result1, [])
+            self.assertEqual(result2, [])
+            mock_gc.assert_called_once()
+
+
+class TestFeatureCompletionWithCache(unittest.TestCase):
+    """Test check_feature_completion with task_info_cache parameter."""
+
+    def test_uses_provided_cache(self):
+        """check_feature_completion uses cache for get_task_info lookups."""
+        from unittest.mock import patch
+        task_info_cache = {
+            "t-001": {"id": "t-001", "parent": "f-001", "issue_type": "task"},
+            "f-001": {"id": "f-001", "issue_type": "feature", "parent": "e-001"},
+        }
+        children_cache = {
+            "f-001": [{"id": "t-001", "status": "closed"}],
+        }
+        with patch("line_loop.iteration.get_task_info") as mock_gti, \
+             patch("line_loop.iteration.get_children") as mock_gc:
+            complete, feature_id = line_loop.check_feature_completion(
+                "t-001", Path("/tmp"),
+                task_info_cache=task_info_cache,
+                children_cache=children_cache
+            )
+            self.assertTrue(complete)
+            self.assertEqual(feature_id, "f-001")
+            # Should NOT call subprocess (all from cache)
+            mock_gti.assert_not_called()
+            mock_gc.assert_not_called()
+
+    def test_populates_cache_for_reuse(self):
+        """check_feature_completion populates cache for later use."""
+        from unittest.mock import patch
+        task_info_cache = {}
+        children_cache = {}
+
+        task_data = {"id": "t-001", "parent": "f-001", "issue_type": "task"}
+        feature_data = {"id": "f-001", "issue_type": "feature", "parent": "e-001"}
+        children_data = [{"id": "t-001", "status": "closed"}]
+
+        with patch("line_loop.iteration.get_task_info",
+                    side_effect=lambda tid, cwd: {"t-001": task_data, "f-001": feature_data}.get(tid)), \
+             patch("line_loop.iteration.get_children", return_value=children_data):
+            complete, feature_id = line_loop.check_feature_completion(
+                "t-001", Path("/tmp"),
+                task_info_cache=task_info_cache,
+                children_cache=children_cache
+            )
+            self.assertTrue(complete)
+            # Cache should now contain both task and feature info
+            self.assertIn("t-001", task_info_cache)
+            self.assertIn("f-001", task_info_cache)
+            self.assertIn("f-001", children_cache)
+
+    def test_backwards_compatible_without_cache(self):
+        """check_feature_completion works without cache parameters (backwards compat)."""
+        from unittest.mock import patch
+        task_data = {"id": "t-001", "parent": "f-001", "issue_type": "task"}
+        feature_data = {"id": "f-001", "issue_type": "feature"}
+        children_data = [{"id": "t-001", "status": "closed"}]
+
+        with patch("line_loop.iteration.get_task_info",
+                    side_effect=lambda tid, cwd: {"t-001": task_data, "f-001": feature_data}.get(tid)), \
+             patch("line_loop.iteration.get_children", return_value=children_data):
+            complete, feature_id = line_loop.check_feature_completion("t-001", Path("/tmp"))
+            self.assertTrue(complete)
+            self.assertEqual(feature_id, "f-001")
+
+
+class TestEpicCompletionAfterFeatureWithCache(unittest.TestCase):
+    """Test check_epic_completion_after_feature with cache."""
+
+    def test_uses_provided_cache(self):
+        """check_epic_completion_after_feature uses cache for lookups."""
+        from unittest.mock import patch
+        task_info_cache = {
+            "f-001": {"id": "f-001", "parent": "e-001", "issue_type": "feature"},
+            "e-001": {"id": "e-001", "issue_type": "epic"},
+        }
+        children_cache = {
+            "e-001": [{"id": "f-001", "status": "closed"}],
+        }
+        with patch("line_loop.iteration.get_task_info") as mock_gti, \
+             patch("line_loop.iteration.get_children") as mock_gc:
+            complete, epic_id = line_loop.check_epic_completion_after_feature(
+                "f-001", Path("/tmp"),
+                task_info_cache=task_info_cache,
+                children_cache=children_cache
+            )
+            self.assertTrue(complete)
+            self.assertEqual(epic_id, "e-001")
+            mock_gti.assert_not_called()
+            mock_gc.assert_not_called()
+
+    def test_shared_cache_with_feature_check(self):
+        """Shared cache between feature and epic checks avoids re-queries."""
+        from unittest.mock import patch
+        # Simulate: feature check populated cache, epic check reuses it
+        task_info_cache = {
+            "t-001": {"id": "t-001", "parent": "f-001", "issue_type": "task"},
+            "f-001": {"id": "f-001", "parent": "e-001", "issue_type": "feature"},
+        }
+        children_cache = {
+            "f-001": [{"id": "t-001", "status": "closed"}],
+        }
+        # Only the epic info and children need to be fetched
+        with patch("line_loop.iteration.get_task_info",
+                    side_effect=lambda tid, cwd: {"e-001": {"id": "e-001", "issue_type": "epic"}}.get(tid)) as mock_gti, \
+             patch("line_loop.iteration.get_children",
+                    return_value=[{"id": "f-001", "status": "closed"}]) as mock_gc:
+            complete, epic_id = line_loop.check_epic_completion_after_feature(
+                "f-001", Path("/tmp"),
+                task_info_cache=task_info_cache,
+                children_cache=children_cache
+            )
+            self.assertTrue(complete)
+            # Only epic info needed from subprocess (feature was cached)
+            mock_gti.assert_called_once_with("e-001", Path("/tmp"))
+
+    def test_backwards_compatible_without_cache(self):
+        """check_epic_completion_after_feature works without cache parameters."""
+        from unittest.mock import patch
+        feature_data = {"id": "f-001", "parent": "e-001", "issue_type": "feature"}
+        epic_data = {"id": "e-001", "issue_type": "epic"}
+        children_data = [{"id": "f-001", "status": "closed"}]
+
+        with patch("line_loop.iteration.get_task_info",
+                    side_effect=lambda tid, cwd: {"f-001": feature_data, "e-001": epic_data}.get(tid)), \
+             patch("line_loop.iteration.get_children", return_value=children_data):
+            complete, epic_id = line_loop.check_epic_completion_after_feature("f-001", Path("/tmp"))
+            self.assertTrue(complete)
+            self.assertEqual(epic_id, "e-001")
+
+
+class TestSnapshotTitleLookup(unittest.TestCase):
+    """Test getting task title from snapshot to avoid subprocess calls."""
+
+    def test_title_from_snapshot(self):
+        """Task title can be retrieved from snapshot without subprocess."""
+        from line_loop.iteration import _get_title_from_snapshot_or_cache
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("t-001", "Ready Task", "task")],
+            in_progress=[make_bead("t-002", "Active Task", "task")],
+        )
+        self.assertEqual(_get_title_from_snapshot_or_cache("t-001", snapshot, {}), "Ready Task")
+        self.assertEqual(_get_title_from_snapshot_or_cache("t-002", snapshot, {}), "Active Task")
+
+    def test_title_from_task_info_cache(self):
+        """Task title falls back to task_info_cache."""
+        from line_loop.iteration import _get_title_from_snapshot_or_cache
+        snapshot = line_loop.BeadSnapshot()
+        cache = {"t-003": {"id": "t-003", "title": "Cached Title"}}
+        self.assertEqual(_get_title_from_snapshot_or_cache("t-003", snapshot, cache), "Cached Title")
+
+    def test_returns_none_when_not_found(self):
+        """Returns None when title not in snapshot or cache."""
+        from line_loop.iteration import _get_title_from_snapshot_or_cache
+        snapshot = line_loop.BeadSnapshot()
+        self.assertIsNone(_get_title_from_snapshot_or_cache("t-999", snapshot, {}))
+
+
 if __name__ == "__main__":
     unittest.main()
