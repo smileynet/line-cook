@@ -2972,6 +2972,55 @@ class TestPeriodicSync(unittest.TestCase):
         self.assertFalse(should_periodic_sync(0, 5))
 
 
+class TestIdleDetection(unittest.TestCase):
+    """Test check_idle() with various time deltas."""
+
+    def test_none_last_action_returns_false(self):
+        """No actions yet (None) means not idle."""
+        self.assertFalse(line_loop.check_idle(None, 180))
+
+    def test_recent_action_not_idle(self):
+        """Action 10 seconds ago with 180s threshold is not idle."""
+        from datetime import datetime, timedelta
+        recent = datetime.now() - timedelta(seconds=10)
+        self.assertFalse(line_loop.check_idle(recent, 180))
+
+    def test_past_threshold_is_idle(self):
+        """Action 200 seconds ago with 180s threshold is idle."""
+        from datetime import datetime, timedelta
+        old = datetime.now() - timedelta(seconds=200)
+        self.assertTrue(line_loop.check_idle(old, 180))
+
+    def test_at_threshold_is_idle(self):
+        """Action exactly at threshold boundary is considered idle (>=)."""
+        from datetime import datetime, timedelta
+        exact = datetime.now() - timedelta(seconds=180)
+        self.assertTrue(line_loop.check_idle(exact, 180))
+
+    def test_just_under_threshold_not_idle(self):
+        """Action 1 second under threshold is not idle."""
+        from datetime import datetime, timedelta
+        almost = datetime.now() - timedelta(seconds=179)
+        self.assertFalse(line_loop.check_idle(almost, 180))
+
+    def test_zero_seconds_ago_not_idle(self):
+        """Action just now is not idle."""
+        from datetime import datetime
+        self.assertFalse(line_loop.check_idle(datetime.now(), 180))
+
+    def test_short_timeout_with_brief_idle(self):
+        """Short timeout (5s) with 10s idle is detected."""
+        from datetime import datetime, timedelta
+        past_threshold = datetime.now() - timedelta(seconds=10)
+        self.assertTrue(line_loop.check_idle(past_threshold, 5))
+
+    def test_zero_timeout_any_action_is_idle(self):
+        """Zero timeout means any past action triggers idle."""
+        from datetime import datetime, timedelta
+        one_second_ago = datetime.now() - timedelta(seconds=1)
+        self.assertTrue(line_loop.check_idle(one_second_ago, 0))
+
+
 class TestDefaultPhaseIdleTimeouts(unittest.TestCase):
     """Test per-phase idle timeout configuration."""
 
@@ -2994,7 +3043,6 @@ class TestDefaultPhaseIdleTimeouts(unittest.TestCase):
     def test_close_service_idle_timeout(self):
         """Close-service phase idle timeout is 600 seconds."""
         self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['close-service'], 600)
-
 
 
 class TestResolveIdleTimeout(unittest.TestCase):
