@@ -41,18 +41,18 @@ bd init              # Initialize beads in your project
 ## Workflow
 
 ```
-  Planning (/mise)                    Execution (/run)
- ┌─────────────────────────┐   ┌──────────────────────────────────┐
- │                         │   │                                  │
- │ /brainstorm             │   │                                  │
- │      ↓                  │   │                                  │
- │   /scope                │   │                                  │
- │      ↓                  │   │                                  │
- │   /finalize ────────────┼──►│ /prep → /cook → /serve → /tidy ─┼─┐
- │                         │   │                                  │ │
- └─────────────────────────┘   └──────────────────────────────────┘ │
-                                      ▲          next task         │
-                                      └───────────────────────────┘
+  Planning (/mise)          Execution (/run)
+ ┌──────────────────┐   ┌──────────────────┐
+ │                  │   │                  │
+ │   /brainstorm    │   │   /prep ◄────┐   │
+ │        ↓         │   │      ↓       │   │
+ │     /scope       │   │   /cook      │   │
+ │        ↓         │   │      ↓       │   │
+ │   /finalize ─────┼──►│   /serve     │   │
+ │                  │   │      ↓       │   │
+ │                  │   │   /tidy ─────┘   │
+ │                  │   │    next task     │
+ └──────────────────┘   └──────────────────┘
 ```
 
 | Command | What happens |
