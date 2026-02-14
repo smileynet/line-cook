@@ -472,6 +472,9 @@ class IterationResult:
     # Bead delta (what changed during this iteration)
     delta: Optional[BeadDelta] = None
 
+    # Findings filed during this iteration (from delta.newly_filed)
+    findings_count: int = 0
+
     # Epics closed during this iteration (for branch merge in run_loop)
     closed_epics: list[str] = field(default_factory=list)
 

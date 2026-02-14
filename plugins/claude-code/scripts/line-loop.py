@@ -527,6 +527,9 @@ class IterationResult:
     # Bead delta (what changed during this iteration)
     delta: Optional[BeadDelta] = None
 
+    # Findings filed during this iteration (from delta.newly_filed)
+    findings_count: int = 0
+
     # Epics closed during this iteration (for branch merge in run_loop)
     closed_epics: list[str] = field(default_factory=list)
 
@@ -1393,6 +1396,10 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         if result.delta.newly_filed:
             filed_items = [f"{b.id} ({b.title})" if b.title else b.id for b in result.delta.newly_filed]
             print(f"    filed:  {', '.join(filed_items)}")
+
+    # Findings filed during this iteration
+    if result.findings_count > 0:
+        print(f"  Findings: {result.findings_count} filed")
 
     if result.outcome == "needs_retry" and retries > 0:
         print(f"\n  Retrying ({retries})...")
@@ -2957,6 +2964,7 @@ def run_iteration(
 
     # Compute bead delta for visibility
     delta = BeadDelta.compute(before, after)
+    findings_count = len(delta.newly_filed) if delta else 0
 
     logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s, actions={len(all_actions)}")
 
@@ -2978,6 +2986,7 @@ def run_iteration(
         after_state=after_state,
         actions=all_actions,
         delta=delta,
+        findings_count=findings_count,
         closed_epics=closed_epic_ids
     )
 
@@ -3222,7 +3231,9 @@ def serialize_iteration_for_status(result: IterationResult) -> dict:
         "completed_at": datetime.now().isoformat(),
         # Action counts for watch mode
         "action_count": result.total_actions,
-        "action_types": result.action_counts
+        "action_types": result.action_counts,
+        # Findings filed during iteration
+        "findings_count": result.findings_count
     }
 
 
@@ -3261,6 +3272,7 @@ def serialize_full_iteration(result: IterationResult) -> dict:
         },
         "action_count": result.total_actions,
         "action_types": result.action_counts,
+        "findings_count": result.findings_count,
         "actions": [serialize_action(a) for a in result.actions]
     }
     if result.delta:
@@ -4358,6 +4370,7 @@ def run_loop(
                         "ready": i.after_ready,
                         "in_progress": i.after_in_progress
                     },
+                    "findings_count": i.findings_count,
                     **({
                         "delta": {
                             "newly_closed": [{"id": b.id, "title": b.title, "type": b.issue_type} for b in i.delta.newly_closed],

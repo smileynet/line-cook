@@ -26,6 +26,18 @@ def make_snapshot(beads):
     return snapshot
 
 
+def make_iteration_result(**overrides):
+    """Create an IterationResult with sensible defaults for testing."""
+    defaults = dict(
+        iteration=1, task_id="t-1", task_title="Test",
+        outcome="completed", duration_seconds=10.0,
+        serve_verdict="APPROVED", commit_hash="abc123",
+        success=True
+    )
+    defaults.update(overrides)
+    return line_loop.IterationResult(**defaults)
+
+
 class TestParseServeResult(unittest.TestCase):
     """Test parse_serve_result() function."""
 
@@ -2758,6 +2770,74 @@ class TestSnapshotTitleLookup(unittest.TestCase):
         from line_loop.iteration import _get_title_from_snapshot_or_cache
         snapshot = line_loop.BeadSnapshot()
         self.assertIsNone(_get_title_from_snapshot_or_cache("t-999", snapshot, {}))
+
+
+class TestFindingsCount(unittest.TestCase):
+    """Test findings_count field on IterationResult."""
+
+    def test_findings_count_defaults_to_zero(self):
+        """IterationResult.findings_count defaults to 0."""
+        result = make_iteration_result()
+        self.assertEqual(result.findings_count, 0)
+
+    def test_findings_count_can_be_set(self):
+        """IterationResult.findings_count can be set explicitly."""
+        result = make_iteration_result(findings_count=3)
+        self.assertEqual(result.findings_count, 3)
+
+
+class TestPrintHumanIterationFindings(unittest.TestCase):
+    """Test that print_human_iteration displays findings count."""
+
+    def test_shows_findings_when_positive(self):
+        """Findings line printed when findings_count > 0."""
+        import io
+        import contextlib
+        result = make_iteration_result(findings_count=3)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_human_iteration(result)
+        output = buf.getvalue()
+        self.assertIn("Findings: 3 filed", output)
+
+    def test_no_findings_line_when_zero(self):
+        """Findings line not printed when findings_count is 0."""
+        import io
+        import contextlib
+        result = make_iteration_result(findings_count=0)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_human_iteration(result)
+        output = buf.getvalue()
+        self.assertNotIn("Findings:", output)
+
+
+class TestSerializeFindingsCount(unittest.TestCase):
+    """Test findings_count in serialization functions."""
+
+    def test_serialize_for_status_includes_findings_count(self):
+        """serialize_iteration_for_status includes findings_count."""
+        from line_loop.loop import serialize_iteration_for_status
+        result = make_iteration_result(findings_count=2)
+        data = serialize_iteration_for_status(result)
+        self.assertIn("findings_count", data)
+        self.assertEqual(data["findings_count"], 2)
+
+    def test_serialize_full_includes_findings_count(self):
+        """serialize_full_iteration includes findings_count."""
+        from line_loop.loop import serialize_full_iteration
+        result = make_iteration_result(findings_count=5)
+        data = serialize_full_iteration(result)
+        self.assertIn("findings_count", data)
+        self.assertEqual(data["findings_count"], 5)
+
+    def test_serialize_for_status_zero_findings(self):
+        """serialize_iteration_for_status includes findings_count even when 0."""
+        from line_loop.loop import serialize_iteration_for_status
+        result = make_iteration_result(findings_count=0)
+        data = serialize_iteration_for_status(result)
+        self.assertIn("findings_count", data)
+        self.assertEqual(data["findings_count"], 0)
 
 
 if __name__ == "__main__":

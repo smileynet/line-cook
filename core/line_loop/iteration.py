@@ -176,6 +176,10 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
             filed_items = [f"{b.id} ({b.title})" if b.title else b.id for b in result.delta.newly_filed]
             print(f"    filed:  {', '.join(filed_items)}")
 
+    # Findings filed during this iteration
+    if result.findings_count > 0:
+        print(f"  Findings: {result.findings_count} filed")
+
     if result.outcome == "needs_retry" and retries > 0:
         print(f"\n  Retrying ({retries})...")
 
@@ -1739,6 +1743,7 @@ def run_iteration(
 
     # Compute bead delta for visibility
     delta = BeadDelta.compute(before, after)
+    findings_count = len(delta.newly_filed) if delta else 0
 
     logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s, actions={len(all_actions)}")
 
@@ -1760,5 +1765,6 @@ def run_iteration(
         after_state=after_state,
         actions=all_actions,
         delta=delta,
+        findings_count=findings_count,
         closed_epics=closed_epic_ids
     )
