@@ -1241,7 +1241,7 @@ def run_loop(
         # (e.g., external closes, or iteration's hierarchy walk didn't reach epic)
         if result.success:
             already_handled = set(result.closed_epics)
-            epic_summaries = check_epic_completion(cwd)
+            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled)
             if epic_summaries:
                 # Merge epic branches to main for each completed epic
                 for epic in epic_summaries:
@@ -1253,7 +1253,7 @@ def run_loop(
                     if merged and not json_output:
                         print(f"  Branch: epic/{epic_id} merged to main")
                     elif merge_error == "merge_conflict" and not json_output:
-                        print(f"  WARNING: Merge conflict: epic/{epic_id} could not be merged")
+                        print(f"  WARNING: Merge conflict for epic/{epic_id}")
                         print(f"           Bug bead created for manual resolution")
 
                 # Update status file with epic completions
