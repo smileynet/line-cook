@@ -523,6 +523,9 @@ class IterationResult:
     # Bead delta (what changed during this iteration)
     delta: Optional[BeadDelta] = None
 
+    # Epics closed during this iteration (for branch merge in run_loop)
+    closed_epics: list[str] = field(default_factory=list)
+
     @property
     def action_counts(self) -> dict[str, int]:
         """Count actions by tool name."""
@@ -2264,6 +2267,23 @@ def clear_retry_context(cwd: Path) -> None:
         logger.debug(f"Failed to clear retry context: {e}")
 
 
+def _reopen_task_for_retry(task_id: Optional[str], cwd: Path) -> None:
+    """Reopen a closed task so cook can retry it after NEEDS_CHANGES."""
+    if not task_id:
+        return
+    try:
+        result = run_subprocess(
+            ["bd", "update", task_id, "--status=in_progress"],
+            BD_COMMAND_TIMEOUT, cwd
+        )
+        if result.returncode == 0:
+            logger.info(f"Reopened task {task_id} for retry")
+        else:
+            logger.warning(f"Failed to reopen task {task_id}: {result.stderr}")
+    except Exception as e:
+        logger.warning(f"Error reopening task {task_id} for retry: {e}")
+
+
 def run_iteration(
     iteration: int,
     max_iterations: int,
@@ -2274,7 +2294,8 @@ def run_iteration(
     phase_timeouts: Optional[dict[str, int]] = None,
     idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
     idle_action: str = DEFAULT_IDLE_ACTION,
-    before_snapshot: Optional[BeadSnapshot] = None
+    before_snapshot: Optional[BeadSnapshot] = None,
+    target_task_id: Optional[str] = None
 ) -> IterationResult:
     """Execute individual phases (cook→serve→tidy) with retry logic.
 
@@ -2299,6 +2320,7 @@ def run_iteration(
     """
     start_time = datetime.now()
     logger.info(f"Starting iteration {iteration}/{max_iterations}")
+    closed_epic_ids: list[str] = []
 
     # Use provided snapshot or capture fresh one
     before = before_snapshot or get_bead_snapshot(cwd)
@@ -2353,7 +2375,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("cook")
-        cook_result = run_phase("cook", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+        cook_result = run_phase("cook", cwd, args=target_task_id or "", on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
@@ -2506,6 +2528,7 @@ def run_iteration(
                 if cook_attempts > max_cook_retries:
                     logger.warning("Max cook retries reached with NEEDS_CHANGES")
                     break
+                _reopen_task_for_retry(task_id, cwd)
                 continue
             elif serve_verdict == "BLOCKED":
                 if not json_output:
@@ -2564,6 +2587,7 @@ def run_iteration(
                     write_retry_context(cwd, feedback)
                 if cook_attempts > max_cook_retries:
                     break
+                _reopen_task_for_retry(task_id, cwd)
                 continue
             elif "serve_blocked" in serve_result.signals:
                 serve_verdict = "BLOCKED"
@@ -2727,6 +2751,7 @@ def run_iteration(
                             print_phase_progress("close-service", "done", cs_result.duration_seconds,
                                                f"{_action_dots(len(cs_result.actions))}{len(cs_result.actions)} actions, epic {epic_id} validated")
                         logger.info(f"Close-service phase completed for epic {epic_id}")
+                        closed_epic_ids.append(epic_id)
 
     duration = (datetime.now() - start_time).total_seconds()
 
@@ -2755,7 +2780,8 @@ def run_iteration(
         before_state=before_state,
         after_state=after_state,
         actions=all_actions,
-        delta=delta
+        delta=delta,
+        closed_epics=closed_epic_ids
     )
 
 
@@ -3787,7 +3813,8 @@ def run_loop(
             phase_timeouts=phase_timeouts,
             idle_timeout=idle_timeout,
             idle_action=idle_action,
-            before_snapshot=snapshot
+            before_snapshot=snapshot,
+            target_task_id=target_task_id
         )
         iterations.append(result)
 
@@ -3915,20 +3942,34 @@ def run_loop(
             current_retries = 0
             last_task_id = None
 
+        # Merge epic branches closed during this iteration
+        if result.success and result.closed_epics:
+            for closed_epic_id in result.closed_epics:
+                epic_title = get_task_title(closed_epic_id, cwd) or ""
+                merged, merge_error = merge_epic_on_close(closed_epic_id, epic_title, cwd)
+                if merged and not json_output:
+                    print(f"  Branch: epic/{closed_epic_id} merged to main")
+                elif merge_error == "merge_conflict" and not json_output:
+                    print(f"  WARNING: Merge conflict for epic/{closed_epic_id}")
+                    print(f"           Bug bead created for manual resolution")
+
         # Check for epic completions after each successful iteration
-        if result.success and not json_output:
+        # Catch-all: detect epics eligible for closure that iteration missed
+        # (e.g., external closes, or iteration's hierarchy walk didn't reach epic)
+        if result.success:
+            already_handled = set(result.closed_epics)
             epic_summaries = check_epic_completion(cwd)
             if epic_summaries:
                 # Merge epic branches to main for each completed epic
                 for epic in epic_summaries:
                     epic_id = epic.get("id")
-                    if not epic_id:
+                    if not epic_id or epic_id in already_handled:
                         continue
                     epic_title = epic.get("title", "")
                     merged, merge_error = merge_epic_on_close(epic_id, epic_title, cwd)
-                    if merged:
+                    if merged and not json_output:
                         print(f"  Branch: epic/{epic_id} merged to main")
-                    elif merge_error == "merge_conflict":
+                    elif merge_error == "merge_conflict" and not json_output:
                         print(f"  WARNING: Merge conflict: epic/{epic_id} could not be merged")
                         print(f"           Bug bead created for manual resolution")
 
@@ -3957,7 +3998,8 @@ def run_loop(
                 if break_on_epic:
                     stop_reason = "epic_complete"
                     logger.info(f"Epic(s) {[e['id'] for e in epic_summaries]} completed, breaking as requested")
-                    print("\nEpic completed. Pausing loop (--break-on-epic).")
+                    if not json_output:
+                        print("\nEpic completed. Pausing loop (--break-on-epic).")
                     break
 
     else:

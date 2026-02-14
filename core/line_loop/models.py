@@ -468,6 +468,9 @@ class IterationResult:
     # Bead delta (what changed during this iteration)
     delta: Optional[BeadDelta] = None
 
+    # Epics closed during this iteration (for branch merge in run_loop)
+    closed_epics: list[str] = field(default_factory=list)
+
     @property
     def action_counts(self) -> dict[str, int]:
         """Count actions by tool name."""
