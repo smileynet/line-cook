@@ -1443,5 +1443,376 @@ class TestValidateEpicId(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestIterationResultClosedEpics(unittest.TestCase):
+    """Test closed_epics field on IterationResult."""
+
+    def test_defaults_to_empty_list(self):
+        """closed_epics defaults to empty list."""
+        result = line_loop.IterationResult(
+            iteration=1,
+            task_id="lc-001",
+            task_title="Test",
+            outcome="completed",
+            duration_seconds=10.0,
+            serve_verdict="APPROVED",
+            commit_hash="abc1234",
+            success=True
+        )
+        self.assertEqual(result.closed_epics, [])
+
+    def test_can_be_set(self):
+        """closed_epics can contain epic IDs."""
+        result = line_loop.IterationResult(
+            iteration=1,
+            task_id="lc-001",
+            task_title="Test",
+            outcome="completed",
+            duration_seconds=10.0,
+            serve_verdict="APPROVED",
+            commit_hash="abc1234",
+            success=True,
+            closed_epics=["lc-abc", "lc-def"]
+        )
+        self.assertEqual(result.closed_epics, ["lc-abc", "lc-def"])
+
+
+class TestReopenTaskForRetry(unittest.TestCase):
+    """Test _reopen_task_for_retry() helper."""
+
+    def test_noop_with_no_task_id(self):
+        """Does nothing when task_id is None."""
+        from line_loop.iteration import _reopen_task_for_retry
+        # Should not raise
+        _reopen_task_for_retry(None, Path("/tmp"))
+
+    def test_noop_with_empty_task_id(self):
+        """Does nothing when task_id is empty string."""
+        from line_loop.iteration import _reopen_task_for_retry
+        # Should not raise
+        _reopen_task_for_retry("", Path("/tmp"))
+
+    def test_calls_bd_update(self):
+        """Calls bd update with correct args when task_id is provided."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.iteration import _reopen_task_for_retry
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("line_loop.iteration.run_subprocess", return_value=mock_result) as mock_sub:
+            _reopen_task_for_retry("lc-123", Path("/tmp"))
+            mock_sub.assert_called_once()
+            args = mock_sub.call_args[0][0]
+            self.assertEqual(args, ["bd", "update", "lc-123", "--status=in_progress"])
+
+    def test_handles_subprocess_failure(self):
+        """Logs warning but does not raise on subprocess failure."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.iteration import _reopen_task_for_retry
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "not found"
+
+        with patch("line_loop.iteration.run_subprocess", return_value=mock_result):
+            # Should not raise
+            _reopen_task_for_retry("lc-bad", Path("/tmp"))
+
+    def test_handles_exception(self):
+        """Logs warning but does not raise on exception."""
+        from unittest.mock import patch
+        from line_loop.iteration import _reopen_task_for_retry
+
+        with patch("line_loop.iteration.run_subprocess", side_effect=Exception("timeout")):
+            # Should not raise
+            _reopen_task_for_retry("lc-err", Path("/tmp"))
+
+
+class TestRunIterationTargetTaskId(unittest.TestCase):
+    """Test that run_iteration passes target_task_id to cook."""
+
+    def test_cook_receives_task_id(self):
+        """Cook phase receives target_task_id as args."""
+        from unittest.mock import patch
+
+        # Create a mock snapshot with ready work
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+
+        # Mock run_phase to track calls and return appropriate results
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+
+        phase_calls = []
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            phase_calls.append((phase, kwargs.get("args", "")))
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_result
+            else:
+                return tidy_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-123"), \
+             patch("line_loop.iteration.get_task_title", return_value="Test task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(False, None)):
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot,
+                target_task_id="lc-123"
+            )
+
+        # Verify cook was called with target task ID as args
+        cook_calls = [(p, a) for p, a in phase_calls if p == "cook"]
+        self.assertEqual(len(cook_calls), 1)
+        self.assertEqual(cook_calls[0][1], "lc-123")
+
+    def test_cook_receives_empty_args_when_no_target(self):
+        """Cook phase receives empty args when no target_task_id."""
+        from unittest.mock import patch
+
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+
+        phase_calls = []
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            phase_calls.append((phase, kwargs.get("args", "")))
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_result
+            else:
+                return tidy_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-123"), \
+             patch("line_loop.iteration.get_task_title", return_value="Test task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(False, None)):
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot
+            )
+
+        # Verify cook was called with empty args
+        cook_calls = [(p, a) for p, a in phase_calls if p == "cook"]
+        self.assertEqual(len(cook_calls), 1)
+        self.assertEqual(cook_calls[0][1], "")
+
+
+class TestNeedsChangesReopensTask(unittest.TestCase):
+    """Test that NEEDS_CHANGES verdict reopens the task for retry."""
+
+    def test_task_reopened_on_needs_changes(self):
+        """Task is reopened via bd update when serve returns NEEDS_CHANGES."""
+        from unittest.mock import patch, MagicMock
+
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
+        )
+        needs_changes_output = "verdict: NEEDS_CHANGES\ncontinue: false\nblocking_issues: 1"
+        serve_needs = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output=needs_changes_output,
+            exit_code=0, duration_seconds=3.0
+        )
+
+        subprocess_calls = []
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_needs
+            return line_loop.PhaseResult(
+                phase=phase, success=True, output="",
+                exit_code=0, duration_seconds=1.0
+            )
+
+        mock_subprocess_result = MagicMock()
+        mock_subprocess_result.returncode = 0
+        mock_subprocess_result.stderr = ""
+
+        def mock_run_subprocess(cmd, timeout, cwd):
+            subprocess_calls.append(cmd)
+            return mock_subprocess_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-123"), \
+             patch("line_loop.iteration.get_task_title", return_value="Test task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(False, None)), \
+             patch("line_loop.iteration.run_subprocess", side_effect=mock_run_subprocess):
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                max_cook_retries=1,
+                json_output=True,
+                before_snapshot=snapshot,
+                target_task_id="lc-123"
+            )
+
+        # Find bd update calls that reopen the task
+        reopen_calls = [
+            cmd for cmd in subprocess_calls
+            if cmd == ["bd", "update", "lc-123", "--status=in_progress"]
+        ]
+        self.assertGreaterEqual(len(reopen_calls), 1,
+                                "Expected at least one bd update call to reopen task")
+
+
+class TestClosedEpicsPopulated(unittest.TestCase):
+    """Test that closed_epics is populated after close-service."""
+
+    def test_closed_epics_populated_after_close_service(self):
+        """closed_epics contains epic ID after successful close-service."""
+        from unittest.mock import patch
+
+        snapshot_before = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-abc.1.1", "Task", "task", parent="lc-abc.1")]
+        )
+        snapshot_after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[make_bead("lc-abc.1.1", "Task", "task", parent="lc-abc.1")]
+        )
+
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="done",
+            exit_code=0, duration_seconds=5.0
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+        plate_result = line_loop.PhaseResult(
+            phase="plate", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+        cs_result = line_loop.PhaseResult(
+            phase="close-service", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_result
+            elif phase == "tidy":
+                return tidy_result
+            elif phase == "plate":
+                return plate_result
+            elif phase == "close-service":
+                return cs_result
+            return tidy_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot_after), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-abc.1.1"), \
+             patch("line_loop.iteration.get_task_title", return_value="Task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(True, "lc-abc.1")), \
+             patch("line_loop.iteration.get_task_info", return_value={"title": "Feature", "issue_type": "feature"}), \
+             patch("line_loop.iteration.get_children", return_value=[{"issue_type": "task", "status": "closed"}]), \
+             patch("line_loop.iteration.check_epic_completion_after_feature", return_value=(True, "lc-abc")):
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot_before
+            )
+
+        self.assertEqual(result.closed_epics, ["lc-abc"])
+
+    def test_closed_epics_empty_when_no_epic_close(self):
+        """closed_epics is empty when no epic was closed."""
+        from unittest.mock import patch
+
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-001", "Task", "task")]
+        )
+
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="done",
+            exit_code=0, duration_seconds=5.0
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_result
+            else:
+                return tidy_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-001"), \
+             patch("line_loop.iteration.get_task_title", return_value="Task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(False, None)):
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot
+            )
+
+        self.assertEqual(result.closed_epics, [])
+
+
 if __name__ == "__main__":
     unittest.main()
