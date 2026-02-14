@@ -115,7 +115,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class CircuitBreaker:
-    """Stops loop after too many consecutive failures."""
+    """Stops loop after too many failures within a sliding window."""
     failure_threshold: int = 5
     window_size: int = CIRCUIT_BREAKER_WINDOW_SIZE
     window: list = field(default_factory=list)
@@ -130,7 +130,7 @@ class CircuitBreaker:
         """Check if circuit breaker has tripped (too many failures)."""
         if len(self.window) < self.failure_threshold:
             return False
-        recent_failures = sum(1 for s in self.window[-self.failure_threshold:] if not s)
+        recent_failures = sum(1 for s in self.window if not s)
         return recent_failures >= self.failure_threshold
 
     def reset(self):

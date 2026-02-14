@@ -227,7 +227,7 @@ class TestCircuitBreaker(unittest.TestCase):
         self.assertFalse(cb.is_open())
 
     def test_circuit_opens_after_failures(self):
-        """Circuit opens after threshold consecutive failures."""
+        """Circuit opens after reaching failure threshold in window."""
         cb = line_loop.CircuitBreaker(failure_threshold=3, window_size=5)
         cb.record(False)
         cb.record(False)
@@ -236,13 +236,32 @@ class TestCircuitBreaker(unittest.TestCase):
         self.assertTrue(cb.is_open())
 
     def test_success_keeps_circuit_closed(self):
-        """Successes keep the circuit closed."""
+        """Enough successes in window keep failure count below threshold."""
         cb = line_loop.CircuitBreaker(failure_threshold=3, window_size=5)
         cb.record(False)
         cb.record(False)
-        cb.record(True)  # Success interrupts failures
-        cb.record(False)
+        cb.record(True)  # Successes keep failure count below threshold
+        cb.record(True)
+        cb.record(True)
+        # 2 failures, 3 successes → 2 < 3 threshold → stays closed
         self.assertFalse(cb.is_open())
+
+    def test_full_window_evaluated_not_just_tail(self):
+        """Circuit breaker evaluates full window, not just last N items.
+
+        Pattern [F,F,F,F,F,S,F,F,F,F] has 9/10 failures.
+        Bug: checking only last 5 items gives [S,F,F,F,F] = 4 failures,
+        which doesn't trip the breaker despite 90% failure rate.
+        """
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        # Record pattern: 5 failures, 1 success, 4 failures
+        for _ in range(5):
+            cb.record(False)
+        cb.record(True)
+        for _ in range(4):
+            cb.record(False)
+        # 9/10 failures — should trip
+        self.assertTrue(cb.is_open())
 
     def test_reset_clears_state(self):
         """Reset clears all recorded results."""
