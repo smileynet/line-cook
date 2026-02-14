@@ -51,6 +51,9 @@ DEFAULT_MAX_ITERATIONS = 25         # Default loop iterations
 DEFAULT_IDLE_TIMEOUT = 180          # 3 minutes without tool actions triggers idle
 DEFAULT_IDLE_ACTION = "warn"        # "warn" or "terminate"
 
+# Periodic sync (long-running loop resilience)
+PERIODIC_SYNC_INTERVAL = 5          # Run bd sync every N iterations
+
 # Subprocess timeouts (in seconds)
 BD_COMMAND_TIMEOUT = 30             # Standard bd command timeout
 GIT_COMMAND_TIMEOUT = 10            # Short git commands (log, show)
@@ -3026,6 +3029,39 @@ def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
     return delay * jitter
 
 
+def should_periodic_sync(iteration: int, interval: int) -> bool:
+    """Check if periodic sync should run at this iteration.
+
+    Returns True when iteration is a positive multiple of interval.
+    Returns False at iteration 0 (before first iteration).
+    """
+    return iteration > 0 and iteration % interval == 0
+
+
+def periodic_sync(cwd: Path) -> bool:
+    """Run bd sync for periodic state refresh during long loops.
+
+    Args:
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        True if sync succeeded, False on any failure.
+    """
+    try:
+        result = run_subprocess(["bd", "sync"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"Periodic bd sync failed: {result.stderr}")
+            return False
+        logger.info("Periodic bd sync completed")
+        return True
+    except subprocess.TimeoutExpired:
+        logger.warning("Periodic bd sync timed out")
+        return False
+    except Exception as e:
+        logger.warning(f"Periodic bd sync error: {e}")
+        return False
+
+
 def get_excluded_epic_ids(snapshot: BeadSnapshot) -> set[str]:
     """Find IDs of Retrospective/Backlog epics in the snapshot.
 
@@ -4098,6 +4134,15 @@ def run_loop(
                 result=result,
                 project=project_name
             )
+
+        # Periodic bd sync to keep bead state fresh during long runs
+        if should_periodic_sync(iteration, PERIODIC_SYNC_INTERVAL):
+            sync_ok = periodic_sync(cwd)
+            if not json_output:
+                if sync_ok:
+                    print("  Periodic sync: ✓")
+                else:
+                    print("  Periodic sync: ⚠️ failed (continuing)")
 
         # Handle outcome
         if result.outcome == "no_work":

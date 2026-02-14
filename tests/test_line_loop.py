@@ -2869,5 +2869,108 @@ class TestSerializeFindingsCount(unittest.TestCase):
         self.assertEqual(data["findings_count"], 0)
 
 
+class TestPeriodicSync(unittest.TestCase):
+    """Test periodic_sync function for long-running loop resilience."""
+
+    def test_sync_runs_bd_sync(self):
+        """periodic_sync calls bd sync subprocess with correct args."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.loop import periodic_sync
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+        cwd = Path("/tmp/test")
+
+        with patch("line_loop.loop.run_subprocess", return_value=mock_result) as mock_run:
+            result = periodic_sync(cwd)
+
+        self.assertTrue(result)
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0]
+        self.assertEqual(args[0], ["bd", "sync"])
+        self.assertEqual(args[2], cwd)
+
+    def test_sync_uses_git_sync_timeout(self):
+        """periodic_sync uses GIT_SYNC_TIMEOUT for bd sync."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.loop import periodic_sync
+        from line_loop.config import GIT_SYNC_TIMEOUT
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("line_loop.loop.run_subprocess", return_value=mock_result) as mock_run:
+            periodic_sync(Path("/tmp/test"))
+
+        args = mock_run.call_args[0]
+        self.assertEqual(args[1], GIT_SYNC_TIMEOUT)
+
+    def test_sync_returns_false_on_failure(self):
+        """periodic_sync returns False when bd sync fails."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.loop import periodic_sync
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "sync failed"
+
+        with patch("line_loop.loop.run_subprocess", return_value=mock_result):
+            result = periodic_sync(Path("/tmp/test"))
+
+        self.assertFalse(result)
+
+    def test_sync_returns_false_on_timeout(self):
+        """periodic_sync returns False on subprocess timeout."""
+        import subprocess
+        from unittest.mock import patch
+        from line_loop.loop import periodic_sync
+
+        with patch("line_loop.loop.run_subprocess", side_effect=subprocess.TimeoutExpired("bd sync", 60)):
+            result = periodic_sync(Path("/tmp/test"))
+
+        self.assertFalse(result)
+
+    def test_sync_returns_false_on_exception(self):
+        """periodic_sync returns False on unexpected exception."""
+        from unittest.mock import patch
+        from line_loop.loop import periodic_sync
+
+        with patch("line_loop.loop.run_subprocess", side_effect=OSError("no such file")):
+            result = periodic_sync(Path("/tmp/test"))
+
+        self.assertFalse(result)
+
+    def test_config_has_periodic_sync_interval(self):
+        """PERIODIC_SYNC_INTERVAL is defined in config."""
+        from line_loop.config import PERIODIC_SYNC_INTERVAL
+
+        self.assertIsInstance(PERIODIC_SYNC_INTERVAL, int)
+        self.assertEqual(PERIODIC_SYNC_INTERVAL, 5)
+
+    def test_should_periodic_sync_true_at_interval(self):
+        """should_periodic_sync returns True at interval multiples."""
+        from line_loop.loop import should_periodic_sync
+
+        self.assertTrue(should_periodic_sync(5, 5))
+        self.assertTrue(should_periodic_sync(10, 5))
+        self.assertTrue(should_periodic_sync(15, 5))
+
+    def test_should_periodic_sync_false_between_intervals(self):
+        """should_periodic_sync returns False between intervals."""
+        from line_loop.loop import should_periodic_sync
+
+        self.assertFalse(should_periodic_sync(1, 5))
+        self.assertFalse(should_periodic_sync(3, 5))
+        self.assertFalse(should_periodic_sync(4, 5))
+
+    def test_should_periodic_sync_false_at_zero(self):
+        """should_periodic_sync returns False at iteration 0 (no sync before first iteration)."""
+        from line_loop.loop import should_periodic_sync
+
+        self.assertFalse(should_periodic_sync(0, 5))
+
+
 if __name__ == "__main__":
     unittest.main()

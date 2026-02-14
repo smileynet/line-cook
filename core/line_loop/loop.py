@@ -33,6 +33,7 @@ from .config import (
     EXCLUDED_EPIC_TITLES,
     GIT_SYNC_TIMEOUT,
     MAX_RETRY_DELAY_SECONDS,
+    PERIODIC_SYNC_INTERVAL,
     RECENT_ITERATIONS_DISPLAY,
     RECENT_ITERATIONS_LIMIT,
 )
@@ -102,6 +103,39 @@ def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
     delay = min(base * (2 ** attempt), MAX_RETRY_DELAY_SECONDS)
     jitter = random.uniform(0.8, 1.2)
     return delay * jitter
+
+
+def should_periodic_sync(iteration: int, interval: int) -> bool:
+    """Check if periodic sync should run at this iteration.
+
+    Returns True when iteration is a positive multiple of interval.
+    Returns False at iteration 0 (before first iteration).
+    """
+    return iteration > 0 and iteration % interval == 0
+
+
+def periodic_sync(cwd: Path) -> bool:
+    """Run bd sync for periodic state refresh during long loops.
+
+    Args:
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        True if sync succeeded, False on any failure.
+    """
+    try:
+        result = run_subprocess(["bd", "sync"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"Periodic bd sync failed: {result.stderr}")
+            return False
+        logger.info("Periodic bd sync completed")
+        return True
+    except subprocess.TimeoutExpired:
+        logger.warning("Periodic bd sync timed out")
+        return False
+    except Exception as e:
+        logger.warning(f"Periodic bd sync error: {e}")
+        return False
 
 
 def get_excluded_epic_ids(snapshot: BeadSnapshot) -> set[str]:
@@ -1176,6 +1210,15 @@ def run_loop(
                 result=result,
                 project=project_name
             )
+
+        # Periodic bd sync to keep bead state fresh during long runs
+        if should_periodic_sync(iteration, PERIODIC_SYNC_INTERVAL):
+            sync_ok = periodic_sync(cwd)
+            if not json_output:
+                if sync_ok:
+                    print("  Periodic sync: ✓")
+                else:
+                    print("  Periodic sync: ⚠️ failed (continuing)")
 
         # Handle outcome
         if result.outcome == "no_work":
