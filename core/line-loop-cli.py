@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Import everything from the line_loop package
+# Import from the line_loop package
 from line_loop import (
     # Config constants
     DEFAULT_MAX_ITERATIONS,
@@ -210,8 +210,8 @@ Examples:
     parser.add_argument(
         "--idle-timeout",
         type=int,
-        default=DEFAULT_IDLE_TIMEOUT,
-        help=f"Seconds without tool actions before idle triggers (default: {DEFAULT_IDLE_TIMEOUT}). Set to 0 to disable."
+        default=None,
+        help=f"Override idle timeout for all phases (default: per-phase, see DEFAULT_PHASE_IDLE_TIMEOUTS). Set to 0 to disable."
     )
     parser.add_argument(
         "--idle-action",

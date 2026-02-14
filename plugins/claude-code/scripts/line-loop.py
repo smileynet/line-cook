@@ -51,6 +51,9 @@ DEFAULT_MAX_ITERATIONS = 25         # Default loop iterations
 DEFAULT_IDLE_TIMEOUT = 180          # 3 minutes without tool actions triggers idle
 DEFAULT_IDLE_ACTION = "warn"        # "warn" or "terminate"
 
+# Periodic sync (long-running loop resilience)
+PERIODIC_SYNC_INTERVAL = 5          # Run bd sync every N iterations
+
 # Subprocess timeouts (in seconds)
 BD_COMMAND_TIMEOUT = 30             # Standard bd command timeout
 GIT_COMMAND_TIMEOUT = 10            # Short git commands (log, show)
@@ -80,10 +83,20 @@ EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
     'cook': 1200,           # 20 min - Main work phase: TDD cycle, file edits, test runs
-    'serve': 600,           # 10 min - Code review by sous-chef subagent
+    'serve': 450,           # 7.5 min - Code review by sous-chef subagent
     'tidy': 240,            # 4 min - Commit, bd sync, git push
-    'plate': 600,           # 10 min - BDD review via maître, acceptance doc
-    'close-service': 900,   # 15 min - Critic E2E review + epic acceptance doc
+    'plate': 450,           # 7.5 min - BDD review via maître, acceptance doc
+    'close-service': 750,   # 12.5 min - Critic E2E review + epic acceptance doc
+}
+
+# Per-phase idle timeouts (in seconds) - used when no explicit idle_timeout passed
+# Phases with longer expected pauses (e.g., serve waiting for subagent) get longer idle thresholds
+DEFAULT_PHASE_IDLE_TIMEOUTS = {
+    'cook': 180,            # 3 min - Active coding, frequent tool use expected
+    'serve': 300,           # 5 min - Review may have long pauses between actions
+    'tidy': 90,             # 1.5 min - Quick commit/push, should be fast
+    'plate': 300,           # 5 min - BDD review, subagent pauses expected
+    'close-service': 600,   # 10 min - Epic close involves extensive review
 }
 
 
@@ -115,7 +128,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class CircuitBreaker:
-    """Stops loop after too many consecutive failures."""
+    """Stops loop after too many failures within a sliding window."""
     failure_threshold: int = 5
     window_size: int = CIRCUIT_BREAKER_WINDOW_SIZE
     window: list = field(default_factory=list)
@@ -130,7 +143,7 @@ class CircuitBreaker:
         """Check if circuit breaker has tripped (too many failures)."""
         if len(self.window) < self.failure_threshold:
             return False
-        recent_failures = sum(1 for s in self.window[-self.failure_threshold:] if not s)
+        recent_failures = sum(1 for s in self.window if not s)
         return recent_failures >= self.failure_threshold
 
     def reset(self):
@@ -330,10 +343,15 @@ class BeadSnapshot:
     in_progress: list[BeadInfo] = field(default_factory=list)
     closed: list[BeadInfo] = field(default_factory=list)
     timestamp: str = ""
+    _index: Optional[dict[str, BeadInfo]] = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
+
+    def _build_index(self) -> dict[str, BeadInfo]:
+        """Build dict mapping bead ID to BeadInfo across all lists."""
+        return {b.id: b for b in self.ready + self.in_progress + self.closed}
 
     @property
     def ready_ids(self) -> list[str]:
@@ -358,11 +376,10 @@ class BeadSnapshot:
         return [b.id for b in self.closed]
 
     def get_by_id(self, bead_id: str) -> Optional[BeadInfo]:
-        """Look up a BeadInfo by ID across all lists."""
-        for b in self.ready + self.in_progress + self.closed:
-            if b.id == bead_id:
-                return b
-        return None
+        """Look up a BeadInfo by ID across all lists. Uses lazy dict index for O(1) lookup."""
+        if self._index is None:
+            self._index = self._build_index()
+        return self._index.get(bead_id)
 
 
 @dataclass
@@ -522,6 +539,9 @@ class IterationResult:
 
     # Bead delta (what changed during this iteration)
     delta: Optional[BeadDelta] = None
+
+    # Findings filed during this iteration (from delta.newly_filed)
+    findings_count: int = 0
 
     # Epics closed during this iteration (for branch merge in run_loop)
     closed_epics: list[str] = field(default_factory=list)
@@ -1008,6 +1028,21 @@ def check_idle(last_action_time: Optional[datetime], idle_timeout: int) -> bool:
     return idle_seconds >= idle_timeout
 
 
+def resolve_idle_timeout(phase: str, idle_timeout: Optional[int]) -> int:
+    """Resolve the effective idle timeout for a phase.
+
+    Args:
+        phase: Phase name (cook, serve, tidy, plate, close-service)
+        idle_timeout: Explicit override, or None to use per-phase default
+
+    Returns:
+        Effective idle timeout in seconds
+    """
+    if idle_timeout is not None:
+        return idle_timeout
+    return DEFAULT_PHASE_IDLE_TIMEOUTS.get(phase, DEFAULT_IDLE_TIMEOUT)
+
+
 def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedProcess:
     """Run subprocess with logging, timeout handling, and structured output.
 
@@ -1076,7 +1111,7 @@ def run_phase(
     timeout: Optional[int] = None,
     on_progress: Optional[Callable[[int, str], None]] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
@@ -1089,15 +1124,18 @@ def run_phase(
         on_progress: Optional callback for progress updates.
             Called with (action_count, last_action_timestamp) when new actions detected.
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
-        idle_timeout: Seconds without tool actions before triggering idle (default: 180)
+        idle_timeout: Override idle timeout, or None to use per-phase default from
+            DEFAULT_PHASE_IDLE_TIMEOUTS (falls back to DEFAULT_IDLE_TIMEOUT)
         idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: warn)
 
     Returns:
         PhaseResult with output, signals, and success status
     """
+    idle_timeout = resolve_idle_timeout(phase, idle_timeout)
     if timeout is None:
         timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
-        timeout = timeouts.get(phase, DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT))
+        fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
+        timeout = timeouts.get(phase, fallback)
 
     skill = f"/line:{phase}"
     if args:
@@ -1326,9 +1364,10 @@ def print_phase_progress(phase: str, status: str, duration: float = 0, extra: st
     """
     if status == "start":
         print(f"  [{phase}] start")
+    elif extra:
+        print(f"  [{phase}] {extra} ({format_duration(duration)})")
     else:
-        msg = f"  [{phase}] {extra} ({format_duration(duration)})" if extra else f"  [{phase}] done ({format_duration(duration)})"
-        print(msg)
+        print(f"  [{phase}] done ({format_duration(duration)})")
 
 
 def print_human_iteration(result: IterationResult, retries: int = 0):
@@ -1372,7 +1411,10 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
     # Bead state changes
     ready_str = f"ready {result.before_ready}\u2192{result.after_ready}"
     in_prog_str = f"in_progress {result.before_in_progress}\u2192{result.after_in_progress}"
-    closed_count = len(result.delta.newly_closed) if result.delta else (1 if result.success else 0)
+    if result.delta:
+        closed_count = len(result.delta.newly_closed)
+    else:
+        closed_count = 1 if result.success else 0
     closed_str = f"+{closed_count}" if closed_count > 0 else ""
     print(f"\n  Beads: {ready_str} | {in_prog_str}" + (f" | closed {closed_str}" if closed_str else ""))
 
@@ -1389,6 +1431,10 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         if result.delta.newly_filed:
             filed_items = [f"{b.id} ({b.title})" if b.title else b.id for b in result.delta.newly_filed]
             print(f"    filed:  {', '.join(filed_items)}")
+
+    # Findings filed during this iteration
+    if result.findings_count > 0:
+        print(f"  Findings: {result.findings_count} filed")
 
     if result.outcome == "needs_retry" and retries > 0:
         print(f"\n  Retrying ({retries})...")
@@ -1432,7 +1478,22 @@ def parse_bd_json_item(data: Any) -> Optional[dict]:
     return None
 
 
-def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[str]:
+def _prefer_target_or_deepest(candidates: set[str], target_task_id: Optional[str]) -> str:
+    """Pick target if present in candidates, else the deepest leaf by dot count.
+
+    Leaf nodes have more dots in their ID (e.g., "lc-001.1.1" is deeper
+    than "lc-001.2"), so max by dot count selects the most specific task.
+    """
+    if target_task_id and target_task_id in candidates:
+        return target_task_id
+    return max(candidates, key=lambda x: x.count('.'))
+
+
+def detect_worked_task(
+    before: BeadSnapshot,
+    after: BeadSnapshot,
+    target_task_id: Optional[str] = None,
+) -> Optional[str]:
     """Detect which task was worked on by comparing bead state snapshots.
 
     Uses state transitions to identify the task that was claimed or completed
@@ -1441,17 +1502,23 @@ def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[st
     2. Task moved from ready to closed (completed in one go)
     3. Task was in_progress and is now closed (completed)
 
+    When target_task_id is provided and appears in the changed set, it is
+    preferred over the dot-count heuristic. This improves task attribution
+    when multiple tasks change in the same iteration (e.g., during retries).
+
     Args:
         before: BeadSnapshot captured before the iteration.
         after: BeadSnapshot captured after the iteration.
+        target_task_id: Optional task ID to prefer when present in changed set.
 
     Returns:
         Task ID that was worked on, or None if no task state change detected.
-        Returns the first matching task if multiple tasks changed (rare).
     """
     # Check for task that moved from ready to in_progress
     new_in_progress = set(after.in_progress_ids) - set(before.in_progress_ids)
     if new_in_progress:
+        if target_task_id and target_task_id in new_in_progress:
+            return target_task_id
         return next(iter(new_in_progress))
 
     # Check for task that moved from ready to closed
@@ -1459,16 +1526,14 @@ def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[st
     disappeared_ready = set(before.ready_ids) - set(after.ready_ids)
     worked = new_closed & disappeared_ready
     if worked:
-        # Prefer leaf nodes (more dots = deeper in hierarchy)
-        return max(worked, key=lambda x: x.count('.'))
+        return _prefer_target_or_deepest(worked, target_task_id)
 
     # Check for any task that was in_progress and is now closed
     was_in_progress = set(before.in_progress_ids)
     now_closed = set(after.closed_ids)
     completed = was_in_progress & now_closed
     if completed:
-        # Prefer leaf nodes (more dots = deeper in hierarchy)
-        return max(completed, key=lambda x: x.count('.'))
+        return _prefer_target_or_deepest(completed, target_task_id)
 
     return None
 
@@ -1627,6 +1692,73 @@ def is_descendant_of_epic(bead: BeadInfo, epic_id: str, snapshot: BeadSnapshot, 
     return False
 
 
+def build_epic_ancestor_map(snapshot: BeadSnapshot, cwd: Path) -> dict[str, Optional[str]]:
+    """Build a map from bead ID to its epic ancestor ID.
+
+    Walks every ready_work item's parent chain once, caching all traversed
+    beads. Subsequent lookups for beads sharing ancestors hit the cache
+    instead of re-walking the hierarchy.
+
+    Args:
+        snapshot: Current BeadSnapshot with ready/in_progress/closed beads.
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        Dict mapping bead_id to epic ancestor ID, or None if no epic ancestor.
+    """
+    cache: dict[str, Optional[str]] = {}
+
+    for bead in snapshot.ready_work:
+        if bead.id in cache:
+            continue
+
+        # Walk parent chain, collecting intermediate bead IDs
+        chain: list[str] = [bead.id]
+        parent_id: Optional[str] = bead.parent
+        epic_id: Optional[str] = None
+
+        for _ in range(HIERARCHY_MAX_DEPTH):
+            if not parent_id:
+                break
+            if parent_id in cache:
+                epic_id = cache[parent_id]
+                break
+            parent = snapshot.get_by_id(parent_id)
+            if parent:
+                chain.append(parent_id)
+                if parent.issue_type == "epic":
+                    epic_id = parent_id
+                    break
+                parent_id = parent.parent
+            else:
+                # Not in snapshot — query bd
+                try:
+                    result = run_subprocess(
+                        ["bd", "show", parent_id, "--json"],
+                        BD_COMMAND_TIMEOUT, cwd
+                    )
+                    if result.returncode != 0:
+                        break
+                    data = json.loads(result.stdout)
+                    issue = parse_bd_json_item(data)
+                    if not issue:
+                        break
+                    chain.append(parent_id)
+                    if issue.get("issue_type") == "epic":
+                        epic_id = parent_id
+                        break
+                    parent_id = issue.get("parent")
+                except Exception as e:
+                    logger.debug(f"Error building ancestor map for {parent_id}: {e}")
+                    break
+
+        # Record result for all beads in the chain
+        for bid in chain:
+            cache[bid] = epic_id
+
+    return cache
+
+
 def _parse_bead_info(issue: dict) -> BeadInfo:
     """Parse a bd JSON issue dict into a BeadInfo object."""
     priority = issue.get("priority")
@@ -1780,6 +1912,77 @@ def get_children(parent_id: str, cwd: Path) -> list[dict]:
     except Exception as e:
         logger.debug(f"Error getting children for {parent_id}: {e}")
     return []
+
+
+def _cached_get_task_info(
+    task_id: str, cwd: Path, cache: dict[str, Optional[dict]]
+) -> Optional[dict]:
+    """Get task info with caching to avoid duplicate subprocess calls.
+
+    Used within run_iteration to avoid re-querying the same task/feature/epic
+    info during the completion cascade (check_feature_completion ->
+    check_epic_completion_after_feature -> display).
+
+    Args:
+        task_id: The bead issue ID.
+        cwd: Working directory containing the .beads project.
+        cache: Dict mapping task_id to cached result (including None).
+
+    Returns:
+        Task info dict, or None if not found.
+    """
+    if task_id in cache:
+        return cache[task_id]
+    result = get_task_info(task_id, cwd)
+    cache[task_id] = result
+    return result
+
+
+def _cached_get_children(
+    parent_id: str, cwd: Path, cache: dict[str, list[dict]]
+) -> list[dict]:
+    """Get children with caching to avoid duplicate subprocess calls.
+
+    Args:
+        parent_id: The bead issue ID of the parent.
+        cwd: Working directory containing the .beads project.
+        cache: Dict mapping parent_id to cached children list.
+
+    Returns:
+        List of child issue dicts.
+    """
+    if parent_id in cache:
+        return cache[parent_id]
+    result = get_children(parent_id, cwd)
+    cache[parent_id] = result
+    return result
+
+
+def _get_title_from_snapshot_or_cache(
+    task_id: str,
+    snapshot: BeadSnapshot,
+    task_info_cache: dict[str, Optional[dict]]
+) -> Optional[str]:
+    """Get task title from snapshot or task_info_cache without subprocess.
+
+    Checks the snapshot first (O(1) via dict index), then the task_info_cache.
+    Returns None if not found in either source (avoids subprocess call).
+
+    Args:
+        task_id: The bead issue ID.
+        snapshot: BeadSnapshot with ready/in_progress/closed beads.
+        task_info_cache: Dict of cached get_task_info results.
+
+    Returns:
+        Task title string, or None if not found.
+    """
+    bead = snapshot.get_by_id(task_id)
+    if bead:
+        return bead.title
+    cached = task_info_cache.get(task_id)
+    if cached:
+        return cached.get("title")
+    return None
 
 
 def get_latest_commit(cwd: Path) -> Optional[str]:
@@ -1987,52 +2190,78 @@ def check_task_completed(
     return completed, ",".join(all_signals) if all_signals else "none"
 
 
-def check_feature_completion(task_id: str, cwd: Path) -> tuple[bool, Optional[str]]:
+def check_feature_completion(
+    task_id: str,
+    cwd: Path,
+    task_info_cache: Optional[dict[str, Optional[dict]]] = None,
+    children_cache: Optional[dict[str, list[dict]]] = None,
+) -> tuple[bool, Optional[str]]:
     """Check if completing a task completes its parent feature.
+
+    Args:
+        task_id: The completed task's bead ID.
+        cwd: Working directory containing the .beads project.
+        task_info_cache: Optional shared cache for get_task_info results.
+        children_cache: Optional shared cache for get_children results.
 
     Returns: (feature_complete, feature_id)
     """
-    task_info = get_task_info(task_id, cwd)
+    ti_cache = task_info_cache if task_info_cache is not None else {}
+    ch_cache = children_cache if children_cache is not None else {}
+
+    task_info = _cached_get_task_info(task_id, cwd, ti_cache)
     if not task_info or not task_info.get("parent"):
         return False, None
 
     parent_id = task_info["parent"]
-    parent_info = get_task_info(parent_id, cwd)
+    parent_info = _cached_get_task_info(parent_id, cwd, ti_cache)
 
     # Only proceed if parent is a feature
     if not parent_info or parent_info.get("issue_type") != "feature":
         return False, None
 
-    # Check if all siblings are closed
-    siblings = get_children(parent_id, cwd)
-    for sibling in siblings:
-        if sibling.get("status") != "closed":
-            return False, None
+    # Check if all children are closed
+    children = _cached_get_children(parent_id, cwd, ch_cache)
+    if not all(c.get("status") == "closed" for c in children):
+        return False, None
 
     return True, parent_id
 
 
-def check_epic_completion_after_feature(feature_id: str, cwd: Path) -> tuple[bool, Optional[str]]:
+def check_epic_completion_after_feature(
+    feature_id: str,
+    cwd: Path,
+    task_info_cache: Optional[dict[str, Optional[dict]]] = None,
+    children_cache: Optional[dict[str, list[dict]]] = None,
+) -> tuple[bool, Optional[str]]:
     """Check if completing a feature completes its parent epic.
+
+    Args:
+        feature_id: The completed feature's bead ID.
+        cwd: Working directory containing the .beads project.
+        task_info_cache: Optional shared cache for get_task_info results.
+        children_cache: Optional shared cache for get_children results.
 
     Returns: (epic_complete, epic_id)
     """
-    feature_info = get_task_info(feature_id, cwd)
+    ti_cache = task_info_cache if task_info_cache is not None else {}
+    ch_cache = children_cache if children_cache is not None else {}
+
+    feature_info = _cached_get_task_info(feature_id, cwd, ti_cache)
     if not feature_info or not feature_info.get("parent"):
         return False, None
 
     epic_id = feature_info["parent"]
-    epic_info = get_task_info(epic_id, cwd)
+    epic_info = _cached_get_task_info(epic_id, cwd, ti_cache)
 
     # Only proceed if parent is an epic
     if not epic_info or epic_info.get("issue_type") != "epic":
         return False, None
 
     # Check if all children are closed
-    children = get_children(epic_id, cwd)
-    for child in children:
-        if child.get("status") != "closed":
-            return False, None
+    children = _cached_get_children(epic_id, cwd, ch_cache)
+    if not all(c.get("status") == "closed" for c in children):
+        return False, None
 
     return True, epic_id
 
@@ -2299,7 +2528,7 @@ def run_iteration(
     json_output: bool = False,
     progress_state: Optional[ProgressState] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     before_snapshot: Optional[BeadSnapshot] = None,
     target_task_id: Optional[str] = None
@@ -2311,7 +2540,7 @@ def run_iteration(
     completion triggers.
 
     Phase timeouts are controlled by phase_timeouts dict or DEFAULT_PHASE_TIMEOUTS
-    (cook=1200s, serve=600s, tidy=240s, plate=600s).
+    (cook=1200s, serve=450s, tidy=240s, plate=450s, close-service=750s).
 
     Args:
         iteration: Current iteration number
@@ -2321,7 +2550,7 @@ def run_iteration(
         json_output: If True, suppress human-readable phase output
         progress_state: Optional progress state for real-time status updates
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
-        idle_timeout: Seconds without tool actions before triggering idle
+        idle_timeout: Override idle timeout, or None to use per-phase defaults
         idle_action: Action on idle - "warn" or "terminate"
         before_snapshot: Optional pre-captured snapshot (avoids redundant bd query)
     """
@@ -2362,6 +2591,10 @@ def run_iteration(
     task_id: Optional[str] = None
     after: Optional[BeadSnapshot] = None  # Will be set during phase execution
 
+    # Caches for task_info and children queries (persist across retry loop)
+    task_info_cache: dict[str, Optional[dict]] = {}
+    children_cache: dict[str, list[dict]] = {}
+
     # Create progress callback if progress_state is available
     def progress_callback(action_count: int, last_action_time: str):
         if progress_state:
@@ -2393,9 +2626,9 @@ def run_iteration(
         if cook_result.error and "Timeout" in cook_result.error:
             # Timeout during cook - check if task completed anyway
             after_cook = get_bead_snapshot(cwd)
-            task_id = detect_worked_task(before, after_cook)
+            task_id = detect_worked_task(before, after_cook, target_task_id=target_task_id)
             if task_id:
-                task_info = get_task_info(task_id, cwd)
+                task_info = _cached_get_task_info(task_id, cwd, task_info_cache)
                 if task_info and task_info.get("status") == "closed":
                     logger.info(f"Cook timed out but task {task_id} was closed")
                     if not json_output:
@@ -2414,7 +2647,7 @@ def run_iteration(
                     return IterationResult(
                         iteration=iteration,
                         task_id=task_id,
-                        task_title=get_task_title(task_id, cwd) if task_id else None,
+                        task_title=_get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None,
                         outcome="timeout",
                         duration_seconds=duration,
                         serve_verdict=None,
@@ -2471,14 +2704,13 @@ def run_iteration(
 
         # Cook succeeded, detect task (skip if already detected in timeout path)
         if not task_completed_despite_timeout:
-            after_cook = get_bead_snapshot(cwd)
-            task_id = detect_worked_task(before, after_cook)
+            task_id = target_task_id  # Use caller's target; falls back to detect_worked_task post-tidy
         logger.debug(f"Detected task: {task_id}")
 
         # Update progress state with detected task for status visibility
         if progress_state and task_id:
             progress_state.current_task = task_id
-            progress_state.current_task_title = get_task_title(task_id, cwd)
+            progress_state.current_task_title = _get_title_from_snapshot_or_cache(task_id, before, task_info_cache)
 
         # Note: KITCHEN_COMPLETE signal indicates cook is confident, but we
         # still run serve for code review validation
@@ -2527,7 +2759,7 @@ def run_iteration(
                 feedback = parse_serve_feedback(
                     serve_result.output,
                     task_id=task_id,
-                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    task_title=_get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None,
                     attempt=cook_attempts
                 )
                 if feedback:
@@ -2547,7 +2779,7 @@ def run_iteration(
                 return IterationResult(
                     iteration=iteration,
                     task_id=task_id,
-                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    task_title=_get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None,
                     outcome="blocked",
                     duration_seconds=duration,
                     serve_verdict="BLOCKED",
@@ -2587,7 +2819,7 @@ def run_iteration(
                 feedback = parse_serve_feedback(
                     serve_result.output,
                     task_id=task_id,
-                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    task_title=_get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None,
                     attempt=cook_attempts
                 )
                 if feedback:
@@ -2607,7 +2839,7 @@ def run_iteration(
                 return IterationResult(
                     iteration=iteration,
                     task_id=task_id,
-                    task_title=get_task_title(task_id, cwd) if task_id else None,
+                    task_title=_get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None,
                     outcome="blocked",
                     duration_seconds=duration,
                     serve_verdict="BLOCKED",
@@ -2646,7 +2878,7 @@ def run_iteration(
         return IterationResult(
             iteration=iteration,
             task_id=task_id,
-            task_title=get_task_title(task_id, cwd) if task_id else None,
+            task_title=_get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None,
             outcome="needs_retry",
             duration_seconds=duration,
             serve_verdict=serve_verdict,
@@ -2691,9 +2923,8 @@ def run_iteration(
     after = get_bead_snapshot(cwd)
 
     # Determine final outcome
-    task_id = task_id or detect_worked_task(before, after)
-    task_title = get_task_title(task_id, cwd) if task_id else None
-    commit_hash = get_latest_commit(cwd)
+    task_id = task_id or detect_worked_task(before, after, target_task_id=target_task_id)
+    task_title = _get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None
 
     # Check if task was closed
     new_closed = set(after.closed_ids) - set(before.closed_ids)
@@ -2706,13 +2937,14 @@ def run_iteration(
     # ===== PHASE 4: FEATURE/EPIC COMPLETION CHECK =====
     if task_id and task_closed:
         # Check if completing this task completes a feature
-        feature_complete, feature_id = check_feature_completion(task_id, cwd)
+        feature_complete, feature_id = check_feature_completion(task_id, cwd, task_info_cache=task_info_cache, children_cache=children_cache)
         if feature_complete and feature_id:
             logger.info(f"Feature {feature_id} complete - running plate phase")
             if not json_output:
-                feature_info = get_task_info(feature_id, cwd)
+                # Reuse cached data populated by check_feature_completion
+                feature_info = task_info_cache.get(feature_id)
                 feature_title = feature_info.get("title", "") if feature_info else ""
-                feature_children = get_children(feature_id, cwd)
+                feature_children = children_cache.get(feature_id, [])
                 task_count = len([c for c in feature_children if c.get("issue_type") == "task"])
                 print_feature_completion(feature_id, feature_title, task_count)
                 print_phase_progress("plate", "start")
@@ -2735,7 +2967,7 @@ def run_iteration(
                                        f"{_action_dots(len(plate_result.actions))}{len(plate_result.actions)} actions, feature {feature_id} validated")
                 logger.info(f"Plate phase completed for feature {feature_id}")
                 # Check if completing the feature completes an epic
-                epic_complete, epic_id = check_epic_completion_after_feature(feature_id, cwd)
+                epic_complete, epic_id = check_epic_completion_after_feature(feature_id, cwd, task_info_cache=task_info_cache, children_cache=children_cache)
                 if epic_complete and epic_id:
                     logger.info(f"Epic {epic_id} complete - running close-service phase")
                     if not json_output:
@@ -2767,6 +2999,7 @@ def run_iteration(
 
     # Compute bead delta for visibility
     delta = BeadDelta.compute(before, after)
+    findings_count = len(delta.newly_filed) if delta else 0
 
     logger.info(f"Iteration {iteration} {outcome}: task={task_id}, duration={duration:.1f}s, actions={len(all_actions)}")
 
@@ -2788,6 +3021,7 @@ def run_iteration(
         after_state=after_state,
         actions=all_actions,
         delta=delta,
+        findings_count=findings_count,
         closed_epics=closed_epic_ids
     )
 
@@ -2827,6 +3061,39 @@ def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
     return delay * jitter
 
 
+def should_periodic_sync(iteration: int, interval: int) -> bool:
+    """Check if periodic sync should run at this iteration.
+
+    Returns True when iteration is a positive multiple of interval.
+    Returns False at iteration 0 (before first iteration).
+    """
+    return iteration > 0 and iteration % interval == 0
+
+
+def periodic_sync(cwd: Path) -> bool:
+    """Run bd sync for periodic state refresh during long loops.
+
+    Args:
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        True if sync succeeded, False on any failure.
+    """
+    try:
+        result = run_subprocess(["bd", "sync"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"Periodic bd sync failed: {result.stderr}")
+            return False
+        logger.info("Periodic bd sync completed")
+        return True
+    except subprocess.TimeoutExpired:
+        logger.warning("Periodic bd sync timed out")
+        return False
+    except Exception as e:
+        logger.warning(f"Periodic bd sync error: {e}")
+        return False
+
+
 def get_excluded_epic_ids(snapshot: BeadSnapshot) -> set[str]:
     """Find IDs of Retrospective/Backlog epics in the snapshot.
 
@@ -2849,7 +3116,8 @@ def get_excluded_epic_ids(snapshot: BeadSnapshot) -> set[str]:
 def detect_first_epic(
     snapshot: BeadSnapshot, excluded_ids: set[str],
     skip_ids: set[str], cwd: Path,
-    exhausted_ids: Optional[set[str]] = None
+    exhausted_ids: Optional[set[str]] = None,
+    ancestor_map: Optional[dict[str, Optional[str]]] = None
 ) -> Optional[tuple[str, str]]:
     """Find the epic of the highest-priority ready work item.
 
@@ -2862,6 +3130,7 @@ def detect_first_epic(
         skip_ids: Set of task IDs to skip (from failure tracking).
         cwd: Working directory containing the .beads project.
         exhausted_ids: Set of epic IDs already tried with no remaining work.
+        ancestor_map: Pre-computed bead→epic map (avoids per-item hierarchy walks).
 
     Returns:
         Tuple of (epic_id, epic_title) or None if no epic found.
@@ -2870,9 +3139,16 @@ def detect_first_epic(
     for bead in snapshot.ready_work:
         if bead.id in skip_ids:
             continue
-        epic = find_epic_ancestor(bead, snapshot, cwd)
-        if epic and epic.id not in excluded_ids and epic.id not in exhausted_set:
-            return (epic.id, epic.title)
+        if ancestor_map is not None:
+            epic_id = ancestor_map.get(bead.id)
+            if epic_id and epic_id not in excluded_ids and epic_id not in exhausted_set:
+                epic_info = snapshot.get_by_id(epic_id)
+                title = epic_info.title if epic_info else ""
+                return (epic_id, title)
+        else:
+            epic = find_epic_ancestor(bead, snapshot, cwd)
+            if epic and epic.id not in excluded_ids and epic.id not in exhausted_set:
+                return (epic.id, epic.title)
     return None
 
 
@@ -2900,9 +3176,17 @@ def validate_epic_id(epic_id: str, cwd: Path) -> Optional[str]:
 
 def _filter_excluded_epics(
     beads: list[BeadInfo], excluded_ids: set[str],
-    snapshot: BeadSnapshot, cwd: Path
+    snapshot: BeadSnapshot, cwd: Path,
+    ancestor_map: Optional[dict[str, Optional[str]]] = None
 ) -> list[BeadInfo]:
     """Filter out beads that descend from excluded epics."""
+    if ancestor_map is not None:
+        result = []
+        for b in beads:
+            epic_id = ancestor_map.get(b.id)
+            if epic_id is None or epic_id not in excluded_ids:
+                result.append(b)
+        return result
     result = []
     for b in beads:
         ancestor = find_epic_ancestor(b, snapshot, cwd)
@@ -2916,7 +3200,8 @@ def get_next_ready_task(
     skip_ids: Optional[set[str]] = None,
     snapshot: Optional[BeadSnapshot] = None,
     epic_filter: Optional[str] = None,
-    excluded_epic_ids: Optional[set[str]] = None
+    excluded_epic_ids: Optional[set[str]] = None,
+    ancestor_map: Optional[dict[str, Optional[str]]] = None
 ) -> Optional[tuple[str, str]]:
     """Get the next ready task ID and title before cook runs.
 
@@ -2930,6 +3215,7 @@ def get_next_ready_task(
         snapshot: Optional BeadSnapshot to use instead of re-querying bd
         epic_filter: Only return tasks under this epic ID
         excluded_epic_ids: Skip tasks under these epic IDs
+        ancestor_map: Pre-computed bead→epic map (avoids per-item hierarchy walks).
 
     Returns:
         Tuple of (task_id, task_title) or None if no tasks ready
@@ -2939,12 +3225,21 @@ def get_next_ready_task(
     if snapshot:
         candidates = snapshot.ready_work
         if epic_filter:
-            candidates = [
-                b for b in candidates
-                if is_descendant_of_epic(b, epic_filter, snapshot, cwd)
-            ]
+            if ancestor_map is not None:
+                candidates = [
+                    b for b in candidates
+                    if ancestor_map.get(b.id) == epic_filter
+                ]
+            else:
+                candidates = [
+                    b for b in candidates
+                    if is_descendant_of_epic(b, epic_filter, snapshot, cwd)
+                ]
         elif excluded_epic_ids:
-            candidates = _filter_excluded_epics(candidates, excluded_epic_ids, snapshot, cwd)
+            candidates = _filter_excluded_epics(
+                candidates, excluded_epic_ids, snapshot, cwd,
+                ancestor_map=ancestor_map
+            )
         # Two-pass: prefer tasks over features
         for bead in candidates:
             if bead.id not in skip_ids and bead.issue_type == "task":
@@ -3004,7 +3299,9 @@ def serialize_iteration_for_status(result: IterationResult) -> dict:
         "completed_at": datetime.now().isoformat(),
         # Action counts for watch mode
         "action_count": result.total_actions,
-        "action_types": result.action_counts
+        "action_types": result.action_counts,
+        # Findings filed during iteration
+        "findings_count": result.findings_count
     }
 
 
@@ -3043,6 +3340,7 @@ def serialize_full_iteration(result: IterationResult) -> dict:
         },
         "action_count": result.total_actions,
         "action_types": result.action_counts,
+        "findings_count": result.findings_count,
         "actions": [serialize_action(a) for a in result.actions]
     }
     if result.delta:
@@ -3276,12 +3574,9 @@ def write_status_file(
     # Add recent_iterations (limited for display)
     if iterations:
         completed = [i for i in iterations if i.outcome == "completed"]
-        if len(completed) > RECENT_ITERATIONS_DISPLAY:
-            recent = completed[-RECENT_ITERATIONS_DISPLAY:]
-        else:
-            recent = completed
         status["recent_iterations"] = [
-            serialize_iteration_for_status(i) for i in recent
+            serialize_iteration_for_status(i)
+            for i in completed[-RECENT_ITERATIONS_DISPLAY:]
         ]
     else:
         status["recent_iterations"] = []
@@ -3600,7 +3895,7 @@ def run_loop(
     skip_initial_sync: bool = False,
     phase_timeouts: Optional[dict[str, int]] = None,
     max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     epic_mode: Optional[str] = None
 ) -> LoopReport:
@@ -3609,9 +3904,10 @@ def run_loop(
     Individual phases have their own timeouts via phase_timeouts dict
     or DEFAULT_PHASE_TIMEOUTS.
 
-    Idle detection: If idle_timeout > 0, phases will be checked for idle
-    (no tool actions within threshold). idle_action determines response:
-    "warn" logs a warning, "terminate" stops the phase.
+    Idle detection: Each phase has a per-phase idle timeout (see
+    DEFAULT_PHASE_IDLE_TIMEOUTS). Pass idle_timeout to override all phases,
+    or 0 to disable. idle_action determines response: "warn" logs a warning,
+    "terminate" stops the phase.
 
     Epic mode: If epic_mode is set, filters task selection:
     - None: default mode, excludes Retrospective/Backlog epics
@@ -3692,6 +3988,9 @@ def run_loop(
         # Compute excluded epic IDs (Retrospective/Backlog) each iteration
         excluded_ids = get_excluded_epic_ids(snapshot)
 
+        # Build ancestor cache once per iteration (eliminates repeated parent walks)
+        ancestor_map = build_epic_ancestor_map(snapshot, cwd)
+
         # Determine effective epic filter for this iteration
         if epic_mode and epic_mode != "auto":
             # Explicit epic ID mode
@@ -3700,7 +3999,7 @@ def run_loop(
             # Auto-detect first epic if not already locked
             if current_epic_id is None:
                 skipped_ids_for_detect = skip_list.get_skipped_ids()
-                result_detect = detect_first_epic(snapshot, excluded_ids, skipped_ids_for_detect, cwd, exhausted_epic_ids)
+                result_detect = detect_first_epic(snapshot, excluded_ids, skipped_ids_for_detect, cwd, exhausted_epic_ids, ancestor_map=ancestor_map)
                 if result_detect is None:
                     stop_reason = "no_work"
                     logger.info("No non-excluded epic found for auto-detect mode")
@@ -3719,11 +4018,12 @@ def run_loop(
         if effective_epic:
             ready_work_count = sum(
                 1 for b in snapshot.ready_work
-                if is_descendant_of_epic(b, effective_epic, snapshot, cwd)
+                if ancestor_map.get(b.id) == effective_epic
             )
         elif excluded_ids:
             ready_work_count = len(_filter_excluded_epics(
-                snapshot.ready_work, excluded_ids, snapshot, cwd
+                snapshot.ready_work, excluded_ids, snapshot, cwd,
+                ancestor_map=ancestor_map
             ))
         else:
             ready_work_count = len(snapshot.ready_work_ids)
@@ -3754,7 +4054,8 @@ def run_loop(
         next_task = get_next_ready_task(
             cwd, skip_ids=skipped_ids, snapshot=snapshot,
             epic_filter=effective_epic,
-            excluded_epic_ids=excluded_ids if not effective_epic else None
+            excluded_epic_ids=excluded_ids if not effective_epic else None,
+            ancestor_map=ancestor_map
         )
 
         if next_task:
@@ -3863,6 +4164,15 @@ def run_loop(
                 result=result,
                 project=project_name
             )
+
+        # Periodic bd sync to keep bead state fresh during long runs
+        if should_periodic_sync(iteration, PERIODIC_SYNC_INTERVAL):
+            sync_ok = periodic_sync(cwd)
+            if not json_output:
+                if sync_ok:
+                    print("  Periodic sync: ✓")
+                else:
+                    print("  Periodic sync: ⚠️ failed (continuing)")
 
         # Handle outcome
         if result.outcome == "no_work":
@@ -4135,6 +4445,7 @@ def run_loop(
                         "ready": i.after_ready,
                         "in_progress": i.after_in_progress
                     },
+                    "findings_count": i.findings_count,
                     **({
                         "delta": {
                             "newly_closed": [{"id": b.id, "title": b.title, "type": b.issue_type} for b in i.delta.newly_closed],
@@ -4159,6 +4470,7 @@ def run_loop(
 
 # === CLI Entry Point ===
 
+# Import from the line_loop package
 
 # Module-level logger
 logger = logging.getLogger('line-loop')
@@ -4332,8 +4644,8 @@ Examples:
     parser.add_argument(
         "--idle-timeout",
         type=int,
-        default=DEFAULT_IDLE_TIMEOUT,
-        help=f"Seconds without tool actions before idle triggers (default: {DEFAULT_IDLE_TIMEOUT}). Set to 0 to disable."
+        default=None,
+        help=f"Override idle timeout for all phases (default: per-phase, see DEFAULT_PHASE_IDLE_TIMEOUTS). Set to 0 to disable."
     )
     parser.add_argument(
         "--idle-action",

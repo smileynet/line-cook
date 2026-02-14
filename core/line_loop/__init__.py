@@ -21,6 +21,7 @@ from .config import (
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_TASK_FAILURES,
     DEFAULT_PHASE_TIMEOUTS,
+    DEFAULT_PHASE_IDLE_TIMEOUTS,
     DEFAULT_IDLE_TIMEOUT,
     DEFAULT_IDLE_ACTION,
     BD_COMMAND_TIMEOUT,
@@ -30,6 +31,7 @@ from .config import (
     HIERARCHY_MAX_DEPTH,
     LOG_FILE_MAX_BYTES,
     LOG_FILE_BACKUP_COUNT,
+    PERIODIC_SYNC_INTERVAL,
 )
 
 # Re-export models for convenience
@@ -68,6 +70,7 @@ from .phase import (
     run_phase,
     run_subprocess,
     check_idle,
+    resolve_idle_timeout,
     detect_kitchen_complete,
     detect_kitchen_idle,
 )
@@ -75,6 +78,7 @@ from .phase import (
 # Re-export iteration functions
 from .iteration import (
     run_iteration,
+    build_epic_ancestor_map,
     build_hierarchy_chain,
     check_task_completed,
     check_feature_completion,
@@ -118,6 +122,8 @@ from .loop import (
     auto_commit_wip,
     ensure_epic_branch,
     merge_epic_on_close,
+    periodic_sync,
+    should_periodic_sync,
 )
 
 # Type-only export for StatusWriter protocol
@@ -130,6 +136,7 @@ __all__ = [
     "DEFAULT_MAX_ITERATIONS",
     "DEFAULT_MAX_TASK_FAILURES",
     "DEFAULT_PHASE_TIMEOUTS",
+    "DEFAULT_PHASE_IDLE_TIMEOUTS",
     "DEFAULT_IDLE_TIMEOUT",
     "DEFAULT_IDLE_ACTION",
     "BD_COMMAND_TIMEOUT",
@@ -139,6 +146,7 @@ __all__ = [
     "HIERARCHY_MAX_DEPTH",
     "LOG_FILE_MAX_BYTES",
     "LOG_FILE_BACKUP_COUNT",
+    "PERIODIC_SYNC_INTERVAL",
     # Models
     "BeadDelta",
     "BeadInfo",
@@ -168,10 +176,12 @@ __all__ = [
     "run_phase",
     "run_subprocess",
     "check_idle",
+    "resolve_idle_timeout",
     "detect_kitchen_complete",
     "detect_kitchen_idle",
     # Iteration
     "run_iteration",
+    "build_epic_ancestor_map",
     "build_hierarchy_chain",
     "check_task_completed",
     "check_feature_completion",
@@ -212,5 +222,7 @@ __all__ = [
     "auto_commit_wip",
     "ensure_epic_branch",
     "merge_epic_on_close",
+    "periodic_sync",
+    "should_periodic_sync",
 ]
 # Note: StatusWriter is available under TYPE_CHECKING for type hints only
