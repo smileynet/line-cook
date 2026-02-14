@@ -1945,5 +1945,363 @@ class TestClosedEpicsPopulated(unittest.TestCase):
         self.assertEqual(result.closed_epics, [])
 
 
+class TestCircuitBreakerPatterns(unittest.TestCase):
+    """Integration tests for circuit breaker with various failure patterns.
+
+    Validates that the circuit breaker correctly evaluates the full sliding
+    window under different failure distributions: intermittent, burst,
+    recovery after tripping, and window sliding.
+    """
+
+    def _make_breaker(self, threshold=5, window=10):
+        """Create a circuit breaker with given parameters."""
+        return line_loop.CircuitBreaker(failure_threshold=threshold, window_size=window)
+
+    def test_intermittent_alternating_trips(self):
+        """Alternating [S,F,S,F,S,F,S,F,S,F] has 5 failures — trips at threshold."""
+        cb = self._make_breaker(threshold=5, window=10)
+        for _ in range(5):
+            cb.record(True)
+            cb.record(False)
+        # 5 successes, 5 failures in window of 10
+        self.assertTrue(cb.is_open())
+
+    def test_intermittent_below_threshold(self):
+        """Alternating [S,F,S,F,S,F,S,F,S,S] has 4 failures — stays closed."""
+        cb = self._make_breaker(threshold=5, window=10)
+        for _ in range(4):
+            cb.record(True)
+            cb.record(False)
+        cb.record(True)
+        cb.record(True)
+        # 6 successes, 4 failures — below threshold
+        self.assertFalse(cb.is_open())
+
+    def test_burst_at_start(self):
+        """[F,F,F,F,F,S,S,S,S,S] — 5 failures in window trips the breaker."""
+        cb = self._make_breaker(threshold=5, window=10)
+        for _ in range(5):
+            cb.record(False)
+        for _ in range(5):
+            cb.record(True)
+        self.assertTrue(cb.is_open())
+
+    def test_burst_at_end(self):
+        """[S,S,S,S,S,F,F,F,F,F] — 5 failures in window trips the breaker."""
+        cb = self._make_breaker(threshold=5, window=10)
+        for _ in range(5):
+            cb.record(True)
+        for _ in range(5):
+            cb.record(False)
+        self.assertTrue(cb.is_open())
+
+    def test_recovery_after_tripping(self):
+        """After tripping, adding enough successes slides failures out of window."""
+        cb = self._make_breaker(threshold=5, window=10)
+        # Trip it: 5 failures
+        for _ in range(5):
+            cb.record(False)
+        self.assertTrue(cb.is_open())
+        # Add 6 successes — window slides to [F,F,F,F,S,S,S,S,S,S] (4 failures < 5 threshold)
+        for _ in range(6):
+            cb.record(True)
+        self.assertFalse(cb.is_open())
+
+    def test_window_sliding_pushes_old_failures_out(self):
+        """Old failures slide out as new successes are recorded."""
+        cb = self._make_breaker(threshold=3, window=5)
+        # Record 3 failures — trips
+        cb.record(False)
+        cb.record(False)
+        cb.record(False)
+        self.assertTrue(cb.is_open())
+        # Add 3 successes — window becomes [F,F,F,S,S,S], keeps last 5: [F,F,S,S,S]
+        # 2 failures — below threshold
+        cb.record(True)
+        cb.record(True)
+        cb.record(True)
+        self.assertFalse(cb.is_open())
+
+    def test_scattered_failures_accumulate(self):
+        """Scattered failures throughout window accumulate correctly."""
+        cb = self._make_breaker(threshold=4, window=8)
+        # Pattern: [F,S,S,F,S,F,S,F] — 4 failures, 4 successes
+        pattern = [False, True, True, False, True, False, True, False]
+        for success in pattern:
+            cb.record(success)
+        self.assertTrue(cb.is_open())
+
+    def test_exact_threshold_boundary(self):
+        """Exactly threshold-1 failures stays closed, threshold trips."""
+        cb = self._make_breaker(threshold=3, window=10)
+        cb.record(False)
+        cb.record(False)
+        self.assertFalse(cb.is_open())  # 2 < 3
+        cb.record(False)
+        self.assertTrue(cb.is_open())   # 3 >= 3
+
+    def test_minimum_window_fill(self):
+        """Circuit breaker requires at least failure_threshold records before tripping."""
+        cb = self._make_breaker(threshold=5, window=10)
+        # Only 4 failures recorded (< threshold items total)
+        for _ in range(4):
+            cb.record(False)
+        self.assertFalse(cb.is_open())
+        # Fifth failure makes it trip
+        cb.record(False)
+        self.assertTrue(cb.is_open())
+
+
+class TestDetectWorkedTaskWithTarget(unittest.TestCase):
+    """Integration tests for detect_worked_task with multi-task scenarios.
+
+    Validates target_task_id preference across different state transitions:
+    multiple tasks closing simultaneously, mixed state changes, and
+    fallback behavior when target is not in the changed set.
+    """
+
+    def test_three_tasks_close_target_preferred(self):
+        """When 3 tasks close simultaneously, target is preferred."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep", "task"),
+                make_bead("lc-001.1.2", "Mid", "task"),
+                make_bead("lc-001.2", "Shallow", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep", "task"),
+                make_bead("lc-001.1.2", "Mid", "task"),
+                make_bead("lc-001.2", "Shallow", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-001.2")
+        self.assertEqual(result, "lc-001.2")
+
+    def test_mixed_state_transitions_target_in_progress(self):
+        """Target moves to in_progress while other tasks also change."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+                make_bead("lc-003", "Task C", "task"),
+            ],
+            in_progress=[],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-003", "Task C", "task")],
+            in_progress=[make_bead("lc-002", "Task B", "task")],
+            closed=[make_bead("lc-001", "Task A", "task")],
+        )
+        # lc-002 moved to in_progress — should be detected as the worked task
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-002")
+        self.assertEqual(result, "lc-002")
+
+    def test_target_not_in_any_changed_set(self):
+        """When target didn't change at all, heuristic picks deepest."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep", "task"),
+                make_bead("lc-001.2", "Shallow", "task"),
+                make_bead("lc-999", "Target", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-999", "Target", "task")],
+            closed=[
+                make_bead("lc-001.1.1", "Deep", "task"),
+                make_bead("lc-001.2", "Shallow", "task"),
+            ],
+        )
+        # lc-999 is still ready — not in changed set, fallback to heuristic
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-999")
+        self.assertEqual(result, "lc-001.1.1")  # deepest by dot count
+
+    def test_no_state_changes_returns_none(self):
+        """When nothing changed, returns None regardless of target."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-001", "Task", "task")],
+        )
+        result = line_loop.detect_worked_task(snapshot, snapshot, target_task_id="lc-001")
+        self.assertIsNone(result)
+
+    def test_target_in_new_in_progress_preferred_over_other(self):
+        """When multiple tasks move to in_progress, target is preferred."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+            ],
+            in_progress=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            in_progress=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-002")
+        self.assertEqual(result, "lc-002")
+
+    def test_feature_and_task_close_target_is_task(self):
+        """When task + parent feature both close, target picks the task."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001", "Feature", "feature"),
+                make_bead("lc-001.1", "Task", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001", "Feature", "feature"),
+                make_bead("lc-001.1", "Task", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-001.1")
+        self.assertEqual(result, "lc-001.1")
+
+
+class TestCircuitBreakerSkipListInteraction(unittest.TestCase):
+    """Integration tests for circuit breaker + skip list working together.
+
+    In the loop, both systems track failures independently:
+    - CircuitBreaker: stops the entire loop on too many overall failures
+    - SkipList: skips individual tasks after repeated failures
+
+    These tests verify the combined behavior.
+    """
+
+    def test_skip_list_fills_before_circuit_breaker(self):
+        """Task gets skipped (3 failures) before circuit breaker trips (5 failures)."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=3)
+
+        task_id = "lc-001"
+        # First 2 failures: not yet skipped, breaker still closed
+        for _ in range(2):
+            cb.record(False)
+            self.assertFalse(sl.record_failure(task_id))
+            self.assertFalse(cb.is_open())
+
+        # Third failure: task becomes skipped, breaker still closed
+        cb.record(False)
+        sl.record_failure(task_id)
+        self.assertTrue(sl.is_skipped(task_id))
+        self.assertFalse(cb.is_open())
+
+    def test_circuit_breaker_trips_before_single_task_skipped(self):
+        """Multiple tasks failing can trip circuit breaker before any single task is skipped."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=3)
+
+        # 5 different tasks each fail once
+        for i in range(5):
+            task_id = f"lc-{i:03d}"
+            cb.record(False)
+            sl.record_failure(task_id)
+
+        # Circuit breaker tripped but no task is individually skipped
+        self.assertTrue(cb.is_open())
+        self.assertEqual(sl.get_skipped_ids(), set())
+
+    def test_success_clears_skip_list_but_not_breaker(self):
+        """Success on a task clears its skip list entry but breaker still has the failures."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=3)
+
+        # Record 2 failures for task
+        cb.record(False)
+        cb.record(False)
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-001")
+
+        # Task succeeds
+        cb.record(True)
+        sl.record_success("lc-001")
+
+        # Skip list cleared for task, but breaker still has 2 failures in window
+        self.assertFalse(sl.is_skipped("lc-001"))
+        self.assertEqual(sl.failed_tasks, {})
+        # Breaker window: [F, F, S] — 2 failures, below threshold of 5
+        self.assertFalse(cb.is_open())
+
+    def test_all_tasks_skipped_breaker_may_not_trip(self):
+        """All tasks can be skipped without the circuit breaker tripping."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=2)
+
+        # Two tasks each fail 2 times — both skipped, only 4 total failures
+        sl.record_failure("lc-001")
+        cb.record(False)
+        sl.record_failure("lc-001")
+        cb.record(False)
+        sl.record_failure("lc-002")
+        cb.record(False)
+        sl.record_failure("lc-002")
+        cb.record(False)
+
+        self.assertTrue(sl.is_skipped("lc-001"))
+        self.assertTrue(sl.is_skipped("lc-002"))
+        self.assertEqual(sl.get_skipped_ids(), {"lc-001", "lc-002"})
+        # 4 failures < 5 threshold
+        self.assertFalse(cb.is_open())
+
+    def test_both_trip_simultaneously(self):
+        """Both systems can trigger at the same time."""
+        cb = line_loop.CircuitBreaker(failure_threshold=5, window_size=10)
+        sl = line_loop.SkipList(max_failures=5)
+
+        task_id = "lc-001"
+        for _ in range(5):
+            cb.record(False)
+            sl.record_failure(task_id)
+
+        # Both should be triggered
+        self.assertTrue(cb.is_open())
+        self.assertTrue(sl.is_skipped(task_id))
+
+    def test_skip_list_independent_across_tasks(self):
+        """Each task's skip list counter is independent while breaker tracks all."""
+        cb = line_loop.CircuitBreaker(failure_threshold=6, window_size=10)
+        sl = line_loop.SkipList(max_failures=3)
+
+        # 3 failures on lc-001 (gets skipped), 2 on lc-002 (not skipped)
+        for _ in range(3):
+            sl.record_failure("lc-001")
+            cb.record(False)
+        for _ in range(2):
+            sl.record_failure("lc-002")
+            cb.record(False)
+
+        self.assertTrue(sl.is_skipped("lc-001"))
+        self.assertFalse(sl.is_skipped("lc-002"))
+        # 5 total failures in breaker window — below threshold of 6
+        self.assertFalse(cb.is_open())
+
+    def test_reset_breaker_doesnt_affect_skip_list(self):
+        """Resetting the circuit breaker doesn't clear the skip list."""
+        cb = line_loop.CircuitBreaker(failure_threshold=3, window_size=5)
+        sl = line_loop.SkipList(max_failures=3)
+
+        for _ in range(3):
+            cb.record(False)
+            sl.record_failure("lc-001")
+
+        self.assertTrue(cb.is_open())
+        self.assertTrue(sl.is_skipped("lc-001"))
+
+        cb.reset()
+        self.assertFalse(cb.is_open())
+        self.assertTrue(sl.is_skipped("lc-001"))  # Skip list unaffected
+
+
 if __name__ == "__main__":
     unittest.main()
