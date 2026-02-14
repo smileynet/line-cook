@@ -728,6 +728,45 @@ class TestBeadSnapshotProperties(unittest.TestCase):
         self.assertEqual(s.in_progress_ids, [])
         self.assertEqual(s.closed_ids, [])
 
+    def test_index_not_in_repr(self):
+        """_index field is excluded from repr."""
+        s = self._make_snapshot()
+        s.get_by_id("f-001")  # triggers index build
+        r = repr(s)
+        self.assertNotIn("_index", r)
+
+    def test_index_not_in_equality(self):
+        """_index field is excluded from equality comparison."""
+        s1 = self._make_snapshot()
+        s2 = self._make_snapshot()
+        s2.timestamp = s1.timestamp  # normalize timestamp
+        s1.get_by_id("f-001")  # build index on s1 only
+        self.assertEqual(s1, s2)
+
+    def test_index_is_none_before_first_access(self):
+        """_index starts as None (lazy)."""
+        s = self._make_snapshot()
+        self.assertIsNone(s._index)
+
+    def test_index_built_on_first_get_by_id(self):
+        """_index is populated after first get_by_id call."""
+        s = self._make_snapshot()
+        s.get_by_id("f-001")
+        self.assertIsNotNone(s._index)
+        self.assertIsInstance(s._index, dict)
+
+    def test_index_contains_all_beads(self):
+        """_index maps all bead IDs across ready, in_progress, closed."""
+        s = self._make_snapshot()
+        s.get_by_id("f-001")  # triggers build
+        self.assertEqual(set(s._index.keys()), {"e-001", "f-001", "t-001", "t-002", "t-003"})
+
+    def test_get_by_id_empty_snapshot_with_index(self):
+        """get_by_id on empty snapshot returns None and builds empty index."""
+        s = line_loop.BeadSnapshot()
+        self.assertIsNone(s.get_by_id("anything"))
+        self.assertEqual(s._index, {})
+
 
 class TestBeadDelta(unittest.TestCase):
     """Test BeadDelta.compute()."""
