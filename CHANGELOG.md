@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Resilient long-running execution (lc-egd.4)
+  - Periodic bd sync every 5 iterations keeps bead state fresh during multi-hour loops
+  - Per-phase idle timeouts (cook: 180s, serve: 300s, tidy: 90s, plate: 300s, close-service: 600s)
+  - Tuned phase timeouts: serve/plate reduced from 600s to 450s, close-service from 900s to 750s
+
 ## [0.14.0] - 2026-02-12
 ### Added
 - `/close-service` command — dedicated epic closure with critic review, acceptance documentation, and branch merge. Epics now get the same quality gate treatment that features get from `/plate`
