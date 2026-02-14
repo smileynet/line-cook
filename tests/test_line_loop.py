@@ -2785,6 +2785,35 @@ class TestFindingsCount(unittest.TestCase):
         result = make_iteration_result(findings_count=3)
         self.assertEqual(result.findings_count, 3)
 
+    def test_findings_count_from_delta_newly_filed(self):
+        """findings_count matches len(delta.newly_filed) when derived."""
+        delta = line_loop.BeadDelta(
+            newly_closed=[],
+            newly_filed=[
+                make_bead("bug-001", "Bug 1"),
+                make_bead("bug-002", "Bug 2"),
+            ]
+        )
+        # Mimics the computation in run_iteration
+        findings_count = len(delta.newly_filed) if delta else 0
+        result = make_iteration_result(findings_count=findings_count, delta=delta)
+        self.assertEqual(result.findings_count, 2)
+        self.assertEqual(result.findings_count, len(delta.newly_filed))
+
+    def test_findings_count_zero_when_delta_none(self):
+        """findings_count is 0 when delta is None."""
+        delta = None
+        findings_count = len(delta.newly_filed) if delta else 0
+        result = make_iteration_result(findings_count=findings_count)
+        self.assertEqual(result.findings_count, 0)
+
+    def test_findings_count_zero_when_newly_filed_empty(self):
+        """findings_count is 0 when delta has empty newly_filed."""
+        delta = line_loop.BeadDelta(newly_closed=[], newly_filed=[])
+        findings_count = len(delta.newly_filed) if delta else 0
+        result = make_iteration_result(findings_count=findings_count, delta=delta)
+        self.assertEqual(result.findings_count, 0)
+
 
 class TestPrintHumanIterationFindings(unittest.TestCase):
     """Test that print_human_iteration displays findings count."""
