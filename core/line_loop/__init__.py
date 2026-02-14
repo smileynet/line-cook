@@ -30,6 +30,7 @@ from .config import (
     HIERARCHY_MAX_DEPTH,
     LOG_FILE_MAX_BYTES,
     LOG_FILE_BACKUP_COUNT,
+    PERIODIC_SYNC_INTERVAL,
 )
 
 # Re-export models for convenience
@@ -119,6 +120,8 @@ from .loop import (
     auto_commit_wip,
     ensure_epic_branch,
     merge_epic_on_close,
+    periodic_sync,
+    should_periodic_sync,
 )
 
 # Type-only export for StatusWriter protocol
@@ -140,6 +143,7 @@ __all__ = [
     "HIERARCHY_MAX_DEPTH",
     "LOG_FILE_MAX_BYTES",
     "LOG_FILE_BACKUP_COUNT",
+    "PERIODIC_SYNC_INTERVAL",
     # Models
     "BeadDelta",
     "BeadInfo",
@@ -214,5 +218,7 @@ __all__ = [
     "auto_commit_wip",
     "ensure_epic_branch",
     "merge_epic_on_close",
+    "periodic_sync",
+    "should_periodic_sync",
 ]
 # Note: StatusWriter is available under TYPE_CHECKING for type hints only

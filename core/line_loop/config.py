@@ -18,6 +18,9 @@ DEFAULT_MAX_ITERATIONS = 25         # Default loop iterations
 DEFAULT_IDLE_TIMEOUT = 180          # 3 minutes without tool actions triggers idle
 DEFAULT_IDLE_ACTION = "warn"        # "warn" or "terminate"
 
+# Periodic sync (long-running loop resilience)
+PERIODIC_SYNC_INTERVAL = 5          # Run bd sync every N iterations
+
 # Subprocess timeouts (in seconds)
 BD_COMMAND_TIMEOUT = 30             # Standard bd command timeout
 GIT_COMMAND_TIMEOUT = 10            # Short git commands (log, show)
