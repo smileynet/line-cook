@@ -21,6 +21,7 @@ from .config import (
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_TASK_FAILURES,
     DEFAULT_PHASE_TIMEOUTS,
+    DEFAULT_PHASE_IDLE_TIMEOUTS,
     DEFAULT_IDLE_TIMEOUT,
     DEFAULT_IDLE_ACTION,
     BD_COMMAND_TIMEOUT,
@@ -69,6 +70,7 @@ from .phase import (
     run_phase,
     run_subprocess,
     check_idle,
+    resolve_idle_timeout,
     detect_kitchen_complete,
     detect_kitchen_idle,
 )
@@ -134,6 +136,7 @@ __all__ = [
     "DEFAULT_MAX_ITERATIONS",
     "DEFAULT_MAX_TASK_FAILURES",
     "DEFAULT_PHASE_TIMEOUTS",
+    "DEFAULT_PHASE_IDLE_TIMEOUTS",
     "DEFAULT_IDLE_TIMEOUT",
     "DEFAULT_IDLE_ACTION",
     "BD_COMMAND_TIMEOUT",
@@ -173,6 +176,7 @@ __all__ = [
     "run_phase",
     "run_subprocess",
     "check_idle",
+    "resolve_idle_timeout",
     "detect_kitchen_complete",
     "detect_kitchen_idle",
     # Iteration

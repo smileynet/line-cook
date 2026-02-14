@@ -22,6 +22,7 @@ from .config import (
     DEFAULT_FALLBACK_PHASE_TIMEOUT,
     DEFAULT_IDLE_ACTION,
     DEFAULT_IDLE_TIMEOUT,
+    DEFAULT_PHASE_IDLE_TIMEOUTS,
     DEFAULT_PHASE_TIMEOUTS,
 )
 from .models import ActionRecord, PhaseResult
@@ -49,6 +50,21 @@ def check_idle(last_action_time: Optional[datetime], idle_timeout: int) -> bool:
         return False  # No actions yet, not considered idle
     idle_seconds = (datetime.now() - last_action_time).total_seconds()
     return idle_seconds >= idle_timeout
+
+
+def resolve_idle_timeout(phase: str, idle_timeout: Optional[int]) -> int:
+    """Resolve the effective idle timeout for a phase.
+
+    Args:
+        phase: Phase name (cook, serve, tidy, plate, close-service)
+        idle_timeout: Explicit override, or None to use per-phase default
+
+    Returns:
+        Effective idle timeout in seconds
+    """
+    if idle_timeout is not None:
+        return idle_timeout
+    return DEFAULT_PHASE_IDLE_TIMEOUTS.get(phase, DEFAULT_IDLE_TIMEOUT)
 
 
 def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedProcess:
@@ -119,7 +135,7 @@ def run_phase(
     timeout: Optional[int] = None,
     on_progress: Optional[Callable[[int, str], None]] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
@@ -132,15 +148,18 @@ def run_phase(
         on_progress: Optional callback for progress updates.
             Called with (action_count, last_action_timestamp) when new actions detected.
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
-        idle_timeout: Seconds without tool actions before triggering idle (default: 180)
+        idle_timeout: Override idle timeout, or None to use per-phase default from
+            DEFAULT_PHASE_IDLE_TIMEOUTS (falls back to DEFAULT_IDLE_TIMEOUT)
         idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: warn)
 
     Returns:
         PhaseResult with output, signals, and success status
     """
+    idle_timeout = resolve_idle_timeout(phase, idle_timeout)
     if timeout is None:
         timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
-        timeout = timeouts.get(phase, DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT))
+        fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
+        timeout = timeouts.get(phase, fallback)
 
     skill = f"/line:{phase}"
     if args:

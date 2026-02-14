@@ -28,7 +28,6 @@ from typing import Optional
 from .config import (
     BD_COMMAND_TIMEOUT,
     DEFAULT_IDLE_ACTION,
-    DEFAULT_IDLE_TIMEOUT,
     DEFAULT_MAX_TASK_FAILURES,
     EXCLUDED_EPIC_TITLES,
     GIT_SYNC_TIMEOUT,
@@ -618,12 +617,9 @@ def write_status_file(
     # Add recent_iterations (limited for display)
     if iterations:
         completed = [i for i in iterations if i.outcome == "completed"]
-        if len(completed) > RECENT_ITERATIONS_DISPLAY:
-            recent = completed[-RECENT_ITERATIONS_DISPLAY:]
-        else:
-            recent = completed
         status["recent_iterations"] = [
-            serialize_iteration_for_status(i) for i in recent
+            serialize_iteration_for_status(i)
+            for i in completed[-RECENT_ITERATIONS_DISPLAY:]
         ]
     else:
         status["recent_iterations"] = []
@@ -942,7 +938,7 @@ def run_loop(
     skip_initial_sync: bool = False,
     phase_timeouts: Optional[dict[str, int]] = None,
     max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     epic_mode: Optional[str] = None
 ) -> LoopReport:
@@ -951,9 +947,10 @@ def run_loop(
     Individual phases have their own timeouts via phase_timeouts dict
     or DEFAULT_PHASE_TIMEOUTS.
 
-    Idle detection: If idle_timeout > 0, phases will be checked for idle
-    (no tool actions within threshold). idle_action determines response:
-    "warn" logs a warning, "terminate" stops the phase.
+    Idle detection: Each phase has a per-phase idle timeout (see
+    DEFAULT_PHASE_IDLE_TIMEOUTS). Pass idle_timeout to override all phases,
+    or 0 to disable. idle_action determines response: "warn" logs a warning,
+    "terminate" stops the phase.
 
     Epic mode: If epic_mode is set, filters task selection:
     - None: default mode, excludes Retrospective/Backlog epics

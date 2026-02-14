@@ -28,7 +28,6 @@ from .config import (
     BD_COMMAND_TIMEOUT,
     CLOSED_TASKS_QUERY_LIMIT,
     DEFAULT_IDLE_ACTION,
-    DEFAULT_IDLE_TIMEOUT,
     GIT_COMMAND_TIMEOUT,
     GOAL_TEXT_MAX_LENGTH,
     HIERARCHY_MAX_DEPTH,
@@ -112,9 +111,10 @@ def print_phase_progress(phase: str, status: str, duration: float = 0, extra: st
     """
     if status == "start":
         print(f"  [{phase}] start")
+    elif extra:
+        print(f"  [{phase}] {extra} ({format_duration(duration)})")
     else:
-        msg = f"  [{phase}] {extra} ({format_duration(duration)})" if extra else f"  [{phase}] done ({format_duration(duration)})"
-        print(msg)
+        print(f"  [{phase}] done ({format_duration(duration)})")
 
 
 def print_human_iteration(result: IterationResult, retries: int = 0):
@@ -158,7 +158,10 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
     # Bead state changes
     ready_str = f"ready {result.before_ready}\u2192{result.after_ready}"
     in_prog_str = f"in_progress {result.before_in_progress}\u2192{result.after_in_progress}"
-    closed_count = len(result.delta.newly_closed) if result.delta else (1 if result.success else 0)
+    if result.delta:
+        closed_count = len(result.delta.newly_closed)
+    else:
+        closed_count = 1 if result.success else 0
     closed_str = f"+{closed_count}" if closed_count > 0 else ""
     print(f"\n  Beads: {ready_str} | {in_prog_str}" + (f" | closed {closed_str}" if closed_str else ""))
 
@@ -1272,7 +1275,7 @@ def run_iteration(
     json_output: bool = False,
     progress_state: Optional[ProgressState] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     before_snapshot: Optional[BeadSnapshot] = None,
     target_task_id: Optional[str] = None
@@ -1284,7 +1287,7 @@ def run_iteration(
     completion triggers.
 
     Phase timeouts are controlled by phase_timeouts dict or DEFAULT_PHASE_TIMEOUTS
-    (cook=1200s, serve=600s, tidy=240s, plate=600s).
+    (cook=1200s, serve=450s, tidy=240s, plate=450s, close-service=750s).
 
     Args:
         iteration: Current iteration number
@@ -1294,7 +1297,7 @@ def run_iteration(
         json_output: If True, suppress human-readable phase output
         progress_state: Optional progress state for real-time status updates
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
-        idle_timeout: Seconds without tool actions before triggering idle
+        idle_timeout: Override idle timeout, or None to use per-phase defaults
         idle_action: Action on idle - "warn" or "terminate"
         before_snapshot: Optional pre-captured snapshot (avoids redundant bd query)
     """

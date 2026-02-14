@@ -478,20 +478,20 @@ class TestDefaultPhaseTimeouts(unittest.TestCase):
         self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['cook'], 1200)
 
     def test_default_serve_timeout(self):
-        """Serve phase default timeout is 600 seconds."""
-        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['serve'], 600)
+        """Serve phase default timeout is 450 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['serve'], 450)
 
     def test_default_tidy_timeout(self):
         """Tidy phase default timeout is 240 seconds."""
         self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['tidy'], 240)
 
     def test_default_plate_timeout(self):
-        """Plate phase default timeout is 600 seconds."""
-        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['plate'], 600)
+        """Plate phase default timeout is 450 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['plate'], 450)
 
     def test_default_close_service_timeout(self):
-        """Close-service phase default timeout is 900 seconds."""
-        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['close-service'], 900)
+        """Close-service phase default timeout is 750 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['close-service'], 750)
 
     def test_default_max_task_failures(self):
         """Default max task failures is 3."""
@@ -2970,6 +2970,71 @@ class TestPeriodicSync(unittest.TestCase):
         from line_loop.loop import should_periodic_sync
 
         self.assertFalse(should_periodic_sync(0, 5))
+
+
+class TestDefaultPhaseIdleTimeouts(unittest.TestCase):
+    """Test per-phase idle timeout configuration."""
+
+    def test_cook_idle_timeout(self):
+        """Cook phase idle timeout is 180 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['cook'], 180)
+
+    def test_serve_idle_timeout(self):
+        """Serve phase idle timeout is 300 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['serve'], 300)
+
+    def test_tidy_idle_timeout(self):
+        """Tidy phase idle timeout is 90 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['tidy'], 90)
+
+    def test_plate_idle_timeout(self):
+        """Plate phase idle timeout is 300 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['plate'], 300)
+
+    def test_close_service_idle_timeout(self):
+        """Close-service phase idle timeout is 600 seconds."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['close-service'], 600)
+
+
+
+class TestResolveIdleTimeout(unittest.TestCase):
+    """Test idle timeout resolution logic."""
+
+    def test_cook_returns_phase_default(self):
+        """Cook phase resolves to 180s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("cook", None), 180)
+
+    def test_serve_returns_phase_default(self):
+        """Serve phase resolves to 300s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("serve", None), 300)
+
+    def test_tidy_returns_phase_default(self):
+        """Tidy phase resolves to 90s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("tidy", None), 90)
+
+    def test_plate_returns_phase_default(self):
+        """Plate phase resolves to 300s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("plate", None), 300)
+
+    def test_close_service_returns_phase_default(self):
+        """Close-service phase resolves to 600s when no override."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("close-service", None), 600)
+
+    def test_explicit_override_takes_precedence(self):
+        """Explicit idle_timeout overrides per-phase default."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("cook", 60), 60)
+        self.assertEqual(resolve_idle_timeout("tidy", 500), 500)
+
+    def test_unknown_phase_falls_back_to_global_default(self):
+        """Unknown phase uses DEFAULT_IDLE_TIMEOUT as fallback."""
+        from line_loop.phase import resolve_idle_timeout
+        self.assertEqual(resolve_idle_timeout("unknown-phase", None), line_loop.DEFAULT_IDLE_TIMEOUT)
 
 
 if __name__ == "__main__":

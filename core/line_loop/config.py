@@ -50,8 +50,18 @@ EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
     'cook': 1200,           # 20 min - Main work phase: TDD cycle, file edits, test runs
-    'serve': 600,           # 10 min - Code review by sous-chef subagent
+    'serve': 450,           # 7.5 min - Code review by sous-chef subagent
     'tidy': 240,            # 4 min - Commit, bd sync, git push
-    'plate': 600,           # 10 min - BDD review via maître, acceptance doc
-    'close-service': 900,   # 15 min - Critic E2E review + epic acceptance doc
+    'plate': 450,           # 7.5 min - BDD review via maître, acceptance doc
+    'close-service': 750,   # 12.5 min - Critic E2E review + epic acceptance doc
+}
+
+# Per-phase idle timeouts (in seconds) - used when no explicit idle_timeout passed
+# Phases with longer expected pauses (e.g., serve waiting for subagent) get longer idle thresholds
+DEFAULT_PHASE_IDLE_TIMEOUTS = {
+    'cook': 180,            # 3 min - Active coding, frequent tool use expected
+    'serve': 300,           # 5 min - Review may have long pauses between actions
+    'tidy': 90,             # 1.5 min - Quick commit/push, should be fast
+    'plate': 300,           # 5 min - BDD review, subagent pauses expected
+    'close-service': 600,   # 10 min - Epic close involves extensive review
 }
