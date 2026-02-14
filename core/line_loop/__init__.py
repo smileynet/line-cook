@@ -75,6 +75,7 @@ from .phase import (
 # Re-export iteration functions
 from .iteration import (
     run_iteration,
+    build_epic_ancestor_map,
     build_hierarchy_chain,
     check_task_completed,
     check_feature_completion,
@@ -172,6 +173,7 @@ __all__ = [
     "detect_kitchen_idle",
     # Iteration
     "run_iteration",
+    "build_epic_ancestor_map",
     "build_hierarchy_chain",
     "check_task_completed",
     "check_feature_completion",

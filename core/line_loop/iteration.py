@@ -432,6 +432,73 @@ def is_descendant_of_epic(bead: BeadInfo, epic_id: str, snapshot: BeadSnapshot, 
     return False
 
 
+def build_epic_ancestor_map(snapshot: BeadSnapshot, cwd: Path) -> dict[str, Optional[str]]:
+    """Build a map from bead ID to its epic ancestor ID.
+
+    Walks every ready_work item's parent chain once, caching all traversed
+    beads. Subsequent lookups for beads sharing ancestors hit the cache
+    instead of re-walking the hierarchy.
+
+    Args:
+        snapshot: Current BeadSnapshot with ready/in_progress/closed beads.
+        cwd: Working directory containing the .beads project.
+
+    Returns:
+        Dict mapping bead_id to epic ancestor ID, or None if no epic ancestor.
+    """
+    cache: dict[str, Optional[str]] = {}
+
+    for bead in snapshot.ready_work:
+        if bead.id in cache:
+            continue
+
+        # Walk parent chain, collecting intermediate bead IDs
+        chain: list[str] = [bead.id]
+        parent_id: Optional[str] = bead.parent
+        epic_id: Optional[str] = None
+
+        for _ in range(HIERARCHY_MAX_DEPTH):
+            if not parent_id:
+                break
+            if parent_id in cache:
+                epic_id = cache[parent_id]
+                break
+            parent = snapshot.get_by_id(parent_id)
+            if parent:
+                chain.append(parent_id)
+                if parent.issue_type == "epic":
+                    epic_id = parent_id
+                    break
+                parent_id = parent.parent
+            else:
+                # Not in snapshot — query bd
+                try:
+                    result = run_subprocess(
+                        ["bd", "show", parent_id, "--json"],
+                        BD_COMMAND_TIMEOUT, cwd
+                    )
+                    if result.returncode != 0:
+                        break
+                    data = json.loads(result.stdout)
+                    issue = parse_bd_json_item(data)
+                    if not issue:
+                        break
+                    chain.append(parent_id)
+                    if issue.get("issue_type") == "epic":
+                        epic_id = parent_id
+                        break
+                    parent_id = issue.get("parent")
+                except Exception as e:
+                    logger.debug(f"Error building ancestor map for {parent_id}: {e}")
+                    break
+
+        # Record result for all beads in the chain
+        for bid in chain:
+            cache[bid] = epic_id
+
+    return cache
+
+
 def _parse_bead_info(issue: dict) -> BeadInfo:
     """Parse a bd JSON issue dict into a BeadInfo object."""
     priority = issue.get("priority")

@@ -50,6 +50,7 @@ from .models import (
 )
 from .iteration import (
     atomic_write,
+    build_epic_ancestor_map,
     build_hierarchy_chain,
     check_epic_completion,
     find_epic_ancestor,
@@ -125,7 +126,8 @@ def get_excluded_epic_ids(snapshot: BeadSnapshot) -> set[str]:
 def detect_first_epic(
     snapshot: BeadSnapshot, excluded_ids: set[str],
     skip_ids: set[str], cwd: Path,
-    exhausted_ids: Optional[set[str]] = None
+    exhausted_ids: Optional[set[str]] = None,
+    ancestor_map: Optional[dict[str, Optional[str]]] = None
 ) -> Optional[tuple[str, str]]:
     """Find the epic of the highest-priority ready work item.
 
@@ -138,6 +140,7 @@ def detect_first_epic(
         skip_ids: Set of task IDs to skip (from failure tracking).
         cwd: Working directory containing the .beads project.
         exhausted_ids: Set of epic IDs already tried with no remaining work.
+        ancestor_map: Pre-computed bead→epic map (avoids per-item hierarchy walks).
 
     Returns:
         Tuple of (epic_id, epic_title) or None if no epic found.
@@ -146,9 +149,16 @@ def detect_first_epic(
     for bead in snapshot.ready_work:
         if bead.id in skip_ids:
             continue
-        epic = find_epic_ancestor(bead, snapshot, cwd)
-        if epic and epic.id not in excluded_ids and epic.id not in exhausted_set:
-            return (epic.id, epic.title)
+        if ancestor_map is not None:
+            epic_id = ancestor_map.get(bead.id)
+            if epic_id and epic_id not in excluded_ids and epic_id not in exhausted_set:
+                epic_info = snapshot.get_by_id(epic_id)
+                title = epic_info.title if epic_info else ""
+                return (epic_id, title)
+        else:
+            epic = find_epic_ancestor(bead, snapshot, cwd)
+            if epic and epic.id not in excluded_ids and epic.id not in exhausted_set:
+                return (epic.id, epic.title)
     return None
 
 
@@ -176,9 +186,17 @@ def validate_epic_id(epic_id: str, cwd: Path) -> Optional[str]:
 
 def _filter_excluded_epics(
     beads: list[BeadInfo], excluded_ids: set[str],
-    snapshot: BeadSnapshot, cwd: Path
+    snapshot: BeadSnapshot, cwd: Path,
+    ancestor_map: Optional[dict[str, Optional[str]]] = None
 ) -> list[BeadInfo]:
     """Filter out beads that descend from excluded epics."""
+    if ancestor_map is not None:
+        result = []
+        for b in beads:
+            epic_id = ancestor_map.get(b.id)
+            if epic_id is None or epic_id not in excluded_ids:
+                result.append(b)
+        return result
     result = []
     for b in beads:
         ancestor = find_epic_ancestor(b, snapshot, cwd)
@@ -192,7 +210,8 @@ def get_next_ready_task(
     skip_ids: Optional[set[str]] = None,
     snapshot: Optional[BeadSnapshot] = None,
     epic_filter: Optional[str] = None,
-    excluded_epic_ids: Optional[set[str]] = None
+    excluded_epic_ids: Optional[set[str]] = None,
+    ancestor_map: Optional[dict[str, Optional[str]]] = None
 ) -> Optional[tuple[str, str]]:
     """Get the next ready task ID and title before cook runs.
 
@@ -206,6 +225,7 @@ def get_next_ready_task(
         snapshot: Optional BeadSnapshot to use instead of re-querying bd
         epic_filter: Only return tasks under this epic ID
         excluded_epic_ids: Skip tasks under these epic IDs
+        ancestor_map: Pre-computed bead→epic map (avoids per-item hierarchy walks).
 
     Returns:
         Tuple of (task_id, task_title) or None if no tasks ready
@@ -215,12 +235,21 @@ def get_next_ready_task(
     if snapshot:
         candidates = snapshot.ready_work
         if epic_filter:
-            candidates = [
-                b for b in candidates
-                if is_descendant_of_epic(b, epic_filter, snapshot, cwd)
-            ]
+            if ancestor_map is not None:
+                candidates = [
+                    b for b in candidates
+                    if ancestor_map.get(b.id) == epic_filter
+                ]
+            else:
+                candidates = [
+                    b for b in candidates
+                    if is_descendant_of_epic(b, epic_filter, snapshot, cwd)
+                ]
         elif excluded_epic_ids:
-            candidates = _filter_excluded_epics(candidates, excluded_epic_ids, snapshot, cwd)
+            candidates = _filter_excluded_epics(
+                candidates, excluded_epic_ids, snapshot, cwd,
+                ancestor_map=ancestor_map
+            )
         # Two-pass: prefer tasks over features
         for bead in candidates:
             if bead.id not in skip_ids and bead.issue_type == "task":
@@ -968,6 +997,9 @@ def run_loop(
         # Compute excluded epic IDs (Retrospective/Backlog) each iteration
         excluded_ids = get_excluded_epic_ids(snapshot)
 
+        # Build ancestor cache once per iteration (eliminates repeated parent walks)
+        ancestor_map = build_epic_ancestor_map(snapshot, cwd)
+
         # Determine effective epic filter for this iteration
         if epic_mode and epic_mode != "auto":
             # Explicit epic ID mode
@@ -976,7 +1008,7 @@ def run_loop(
             # Auto-detect first epic if not already locked
             if current_epic_id is None:
                 skipped_ids_for_detect = skip_list.get_skipped_ids()
-                result_detect = detect_first_epic(snapshot, excluded_ids, skipped_ids_for_detect, cwd, exhausted_epic_ids)
+                result_detect = detect_first_epic(snapshot, excluded_ids, skipped_ids_for_detect, cwd, exhausted_epic_ids, ancestor_map=ancestor_map)
                 if result_detect is None:
                     stop_reason = "no_work"
                     logger.info("No non-excluded epic found for auto-detect mode")
@@ -995,11 +1027,12 @@ def run_loop(
         if effective_epic:
             ready_work_count = sum(
                 1 for b in snapshot.ready_work
-                if is_descendant_of_epic(b, effective_epic, snapshot, cwd)
+                if ancestor_map.get(b.id) == effective_epic
             )
         elif excluded_ids:
             ready_work_count = len(_filter_excluded_epics(
-                snapshot.ready_work, excluded_ids, snapshot, cwd
+                snapshot.ready_work, excluded_ids, snapshot, cwd,
+                ancestor_map=ancestor_map
             ))
         else:
             ready_work_count = len(snapshot.ready_work_ids)
@@ -1030,7 +1063,8 @@ def run_loop(
         next_task = get_next_ready_task(
             cwd, skip_ids=skipped_ids, snapshot=snapshot,
             epic_filter=effective_epic,
-            excluded_epic_ids=excluded_ids if not effective_epic else None
+            excluded_epic_ids=excluded_ids if not effective_epic else None,
+            ancestor_map=ancestor_map
         )
 
         if next_task:
