@@ -1495,6 +1495,118 @@ class TestIterationResultClosedEpics(unittest.TestCase):
         self.assertEqual(result.closed_epics, ["lc-abc", "lc-def"])
 
 
+class TestDetectWorkedTaskTargetPreference(unittest.TestCase):
+    """Test detect_worked_task target_task_id preference."""
+
+    def test_target_preferred_over_dot_heuristic_ready_to_closed(self):
+        """When multiple tasks move ready→closed, target_task_id is preferred."""
+        # Before: two tasks ready
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+            closed=[],
+        )
+        # After: both closed
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+        )
+        # Without target: dot-count heuristic would pick lc-001.1.1 (more dots)
+        result_no_target = line_loop.detect_worked_task(before, after)
+        self.assertEqual(result_no_target, "lc-001.1.1")
+
+        # With target: should prefer lc-001.2 even though it has fewer dots
+        result_with_target = line_loop.detect_worked_task(before, after, target_task_id="lc-001.2")
+        self.assertEqual(result_with_target, "lc-001.2")
+
+    def test_target_preferred_in_progress_to_closed(self):
+        """When multiple tasks move in_progress→closed, target_task_id is preferred."""
+        before = line_loop.BeadSnapshot(
+            in_progress=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            in_progress=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+        )
+        # Without target: dot-count heuristic picks lc-001.1.1
+        result_no_target = line_loop.detect_worked_task(before, after)
+        self.assertEqual(result_no_target, "lc-001.1.1")
+
+        # With target: should prefer lc-001.2
+        result_with_target = line_loop.detect_worked_task(before, after, target_task_id="lc-001.2")
+        self.assertEqual(result_with_target, "lc-001.2")
+
+    def test_target_preferred_ready_to_in_progress(self):
+        """When multiple tasks move ready→in_progress, target_task_id is preferred."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+            ],
+            in_progress=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            in_progress=[
+                make_bead("lc-001", "Task A", "task"),
+                make_bead("lc-002", "Task B", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-002")
+        self.assertEqual(result, "lc-002")
+
+    def test_target_absent_falls_back_to_heuristic(self):
+        """When target_task_id is not in the changed set, falls back to dot-count."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+        )
+        # Target not in the changed set — falls back to dot-count heuristic
+        result = line_loop.detect_worked_task(before, after, target_task_id="lc-999")
+        self.assertEqual(result, "lc-001.1.1")
+
+    def test_none_target_uses_heuristic(self):
+        """When target_task_id is None, uses existing heuristic (backwards compat)."""
+        before = line_loop.BeadSnapshot(
+            ready=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+            closed=[],
+        )
+        after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[
+                make_bead("lc-001.1.1", "Deep task", "task"),
+                make_bead("lc-001.2", "Shallow task", "task"),
+            ],
+        )
+        result = line_loop.detect_worked_task(before, after, target_task_id=None)
+        self.assertEqual(result, "lc-001.1.1")
+
+
 class TestReopenTaskForRetry(unittest.TestCase):
     """Test _reopen_task_for_retry() helper."""
 

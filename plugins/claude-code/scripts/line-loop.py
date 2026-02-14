@@ -1432,7 +1432,22 @@ def parse_bd_json_item(data: Any) -> Optional[dict]:
     return None
 
 
-def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[str]:
+def _prefer_target_or_deepest(candidates: set[str], target_task_id: Optional[str]) -> str:
+    """Pick target if present in candidates, else the deepest leaf by dot count.
+
+    Leaf nodes have more dots in their ID (e.g., "lc-001.1.1" is deeper
+    than "lc-001.2"), so max by dot count selects the most specific task.
+    """
+    if target_task_id and target_task_id in candidates:
+        return target_task_id
+    return max(candidates, key=lambda x: x.count('.'))
+
+
+def detect_worked_task(
+    before: BeadSnapshot,
+    after: BeadSnapshot,
+    target_task_id: Optional[str] = None,
+) -> Optional[str]:
     """Detect which task was worked on by comparing bead state snapshots.
 
     Uses state transitions to identify the task that was claimed or completed
@@ -1441,17 +1456,23 @@ def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[st
     2. Task moved from ready to closed (completed in one go)
     3. Task was in_progress and is now closed (completed)
 
+    When target_task_id is provided and appears in the changed set, it is
+    preferred over the dot-count heuristic. This improves task attribution
+    when multiple tasks change in the same iteration (e.g., during retries).
+
     Args:
         before: BeadSnapshot captured before the iteration.
         after: BeadSnapshot captured after the iteration.
+        target_task_id: Optional task ID to prefer when present in changed set.
 
     Returns:
         Task ID that was worked on, or None if no task state change detected.
-        Returns the first matching task if multiple tasks changed (rare).
     """
     # Check for task that moved from ready to in_progress
     new_in_progress = set(after.in_progress_ids) - set(before.in_progress_ids)
     if new_in_progress:
+        if target_task_id and target_task_id in new_in_progress:
+            return target_task_id
         return next(iter(new_in_progress))
 
     # Check for task that moved from ready to closed
@@ -1459,16 +1480,14 @@ def detect_worked_task(before: BeadSnapshot, after: BeadSnapshot) -> Optional[st
     disappeared_ready = set(before.ready_ids) - set(after.ready_ids)
     worked = new_closed & disappeared_ready
     if worked:
-        # Prefer leaf nodes (more dots = deeper in hierarchy)
-        return max(worked, key=lambda x: x.count('.'))
+        return _prefer_target_or_deepest(worked, target_task_id)
 
     # Check for any task that was in_progress and is now closed
     was_in_progress = set(before.in_progress_ids)
     now_closed = set(after.closed_ids)
     completed = was_in_progress & now_closed
     if completed:
-        # Prefer leaf nodes (more dots = deeper in hierarchy)
-        return max(completed, key=lambda x: x.count('.'))
+        return _prefer_target_or_deepest(completed, target_task_id)
 
     return None
 
@@ -2393,7 +2412,7 @@ def run_iteration(
         if cook_result.error and "Timeout" in cook_result.error:
             # Timeout during cook - check if task completed anyway
             after_cook = get_bead_snapshot(cwd)
-            task_id = detect_worked_task(before, after_cook)
+            task_id = detect_worked_task(before, after_cook, target_task_id=target_task_id)
             if task_id:
                 task_info = get_task_info(task_id, cwd)
                 if task_info and task_info.get("status") == "closed":
@@ -2472,7 +2491,7 @@ def run_iteration(
         # Cook succeeded, detect task (skip if already detected in timeout path)
         if not task_completed_despite_timeout:
             after_cook = get_bead_snapshot(cwd)
-            task_id = detect_worked_task(before, after_cook)
+            task_id = detect_worked_task(before, after_cook, target_task_id=target_task_id)
         logger.debug(f"Detected task: {task_id}")
 
         # Update progress state with detected task for status visibility
@@ -2691,7 +2710,7 @@ def run_iteration(
     after = get_bead_snapshot(cwd)
 
     # Determine final outcome
-    task_id = task_id or detect_worked_task(before, after)
+    task_id = task_id or detect_worked_task(before, after, target_task_id=target_task_id)
     task_title = get_task_title(task_id, cwd) if task_id else None
     commit_hash = get_latest_commit(cwd)
 
