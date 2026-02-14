@@ -83,10 +83,20 @@ EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
     'cook': 1200,           # 20 min - Main work phase: TDD cycle, file edits, test runs
-    'serve': 600,           # 10 min - Code review by sous-chef subagent
+    'serve': 450,           # 7.5 min - Code review by sous-chef subagent
     'tidy': 240,            # 4 min - Commit, bd sync, git push
-    'plate': 600,           # 10 min - BDD review via maître, acceptance doc
-    'close-service': 900,   # 15 min - Critic E2E review + epic acceptance doc
+    'plate': 450,           # 7.5 min - BDD review via maître, acceptance doc
+    'close-service': 750,   # 12.5 min - Critic E2E review + epic acceptance doc
+}
+
+# Per-phase idle timeouts (in seconds) - used when no explicit idle_timeout passed
+# Phases with longer expected pauses (e.g., serve waiting for subagent) get longer idle thresholds
+DEFAULT_PHASE_IDLE_TIMEOUTS = {
+    'cook': 180,            # 3 min - Active coding, frequent tool use expected
+    'serve': 300,           # 5 min - Review may have long pauses between actions
+    'tidy': 90,             # 1.5 min - Quick commit/push, should be fast
+    'plate': 300,           # 5 min - BDD review, subagent pauses expected
+    'close-service': 600,   # 10 min - Epic close involves extensive review
 }
 
 
@@ -1018,6 +1028,21 @@ def check_idle(last_action_time: Optional[datetime], idle_timeout: int) -> bool:
     return idle_seconds >= idle_timeout
 
 
+def resolve_idle_timeout(phase: str, idle_timeout: Optional[int]) -> int:
+    """Resolve the effective idle timeout for a phase.
+
+    Args:
+        phase: Phase name (cook, serve, tidy, plate, close-service)
+        idle_timeout: Explicit override, or None to use per-phase default
+
+    Returns:
+        Effective idle timeout in seconds
+    """
+    if idle_timeout is not None:
+        return idle_timeout
+    return DEFAULT_PHASE_IDLE_TIMEOUTS.get(phase, DEFAULT_IDLE_TIMEOUT)
+
+
 def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedProcess:
     """Run subprocess with logging, timeout handling, and structured output.
 
@@ -1086,7 +1111,7 @@ def run_phase(
     timeout: Optional[int] = None,
     on_progress: Optional[Callable[[int, str], None]] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
@@ -1099,15 +1124,18 @@ def run_phase(
         on_progress: Optional callback for progress updates.
             Called with (action_count, last_action_timestamp) when new actions detected.
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
-        idle_timeout: Seconds without tool actions before triggering idle (default: 180)
+        idle_timeout: Override idle timeout, or None to use per-phase default from
+            DEFAULT_PHASE_IDLE_TIMEOUTS (falls back to DEFAULT_IDLE_TIMEOUT)
         idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: warn)
 
     Returns:
         PhaseResult with output, signals, and success status
     """
+    idle_timeout = resolve_idle_timeout(phase, idle_timeout)
     if timeout is None:
         timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
-        timeout = timeouts.get(phase, DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT))
+        fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
+        timeout = timeouts.get(phase, fallback)
 
     skill = f"/line:{phase}"
     if args:
@@ -1336,9 +1364,10 @@ def print_phase_progress(phase: str, status: str, duration: float = 0, extra: st
     """
     if status == "start":
         print(f"  [{phase}] start")
+    elif extra:
+        print(f"  [{phase}] {extra} ({format_duration(duration)})")
     else:
-        msg = f"  [{phase}] {extra} ({format_duration(duration)})" if extra else f"  [{phase}] done ({format_duration(duration)})"
-        print(msg)
+        print(f"  [{phase}] done ({format_duration(duration)})")
 
 
 def print_human_iteration(result: IterationResult, retries: int = 0):
@@ -1382,7 +1411,10 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
     # Bead state changes
     ready_str = f"ready {result.before_ready}\u2192{result.after_ready}"
     in_prog_str = f"in_progress {result.before_in_progress}\u2192{result.after_in_progress}"
-    closed_count = len(result.delta.newly_closed) if result.delta else (1 if result.success else 0)
+    if result.delta:
+        closed_count = len(result.delta.newly_closed)
+    else:
+        closed_count = 1 if result.success else 0
     closed_str = f"+{closed_count}" if closed_count > 0 else ""
     print(f"\n  Beads: {ready_str} | {in_prog_str}" + (f" | closed {closed_str}" if closed_str else ""))
 
@@ -2496,7 +2528,7 @@ def run_iteration(
     json_output: bool = False,
     progress_state: Optional[ProgressState] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     before_snapshot: Optional[BeadSnapshot] = None,
     target_task_id: Optional[str] = None
@@ -2508,7 +2540,7 @@ def run_iteration(
     completion triggers.
 
     Phase timeouts are controlled by phase_timeouts dict or DEFAULT_PHASE_TIMEOUTS
-    (cook=1200s, serve=600s, tidy=240s, plate=600s).
+    (cook=1200s, serve=450s, tidy=240s, plate=450s, close-service=750s).
 
     Args:
         iteration: Current iteration number
@@ -2518,7 +2550,7 @@ def run_iteration(
         json_output: If True, suppress human-readable phase output
         progress_state: Optional progress state for real-time status updates
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
-        idle_timeout: Seconds without tool actions before triggering idle
+        idle_timeout: Override idle timeout, or None to use per-phase defaults
         idle_action: Action on idle - "warn" or "terminate"
         before_snapshot: Optional pre-captured snapshot (avoids redundant bd query)
     """
@@ -3542,12 +3574,9 @@ def write_status_file(
     # Add recent_iterations (limited for display)
     if iterations:
         completed = [i for i in iterations if i.outcome == "completed"]
-        if len(completed) > RECENT_ITERATIONS_DISPLAY:
-            recent = completed[-RECENT_ITERATIONS_DISPLAY:]
-        else:
-            recent = completed
         status["recent_iterations"] = [
-            serialize_iteration_for_status(i) for i in recent
+            serialize_iteration_for_status(i)
+            for i in completed[-RECENT_ITERATIONS_DISPLAY:]
         ]
     else:
         status["recent_iterations"] = []
@@ -3866,7 +3895,7 @@ def run_loop(
     skip_initial_sync: bool = False,
     phase_timeouts: Optional[dict[str, int]] = None,
     max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
-    idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+    idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     epic_mode: Optional[str] = None
 ) -> LoopReport:
@@ -3875,9 +3904,10 @@ def run_loop(
     Individual phases have their own timeouts via phase_timeouts dict
     or DEFAULT_PHASE_TIMEOUTS.
 
-    Idle detection: If idle_timeout > 0, phases will be checked for idle
-    (no tool actions within threshold). idle_action determines response:
-    "warn" logs a warning, "terminate" stops the phase.
+    Idle detection: Each phase has a per-phase idle timeout (see
+    DEFAULT_PHASE_IDLE_TIMEOUTS). Pass idle_timeout to override all phases,
+    or 0 to disable. idle_action determines response: "warn" logs a warning,
+    "terminate" stops the phase.
 
     Epic mode: If epic_mode is set, filters task selection:
     - None: default mode, excludes Retrospective/Backlog epics
@@ -4440,6 +4470,7 @@ def run_loop(
 
 # === CLI Entry Point ===
 
+# Import from the line_loop package
 
 # Module-level logger
 logger = logging.getLogger('line-loop')
@@ -4613,8 +4644,8 @@ Examples:
     parser.add_argument(
         "--idle-timeout",
         type=int,
-        default=DEFAULT_IDLE_TIMEOUT,
-        help=f"Seconds without tool actions before idle triggers (default: {DEFAULT_IDLE_TIMEOUT}). Set to 0 to disable."
+        default=None,
+        help=f"Override idle timeout for all phases (default: per-phase, see DEFAULT_PHASE_IDLE_TIMEOUTS). Set to 0 to disable."
     )
     parser.add_argument(
         "--idle-action",
