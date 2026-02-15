@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Autonomous findings tracking: findings_count in IterationResult for watch-mode visibility (lc-egd.3)
   - Resilient long-running execution: periodic bd sync, per-phase idle timeouts, tuned phase timeouts (lc-egd.4)
 
+### Changed
+- Documentation restructured around two-cycle mental model (Mise Cycle for planning, Run Cycle for execution). Replaces 23 files (~9000 lines) with a focused 9-file structure (~2000 lines) using progressive disclosure. New getting-started guide, FAQ, and command reference replace the previous tutorials and guidance docs
+- Fixed beads install command in all platform docs (`brew install beads` replaces previous incorrect command)
+
+### Fixed
+- Line loop now passes the selected task ID to the cook phase, ensuring skip list and epic filter are respected during autonomous execution
+- Line loop now reopens tasks for retry when serve returns NEEDS_CHANGES, instead of leaving them closed
+- Epic branch merges now fire correctly after close-service completes within the loop (previously the merge check found nothing because the epic was already closed)
+- Removed redundant close-service invocations when the loop's catch-all epic check encountered epics already handled during the iteration
+
 ## [0.14.0] - 2026-02-12
 ### Added
 - `/close-service` command — dedicated epic closure with critic review, acceptance documentation, and branch merge. Epics now get the same quality gate treatment that features get from `/plate`
