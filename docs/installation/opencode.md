@@ -18,10 +18,10 @@ cd ~/line-cook && git pull && ./plugins/opencode/install.sh
 After installing, run:
 
 ```
-/line-help
+/line-init
 ```
 
-You should see a list of available Line Cook commands.
+This verifies your setup (git, beads, plugin) and reports any issues with fix instructions.
 
 ## Troubleshooting
 
@@ -33,4 +33,5 @@ You should see a list of available Line Cook commands.
 
 1. Install [beads](https://github.com/steveyegge/beads): `brew install beads`
 2. Initialize beads in your project: `bd init`
-3. Follow [Getting Started](../getting-started.md)
+3. Run `/line-init` to verify everything is configured
+4. Follow [Getting Started](../getting-started.md)

@@ -50,6 +50,7 @@ Based on context, suggest the most relevant next action:
 
 | Context | Suggested Command |
 |---------|-------------------|
+| No beads CLI installed | `@line-init` (verify setup) |
 | No .beads directory | `@line-mise` (start planning) |
 | Beads present, no ready tasks | `@line-mise` (create more work) |
 | Ready tasks available | `@line-cook <first-ready-id>` |
@@ -70,6 +71,14 @@ YOUR CONTEXT
 Ready tasks: <count> | In progress: <count> | Blocked: <count>
 Working tree: <clean|dirty>
 Suggested: <command based on context>
+
+ONBOARDING (new users start here)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@line-init              Verify setup
+@line-getting-started   Learn the workflow
+@line-onboarding        Interactive walkthrough
+@line-whats-new         Recent changes
+@line-doctor            Diagnose issues
 
 PLANNING (create work)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -93,7 +102,6 @@ EXECUTION (do work)
 
 REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-@line-getting-started   Workflow guide with bead reference
 @line-loop              Autonomous loop management
 @line-help <command>    Detailed help for specific command
 
@@ -170,9 +178,10 @@ Back to overview: @line-help
 Command not found: <argument>
 
 Available commands:
+  Onboarding: init, getting-started, onboarding, whats-new, doctor
   Planning: mise, brainstorm, scope, finalize, plan-audit, architecture-audit, decision
   Execution: run, prep, cook, serve, tidy, plate, close-service
-  Reference: getting-started, loop, help
+  Reference: loop, help
 
 Run @line-help for overview.
 ```
@@ -185,6 +194,11 @@ Quick reference for all commands:
 
 | Command | Phase | Description |
 |---------|-------|-------------|
+| `@line-init` | Onboarding | Verify setup |
+| `@line-getting-started` | Onboarding | Learn the workflow |
+| `@line-onboarding` | Onboarding | Interactive walkthrough |
+| `@line-whats-new` | Onboarding | Recent changes |
+| `@line-doctor` | Onboarding | Diagnose issues |
 | `@line-mise` | Planning | Full planning cycle (orchestrates brainstorm→scope→finalize) |
 | `@line-brainstorm` | Planning | Explore problem space (divergent thinking) |
 | `@line-scope` | Planning | Create work breakdown (convergent thinking) |
@@ -199,7 +213,6 @@ Quick reference for all commands:
 | `@line-tidy` | Execution | Commit and push |
 | `@line-plate` | Execution | Validate completed feature (maître subagent) |
 | `@line-close-service` | Execution | Validate completed epic (critic subagent) |
-| `@line-getting-started` | Reference | Workflow guide with bead reference |
 | `@line-loop` | Reference | Autonomous loop management |
 | `@line-help` | Reference | Contextual help for Line Cook commands |
 
@@ -208,24 +221,24 @@ Quick reference for all commands:
 ## Workflow Relationships
 
 ```
-PLANNING CYCLE              EXECUTION CYCLE
-━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
-/brainstorm                 /prep
-      ↓                           ↓
-/scope                      /cook
-      ↓                           ↓
-/finalize                   /serve
-                                  ↓
-                            /tidy
-                                  ↓
-                            /plate (if feature complete)
-                                  ↓
-                            /close-service (if epic complete)
+ONBOARDING                  PLANNING CYCLE              EXECUTION CYCLE
+━━━━━━━━━━━━                ━━━━━━━━━━━━━━━             ━━━━━━━━━━━━━━━━
+/init                       /brainstorm                 /prep
+      ↓                           ↓                           ↓
+/getting-started            /scope                      /cook
+      ↓                           ↓                           ↓
+/onboarding                 /finalize                   /serve
+                                                              ↓
+                                                        /tidy
+                                                              ↓
+                                                        /plate (if feature complete)
+                                                              ↓
+                                                        /close-service (if epic complete)
 
-/mise (orchestrator)        /run (orchestrator)
+                            /mise (orchestrator)        /run (orchestrator)
 ```
 
-Planning creates work. Execution completes work.
+Onboarding teaches. Planning creates work. Execution completes work.
 
 ---
 
