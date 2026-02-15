@@ -121,7 +121,7 @@ def check_bd_version() -> CheckResult:
             name="bd_version", category="system", status="warn",
             message="Could not determine beads version",
         )
-    version = out.strip().split()[-1] if out.strip() else "unknown"
+    version = out.strip().split()[-1]
     return CheckResult(
         name="bd_version", category="system", status="pass",
         message="Beads {}".format(version),
@@ -231,14 +231,14 @@ def find_marketplace_json() -> Optional[Path]:
     script_dir = Path(__file__).resolve().parent
 
     # Installed plugin: scripts/ -> line/ -> marketplace-root/
-    candidate_2 = script_dir.parent.parent / ".claude-plugin" / "marketplace.json"
-    if candidate_2.is_file():
-        return candidate_2
+    installed_candidate = script_dir.parent.parent / ".claude-plugin" / "marketplace.json"
+    if installed_candidate.is_file():
+        return installed_candidate
 
     # Repo layout: scripts/ -> claude-code/ -> plugins/ -> repo-root/
-    candidate_3 = script_dir.parent.parent.parent / ".claude-plugin" / "marketplace.json"
-    if candidate_3.is_file():
-        return candidate_3
+    repo_candidate = script_dir.parent.parent.parent / ".claude-plugin" / "marketplace.json"
+    if repo_candidate.is_file():
+        return repo_candidate
 
     # CWD is repo root
     cwd_candidate = Path(".claude-plugin") / "marketplace.json"
