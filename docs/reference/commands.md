@@ -4,6 +4,58 @@ All Line Cook commands organized by lifecycle phase.
 
 ---
 
+## Onboarding Commands
+
+### /line:init
+
+Verify your setup — checks git, beads, and Line Cook configuration.
+
+```
+/line:init
+```
+
+Reports pass/warn/fail for each component with fix instructions.
+
+### /line:getting-started
+
+Learn the Line Cook workflow — the two-cycle mental model, command map, and workflow principles.
+
+```
+/line:getting-started
+```
+
+### /line:onboarding
+
+Interactive hands-on walkthrough with optional demo project.
+
+```
+/line:onboarding              # Interactive walkthrough
+/line:onboarding demo         # Jump straight to demo setup
+```
+
+### /line:whats-new
+
+Browse recent Line Cook releases from the changelog.
+
+```
+/line:whats-new               # Latest 3 releases
+/line:whats-new 0.14.0        # Specific version details
+/line:whats-new all           # All versions overview
+```
+
+### /line:doctor
+
+Comprehensive health diagnostics and interactive troubleshooting.
+
+```
+/line:doctor                          # Full diagnostic report
+/line:doctor tasks seem blocked       # Targeted troubleshooting
+```
+
+Runs all setup checks plus project-specific analysis (stale tasks, orphaned issues, spice rack status).
+
+---
+
 ## Planning Commands
 
 ### /line:mise
@@ -197,14 +249,6 @@ Contextual help for Line Cook commands.
 ```
 /line:help
 /line:help <command>
-```
-
-### /line:getting-started
-
-Interactive workflow guide with bead reference.
-
-```
-/line:getting-started
 ```
 
 ---

@@ -44,13 +44,14 @@ Repeat Run Cycles hands-free until no ready tasks remain. Same quality gates, no
 ## Quick Start
 
 ```bash
+/line:init           # Verify your setup
 bd init              # Initialize beads in your project
 /line:mise           # Plan your work (brainstorm → scope → finalize)
 # Clear context
 /line:run            # Execute (prep → cook → serve → tidy)
 ```
 
-> **New here?** See the [Getting Started](docs/getting-started.md) walkthrough.
+> **New here?** Run `/line:init` to verify your setup, then see the [Getting Started](docs/getting-started.md) walkthrough.
 
 ## When to Use / Skip
 

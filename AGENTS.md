@@ -53,7 +53,11 @@ Or use `/run` to run the full execution cycle, `/mise` to run the full planning 
 
 | Command | Purpose |
 |---------|---------|
-| `/getting-started` | Quick workflow guide for beginners |
+| `/init` | Verify setup |
+| `/getting-started` | Learn the workflow |
+| `/onboarding` | Interactive walkthrough |
+| `/whats-new` | Browse recent changes |
+| `/doctor` | Diagnose issues |
 | `/mise` | Create work breakdown (orchestrates brainstorm→scope→finalize) |
 | `/brainstorm` | Explore problem space (divergent thinking) |
 | `/scope` | Create structured work breakdown (convergent thinking) |
@@ -148,7 +152,11 @@ Claude Code uses slash commands instead of agents:
 
 | Command | Role | Purpose |
 |---------|------|---------|
-| **/line:getting-started** | Tutorial | Quick workflow guide for beginners |
+| **/line:init** | Onboarding | Verify setup |
+| **/line:getting-started** | Onboarding | Learn the workflow |
+| **/line:onboarding** | Onboarding | Interactive walkthrough |
+| **/line:whats-new** | Onboarding | Browse recent changes |
+| **/line:doctor** | Onboarding | Diagnose issues |
 | **/line:mise** | Planning orchestrator | Brainstorm→scope→finalize with pauses |
 | **/line:brainstorm** | Brainstorm phase | Explore problem space (divergent thinking) |
 | **/line:scope** | Scope phase | Create structured work breakdown |
@@ -194,7 +202,7 @@ OpenCode plugin uses markdown commands in `plugins/opencode/commands/` and agent
 
 | Component | Type | Purpose |
 |----------|------|---------|
-| **Commands** | OpenCode commands | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-close-service`, `/line-run`, `/line-getting-started`, `/line-architecture-audit`, `/line-decision`, `/line-help`, `/line-loop`, `/line-plan-audit` |
+| **Commands** | OpenCode commands | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-close-service`, `/line-run`, `/line-getting-started`, `/line-architecture-audit`, `/line-decision`, `/line-help`, `/line-loop`, `/line-plan-audit`, `/line-init`, `/line-onboarding`, `/line-whats-new`, `/line-doctor` |
 | **Agents** | OpenCode subagents | taster, polisher, sous-chef, maitre, critic (markdown files in `plugins/opencode/agents/`) |
 
 ### OpenCode Subagents (plugins/opencode/agents/)
@@ -352,7 +360,7 @@ See [Project Structure](docs/dev/project-structure.md) for full directory layout
 Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), OpenCode (`plugins/opencode/commands/`), and Kiro (`plugins/kiro/prompts/`). All are generated from shared templates to prevent drift.
 
 **Template system:**
-- Source templates live in `core/templates/commands/` (17 templates)
+- Source templates live in `core/templates/commands/` (21 templates)
 - Use placeholders for platform-specific differences:
   - `@NAMESPACE@` - Command prefix (`line:` for Claude Code, `line-` for OpenCode/Kiro)
   - `@IF_CLAUDECODE@`...`@ENDIF_CLAUDECODE@` - Claude Code only content
@@ -364,7 +372,7 @@ Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), 
 - OpenCode: `/line-cook` (hyphen separator), simplified step numbering
 - Kiro: `@line-cook` (at-sign prefix), same content as OpenCode but no YAML frontmatter
 
-**Synced commands:** All 17 — architecture-audit, brainstorm, close-service, cook, decision, finalize, getting-started, help, loop, mise, plan-audit, plate, prep, run, scope, serve, tidy
+**Synced commands:** All 21 — architecture-audit, brainstorm, close-service, cook, decision, doctor, finalize, getting-started, help, init, loop, mise, onboarding, plan-audit, plate, prep, run, scope, serve, tidy, whats-new
 
 ### Agent Template Synchronization
 

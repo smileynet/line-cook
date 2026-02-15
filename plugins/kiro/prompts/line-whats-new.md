@@ -1,0 +1,139 @@
+**You are now executing this workflow.** Begin immediately with Step 1. Do not summarize, describe, or explain what you will do — just do it. If the user included any text in their message, that text is the input argument — use it directly, do not ask for it again.
+
+## Summary
+
+**Browse recent Line Cook releases from CHANGELOG.** Shows what changed, when, and why.
+
+**Arguments:** `$ARGUMENTS` (optional)
+- `(empty)` — Latest 3 releases
+- `<version>` — Details for a specific version (e.g., `0.14.0`)
+- `all` — List all versions with one-line summaries
+
+---
+
+## Process
+
+### Step 1: Locate CHANGELOG
+
+Try to find CHANGELOG.md locally first, then fall back to GitHub API:
+
+```bash
+# Try local paths (installed plugin or repo root)
+# Glob for CHANGELOG.md near the plugin installation
+```
+
+Use Glob to search for `**/CHANGELOG.md` in likely locations:
+1. The plugin's parent directories (up from the commands/ directory)
+2. Current working directory
+
+If not found locally, fetch via GitHub API:
+
+```bash
+gh api repos/smileynet/line-cook/contents/CHANGELOG.md \
+  --jq '.content' | base64 -d
+```
+
+### Step 2: Parse CHANGELOG
+
+The CHANGELOG uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+
+Parse the content to extract:
+- Version sections (delimited by `## [X.Y.Z]` headers)
+- Category sections within each version (`### Added`, `### Changed`, `### Fixed`)
+- The `[Unreleased]` section if it has content
+
+### Step 3: Determine Scope from Arguments
+
+**If no argument (or empty):** Show the latest 3 releases.
+
+**If argument is a version number** (e.g., `0.14.0`): Show full details for that version only.
+
+**If argument is `all`:** Show all versions with a condensed one-line summary each.
+
+### Step 4: Display Formatted Output
+
+**Latest 3 releases (default):**
+
+```
+WHAT'S NEW IN LINE COOK
+━━━━━━━━━━━━━━━━━━━━━━━
+
+v0.15.0 (2026-02-15) ← current
+  Added: <one-line summary of Added section>
+  Changed: <one-line summary>
+  Fixed: <one-line summary>
+
+v0.14.0 (2026-02-12)
+  Added: <one-line summary>
+  Changed: <one-line summary>
+  Fixed: <one-line summary>
+
+v0.13.2 (2026-02-11)
+  Fixed: <one-line summary>
+
+Details: @line-whats-new <version>
+All versions: @line-whats-new all
+```
+
+For each version, condense the category into a single line summarizing the key changes. Include the count of items if there are multiple (e.g., "Fixed: 4 loop execution bugs").
+
+**Specific version:**
+
+```
+LINE COOK v0.14.0 (2026-02-12)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Added
+  - /close-service command for epic closure with critic review
+  - /prep shows "READY TO CLOSE" section
+  - OpenCode gets all 5 review agents
+  - game-spice plugin in marketplace
+
+Changed
+  - /plate focuses on feature validation only
+  - /run auto-reworks failed reviews (up to 3 attempts)
+  - /serve reviews original code first, polishes after approval
+  - /tidy no longer silently closes epics
+
+Fixed
+  - /run no longer skips to tidy when serve finds issues
+  - /tidy no longer accidentally closes unrelated tasks
+  - Review findings survive /clear
+
+Back: @line-whats-new
+```
+
+**All versions:**
+
+```
+LINE COOK RELEASES
+━━━━━━━━━━━━━━━━━━
+
+v0.15.0  2026-02-15  Line Loop optimization, docs restructuring
+v0.14.0  2026-02-12  /close-service, /prep READY TO CLOSE, spice rack
+v0.13.2  2026-02-11  Marketplace script path discovery fix
+v0.13.1  2026-02-11  Kiro inline arguments, plan validator fixes
+v0.13.0  2026-02-10  Full command parity across 3 platforms
+...
+
+Details: @line-whats-new <version>
+```
+
+### Step 5: Invite Questions
+
+After displaying, add:
+
+```
+Want to know more about a specific change? Ask about it or run:
+  @line-whats-new <version>
+```
+
+---
+
+## Example Usage
+
+```
+@line-whats-new              # Latest 3 releases
+@line-whats-new 0.14.0       # Specific version details
+@line-whats-new all          # All versions overview
+```

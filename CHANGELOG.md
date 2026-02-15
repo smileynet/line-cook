@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `/init` command — one-time setup verification with guided fixes (checks git, beads, plugin health)
+- `/onboarding` command — interactive walkthrough with demo project option (teaches Mise + Run cycles hands-on)
+- `/whats-new` command — browse recent releases from CHANGELOG with version filtering
+- `/doctor` command — comprehensive health diagnostics with interactive troubleshooting (stale tasks, orphaned issues, spice rack status)
+- `onboarding-check.py` diagnostic script shared by init and doctor commands
+
+### Changed
+- `/getting-started` rewritten as focused conceptual orientation (two-cycle mental model, command tables, workflow principles). Bead reference and autonomous loop docs moved to dedicated commands
+- `/help` now shows ONBOARDING section with init, getting-started, onboarding, whats-new, and doctor commands. Suggests `/init` when beads CLI is not installed
+
 ## [0.15.0] - 2026-02-15
 ### Added
 - Line Loop Process Optimization (lc-egd)
