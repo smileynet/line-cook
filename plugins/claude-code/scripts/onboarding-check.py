@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -59,7 +58,7 @@ class DiagnosticReport:
 
     @property
     def summary(self):
-        passed = sum(1 for c in self.checks if c.status == "pass")
+        passed = sum(1 for c in self.checks if c.status in ("pass", "info"))
         warned = sum(1 for c in self.checks if c.status == "warn")
         failed = sum(1 for c in self.checks if c.status == "fail")
         return {"passed": passed, "warned": warned, "failed": failed}
@@ -230,10 +229,16 @@ def check_scripts_available() -> CheckResult:
 def find_marketplace_json() -> Optional[Path]:
     """Locate marketplace.json."""
     script_dir = Path(__file__).resolve().parent
-    # Installed plugin: scripts/ -> claude-code/ -> .. -> line-cook repo
-    candidate = script_dir.parent.parent.parent / ".claude-plugin" / "marketplace.json"
-    if candidate.is_file():
-        return candidate
+
+    # Installed plugin: scripts/ -> line/ -> marketplace-root/
+    candidate_2 = script_dir.parent.parent / ".claude-plugin" / "marketplace.json"
+    if candidate_2.is_file():
+        return candidate_2
+
+    # Repo layout: scripts/ -> claude-code/ -> plugins/ -> repo-root/
+    candidate_3 = script_dir.parent.parent.parent / ".claude-plugin" / "marketplace.json"
+    if candidate_3.is_file():
+        return candidate_3
 
     # CWD is repo root
     cwd_candidate = Path(".claude-plugin") / "marketplace.json"
