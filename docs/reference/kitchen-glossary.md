@@ -16,7 +16,7 @@ Line Cook uses restaurant/kitchen terminology throughout its workflow:
 | **Chef** | Subagent that executes tasks with TDD cycle | `/cook` phase |
 | **Sous-Chef** | Subagent that reviews code changes | `/serve` phase |
 | **Taster** | Subagent that reviews test quality | After RED phase |
-| **Maître** | Subagent that reviews feature acceptance | `/plate` phase |
+| **Maitre** | Subagent that reviews feature acceptance | `/plate` phase |
 | **Expeditor** | Subagent that orchestrates full workflow | `/run` phase |
 | **ORDER_UP** | Signal emitted when task is ready for review | End of cook phase |
 | **GOOD_TO_GO** | Assessment from sous-chef indicating code is ready to commit | After serve phase |

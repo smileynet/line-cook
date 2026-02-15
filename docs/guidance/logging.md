@@ -318,6 +318,6 @@ logging:
 
 ## Related
 
-- [Workflow](./workflow.md) - Where logging fits in development
-- [Context Management](./context-management.md) - Session and context tracking
-- [Test Setup](./test-setup.md) - Testing log output
+- [Run Cycle](../cycles/run-cycle.md) - Where logging fits in execution
+- [FAQ — Context & Sessions](../faq.md#context--sessions) - Session and context tracking
+- [FAQ — Testing](../faq.md#testing) - Testing guidance

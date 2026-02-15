@@ -1,4 +1,4 @@
-<!-- Kiro-only CLI quick reference. Claude Code equivalent: docs/guidance/beads-reference.md + hook injection -->
+<!-- Kiro-only CLI quick reference. Claude Code equivalent: docs/reference/beads.md + hook injection -->
 
 # Beads Quick Reference
 

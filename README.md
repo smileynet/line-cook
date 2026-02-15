@@ -1,35 +1,63 @@
 # Line Cook
 
-**You design. It ships.**
+**Think big, execute small.**
 
-Focus on the what and why—Line Cook handles the how. Structured execution with guardrails that keeps you in deep work while AI runs the prep→cook→serve→tidy cycle.
+Use the Mise Cycle to brainstorm freely — explore possibilities, ask hard questions, and plan ambitious work in a single creative session. Then hand off to the Run Cycle, where strong guardrails keep execution disciplined: small context windows prevent scope creep, and acceptance criteria at every level (task, feature, epic) ensure quality gates are met before work ships.
+
+The result: you stay in deep work while AI handles structured execution with built-in checkpoints.
+
+## The Two Cycles
+
+```
+  Mise Cycle                  Run Cycle
+ ┌──────────────────┐       ┌──────────────────┐
+ │                  │       │                  │
+ │   /brainstorm    │       │   /prep ◄────┐   │
+ │        ↓         │       │      ↓       │   │
+ │     /scope       │       │   /cook      │   │
+ │        ↓         │       │      ↓       │   │
+ │   /finalize ─────┼─────► │   /serve     │   │
+ │                  │       │      ↓       │   │
+ └──────────────────┘       │   /tidy ─────┘   │
+                            │    next task     │
+                            └──────────────────┘
+```
+
+### Mise: Ideas → Tasks
+
+Brainstorm → Scope → Finalize. Turn unstructured ideas into well-scoped, dependency-ordered tasks with test specs.
+
+[Learn more →](docs/cycles/mise-cycle.md)
+
+### Run: Tasks → Shipped Code
+
+Prep → Cook → Serve → Tidy. Execute one task at a time with TDD, AI peer review, and automatic commit/push.
+
+[Learn more →](docs/cycles/run-cycle.md)
+
+### Loop: Autonomous Execution (Advanced)
+
+Repeat Run Cycles hands-free until no ready tasks remain. Same quality gates, no supervision needed.
+
+[Learn more →](docs/cycles/loop-cycle.md)
 
 ## Quick Start
 
-After [installing](#installation) Line Cook and beads:
-
 ```bash
 bd init              # Initialize beads in your project
-/line:mise           # Plan your work
-/line:run            # Execute workflow
+/line:mise           # Plan your work (brainstorm → scope → finalize)
+# Clear context
+/line:run            # Execute (prep → cook → serve → tidy)
 ```
 
-> **New here?** Run `/line:getting-started` for a walkthrough, or see [Tutorials](#learn-more).
+> **New here?** See the [Getting Started](docs/getting-started.md) walkthrough.
 
-## Philosophy
-
-**Sessions, not streams.** AI context is finite. Work in bounded sessions—prep, cook, serve, tidy—then clear context and start fresh. Each session ends with a push; discoveries become tracked issues for the next session.
-
-**You plan, it executes.** Brainstorm with AI to scope work and create issues. Then hand off to Line Cook for disciplined execution. Don't mix modes—creative exploration and systematic execution are different phases.
-
-> **Deep dive:** [Mental Models](docs/mental-models.md) explains these concepts in depth.
-
-## When to Use
+## When to Use / Skip
 
 **Use Line Cook when:**
 - Work spans multiple sessions
 - Tasks have dependencies
-- You want automated review
+- You want automated code review
 - You're building trust in AI workflows
 
 **Skip it when:**
@@ -37,40 +65,6 @@ bd init              # Initialize beads in your project
 - Exploratory coding or prototyping
 - Active pair programming
 - Setup takes longer than the work
-
-## Workflow
-
-```
-  Planning (/mise)          Execution (/run)
- ┌──────────────────┐   ┌──────────────────┐
- │                  │   │                  │
- │   /brainstorm    │   │   /prep ◄────┐   │
- │        ↓         │   │      ↓       │   │
- │     /scope       │   │   /cook      │   │
- │        ↓         │   │      ↓       │   │
- │   /finalize ─────┼──►│   /serve     │   │
- │                  │   │      ↓       │   │
- │                  │   │   /tidy ─────┘   │
- │                  │   │    next task     │
- └──────────────────┘   └──────────────────┘
-```
-
-| Command | What happens |
-|---------|--------------|
-| `/getting-started` | Quick workflow guide |
-| `/mise` | Create work breakdown (brainstorm→scope→finalize) |
-| `/prep` | Sync git, show ready tasks |
-| `/cook` | Execute task with TDD cycle |
-| `/serve` | Review code changes |
-| `/tidy` | Commit and push changes |
-| `/plate` | Validate completed feature |
-| `/plan-audit` | Validate bead structure and quality |
-| `/loop` | Autonomous multi-cycle execution |
-| `/run` | Run full workflow cycle |
-
-> **Session boundary:** After `/tidy` pushes your work, start a new session or clear context before the next task.
-
-> **Full reference:** [Workflow Guide](docs/guidance/workflow.md)
 
 ## Installation
 
@@ -86,30 +80,22 @@ brew install steveyegge/beads/bd
 
 ### 2. Install Line Cook
 
-**Claude Code:**
-```bash
-/plugin marketplace add smileynet/line-cook
-/plugin install line@line-cook
-```
-> Update: `/plugin update line` | [Full tutorial](docs/tutorial-claude-code.md)
+| Platform | Install | Details |
+|----------|---------|---------|
+| **Claude Code** | `/plugin marketplace add smileynet/line-cook` then `/plugin install line@line-cook` | [Full guide](docs/installation/claude-code.md) |
+| **OpenCode** | `git clone ... && ./install.sh` | [Full guide](docs/installation/opencode.md) |
+| **Kiro** | `git clone ... && python3 install.py` | [Full guide](docs/installation/kiro.md) |
 
-**OpenCode:**
-```bash
-git clone https://github.com/smileynet/line-cook.git ~/line-cook
-cd ~/line-cook/plugins/opencode && ./install.sh
-```
-> Update: `cd ~/line-cook && git pull && plugins/opencode/install.sh` | [Full tutorial](docs/tutorial-opencode.md)
+## Learn More
 
-**Kiro:**
-```bash
-git clone https://github.com/smileynet/line-cook.git ~/line-cook
-python3 ~/line-cook/plugins/kiro/install.py
-```
-> Update: `cd ~/line-cook && git pull && python3 plugins/kiro/install.py` | [Full tutorial](docs/tutorial-kiro.md)
+- [Getting Started](docs/getting-started.md) — Walkthrough from install to first shipped task
+- [FAQ](docs/faq.md) — Common questions and troubleshooting
+- [Command Reference](docs/reference/commands.md) — All commands and options
+- [AGENTS.md](AGENTS.md) — Technical reference for contributors
 
 ## Spice Rack
 
-Domain-specific addons that enhance Line Cook's planning workflow. Spices load automatically during `/mise` when Claude detects relevant project context.
+Domain-specific addons that enhance planning. Spices load automatically during `/mise` when relevant project context is detected.
 
 | Spice | What it adds |
 |-------|-------------|
@@ -118,27 +104,6 @@ Domain-specific addons that enhance Line Cook's planning workflow. Spices load a
 ```bash
 /plugin install game-spice@line-cook
 ```
-
-## Learn More
-
-- [Claude Code Tutorial](docs/tutorial-claude-code.md) — Complete walkthrough
-- [Workflow Guide](docs/guidance/workflow.md) — Command reference and phases
-- [Mental Models](docs/mental-models.md) — Core concepts explained
-- [AGENTS.md](AGENTS.md) — Technical reference for contributors
-
-## FAQ
-
-**What if I don't use beads?**
-You can still run the commands—they'll work. But you lose the "memory between sessions" benefit. Without beads, there's no persistent record of what was done, what's blocked, or what was discovered.
-
-**How long should a task be?**
-A task should take roughly 5-10 minutes of AI execution time. If it's taking longer, break it down with dependencies—smaller tasks mean more checkpoints and easier recovery.
-
-**What does "headless Claude" mean?**
-Headless means Claude running as a background process—no interactive terminal, just a prompt in and results out. `/serve` uses headless Claude to get a fresh review of your changes.
-
-**Why clear context between tasks?**
-AI context windows are finite. Old discussions crowd out new work. Clearing between tasks ensures each session starts focused. Your beads persist—only the conversation history resets.
 
 ## License
 

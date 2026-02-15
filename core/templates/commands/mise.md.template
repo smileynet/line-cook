@@ -172,7 +172,7 @@ The `/@NAMESPACE@mise` command separates planning into natural cognitive phases:
 2. **Scope** (convergent) - Narrow to structure, make decisions
 3. **Finalize** (execution) - Persist to trackable artifacts
 
-This matches the "Planning vs Execution" mental model from `docs/mental-models.md`.
+This matches the two-cycle model: Mise for planning, Run for execution (see `docs/cycles/mise-cycle.md`).
 
 **Benefits:**
 - Natural pause points for review

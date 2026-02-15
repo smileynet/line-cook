@@ -234,6 +234,6 @@ Every feature should have acceptance tests for:
 
 ## See Also
 
-- [TDD/BDD Workflow](../../../docs/guidance/tdd-bdd.md) - Full TDD/BDD guidance
-- [Test Setup](../../../docs/guidance/test-setup.md) - Test infrastructure patterns
+- [Run Cycle](../../../docs/cycles/run-cycle.md) - TDD in the Cook phase
+- [FAQ — Testing](../../../docs/faq.md#testing) - Testing questions and tips
 - [Feature Acceptance Template](../../../docs/templates/feature-acceptance.md) - Acceptance documentation template

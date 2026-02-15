@@ -104,7 +104,7 @@ fi
 
 ### Step 4: Detect Code Smells (Full Scope Only)
 
-Systematically check for smell categories per docs/guidance/architecture-audit.md:
+Systematically check for smell categories:
 
 #### 4a: Bloaters
 
@@ -401,8 +401,4 @@ echo "Report saved to: $REPORT_PATH"
 
 ## Reference
 
-See [Architecture Audit Guide](../../../docs/guidance/architecture-audit.md) for:
-- Complete code smell catalog
-- Refactoring technique reference
-- Quality checklist
-- Detailed methodology
+See [FAQ — Advanced](../../../docs/faq.md#when-should-i-use-architecture-audit) for usage guidance.

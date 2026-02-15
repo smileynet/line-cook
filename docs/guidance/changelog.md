@@ -379,6 +379,5 @@ Before releasing:
 
 ## Related
 
-- [Workflow](./workflow.md) - Overall workflow structure
-- [Priorities](./priorities.md) - How to prioritize changes
-- [Scope Management](./scope-management.md) - Managing change scope
+- [Run Cycle](../cycles/run-cycle.md) - Overall workflow structure
+- [FAQ — Work Organization](../faq.md#work-organization) - Priorities and scope management
