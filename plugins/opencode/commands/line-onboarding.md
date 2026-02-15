@@ -71,13 +71,22 @@ Ask the user which demo:
 
 Set up the demo:
 
+1. **Find demo issues** — Try local first (works if Line Cook is cloned), fall back to GitHub API:
+
 ```bash
-# Fetch demo content from GitHub
 DEMO_NAME="demo-simple"  # or demo-web
+
+# Try local: Glob for docs/demos/${DEMO_NAME}/issues.jsonl
+# If found, copy to /tmp/line-cook-demo-issues.jsonl
+
+# If not found locally, fetch via GitHub API:
 gh api repos/smileynet/line-cook/contents/docs/demos/${DEMO_NAME}/issues.jsonl \
   --jq '.content' | base64 -d > /tmp/line-cook-demo-issues.jsonl
+```
 
-# Create temp project
+2. **Create temp project:**
+
+```bash
 DEMO_DIR=$(mktemp -d -t line-cook-demo-XXXXXX)
 cd "$DEMO_DIR"
 git init
