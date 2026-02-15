@@ -73,25 +73,46 @@ bd init              # Initialize beads in your project
 [Beads](https://github.com/steveyegge/beads) provides git-native issue tracking with memory between sessions.
 
 ```bash
-brew install steveyegge/beads/bd
+brew install beads
 ```
 
 > See [beads repo](https://github.com/steveyegge/beads) for npm/go options.
 
 ### 2. Install Line Cook
 
-| Platform | Install | Details |
-|----------|---------|---------|
-| **Claude Code** | `/plugin marketplace add smileynet/line-cook` then `/plugin install line@line-cook` | [Full guide](docs/installation/claude-code.md) |
-| **OpenCode** | `git clone ... && ./install.sh` | [Full guide](docs/installation/opencode.md) |
-| **Kiro** | `git clone ... && python3 install.py` | [Full guide](docs/installation/kiro.md) |
+**Claude Code:**
+```bash
+/plugin marketplace add smileynet/line-cook
+/plugin install line@line-cook
+```
+> [Full guide](docs/installation/claude-code.md)
+
+**OpenCode:**
+```bash
+git clone https://github.com/smileynet/line-cook.git ~/line-cook
+cd ~/line-cook/plugins/opencode && ./install.sh
+```
+> [Full guide](docs/installation/opencode.md)
+
+**Kiro:**
+```bash
+git clone https://github.com/smileynet/line-cook.git ~/line-cook
+python3 ~/line-cook/plugins/kiro/install.py
+```
+> [Full guide](docs/installation/kiro.md)
 
 ## Learn More
 
 - [Getting Started](docs/getting-started.md) — Walkthrough from install to first shipped task
-- [FAQ](docs/faq.md) — Common questions and troubleshooting
 - [Command Reference](docs/reference/commands.md) — All commands and options
 - [AGENTS.md](AGENTS.md) — Technical reference for contributors
+
+## FAQ
+
+**What if all my tasks are blocked?**
+Run `/line:plan-audit` to check your dependency graph. Common causes: circular dependencies, a blocker that was never created, or a task that's done but wasn't closed (`bd close <id>`).
+
+> More questions answered in the [full FAQ](docs/faq.md).
 
 ## Spice Rack
 
