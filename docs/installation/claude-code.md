@@ -25,6 +25,6 @@ You should see a list of available Line Cook commands.
 
 ## Next Steps
 
-1. Install [beads](https://github.com/steveyegge/beads): `brew install steveyegge/beads/bd`
+1. Install [beads](https://github.com/steveyegge/beads): `brew install beads`
 2. Initialize beads in your project: `bd init`
 3. Follow [Getting Started](../getting-started.md)

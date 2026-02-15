@@ -10,7 +10,7 @@ cd ~/line-cook/plugins/opencode && ./install.sh
 ## Update
 
 ```bash
-cd ~/line-cook && git pull && plugins/opencode/install.sh
+cd ~/line-cook && git pull && ./plugins/opencode/install.sh
 ```
 
 ## Verify
@@ -31,6 +31,6 @@ You should see a list of available Line Cook commands.
 
 ## Next Steps
 
-1. Install [beads](https://github.com/steveyegge/beads): `brew install steveyegge/beads/bd`
+1. Install [beads](https://github.com/steveyegge/beads): `brew install beads`
 2. Initialize beads in your project: `bd init`
 3. Follow [Getting Started](../getting-started.md)
