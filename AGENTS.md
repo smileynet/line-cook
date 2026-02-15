@@ -278,7 +278,7 @@ OpenCode subagents are defined as markdown files with YAML frontmatter (mode: su
   - Identify antipatterns (ice cream cone, flaky tests)
 - **Trigger**: Automatically during close-service (when last feature completes)
 - **Output**: E2E coverage assessment (PASS, NEEDS_WORK, or FAIL)
-- **Documentation**: See [Epic-Level Testing](docs/guidance/epic-testing.md)
+- **Documentation**: See [FAQ — Advanced](docs/faq.md#how-do-i-validate-an-epic)
 
 ## Workflow Principles
 
@@ -290,7 +290,7 @@ OpenCode subagents are defined as markdown files with YAML frontmatter (mode: su
 
 ## Beads Reference
 
-See [Beads Reference](docs/guidance/beads-reference.md) for hierarchy, CLI commands, and best practices.
+See [Beads Reference](docs/reference/beads.md) for hierarchy, CLI commands, and best practices.
 
 ## Session Completion (Landing the Plane)
 
@@ -778,4 +778,4 @@ Line Cook follows the Red-Green-Refactor cycle with automatic quality checks:
 
 ## Kitchen Terminology
 
-See [Kitchen Glossary](docs/guidance/kitchen-glossary.md) for the full terminology reference.
+See [Kitchen Glossary](docs/reference/kitchen-glossary.md) for the full terminology reference.

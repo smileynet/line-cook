@@ -1,31 +1,30 @@
 # Documentation
 
-## Getting Started
+## Start Here
 
-- [Claude Code Tutorial](tutorial-claude-code.md) — Install and run your first workflow
-- [OpenCode Tutorial](tutorial-opencode.md) — Setup for OpenCode users
-- [Kiro Tutorial](tutorial-kiro.md) — Setup for Kiro users
+- [Getting Started](getting-started.md) — Install Line Cook and run your first cycle
 
-## Concepts
+## Cycles
 
-- [Mental Models](mental-models.md) — Sessions, planning vs execution, and context boundaries
+- [Mise Cycle](cycles/mise-cycle.md) — From ideas to tasks (brainstorm → scope → finalize)
+- [Run Cycle](cycles/run-cycle.md) — From tasks to shipped code (prep → cook → serve → tidy)
+- [Loop Cycle](cycles/loop-cycle.md) — Autonomous multi-task execution
 
 ## Reference
 
-- [Workflow Guide](guidance/workflow.md) — Commands, phases, and execution flow
-- [Beads Reference](guidance/beads-reference.md) — Issue tracking commands and patterns
-- [Kitchen Glossary](guidance/kitchen-glossary.md) — Terminology and metaphor mapping
-- [Priorities](guidance/priorities.md) — Priority levels and when to use them
-- [TDD/BDD](guidance/tdd-bdd.md) — Test-driven development workflow
-- [Epic Testing](guidance/epic-testing.md) — Feature and epic acceptance testing
-- [Vertical Slicing](guidance/vertical-slicing.md) — Breaking work into deliverable slices
-- [Scope Management](guidance/scope-management.md) — Keeping tasks right-sized
-- [Context Management](guidance/context-management.md) — Working within context limits
-- [Architecture Audit](guidance/architecture-audit.md) — Running and interpreting audits
-- [CI Actions](guidance/ci-actions.md) — GitHub Actions and CI setup
-- [Logging](guidance/logging.md) — Logging conventions
-- [Test Setup](guidance/test-setup.md) — Test infrastructure and helpers
-- [Changelog](guidance/changelog.md) — Release history
+- [Command Reference](reference/commands.md) — All commands and options
+- [Beads Reference](reference/beads.md) — Issue tracking commands
+- [Kitchen Glossary](reference/kitchen-glossary.md) — Terminology and metaphor mapping
+
+## FAQ
+
+- [FAQ](faq.md) — Common questions, troubleshooting, and tips
+
+## Installation
+
+- [Claude Code](installation/claude-code.md)
+- [OpenCode](installation/opencode.md)
+- [Kiro](installation/kiro.md)
 
 ## Development
 
@@ -35,15 +34,14 @@
 
 ## Architecture Decisions
 
-Recorded in [decisions/](decisions/). Each ADR captures the context, decision, and consequences for a significant design choice. See the [decisions README](decisions/README.md) for the full list.
+Recorded in [decisions/](decisions/). Each ADR captures context, decision, and consequences. See [decisions README](decisions/README.md) for the full list.
 
-## Planning & Templates
+## Other
 
-- [planning/](planning/) — Brainstorm examples, menu plan format, and planning context
-- [templates/](templates/) — Reusable templates for brainstorms, decisions, and acceptance docs
-- [demos/](demos/) — Demo projects showing Line Cook in action
-
-## Specs
-
-- [Crumbs Spec](specs/crumbs-spec.md) — Crumbs format specification
-- [Crumbs Integration](specs/crumbs-line-cook-integration.md) — How crumbs integrates with Line Cook
+- [Planning](planning/) — Brainstorm examples, menu plan format
+- [Templates](templates/) — Reusable templates for brainstorms, decisions, acceptance docs
+- [Demos](demos/) — Demo projects showing Line Cook in action
+- [Specs](specs/) — Format specifications (crumbs)
+- [Guidance: Changelog](guidance/changelog.md) — Release history
+- [Guidance: Logging](guidance/logging.md) — Debug reference
+- [Guidance: CI Actions](guidance/ci-actions.md) — GitHub Actions and CI setup

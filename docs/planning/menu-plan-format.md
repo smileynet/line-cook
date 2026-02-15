@@ -404,4 +404,4 @@ phases:
 - **Think dependencies**: What must be done first?
 - **Defer complexity**: Advanced features come after basic flow works
 
-See [Vertical Slicing](../guidance/vertical-slicing.md) for complete methodology.
+See [FAQ — Mise Cycle](../faq.md#whats-a-tracer-strategy) for tracer and vertical slicing methodology.
