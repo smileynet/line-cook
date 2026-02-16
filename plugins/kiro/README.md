@@ -123,7 +123,7 @@ Then use `@line-prep` to start or say "prep".
 
 ## Known Issues
 
-- `$ARGUMENTS` with special characters may not be passed correctly to prompts ([#4141](https://github.com/kirodotdev/Kiro/issues/4141))
+- `@` commands discard all text after the command name ([#4141](https://github.com/kirodotdev/Kiro/issues/4141)). Use natural language with arguments instead: say "cook lc-042" rather than `@line-cook lc-042`. No-arg commands (`@line-prep`, `@line-tidy`) work normally.
 
 ## See Also
 

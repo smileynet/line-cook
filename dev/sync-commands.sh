@@ -23,25 +23,28 @@ for template in "$TEMPLATES_DIR"/*.md.template; do
 
     echo "  $name.md"
 
-    # Claude Code version: `line:` namespace, keep CC blocks, strip OpenCode/Kiro blocks
+    # Claude Code: `line:` namespace, keep CC+NOT_KIRO content, strip OpenCode/Kiro blocks
     sed 's/@NAMESPACE@/line:/g' "$template" \
       | sed '/@IF_OPENCODE@/,/@ENDIF_OPENCODE@/d' \
       | sed '/@IF_KIRO@/,/@ENDIF_KIRO@/d' \
+      | sed '/@IF_NOT_KIRO@/d; /@ENDIF_NOT_KIRO@/d' \
       | sed '/@IF_CLAUDECODE@/d; /@ENDIF_CLAUDECODE@/d' \
       > "$CLAUDE_DIR/${name}.md"
 
-    # OpenCode version: `line-` namespace, keep OpenCode blocks, strip Claude Code/Kiro blocks
+    # OpenCode: `line-` namespace, keep OpenCode+NOT_KIRO content, strip CC/Kiro blocks
     sed 's/@NAMESPACE@/line-/g' "$template" \
       | sed '/@IF_CLAUDECODE@/,/@ENDIF_CLAUDECODE@/d' \
       | sed '/@IF_KIRO@/,/@ENDIF_KIRO@/d' \
+      | sed '/@IF_NOT_KIRO@/d; /@ENDIF_NOT_KIRO@/d' \
       | sed '/@IF_OPENCODE@/d; /@ENDIF_OPENCODE@/d' \
       > "$OPENCODE_DIR/line-${name}.md"
 
-    # Kiro version: `@line-` namespace, keep OpenCode+Kiro blocks, strip Claude Code blocks
+    # Kiro: `@line-` namespace, keep OpenCode+Kiro content, strip CC/NOT_KIRO blocks
     # Also strips YAML frontmatter (awk removes everything up to second --- delimiter)
     sed 's|/@NAMESPACE@|@line-|g' "$template" \
       | sed 's/@NAMESPACE@/line-/g' \
       | sed '/@IF_CLAUDECODE@/,/@ENDIF_CLAUDECODE@/d' \
+      | sed '/@IF_NOT_KIRO@/,/@ENDIF_NOT_KIRO@/d' \
       | sed '/@IF_OPENCODE@/d; /@ENDIF_OPENCODE@/d' \
       | sed '/@IF_KIRO@/d; /@ENDIF_KIRO@/d' \
       | awk 'BEGIN{c=0;p=0} /^---$/ && !p {c++; if(c==2) p=1; next} p{print}' \
