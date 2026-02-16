@@ -8,7 +8,7 @@ plugin health, and spice rack detection.
 Usage:
     python3 onboarding-check.py              # Human-readable
     python3 onboarding-check.py --json       # JSON output
-    python3 onboarding-check.py --check git  # Single category
+    python3 onboarding-check.py --check project  # Single category
 
 Exit codes:
     0: All checks pass (warnings are informational, not failure)
@@ -444,15 +444,12 @@ def main():
         help="Output JSON instead of human-readable format",
     )
     parser.add_argument(
-        "--check", choices=["git", "system", "project", "plugin"],
+        "--check", choices=["system", "project", "plugin"],
         help="Only run checks for a specific category",
     )
     args = parser.parse_args()
 
-    # Map convenience aliases
     category = args.check
-    if category == "git":
-        category = "project"
 
     report = run_checks(category)
 

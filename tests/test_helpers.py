@@ -464,5 +464,40 @@ class TestMetricsCollector(unittest.TestCase):
         self.assertEqual(rc, 0)
 
 
+class TestOnboardingCheck(unittest.TestCase):
+    """Tests for onboarding-check.py."""
+
+    def test_help(self):
+        """--help exits 0 with usage text."""
+        rc, out, _ = run_script("onboarding-check.py", ["--help"])
+        self.assertEqual(rc, 0)
+        self.assertIn("usage", out.lower())
+
+    def test_human_output(self):
+        """Human output is non-empty."""
+        rc, out, _ = run_script("onboarding-check.py")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out.strip())
+
+    def test_json_output(self):
+        """JSON output parses and has expected keys."""
+        rc, out, _ = run_script("onboarding-check.py", ["--json"])
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIn("checks", data)
+        self.assertIn("spices", data)
+        self.assertIn("summary", data)
+        self.assertIn("version", data)
+
+    def test_category_filter(self):
+        """--check <category> returns only that category's checks."""
+        for cat in ["project", "system", "plugin"]:
+            rc, out, _ = run_script("onboarding-check.py", ["--json", "--check", cat])
+            self.assertEqual(rc, 0)
+            data = json.loads(out)
+            categories = {c["category"] for c in data["checks"]}
+            self.assertTrue(categories <= {cat}, "Expected only {}, got {}".format(cat, categories))
+
+
 if __name__ == "__main__":
     unittest.main()
