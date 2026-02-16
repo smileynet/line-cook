@@ -475,7 +475,16 @@ Task remains in_progress. Run /@NAMESPACE@tidy to save partial progress.
 
 ## Example Usage
 
+@IF_KIRO@
+```
+@line-cook              # Pick highest priority ready task
+```
+
+To execute a specific task, tell me "cook lc-042".
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 ```
 /@NAMESPACE@cook              # Pick highest priority ready task
 /@NAMESPACE@cook lc-042       # Execute specific task
 ```
+@ENDIF_NOT_KIRO@

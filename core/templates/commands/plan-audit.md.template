@@ -329,7 +329,12 @@ if [ "$SCOPE" = "full" ]; then
     if [ ! -f "$doc_path" ]; then
       echo "WARNING: MISSING_DOC $feature (closed feature) has no acceptance doc"
       echo "  Expected: $doc_path"
+@IF_KIRO@
+      echo "  Action: Tell me \"plate $feature\" or create manually"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
       echo "  Action: Run /@NAMESPACE@plate $feature or create manually"
+@ENDIF_NOT_KIRO@
     fi
   done
 fi
@@ -481,9 +486,16 @@ Nearly Complete Features: <count>
 WORK VERIFICATION (full scope only)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+@IF_KIRO@
+[MISSING_DOC] <bead-id> (closed feature) has no acceptance doc
+  Expected: docs/features/<bead-id>-acceptance.md
+  Action: Tell me "plate <bead-id>" or create manually
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 [MISSING_DOC] <bead-id> (closed feature) has no acceptance doc
   Expected: docs/features/<bead-id>-acceptance.md
   Action: Run /@NAMESPACE@plate <bead-id> or create manually
+@ENDIF_NOT_KIRO@
 
 [ORPHAN_PARENT] <bead-id> (feature) has all tasks closed but is still open
   Children: <closed>/<total> closed
@@ -505,7 +517,12 @@ NEXT STEP: <action based on findings>
 
 **NEXT STEP logic:**
 - If critical issues: "Fix critical issues before proceeding"
+@IF_KIRO@
+- If auto-fixable + no --fix: 'Tell me "plan-audit --fix" to auto-fix <count> issues'
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 - If auto-fixable + no --fix: "Run /@NAMESPACE@plan-audit --fix to auto-fix <count> issues"
+@ENDIF_NOT_KIRO@
 - If warnings only: "Review warnings, then /@NAMESPACE@prep"
 - If clean: "/@NAMESPACE@prep - workspace is healthy"
 
@@ -562,6 +579,20 @@ NEXT STEP: <action based on findings>
 
 ## Example Usage
 
+@IF_KIRO@
+```bash
+# Check active work hygiene (default)
+@line-plan-audit
+```
+
+For other modes, use natural language:
+- Tell me "plan-audit full" for full audit with work verification
+- Tell me "plan-audit lc-abc.1" to audit a specific bead hierarchy
+- Tell me "plan-audit --fix" to auto-fix safe issues
+- Tell me "plan-audit --fix --interactive" for interactive fixes
+- Tell me "plan-audit full --fix" for full audit with auto-fix
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 ```bash
 # Check active work hygiene (default)
 /@NAMESPACE@plan-audit
@@ -581,3 +612,4 @@ NEXT STEP: <action based on findings>
 # Full audit with auto-fix
 /@NAMESPACE@plan-audit full --fix
 ```
+@ENDIF_NOT_KIRO@

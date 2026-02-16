@@ -393,7 +393,16 @@ For exploratory sessions or when you need more control, use the individual comma
 
 ## Example Usage
 
+@IF_KIRO@
+```
+@line-run              # Full cycle with auto-selected task
+```
+
+To run a specific task, tell me "run lc-042".
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 ```
 /@NAMESPACE@run              # Full cycle with auto-selected task
 /@NAMESPACE@run lc-042       # Full cycle with specific task
 ```
+@ENDIF_NOT_KIRO@

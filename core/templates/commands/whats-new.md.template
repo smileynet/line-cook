@@ -78,8 +78,14 @@ v0.14.0 — <release theme>
 
 <narrative>
 
+@IF_KIRO@
+Older releases: Tell me "whats-new all"
+Deep dive: Tell me "whats-new <version>"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 Older releases: /@NAMESPACE@whats-new all
 Deep dive: /@NAMESPACE@whats-new <version>
+@ENDIF_NOT_KIRO@
 ```
 
 **Format for specific version deep dive:**
@@ -102,7 +108,12 @@ Bug fixes
 
   Try: <actions to experience the changes>
 
+@IF_KIRO@
+Back: Tell me "whats-new"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 Back: /@NAMESPACE@whats-new
+@ENDIF_NOT_KIRO@
 ```
 
 **Format for all versions timeline:**
@@ -116,7 +127,12 @@ v0.15.0  2026-02-15  <theme phrase>
 v0.14.0  2026-02-12  <theme phrase>
 ...
 
+@IF_KIRO@
+Deep dive: Tell me "whats-new <version>"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 Deep dive: /@NAMESPACE@whats-new <version>
+@ENDIF_NOT_KIRO@
 ```
 
 Each theme phrase should capture the *story* of the release (e.g., "Loop reliability overhaul" not "Added circuit breaker, caching, findings tracking").
@@ -175,8 +191,19 @@ Questions about any of these changes? Just ask.
 
 ## Example Usage
 
+@IF_KIRO@
+```
+@line-whats-new              # Latest 3 releases, contextualized
+```
+
+For specific versions, use natural language:
+- Tell me "whats-new 0.14.0" for a deep dive on a specific version
+- Tell me "whats-new all" for a timeline overview
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 ```
 /@NAMESPACE@whats-new              # Latest 3 releases, contextualized
 /@NAMESPACE@whats-new 0.14.0       # Deep dive on specific version
 /@NAMESPACE@whats-new all          # Timeline overview
 ```
+@ENDIF_NOT_KIRO@

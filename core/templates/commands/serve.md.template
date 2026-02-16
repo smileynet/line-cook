@@ -346,7 +346,16 @@ Errors are transient - workflow continues but recommends retry later.
 
 ## Example Usage
 
+@IF_KIRO@
+```
+@line-serve              # Review most recent closed bead
+```
+
+To review a specific bead, tell me "serve lc-042".
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 ```
 /@NAMESPACE@serve              # Review most recent closed bead
 /@NAMESPACE@serve lc-042       # Review specific bead
 ```
+@ENDIF_NOT_KIRO@

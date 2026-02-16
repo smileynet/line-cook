@@ -105,10 +105,10 @@ READY TO CLOSE (only if plate_ready items exist)
 ───────────────────────────────────────────
 
 FEATURE: <feature-id> - <feature-title> (<progress> tasks closed)
-  → Run @line-plate <feature-id>
+  → Tell me "plate <feature-id>"
 
 EPIC: <epic-id> - <epic-title> (<progress> features closed)
-  → Run @line-close-service <epic-id>
+  → Tell me "close-service <epic-id>"
 
 ───────────────────────────────────────────
 NEXT TASK
@@ -123,7 +123,7 @@ INTENDED CHANGE:
     - <extracted deliverables from description>
     - <bullet points or items after "Deliverable:" header>
 
-NEXT STEP: @line-cook <task-id>
+NEXT STEP: Tell me "cook <task-id>"
 ```
 
 **When plate-ready items exist:** Suggest plate/close-service as the NEXT STEP instead of cook. Only suggest cook when there are no plate-ready items.
@@ -152,7 +152,7 @@ NEXT TASK
 INTENDED CHANGE:
   <first paragraph of task description>
 
-NEXT STEP: @line-cook <task-id>
+NEXT STEP: Tell me "cook <task-id>"
 ```
 
 **Feature without epic:**
@@ -261,7 +261,7 @@ INTENDED CHANGE:
     - Findings converted to beads
     - Push verification before session end
 
-NEXT STEP: @line-cook lc-abc.1.4
+NEXT STEP: Tell me "cook lc-abc.1.4"
 ```
 
 **Standalone task:**
@@ -288,7 +288,7 @@ lc-042 [P1] Fix sync timeout issue
 INTENDED CHANGE:
   Increase timeout for bd sync to handle large repos.
 
-NEXT STEP: @line-cook lc-042
+NEXT STEP: Tell me "cook lc-042"
 ```
 
 ## Example Usage
