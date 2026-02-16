@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Kiro commands with arguments now work — prompts guide you to use natural language ("cook lc-042") instead of the `@line-cook lc-042` syntax that Kiro silently drops ([Kiro #4141](https://github.com/kirodotdev/Kiro/issues/4141))
+
+### Added
+- Kiro troubleshooting guide covering installation, common errors, and the argument-passing workaround (`docs/dev/kiro-troubleshooting.md`)
+
 ## [0.16.0] - 2026-02-15
 ### Added
 - `/init` command — verify your environment is ready for Line Cook and get guided fixes for anything missing
