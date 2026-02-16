@@ -17,7 +17,7 @@ import shutil
 import sys
 from pathlib import Path
 
-VERSION = "0.15.0"
+VERSION = "0.16.0"
 
 
 def main() -> None:
