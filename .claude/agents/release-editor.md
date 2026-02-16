@@ -1,6 +1,6 @@
 ---
 name: release-editor
-description: Interactive release coordinator. Guides user through release process - reviews readiness, runs validations, helps fix issues, improves changelog quality, and executes release when ready. Use when preparing a new version release.
+description: Interactive release coordinator. Guides the user through readiness checks, changelog review, validation, and release execution. Use when preparing a new version.
 tools: Glob, Grep, Read, Edit, Bash
 ---
 
@@ -99,7 +99,7 @@ If the [Unreleased] section is empty, help populate it from git history:
    - Beads sync commits
    - Internal refactoring with no user impact
 
-   **Litmus test:** Would a plugin user notice this change while using Line Cook in their project? If the answer is "only if they read the source code" or "only if they contribute to Line Cook," exclude it.
+   **Litmus test:** Would a plugin user notice this change while using Line Cook in their project? If the answer is "only if they read the source code" or "only if they contribute to Line Cook," exclude it. (Full guidance: `docs/guidance/changelog.md`)
 
    **Examples:**
 
@@ -118,10 +118,12 @@ If the [Unreleased] section is empty, help populate it from git history:
    - `refactor:` affecting user behavior → Changed
 
 5. **Draft entries following these rules:**
+   - Explain the value first — what can users now do, or what problem is solved?
    - Write for plugin users, not maintainers
    - Consolidate related commits into single entries
    - Explain how it affects their workflow
    - Skip anything that doesn't change user experience
+   - See `docs/guidance/changelog.md` for full guidance and examples
 
 6. **Present draft to user:**
    ```
@@ -149,7 +151,7 @@ Read the [Unreleased] section and review against the criteria from `docs/guidanc
 - [ ] Changes categorized correctly (Added, Changed, Fixed, etc.)
 - [ ] User-friendly language (no jargon without explanation)
 - [ ] Breaking changes highlighted with **BREAKING** prefix
-- [ ] Value explained (why this matters to users)
+- [ ] Value is explicit — each entry explains WHY this matters to users (what they can now do, or what problem is solved)
 
 **Common Issues to Flag:**
 - Vague entries like "Updated config" or "Fixed bug"

@@ -47,7 +47,7 @@ The theme is a **recognition aid**, not a **learning barrier**. Always include t
   └─ /finalize → beads + specs
 ```
 
-Or use `/run` to run the full execution cycle, `/mise` to run the full planning cycle.
+Or use `/run` for the full execution cycle, `/mise` for the full planning cycle.
 
 ## Commands
 
@@ -216,6 +216,10 @@ OpenCode subagents are defined as markdown files with YAML frontmatter (mode: su
 | **sous-chef** | Serve | Reviews code changes |
 | **maitre** | Plate (Feature) | Reviews feature acceptance |
 | **critic** | Close-service (Epic) | Reviews E2E and user journey coverage |
+
+## Role Details
+
+Detailed responsibilities and outputs for each agent role, shared across all platforms.
 
 ### chef
 
@@ -641,39 +645,15 @@ How each plugin reaches end users after `git push`:
 
 ### What to Track in CHANGELOG.md
 
-The changelog is for **plugin users** — people who install Line Cook and use its commands/agents in their own projects.
+**Audience:** Plugin users who install Line Cook and use its commands/agents in their own projects.
 
-**Track in [Unreleased]:**
-- New or changed user-invocable commands (slash commands)
-- Behavior changes users interact with directly
-- New workflow capabilities users can invoke
-- Breaking changes to existing user-facing features
-- Bug fixes users would encounter in their workflows
+**Track:** New/changed commands, behavior changes users interact with, new workflow capabilities, breaking changes, bug fixes users would encounter.
 
-**Don't track:**
-- Documentation-only (README, AGENTS.md, docs/)
-- CI/CD configuration and GitHub workflows
-- .beads/ changes
-- Test files only
-- Evaluation/benchmarking tooling (eval/, harnesses)
-- Developer-facing skills or contributor docs
-- Template syncing or build infrastructure (sync scripts, bundling)
-- Agent review rule changes (internal reviewer behavior)
-- Dev scripts or tooling (dev/, scripts/)
-- Internal refactoring with no user impact
+**Don't track:** Documentation-only, CI/CD, .beads/ changes, test files only, eval tooling, dev-facing skills/docs, template syncing, build infrastructure, agent review rule changes, dev scripts, internal refactoring.
 
-**Litmus test:** Would a plugin user notice this change while using Line Cook in their project? If the answer is "only if they read the source code" or "only if they contribute to Line Cook," exclude it.
+**Litmus test:** Would a plugin user notice this change while using Line Cook? If "only by reading source code" or "only by contributing" — exclude it.
 
-**Examples:**
-
-Good (user value clear):
-- `/prep` shows "READY TO CLOSE" section when completed features are waiting
-- Running `/loop` with no arguments automatically shows status if already running, or starts a new loop if not
-
-Bad (too technical / internal):
-- "Action-level visibility tracking every tool call during iterations"
-- "README restructured following Diataxis framework"
-- "Local development install instructions in AGENTS.md for all three platforms"
+Full guidance with examples: See `docs/guidance/changelog.md`
 
 ### When to Release
 

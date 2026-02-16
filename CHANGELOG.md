@@ -8,11 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ## [0.16.1] - 2026-02-15
-### Fixed
-- Kiro commands with arguments now work — prompts guide you to use natural language ("cook lc-042") instead of the `@line-cook lc-042` syntax that Kiro silently drops ([Kiro #4141](https://github.com/kirodotdev/Kiro/issues/4141))
-
 ### Added
 - Kiro troubleshooting guide covering installation, common errors, and the argument-passing workaround (`docs/dev/kiro-troubleshooting.md`)
+
+### Fixed
+- Kiro commands with arguments now work — prompts guide you to use natural language ("cook lc-042") instead of the `@line-cook lc-042` syntax that Kiro silently drops ([Kiro #4141](https://github.com/kirodotdev/Kiro/issues/4141))
 
 ## [0.16.0] - 2026-02-15
 ### Added
@@ -27,21 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.15.0] - 2026-02-15
 ### Added
-- Line Loop Process Optimization (lc-egd)
-  - Correct loop failure handling: circuit breaker, skip list, and escalation for repeated task failures (lc-egd.1)
-  - Reduced iteration overhead: cached hierarchy maps and snapshot-first task selection (lc-egd.2)
-  - Autonomous findings tracking: findings_count in IterationResult for watch-mode visibility (lc-egd.3)
-  - Resilient long-running execution: periodic bd sync, per-phase idle timeouts, tuned phase timeouts (lc-egd.4)
-
-### Changed
-- Documentation restructured around two-cycle mental model (Mise Cycle for planning, Run Cycle for execution). Replaces 23 files (~9000 lines) with a focused 9-file structure (~2000 lines) using progressive disclosure. New getting-started guide, FAQ, and command reference replace the previous tutorials and guidance docs
-- Fixed beads install command in all platform docs (`brew install beads` replaces previous incorrect command)
+- `/loop` now automatically skips tasks that repeatedly fail instead of retrying them indefinitely, and escalates when too many failures pile up
+- `/loop` iterations start faster — task selection uses cached snapshots instead of querying the tracker on every cycle
+- `/loop` watch mode now shows how many findings were filed during each iteration
+- `/loop` now syncs with the tracker periodically during long runs and uses tuned per-phase timeouts to prevent stalls
 
 ### Fixed
-- Line loop now passes the selected task ID to the cook phase, ensuring skip list and epic filter are respected during autonomous execution
-- Line loop now reopens tasks for retry when serve returns NEEDS_CHANGES, instead of leaving them closed
-- Epic branch merges now fire correctly after close-service completes within the loop (previously the merge check found nothing because the epic was already closed)
-- Removed redundant close-service invocations when the loop's catch-all epic check encountered epics already handled during the iteration
+- Beads install command corrected in all platform docs (`brew install beads` replaces previous incorrect command)
+- `/loop` now passes the selected task to the cook phase, ensuring skipped tasks and epic filters are respected during autonomous execution
+- `/loop` now reopens tasks for retry when serve returns NEEDS_CHANGES, instead of leaving them closed
+- Epic branch merges now fire correctly after close-service completes within the loop
+- Removed redundant close-service invocations when the loop encountered epics already handled during the iteration
 
 ## [0.14.0] - 2026-02-12
 ### Added
