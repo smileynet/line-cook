@@ -366,6 +366,7 @@ Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), 
   - `@IF_CLAUDECODE@`...`@ENDIF_CLAUDECODE@` - Claude Code only content
   - `@IF_OPENCODE@`...`@ENDIF_OPENCODE@` - OpenCode and Kiro shared content
   - `@IF_KIRO@`...`@ENDIF_KIRO@` - Kiro only content
+  - `@IF_NOT_KIRO@`...`@ENDIF_NOT_KIRO@` - Claude Code and OpenCode only (excluded from Kiro)
 
 **Platform differences handled automatically:**
 - Claude Code: `/line:cook` (colon separator), includes `Skill()` calls and subagent details
@@ -380,7 +381,7 @@ Review agents are also generated from shared templates to prevent drift between 
 
 **Agent template system:**
 - Source templates live in `core/templates/agents/` (5 templates)
-- Same conditional block syntax as commands: `@IF_CLAUDECODE@`, `@IF_OPENCODE@`, `@IF_KIRO@`
+- Same conditional block syntax as commands: `@IF_CLAUDECODE@`, `@IF_OPENCODE@`, `@IF_KIRO@`, `@IF_NOT_KIRO@`
 - No `@NAMESPACE@` substitution needed (agents don't reference command namespaces)
 
 **Platform differences handled automatically:**
