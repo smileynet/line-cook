@@ -53,8 +53,8 @@ Based on context, suggest the most relevant next action:
 | No beads CLI installed | `@line-init` (verify setup) |
 | No .beads directory | `@line-mise` (start planning) |
 | Beads present, no ready tasks | `@line-mise` (create more work) |
-| Ready tasks available | `@line-cook <first-ready-id>` |
-| In-progress tasks | `@line-cook <in-progress-id>` |
+| Ready tasks available | Tell me "cook <first-ready-id>" |
+| In-progress tasks | Tell me "cook <in-progress-id>" |
 | Dirty working tree + tasks done | `@line-tidy` |
 
 ### Step 4: Output Quick Reference
@@ -103,9 +103,7 @@ EXECUTION (do work)
 REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 @line-loop              Autonomous loop management
-@line-help <command>    Detailed help for specific command
-
-For detailed help: @line-help <command>
+To get detailed help for a specific command, tell me "help cook" (or any command name).
 ```
 
 **Contextual variations:**
@@ -246,6 +244,6 @@ Onboarding teaches. Planning creates work. Execution completes work.
 
 ```
 @line-help              # Show quick reference with context
-@line-help cook         # Detailed help for cook command
-@line-help mise         # Detailed help for mise command
 ```
+
+For detailed help, tell me "help cook" or "help mise".

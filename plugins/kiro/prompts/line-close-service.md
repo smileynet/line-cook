@@ -229,7 +229,7 @@ Issue: <description of test failure>
 Actions:
   1. Fix the failing tests
   2. Re-run: <test command>
-  3. Retry @line-close-service <epic-id>
+  3. Tell me "close-service <epic-id>" to retry
 
 ───────────────────────────────────────────
 ```
@@ -249,7 +249,7 @@ Critical Issues:
 Actions:
   1. Address critical E2E issues
   2. Re-run E2E review with critic
-  3. Retry @line-close-service <epic-id>
+  3. Tell me "close-service <epic-id>" to retry
 
 ───────────────────────────────────────────
 ```
@@ -266,8 +266,8 @@ Open children:
   - <feature-id> - <feature-title> (status: <status>)
 
 Actions:
-  1. Plate remaining features: @line-plate <feature-id>
-  2. Retry @line-close-service <epic-id>
+  1. Tell me "plate <feature-id>" to plate remaining features
+  2. Tell me "close-service <epic-id>" to retry
 
 ───────────────────────────────────────────
 ```
@@ -298,6 +298,8 @@ The close-service phase validates epics after all features have been individuall
 ```
 @line-close-service lc-abc  # Validate and close epic lc-abc
 ```
+
+To validate an epic, tell me "close-service lc-abc".
 
 This command takes an epic ID as argument. It will:
 1. Verify all children are closed

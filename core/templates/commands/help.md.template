@@ -62,8 +62,14 @@ Based on context, suggest the most relevant next action:
 | No beads CLI installed | `/@NAMESPACE@init` (verify setup) |
 | No .beads directory | `/@NAMESPACE@mise` (start planning) |
 | Beads present, no ready tasks | `/@NAMESPACE@mise` (create more work) |
+@IF_KIRO@
+| Ready tasks available | Tell me "cook <first-ready-id>" |
+| In-progress tasks | Tell me "cook <in-progress-id>" |
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 | Ready tasks available | `/@NAMESPACE@cook <first-ready-id>` |
 | In-progress tasks | `/@NAMESPACE@cook <in-progress-id>` |
+@ENDIF_NOT_KIRO@
 | Dirty working tree + tasks done | `/@NAMESPACE@tidy` |
 
 ### Step 4: Output Quick Reference
@@ -112,9 +118,14 @@ EXECUTION (do work)
 REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /@NAMESPACE@loop              Autonomous loop management
+@IF_KIRO@
+To get detailed help for a specific command, tell me "help cook" (or any command name).
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 /@NAMESPACE@help <command>    Detailed help for specific command
 
 For detailed help: /@NAMESPACE@help <command>
+@ENDIF_NOT_KIRO@
 ```
 
 **Contextual variations:**
@@ -253,8 +264,17 @@ Onboarding teaches. Planning creates work. Execution completes work.
 
 ## Example Usage
 
+@IF_KIRO@
+```
+@line-help              # Show quick reference with context
+```
+
+For detailed help, tell me "help cook" or "help mise".
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 ```
 /@NAMESPACE@help              # Show quick reference with context
 /@NAMESPACE@help cook         # Detailed help for cook command
 /@NAMESPACE@help mise         # Detailed help for mise command
 ```
+@ENDIF_NOT_KIRO@

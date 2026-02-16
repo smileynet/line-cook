@@ -69,8 +69,8 @@ v0.14.0 — <release theme>
 
 <narrative>
 
-Older releases: @line-whats-new all
-Deep dive: @line-whats-new <version>
+Older releases: Tell me "whats-new all"
+Deep dive: Tell me "whats-new <version>"
 ```
 
 **Format for specific version deep dive:**
@@ -93,7 +93,7 @@ Bug fixes
 
   Try: <actions to experience the changes>
 
-Back: @line-whats-new
+Back: Tell me "whats-new"
 ```
 
 **Format for all versions timeline:**
@@ -107,7 +107,7 @@ v0.15.0  2026-02-15  <theme phrase>
 v0.14.0  2026-02-12  <theme phrase>
 ...
 
-Deep dive: @line-whats-new <version>
+Deep dive: Tell me "whats-new <version>"
 ```
 
 Each theme phrase should capture the *story* of the release (e.g., "Loop reliability overhaul" not "Added circuit breaker, caching, findings tracking").
@@ -168,6 +168,8 @@ Questions about any of these changes? Just ask.
 
 ```
 @line-whats-new              # Latest 3 releases, contextualized
-@line-whats-new 0.14.0       # Deep dive on specific version
-@line-whats-new all          # Timeline overview
 ```
+
+For specific versions, use natural language:
+- Tell me "whats-new 0.14.0" for a deep dive on a specific version
+- Tell me "whats-new all" for a timeline overview

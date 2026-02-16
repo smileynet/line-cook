@@ -284,5 +284,6 @@ Task remains in_progress. Run @line-tidy to save partial progress.
 
 ```
 @line-cook              # Pick highest priority ready task
-@line-cook lc-042       # Execute specific task
 ```
+
+To execute a specific task, tell me "cook lc-042".

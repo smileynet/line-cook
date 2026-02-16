@@ -202,7 +202,7 @@ EPIC READY TO CLOSE
 
 All features under <epic-id> (<epic-title>) are now plated.
 
-NEXT STEP: Run @line-close-service <epic-id>
+NEXT STEP: Tell me "close-service <epic-id>"
 ```
 
 ## Error Handling
@@ -220,7 +220,7 @@ Issue: <description of test failure>
 Actions:
   1. Fix the failing tests
   2. Re-run: <test command>
-  3. Retry @line-plate <feature-id>
+  3. Tell me "plate <feature-id>" to retry
 
 ───────────────────────────────────────────
 ```
@@ -240,7 +240,7 @@ Critical Issues:
 Actions:
   1. Address critical BDD issues
   2. Re-run BDD review with maitre
-  3. Retry @line-plate <feature-id>
+  3. Tell me "plate <feature-id>" to retry
 
 ───────────────────────────────────────────
 ```
@@ -269,6 +269,8 @@ The plate phase ensures features are production-ready before completion:
 ```
 @line-plate lc-abc.1  # Validate feature lc-abc.1
 ```
+
+To validate a feature, tell me "plate lc-abc.1".
 
 This command takes a feature ID as argument. It will:
 1. Run tests to validate feature

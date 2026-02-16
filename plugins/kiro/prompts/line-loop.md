@@ -17,6 +17,10 @@
 
 ## Quick Start
 
+> **Note:** Kiro's `@` commands discard text after the command name ([#4141](https://github.com/kirodotdev/Kiro/issues/4141)).
+> For commands with arguments, use natural language instead: say "loop start --max-iterations 3" rather than `@line-loop start --max-iterations 3`.
+> No-arg commands like `@line-prep` and `@line-loop` work normally.
+
 ### Readiness Checklist
 
 | Ready? | Prerequisite | Why |
@@ -29,28 +33,29 @@
 
 ```bash
 @line-loop                        # Smart default: start or watch
-@line-loop start --max-iterations 3  # Test run (recommended first time)
-@line-loop watch                  # Monitor progress with context
 ```
+
+- Tell me "loop start --max-iterations 3" for a test run (recommended first time)
+- Tell me "loop watch" to monitor progress with context
 
 ---
 
 ## Command Selection Guide
 
-| Scenario | Command |
-|----------|---------|
+| Scenario | What to say |
+|----------|-------------|
 | First time / unsure | `@line-loop` (smart default) |
-| Monitor with context | `@line-loop watch` |
-| Quick status check | `@line-loop status` |
-| Debug issues | `@line-loop tail --lines 100` |
-| Review what happened | `@line-loop history --actions` |
-| Stop gracefully | `@line-loop stop` |
-| Custom iteration limit | `@line-loop start --max-iterations N` |
-| Stop on first blocker | `@line-loop start --stop-on-blocked` |
-| Focus on one epic | `@line-loop start --epic` |
-| Focus on specific epic | `@line-loop start --epic lc-001` |
-| Epic milestone review | `@line-loop start --break-on-epic` |
-| Complex tasks (40min) | `@line-loop start --cook-timeout 2400` |
+| Monitor with context | "loop watch" |
+| Quick status check | "loop status" |
+| Debug issues | "loop tail --lines 100" |
+| Review what happened | "loop history --actions" |
+| Stop gracefully | "loop stop" |
+| Custom iteration limit | "loop start --max-iterations N" |
+| Stop on first blocker | "loop start --stop-on-blocked" |
+| Focus on one epic | "loop start --epic" |
+| Focus on specific epic | "loop start --epic lc-001" |
+| Epic milestone review | "loop start --break-on-epic" |
+| Complex tasks (40min) | "loop start --cook-timeout 2400" |
 
 ---
 
@@ -74,19 +79,11 @@
 
 ### Configuring Loop Timeouts
 
-```bash
-# Default timeouts (usually sufficient)
-@line-loop start
-
-# Complex tasks (40-minute cook phase)
-@line-loop start --cook-timeout 2400
-
-# Large diffs (15-minute serve phase)
-@line-loop start --serve-timeout 900
-
-# All phases extended
-@line-loop start --cook-timeout 2400 --serve-timeout 900 --tidy-timeout 480
-```
+Use natural language to pass timeout options:
+- "loop start" — default timeouts (usually sufficient)
+- "loop start --cook-timeout 2400" — complex tasks (40-minute cook phase)
+- "loop start --serve-timeout 900" — large diffs (15-minute serve phase)
+- "loop start --cook-timeout 2400 --serve-timeout 900 --tidy-timeout 480" — all phases extended
 
 ---
 
@@ -142,6 +139,8 @@ The `Actions:` line shows tool usage during the iteration:
 ---
 
 ## Help Output
+
+> **Kiro users:** The examples below show `@line-loop <args>` syntax. Since Kiro discards text after `@` commands, use natural language instead: say "loop watch", "loop start --max-iterations 5", etc.
 
 If `help` is passed as an argument:
 
@@ -1115,16 +1114,10 @@ The loop monitors tool action activity during phases to detect hung or stalled e
 
 ### Configuration
 
-```bash
-# Disable idle detection
-@line-loop start --idle-timeout 0
-
-# More aggressive idle detection (60s) with termination
-@line-loop start --idle-timeout 60 --idle-action terminate
-
-# Relaxed idle detection for complex tasks
-@line-loop start --idle-timeout 300
-```
+Use natural language to configure idle detection:
+- "loop start --idle-timeout 0" — disable idle detection
+- "loop start --idle-timeout 60 --idle-action terminate" — aggressive with termination
+- "loop start --idle-timeout 300" — relaxed for complex tasks
 
 ### When Idle Detection Triggers
 
@@ -1184,6 +1177,8 @@ This signal should be emitted at the end of successful completion output in cook
 ---
 
 ## Troubleshooting
+
+> **Kiro users:** Troubleshooting examples below show `@line-loop <args>` syntax. Use natural language instead: say "loop tail --lines 100", "loop history --actions", etc.
 
 ### Quick Scan
 

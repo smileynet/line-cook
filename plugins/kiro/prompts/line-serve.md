@@ -213,5 +213,6 @@ Errors are transient - workflow continues but recommends retry later.
 
 ```
 @line-serve              # Review most recent closed bead
-@line-serve lc-042       # Review specific bead
 ```
+
+To review a specific bead, tell me "serve lc-042".

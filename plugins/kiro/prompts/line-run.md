@@ -166,5 +166,6 @@ For exploratory sessions or when you need more control, use the individual comma
 
 ```
 @line-run              # Full cycle with auto-selected task
-@line-run lc-042       # Full cycle with specific task
 ```
+
+To run a specific task, tell me "run lc-042".
