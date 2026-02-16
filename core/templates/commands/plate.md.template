@@ -280,7 +280,12 @@ EPIC READY TO CLOSE
 
 All features under <epic-id> (<epic-title>) are now plated.
 
+@IF_KIRO@
+NEXT STEP: Tell me "close-service <epic-id>"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 NEXT STEP: Run /@NAMESPACE@close-service <epic-id>
+@ENDIF_NOT_KIRO@
 ```
 @ENDIF_CLAUDECODE@
 @IF_OPENCODE@
@@ -323,7 +328,12 @@ EPIC READY TO CLOSE
 
 All features under <epic-id> (<epic-title>) are now plated.
 
+@IF_KIRO@
+NEXT STEP: Tell me "close-service <epic-id>"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 NEXT STEP: Run /@NAMESPACE@close-service <epic-id>
+@ENDIF_NOT_KIRO@
 ```
 @ENDIF_OPENCODE@
 
@@ -342,7 +352,12 @@ Issue: <description of test failure>
 Actions:
   1. Fix the failing tests
   2. Re-run: <test command>
+@IF_KIRO@
+  3. Tell me "plate <feature-id>" to retry
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
   3. Retry /@NAMESPACE@plate <feature-id>
+@ENDIF_NOT_KIRO@
 
 ───────────────────────────────────────────
 ```
@@ -367,7 +382,12 @@ Actions:
 @IF_OPENCODE@
   2. Re-run BDD review with maitre
 @ENDIF_OPENCODE@
+@IF_KIRO@
+  3. Tell me "plate <feature-id>" to retry
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
   3. Retry /@NAMESPACE@plate <feature-id>
+@ENDIF_NOT_KIRO@
 
 ───────────────────────────────────────────
 ```
@@ -398,9 +418,18 @@ The plate phase ensures features are production-ready before completion:
 
 ## Example Usage
 
+@IF_KIRO@
+```
+@line-plate lc-abc.1  # Validate feature lc-abc.1
+```
+
+To validate a feature, tell me "plate lc-abc.1".
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 ```
 /@NAMESPACE@plate lc-abc.1  # Validate feature lc-abc.1
 ```
+@ENDIF_NOT_KIRO@
 
 This command takes a feature ID as argument. It will:
 1. Run tests to validate feature

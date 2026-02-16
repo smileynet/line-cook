@@ -383,7 +383,12 @@ Issue: <description of test failure>
 Actions:
   1. Fix the failing tests
   2. Re-run: <test command>
+@IF_KIRO@
+  3. Tell me "close-service <epic-id>" to retry
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
   3. Retry /@NAMESPACE@close-service <epic-id>
+@ENDIF_NOT_KIRO@
 
 ───────────────────────────────────────────
 ```
@@ -403,7 +408,12 @@ Critical Issues:
 Actions:
   1. Address critical E2E issues
   2. Re-run E2E review with critic
+@IF_KIRO@
+  3. Tell me "close-service <epic-id>" to retry
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
   3. Retry /@NAMESPACE@close-service <epic-id>
+@ENDIF_NOT_KIRO@
 
 ───────────────────────────────────────────
 ```
@@ -420,8 +430,14 @@ Open children:
   - <feature-id> - <feature-title> (status: <status>)
 
 Actions:
+@IF_KIRO@
+  1. Tell me "plate <feature-id>" to plate remaining features
+  2. Tell me "close-service <epic-id>" to retry
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
   1. Plate remaining features: /@NAMESPACE@plate <feature-id>
   2. Retry /@NAMESPACE@close-service <epic-id>
+@ENDIF_NOT_KIRO@
 
 ───────────────────────────────────────────
 ```
@@ -449,9 +465,18 @@ The close-service phase validates epics after all features have been individuall
 
 ## Example Usage
 
+@IF_KIRO@
+```
+@line-close-service lc-abc  # Validate and close epic lc-abc
+```
+
+To validate an epic, tell me "close-service lc-abc".
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 ```
 /@NAMESPACE@close-service lc-abc  # Validate and close epic lc-abc
 ```
+@ENDIF_NOT_KIRO@
 
 This command takes an epic ID as argument. It will:
 1. Verify all children are closed

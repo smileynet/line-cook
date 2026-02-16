@@ -149,10 +149,20 @@ READY TO CLOSE (only if plate_ready items exist)
 ───────────────────────────────────────────
 
 FEATURE: <feature-id> - <feature-title> (<progress> tasks closed)
+@IF_KIRO@
+  → Tell me "plate <feature-id>"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
   → Run /@NAMESPACE@plate <feature-id>
+@ENDIF_NOT_KIRO@
 
 EPIC: <epic-id> - <epic-title> (<progress> features closed)
+@IF_KIRO@
+  → Tell me "close-service <epic-id>"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
   → Run /@NAMESPACE@close-service <epic-id>
+@ENDIF_NOT_KIRO@
 
 ───────────────────────────────────────────
 NEXT TASK
@@ -167,7 +177,12 @@ INTENDED CHANGE:
     - <extracted deliverables from description>
     - <bullet points or items after "Deliverable:" header>
 
+@IF_KIRO@
+NEXT STEP: Tell me "cook <task-id>"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 NEXT STEP: /@NAMESPACE@cook <task-id>
+@ENDIF_NOT_KIRO@
 ```
 
 **When plate-ready items exist:** Suggest plate/close-service as the NEXT STEP instead of cook. Only suggest cook when there are no plate-ready items.
@@ -196,7 +211,12 @@ NEXT TASK
 INTENDED CHANGE:
   <first paragraph of task description>
 
+@IF_KIRO@
+NEXT STEP: Tell me "cook <task-id>"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 NEXT STEP: /@NAMESPACE@cook <task-id>
+@ENDIF_NOT_KIRO@
 ```
 
 **Feature without epic:**
@@ -311,7 +331,12 @@ INTENDED CHANGE:
     - Findings converted to beads
     - Push verification before session end
 
+@IF_KIRO@
+NEXT STEP: Tell me "cook lc-abc.1.4"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 NEXT STEP: /@NAMESPACE@cook lc-abc.1.4
+@ENDIF_NOT_KIRO@
 ```
 
 **Standalone task:**
@@ -341,7 +366,12 @@ lc-042 [P1] Fix sync timeout issue
 INTENDED CHANGE:
   Increase timeout for bd sync to handle large repos.
 
+@IF_KIRO@
+NEXT STEP: Tell me "cook lc-042"
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
 NEXT STEP: /@NAMESPACE@cook lc-042
+@ENDIF_NOT_KIRO@
 ```
 
 @IF_CLAUDECODE@

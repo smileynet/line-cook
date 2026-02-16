@@ -92,6 +92,22 @@ The `install.py` script transforms paths based on install type:
 
 Global installs use absolute paths to ensure resources resolve correctly regardless of working directory.
 
+### Arguments Not Passed to @ Commands
+
+**Symptom:** Running `@line-cook lc-042` only loads the `@line-cook` prompt — `lc-042` is silently discarded. NEXT STEP directives like "Run @line-cook lc-042" don't pass the task ID.
+
+**Cause:** Kiro CLI bug [#4141](https://github.com/kirodotdev/Kiro/issues/4141) — all text after `@` command names is dropped.
+
+**Workaround:** Use natural language instead. The steering file routes these correctly:
+- Say "cook lc-042" instead of `@line-cook lc-042`
+- Say "run lc-042" instead of `@line-run lc-042`
+- Say "plate lc-abc.1" instead of `@line-plate lc-abc.1`
+- Say "loop start --max-iterations 5" instead of `@line-loop start --max-iterations 5`
+
+No-arg commands work normally: `@line-prep`, `@line-serve`, `@line-tidy`.
+
+**Reversion:** When Kiro fixes #4141, search for `@IF_KIRO@` and `@IF_NOT_KIRO@` block pairs in `core/templates/commands/`. Remove the `@IF_KIRO@` workaround blocks and the `@IF_NOT_KIRO@`/`@ENDIF_NOT_KIRO@` delimiters, keeping the shared `/@NAMESPACE@` content. Then re-run `./dev/sync-commands.sh`.
+
 ## Relevant Files
 
 - `plugins/kiro/install.py` - Installation script with path transformation logic
