@@ -77,9 +77,11 @@ Use `@line-<phase>` for explicit workflow control:
 **Examples:**
 ```
 @line-prep
-@line-cook lc-042
+@line-cook
 @line-run
 ```
+
+> **Note:** To pass arguments, use natural language: say "cook lc-042" instead of `@line-cook lc-042`. See [Known Issues](#known-issues).
 
 ### 2. Natural Language (Flexible)
 
