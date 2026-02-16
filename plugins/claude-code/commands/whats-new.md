@@ -48,7 +48,7 @@ Parse the content using [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 4. **Noting breaking changes prominently** — If something moved, renamed, or behaves differently, call it out clearly so users aren't surprised.
 
-5. **Connecting releases to each other** — If v0.14.0 added a feature and v0.15.0 fixed bugs in it, say so.
+5. **Connecting releases to each other** — If v0.15.0 added a feature and v0.16.0 fixed bugs in it, say so.
 
 **Format for latest 3 releases (default):**
 
@@ -56,20 +56,20 @@ Parse the content using [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 WHAT'S NEW IN LINE COOK
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-v0.15.0 — <release theme in a few words>
+v0.16.0 — <release theme in a few words>
 
 <2-4 sentence narrative: what's the story of this release? What problem
 did it solve? What should users notice?>
 
   Try: <concrete command or workflow to experience the change>
 
-v0.14.0 — <release theme>
+v0.15.0 — <release theme>
 
 <narrative>
 
   Try: <action>
 
-v0.13.2 — <release theme>
+v0.14.0 — <release theme>
 
 <narrative>
 
@@ -106,9 +106,9 @@ Back: /line:whats-new
 LINE COOK TIMELINE
 ━━━━━━━━━━━━━━━━━━
 
-v0.15.0  2026-02-15  <theme phrase — NOT a list of changes>
+v0.16.0  2026-02-15  <theme phrase — NOT a list of changes>
+v0.15.0  2026-02-15  <theme phrase>
 v0.14.0  2026-02-12  <theme phrase>
-v0.13.2  2026-02-11  <theme phrase>
 ...
 
 Deep dive: /line:whats-new <version>
@@ -134,13 +134,13 @@ The user can ask follow-up questions and you should answer using the CHANGELOG c
 WHAT'S NEW IN LINE COOK
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-v0.15.0 — Loop reliability overhaul
+v0.16.0 — Onboarding and diagnostics
 
-The autonomous loop got significantly more robust. A circuit breaker
-now stops runaway failures, hierarchy maps are cached to cut iteration
-overhead, and periodic bd sync keeps long-running loops from drifting
-out of date. Four bugs in loop execution were also fixed — notably,
-the skip list and epic filter are now actually respected during cook.
+Four new commands help you get started and stay healthy. /init checks
+your environment and guides fixes, /onboarding walks you through the
+workflow hands-on, /whats-new shows narrative release summaries, and
+/doctor diagnoses project issues. /getting-started was also rewritten
+as a focused visual guide to the two-cycle workflow.
 
   Try: /line:loop to experience the improved autonomous execution.
 
