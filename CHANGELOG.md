@@ -8,15 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `/init` command — one-time setup verification with guided fixes (checks git, beads, plugin health)
-- `/onboarding` command — interactive walkthrough with demo project option (teaches Mise + Run cycles hands-on)
-- `/whats-new` command — browse recent releases from CHANGELOG with version filtering
-- `/doctor` command — comprehensive health diagnostics with interactive troubleshooting (stale tasks, orphaned issues, spice rack status)
-- `onboarding-check.py` diagnostic script shared by init and doctor commands
+- `/init` command — verify your environment is ready for Line Cook and get guided fixes for anything missing
+- `/onboarding` command — learn the Mise + Run workflow hands-on with an interactive walkthrough tailored to your experience level
+- `/whats-new` command — see what changed in recent releases with narrative summaries that explain *why* it matters and what to try
+- `/doctor` command — diagnose project issues with a full health scan and targeted troubleshooting
 
 ### Changed
-- `/getting-started` rewritten as focused conceptual orientation (two-cycle mental model, command tables, workflow principles). Bead reference and autonomous loop docs moved to dedicated commands
-- `/help` now shows ONBOARDING section with init, getting-started, onboarding, whats-new, and doctor commands. Suggests `/init` when beads CLI is not installed
+- `/getting-started` rewritten as a focused visual guide to the two-cycle workflow — easier to learn, faster to reference
+- `/help` now surfaces onboarding commands and suggests `/init` when setup is incomplete
 
 ## [0.15.0] - 2026-02-15
 ### Added
