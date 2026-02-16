@@ -53,11 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Changelogs are for humans, not machines.**
 
-- Entry for every version
+- Include an entry for every version
 - Group same types of changes
-- Versions and sections are linkable
-- Latest version comes first
-- Display release date
+- Make versions and sections linkable
+- List latest version first
+- Include release date
 - Follow Semantic Versioning
 
 ## Types of Changes
@@ -92,6 +92,41 @@ Use these categories consistently:
 - Workflow automation. Run the full prep → cook → serve → tidy
   cycle with a single command.
 ```
+
+### Focus on User Value
+
+Every changelog entry should answer one of two questions: **"What can users now do?"** or **"What problem does this solve?"** Lead with the value, not the implementation.
+
+**Do:**
+- Start with what changed for the user
+- Explain _why_ this matters
+- Use active language ("you can now...", "no longer crashes when...")
+
+**Don't:**
+- Lead with internal mechanism names
+- List implementation details without explaining user impact
+- Use jargon the user would need to read source code to understand
+
+**Before (too technical):**
+```markdown
+### Added
+- Line Loop Process Optimization (lc-egd)
+  - Correct loop failure handling: circuit breaker, skip list, and escalation
+    for repeated task failures (lc-egd.1)
+  - Reduced iteration overhead: cached hierarchy maps and snapshot-first
+    task selection (lc-egd.2)
+```
+
+**After (user-value-focused):**
+```markdown
+### Added
+- `/loop` now automatically skips tasks that repeatedly fail instead of
+  retrying them indefinitely, and escalates when too many failures pile up
+- `/loop` iterations start faster — task selection uses cached snapshots
+  instead of querying the tracker on every cycle
+```
+
+**Litmus test:** Would a plugin user notice this change while using Line Cook in their project? If the answer is "only if they read the source code" or "only if they contribute to Line Cook," exclude it.
 
 ### Keep an Unreleased Section
 
@@ -132,6 +167,40 @@ Format: `YYYY-MM-DD` (e.g., `2026-01-21`)
 - Internal refactoring (unless user-visible)
 - Documentation typos
 - Development tooling updates
+
+### Audience: Plugin Users
+
+The changelog is for **plugin users** — people who install Line Cook into their editor and use its commands/agents in their own projects. Filter every entry through this lens.
+
+**Include** (user-facing plugin functionality):
+- New user-invocable commands (slash commands)
+- Changes to command/agent behavior that users interact with directly
+- New workflow capabilities users can invoke
+- Breaking changes to existing user-facing features
+- Bug fixes users would encounter in their workflows
+
+**Exclude** (internal/dev tooling):
+- Evaluation/benchmarking tooling (`eval/`, harnesses, test infrastructure)
+- Developer-facing skills or documentation (guidance docs, contributor patterns)
+- Template syncing or build infrastructure (sync scripts, bundling changes)
+- Agent review rule changes (what agents check for internally)
+- New dev scripts or tooling (`dev/`, `scripts/`)
+- CI/workflow changes
+- Documentation updates (unless user-facing command docs)
+- .beads/ changes (sync commits, metadata updates)
+- Test-only changes (new/modified tests with no user-facing code change)
+- Internal refactoring with no user impact
+
+**Examples:**
+
+Good (user value clear):
+- `/prep` shows "READY TO CLOSE" section when completed features are waiting
+- Running `/loop` with no arguments automatically shows status if already running, or starts a new loop if not
+
+Bad (too technical / internal):
+- "Action-level visibility tracking every tool call during iterations"
+- "README restructured following Diataxis framework"
+- "Local development install instructions in AGENTS.md for all three platforms"
 
 ### Highlight Breaking Changes
 
@@ -217,26 +286,26 @@ Include comparison links at bottom:
 ### Sporadic Updates
 
 **Bad:**
-- Last update 6 months ago
-- Multiple versions released without changelog updates
+- Changelog last updated 6 months ago
+- Multiple versions released without changelog entries
 - Users discover changes by accident
 
 **Good:**
-- Update changelog with every release
-- Keep Unreleased section current
-- Regular, predictable updates
+- Changelog updated with every release
+- Unreleased section kept current
+- Updates are regular and predictable
 
 ### Lack of Visibility
 
 **Bad:**
-- Changelog buried in docs/internal/
-- No link from README
+- Changelog buried in `docs/internal/`
+- Not linked from README
 - Hard to find
 
 **Good:**
-- CHANGELOG.md in project root
+- Changelog lives in project root as `CHANGELOG.md`
 - Linked from README
-- Mentioned in release notes
+- Referenced in release notes
 
 ### Not Highlighting Value
 
@@ -332,10 +401,10 @@ Always document with migration path:
 
 ### Regular Updates
 
-- Update Unreleased section with each merged PR
-- Create version section on release
-- Update comparison links
-- Review for clarity before release
+- Update the Unreleased section with each merged PR
+- Create a version section on release
+- Update comparison links at the bottom of the file
+- Review entries for clarity before release
 
 ### Version Numbering
 
@@ -366,8 +435,8 @@ Before releasing:
 - [ ] Changes categorized correctly
 - [ ] User-friendly language used
 - [ ] Breaking changes highlighted
-- [ ] Version number follows SemVer
-- [ ] Release date in ISO 8601 format
+- [ ] Version number set per SemVer
+- [ ] Release date formatted as ISO 8601
 - [ ] Comparison links updated
 - [ ] Unreleased section cleared
 
@@ -381,3 +450,4 @@ Before releasing:
 
 - [Run Cycle](../cycles/run-cycle.md) - Overall workflow structure
 - [FAQ — Work Organization](../faq.md#work-organization) - Priorities and scope management
+- [Release Editor Agent](../../.claude/agents/release-editor.md) - Interactive release coordinator that drafts and reviews changelogs
