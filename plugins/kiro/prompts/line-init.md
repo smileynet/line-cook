@@ -89,7 +89,7 @@ KITCHEN INSPECTION: PASSED
 ✓ Git remote configured
 ✓ Beads CLI installed
 ✓ Beads initialized (.beads/)
-✓ Line Cook v0.15.0
+✓ Line Cook v0.16.0
 ✓ Helper scripts available
 
 Ready to cook. Next: @line-getting-started
