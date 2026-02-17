@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Unit tests for line-loop.py functions."""
 
+import contextlib
+import io
 import sys
 import unittest
 from pathlib import Path
@@ -955,8 +957,6 @@ class TestPrintFeatureCompletion(unittest.TestCase):
 
     def test_prints_box_banner(self):
         """print_feature_completion prints a box with feature info."""
-        import io
-        import contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             line_loop.print_feature_completion("lc-001", "User authentication", 3)
@@ -968,8 +968,6 @@ class TestPrintFeatureCompletion(unittest.TestCase):
 
     def test_prints_without_title(self):
         """print_feature_completion works with empty title."""
-        import io
-        import contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             line_loop.print_feature_completion("lc-002", "", 1)
@@ -983,8 +981,6 @@ class TestPrintEpicCompletion(unittest.TestCase):
 
     def test_prints_box_banner(self):
         """print_epic_completion prints a box with epic info."""
-        import io
-        import contextlib
         epic = {
             "id": "lc-040",
             "title": "Security epic",
@@ -1004,8 +1000,6 @@ class TestPrintEpicCompletion(unittest.TestCase):
 
     def test_consistent_with_feature_banner_style(self):
         """Epic banner uses same +---+ border style as feature banner."""
-        import io
-        import contextlib
         epic = {"id": "e-001", "title": "Epic", "children": []}
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -2820,8 +2814,6 @@ class TestPrintHumanIterationFindings(unittest.TestCase):
 
     def test_shows_findings_when_positive(self):
         """Findings line printed when findings_count > 0."""
-        import io
-        import contextlib
         result = make_iteration_result(findings_count=3)
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -2831,8 +2823,6 @@ class TestPrintHumanIterationFindings(unittest.TestCase):
 
     def test_no_findings_line_when_zero(self):
         """Findings line not printed when findings_count is 0."""
-        import io
-        import contextlib
         result = make_iteration_result(findings_count=0)
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -3083,6 +3073,281 @@ class TestResolveIdleTimeout(unittest.TestCase):
         """Unknown phase uses DEFAULT_IDLE_TIMEOUT as fallback."""
         from line_loop.phase import resolve_idle_timeout
         self.assertEqual(resolve_idle_timeout("unknown-phase", None), line_loop.DEFAULT_IDLE_TIMEOUT)
+
+
+class TestMergeCompletedEpic(unittest.TestCase):
+    """Test merge_completed_epic() function."""
+
+    def test_returns_tuple(self):
+        """merge_completed_epic returns a (bool, Optional[str]) tuple."""
+        result = line_loop.merge_completed_epic("nonexistent", "title", Path("/tmp"))
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_no_branch_returns_success(self):
+        """Returns (True, None) when no epic branch exists."""
+        from unittest.mock import patch, MagicMock
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1  # Branch not found
+
+        with patch("line_loop.loop.run_subprocess", return_value=mock_result):
+            success, error = line_loop.merge_completed_epic("lc-abc", "Epic Title", Path("/tmp"))
+
+        self.assertTrue(success)
+        self.assertIsNone(error)
+
+    def test_on_epic_branch_delegates_to_merge_on_close(self):
+        """When on the epic branch, delegates to merge_epic_on_close."""
+        from unittest.mock import patch, MagicMock
+
+        # show-ref: branch exists
+        show_ref_result = MagicMock()
+        show_ref_result.returncode = 0
+
+        with patch("line_loop.loop.run_subprocess", return_value=show_ref_result), \
+             patch("line_loop.loop.get_current_branch", return_value="epic/lc-abc"), \
+             patch("line_loop.loop.merge_epic_on_close", return_value=(True, None)) as mock_merge:
+            success, error = line_loop.merge_completed_epic("lc-abc", "Title", Path("/tmp"))
+
+        self.assertTrue(success)
+        mock_merge.assert_called_once_with("lc-abc", "Title", Path("/tmp"))
+
+    def test_from_different_branch_merges_and_returns(self):
+        """When on a different branch, merges via main and returns to original."""
+        from unittest.mock import patch, MagicMock, call
+
+        calls = []
+        def mock_subprocess(cmd, timeout, cwd):
+            calls.append(cmd)
+            result = MagicMock()
+            result.returncode = 0
+            result.stderr = ""
+            result.stdout = ""
+            return result
+
+        with patch("line_loop.loop.run_subprocess", side_effect=mock_subprocess), \
+             patch("line_loop.loop.get_current_branch", return_value="epic/lc-other"):
+            # First call is show-ref (branch exists check)
+            success, error = line_loop.merge_completed_epic("lc-abc", "Title", Path("/tmp"))
+
+        self.assertTrue(success)
+        self.assertIsNone(error)
+        # Should have: show-ref, checkout main, pull, merge, branch -d, push main, push --delete, checkout back
+        cmd_summaries = [" ".join(c) for c in calls]
+        self.assertTrue(any("checkout main" in s for s in cmd_summaries))
+        self.assertTrue(any("merge" in s for s in cmd_summaries))
+        self.assertTrue(any("checkout epic/lc-other" in s for s in cmd_summaries))
+
+    def test_merge_conflict_creates_bug_bead(self):
+        """On merge conflict, aborts merge, returns to original branch, creates bug bead."""
+        from unittest.mock import patch, MagicMock
+
+        call_count = [0]
+        def mock_subprocess(cmd, timeout, cwd):
+            call_count[0] += 1
+            result = MagicMock()
+            result.stderr = ""
+            result.stdout = ""
+            cmd_str = " ".join(cmd)
+            if "merge --no-ff" in cmd_str:
+                result.returncode = 1  # Merge conflict
+            else:
+                result.returncode = 0
+            return result
+
+        with patch("line_loop.loop.run_subprocess", side_effect=mock_subprocess), \
+             patch("line_loop.loop.get_current_branch", return_value="epic/lc-other"):
+            success, error = line_loop.merge_completed_epic("lc-abc", "Title", Path("/tmp"))
+
+        self.assertFalse(success)
+        self.assertEqual(error, "merge_conflict")
+
+
+class TestMergedEpicsInIterationResult(unittest.TestCase):
+    """Test merged_epics field in IterationResult."""
+
+    def test_default_empty(self):
+        """merged_epics defaults to empty list."""
+        result = make_iteration_result()
+        self.assertEqual(result.merged_epics, [])
+
+    def test_can_set_merged_epics(self):
+        """merged_epics can be set explicitly."""
+        result = make_iteration_result(merged_epics=["lc-abc"])
+        self.assertEqual(result.merged_epics, ["lc-abc"])
+
+
+class TestCloseEpicAndCreateDocTask(unittest.TestCase):
+    """Test _close_epic_and_create_doc_task helper."""
+
+    def test_closes_epic_and_creates_task(self):
+        """Closes epic bead and creates P1 documentation task."""
+        from unittest.mock import patch, MagicMock
+        from line_loop.iteration import _close_epic_and_create_doc_task
+
+        calls = []
+        def mock_subprocess(cmd, timeout, cwd):
+            calls.append(cmd)
+            result = MagicMock()
+            result.returncode = 0
+            result.stderr = ""
+            return result
+
+        with patch("line_loop.iteration.run_subprocess", side_effect=mock_subprocess):
+            _close_epic_and_create_doc_task("lc-abc", "Epic Title", Path("/tmp"))
+
+        # Should have called bd close and bd create
+        cmd_strs = [" ".join(c) for c in calls]
+        self.assertTrue(any("bd close lc-abc" in s for s in cmd_strs))
+        self.assertTrue(any("bd create" in s and "--priority" in s and "1" in s for s in cmd_strs))
+
+
+class TestClosedEpicsPopulatedWithMerge(unittest.TestCase):
+    """Test that closed_epics + merged_epics are populated in the new flow."""
+
+    def test_epic_closed_after_failed_close_service(self):
+        """Epic is added to closed_epics even when close-service fails."""
+        from unittest.mock import patch
+
+        snapshot_before = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-abc.1.1", "Task", "task", parent="lc-abc.1")]
+        )
+        snapshot_after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[make_bead("lc-abc.1.1", "Task", "task", parent="lc-abc.1")]
+        )
+
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="done",
+            exit_code=0, duration_seconds=5.0
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+        plate_result = line_loop.PhaseResult(
+            phase="plate", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+        cs_result = line_loop.PhaseResult(
+            phase="close-service", success=False, output="",
+            exit_code=1, duration_seconds=2.0, error="timeout"
+        )
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_result
+            elif phase == "tidy":
+                return tidy_result
+            elif phase == "plate":
+                return plate_result
+            elif phase == "close-service":
+                return cs_result
+            return tidy_result
+
+        def mock_subprocess(cmd, timeout, cwd):
+            from unittest.mock import MagicMock
+            result = MagicMock()
+            result.returncode = 0
+            result.stderr = ""
+            result.stdout = ""
+            return result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot_after), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-abc.1.1"), \
+             patch("line_loop.iteration.get_task_title", return_value="Task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(True, "lc-abc.1")), \
+             patch("line_loop.iteration.get_task_info", return_value={"title": "Feature", "issue_type": "feature"}), \
+             patch("line_loop.iteration.get_children", return_value=[{"issue_type": "task", "status": "closed"}]), \
+             patch("line_loop.iteration.check_epic_completion_after_feature", return_value=(True, "lc-abc")), \
+             patch("line_loop.loop.merge_completed_epic", return_value=(True, None)), \
+             patch("line_loop.iteration._close_epic_and_create_doc_task") as mock_doc_task:
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot_before
+            )
+
+        # Epic should still be in closed_epics despite close-service failure
+        self.assertIn("lc-abc", result.closed_epics)
+        # Doc task should have been created
+        mock_doc_task.assert_called_once()
+
+    def test_merged_epics_populated_on_success(self):
+        """merged_epics contains epic ID when merge succeeds."""
+        from unittest.mock import patch
+
+        snapshot_before = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-abc.1.1", "Task", "task", parent="lc-abc.1")]
+        )
+        snapshot_after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[make_bead("lc-abc.1.1", "Task", "task", parent="lc-abc.1")]
+        )
+
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="done",
+            exit_code=0, duration_seconds=5.0
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+        plate_result = line_loop.PhaseResult(
+            phase="plate", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+        cs_result = line_loop.PhaseResult(
+            phase="close-service", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_result
+            elif phase == "tidy":
+                return tidy_result
+            elif phase == "plate":
+                return plate_result
+            elif phase == "close-service":
+                return cs_result
+            return tidy_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot_after), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-abc.1.1"), \
+             patch("line_loop.iteration.get_task_title", return_value="Task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(True, "lc-abc.1")), \
+             patch("line_loop.iteration.get_task_info", return_value={"title": "Feature", "issue_type": "feature"}), \
+             patch("line_loop.iteration.get_children", return_value=[{"issue_type": "task", "status": "closed"}]), \
+             patch("line_loop.iteration.check_epic_completion_after_feature", return_value=(True, "lc-abc")), \
+             patch("line_loop.loop.merge_completed_epic", return_value=(True, None)):
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot_before
+            )
+
+        self.assertIn("lc-abc", result.merged_epics)
+        self.assertIn("lc-abc", result.closed_epics)
 
 
 if __name__ == "__main__":

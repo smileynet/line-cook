@@ -51,6 +51,20 @@ Read and follow `line-prep.md` to sync state and identify available work.
 
 Wait for prep to complete.
 
+@IF_CLAUDECODE@
+### Step 1.5: Ensure Epic Branch
+
+If the task to be worked on belongs to an epic, ensure we're on the correct epic branch:
+
+1. Get task details: `bd show <task-id> --json`
+2. Walk parent chain to find epic ancestor
+3. If epic found:
+   - Check if `epic/<epic-id>` branch exists: `git show-ref --verify refs/heads/epic/<epic-id>`
+   - If no branch exists: `git checkout main && git pull --rebase && git checkout -b epic/<epic-id>`
+   - If branch exists and we're not on it: commit WIP if needed, then `git checkout epic/<epic-id>`
+4. If no epic parent, stay on current branch
+@ENDIF_CLAUDECODE@
+
 ### Step 2: Run /@NAMESPACE@cook
 
 @IF_CLAUDECODE@
@@ -153,10 +167,31 @@ bd show <task-id>
 
 2. Wait for plate to complete. Plate handles maître review, acceptance docs, and CHANGELOG.
 
-3. If plate output shows "EPIC READY TO CLOSE", run close-service:
+3. If plate output shows "EPIC READY TO CLOSE":
+
+   **First, merge the epic branch to main:**
+   ```bash
+   EPIC_BRANCH="epic/<epic-id>"
+   CURRENT=$(git branch --show-current)
+   if [ "$CURRENT" = "$EPIC_BRANCH" ]; then
+     git checkout main && git pull --rebase
+     git merge --no-ff $EPIC_BRANCH -m "Merge epic <epic-id>: <epic-title>"
+     git branch -d $EPIC_BRANCH
+     git push origin main
+     git push origin --delete $EPIC_BRANCH 2>/dev/null || true
+   fi
+   ```
+
+   If merge fails (conflict): `git merge --abort`, return to epic branch,
+   create bug bead, skip close-service.
+
+   **Then run close-service for documentation:**
    ```
    Skill(skill="@NAMESPACE@close-service", args="<epic-id>")
    ```
+
+   **If close-service fails:** close the epic (`bd close <epic-id>`) and create
+   a standalone P1 task for documentation completion.
 
 **If no feature completed, skip plate phase and proceed to Step 6.**
 @ENDIF_CLAUDECODE@
@@ -164,8 +199,28 @@ bd show <task-id>
 1. Run /@NAMESPACE@plate to validate the feature:
    - Read and follow `line-plate.md`
 
-2. If plate output shows "EPIC READY TO CLOSE", run close-service:
+2. If plate output shows "EPIC READY TO CLOSE":
+
+   **First, merge the epic branch to main:**
+   ```bash
+   EPIC_BRANCH="epic/<epic-id>"
+   CURRENT=$(git branch --show-current)
+   if [ "$CURRENT" = "$EPIC_BRANCH" ]; then
+     git checkout main && git pull --rebase
+     git merge --no-ff $EPIC_BRANCH -m "Merge epic <epic-id>: <epic-title>"
+     git branch -d $EPIC_BRANCH
+     git push origin main
+     git push origin --delete $EPIC_BRANCH 2>/dev/null || true
+   fi
+   ```
+
+   If merge fails (conflict): `git merge --abort`, return to epic branch, create bug bead.
+
+   **Then run close-service for documentation:**
    - Read and follow `line-close-service.md`
+
+   **If close-service fails:** close the epic (`bd close <epic-id>`) and create
+   a standalone P1 task for documentation completion.
 @ENDIF_OPENCODE@
 
 ### Step 6: Cycle Summary

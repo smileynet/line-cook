@@ -7,6 +7,8 @@ description: Validate completed epic and create acceptance documentation
 
 **Validate completed epic and create acceptance documentation.** Final step after all features under an epic have been plated.
 
+**Note:** Epic branch merge to main is handled automatically by the loop/run workflow before close-service runs. This command focuses on documentation and quality validation only.
+
 **Arguments:** `$ARGUMENTS` (required) - Epic bead ID to validate
 
 **STOP after completing.** Show NEXT STEP and wait for user.
@@ -179,6 +181,8 @@ bd sync
 
 ### Step 8.5: Push Changes
 
+Push the documentation commits:
+
 ```bash
 git push
 ```
@@ -210,6 +214,7 @@ Deliverables:
   - Epic report: docs/features/<epic-id>-acceptance.md
   - CHANGELOG.md updated
   - Epic bead closed
+  - Branch: merged to main (automatic)
 
 Commit: <hash>
 ───────────────────────────────────────────
@@ -284,7 +289,8 @@ The close-service phase validates epics after all features have been individuall
 3. **Documentation** - Epic acceptance report provides comprehensive record
 4. **Changelog** - Track epic delivery for users
 5. **Context archival** - Planning context marked as archived
-6. **Branch merge** - Epic branch merged to main (Claude Code only)
+
+**Note:** Branch merge to main happens automatically before close-service runs (in loop/run workflow).
 
 **When to run:**
 - After all child features for an epic are plated (closed)
@@ -310,5 +316,4 @@ This command takes an epic ID as argument. It will:
 5. Archive planning context
 6. Update CHANGELOG.md
 7. Close epic bead
-8. Commit acceptance docs
-9. Merge epic branch to main (Claude Code only)
+8. Commit and push acceptance docs

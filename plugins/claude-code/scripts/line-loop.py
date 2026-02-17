@@ -546,6 +546,9 @@ class IterationResult:
     # Epics closed during this iteration (for branch merge in run_loop)
     closed_epics: list[str] = field(default_factory=list)
 
+    # Epics merged to main during this iteration
+    merged_epics: list[str] = field(default_factory=list)
+
     @property
     def action_counts(self) -> dict[str, int]:
         """Count actions by tool name."""
@@ -2416,10 +2419,11 @@ def detect_eligible_epics(cwd: Path) -> list[str]:
 
 
 def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> list[dict]:
-    """Detect newly completable epics and close them via close-service.
+    """Detect newly completable epics, merge branches, and close via close-service.
 
-    Uses detect_eligible_epics for detection, then run_phase("close-service")
-    for each epic to ensure full validation (critic review, acceptance docs).
+    Merges epic branches eagerly before running close-service for documentation.
+    If close-service fails, the epic bead is closed directly and a P1 doc task
+    is created as follow-up.
 
     Args:
         cwd: Working directory containing the .beads project.
@@ -2431,19 +2435,32 @@ def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> 
     if not epic_ids:
         return []
 
+
     summaries = []
     for epic_id in epic_ids:
         if exclude_ids and epic_id in exclude_ids:
             logger.debug(f"Skipping epic {epic_id} (already handled by iteration)")
             continue
+
+        # Get epic title for merge commit
+        epic_title = get_task_title(epic_id, cwd) or ""
+
+        # Step 1: Merge epic branch to main
+        merged, merge_error = merge_completed_epic(epic_id, epic_title, cwd)
+        if merged:
+            logger.info(f"Merged epic branch epic/{epic_id} to main")
+        elif merge_error == "merge_conflict":
+            logger.warning(f"Merge conflict for epic/{epic_id}, bug bead created")
+
+        # Step 2: Run close-service for documentation
         logger.info(f"Running close-service for epic {epic_id}")
         cs_result = run_phase("close-service", cwd, args=epic_id)
 
         if cs_result.error:
             logger.warning(f"Close-service failed for epic {epic_id}: {cs_result.error}")
-            continue
+            # Close epic bead and create doc task
+            _close_epic_and_create_doc_task(epic_id, epic_title, cwd)
 
-        logger.info(f"Close-service completed for epic {epic_id}")
         epic = get_epic_summary(epic_id, cwd)
         summaries.append(epic)
         print_epic_completion(epic)
@@ -2520,6 +2537,54 @@ def _reopen_task_for_retry(task_id: Optional[str], cwd: Path) -> None:
         logger.warning(f"Error reopening task {task_id} for retry: {e}")
 
 
+def _close_epic_and_create_doc_task(epic_id: str, epic_title: str, cwd: Path) -> None:
+    """Close epic bead and create a standalone P1 documentation task.
+
+    Called when close-service fails but the epic branch has already been merged.
+    The epic's code work IS done — close the bead to reflect reality and create
+    a follow-up task for documentation completion.
+
+    Args:
+        epic_id: The epic bead issue ID.
+        epic_title: The epic title for task description context.
+        cwd: Working directory containing the .beads project.
+    """
+    # Close the epic bead
+    try:
+        result = run_subprocess(["bd", "close", epic_id], BD_COMMAND_TIMEOUT, cwd)
+        if result.returncode == 0:
+            logger.info(f"Closed epic {epic_id} after close-service failure")
+        else:
+            logger.warning(f"Failed to close epic {epic_id}: {result.stderr}")
+    except Exception as e:
+        logger.warning(f"Error closing epic {epic_id}: {e}")
+
+    # Create standalone P1 documentation task
+    doc_description = (
+        f"Epic {epic_id} ({epic_title}) has been completed and merged to main, "
+        f"but close-service failed to generate documentation.\n\n"
+        f"Complete the following for epic {epic_id}:\n"
+        f"1. Run E2E validation tests\n"
+        f"2. Create epic acceptance documentation in docs/features/{epic_id}-acceptance.md\n"
+        f"3. Update CHANGELOG.md with epic completion\n"
+        f"4. Archive planning context if one exists"
+    )
+    try:
+        run_subprocess(
+            [
+                "bd", "create",
+                "--title", f"Complete documentation for epic {epic_id}",
+                "--type", "task",
+                "--priority", "1",
+                "--description", doc_description
+            ],
+            BD_COMMAND_TIMEOUT, cwd
+        )
+        logger.info(f"Created P1 documentation task for epic {epic_id}")
+    except Exception as e:
+        logger.warning(f"Failed to create documentation task for epic {epic_id}: {e}")
+
+
 def run_iteration(
     iteration: int,
     max_iterations: int,
@@ -2557,6 +2622,7 @@ def run_iteration(
     start_time = datetime.now()
     logger.info(f"Starting iteration {iteration}/{max_iterations}")
     closed_epic_ids: list[str] = []
+    merged_epic_ids: list[str] = []
 
     # Use provided snapshot or capture fresh one
     before = before_snapshot or get_bead_snapshot(cwd)
@@ -2969,6 +3035,22 @@ def run_iteration(
                 # Check if completing the feature completes an epic
                 epic_complete, epic_id = check_epic_completion_after_feature(feature_id, cwd, task_info_cache=task_info_cache, children_cache=children_cache)
                 if epic_complete and epic_id:
+                    # Get epic title for merge commit message
+                    epic_info = task_info_cache.get(epic_id)
+                    epic_title_for_merge = epic_info.get("title", "") if epic_info else ""
+
+                    # Step 1: Merge epic branch to main BEFORE close-service
+                    merged, merge_error = merge_completed_epic(epic_id, epic_title_for_merge, cwd)
+                    if merged:
+                        merged_epic_ids.append(epic_id)
+                        if not json_output:
+                            print(f"  Branch: epic/{epic_id} merged to main")
+                    elif merge_error == "merge_conflict":
+                        if not json_output:
+                            print(f"  WARNING: Merge conflict for epic/{epic_id}")
+                            print(f"           Bug bead created for manual resolution")
+
+                    # Step 2: Run close-service for documentation
                     logger.info(f"Epic {epic_id} complete - running close-service phase")
                     if not json_output:
                         print_phase_progress("close-service", "start")
@@ -2985,6 +3067,9 @@ def run_iteration(
                             print_phase_progress("close-service", "error", cs_result.duration_seconds,
                                                cs_result.error or "failed")
                         logger.warning(f"Close-service phase error for epic {epic_id}: {cs_result.error}")
+                        # Close-service failed: close the epic bead directly and create doc task
+                        _close_epic_and_create_doc_task(epic_id, epic_title_for_merge, cwd)
+                        closed_epic_ids.append(epic_id)
                     else:
                         if not json_output:
                             print_phase_progress("close-service", "done", cs_result.duration_seconds,
@@ -3022,7 +3107,8 @@ def run_iteration(
         actions=all_actions,
         delta=delta,
         findings_count=findings_count,
-        closed_epics=closed_epic_ids
+        closed_epics=closed_epic_ids,
+        merged_epics=merged_epic_ids
     )
 
 
@@ -3881,6 +3967,117 @@ def merge_epic_on_close(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool,
         return (False, None)
 
 
+def merge_completed_epic(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool, Optional[str]]:
+    """Merge epic branch to main, working from any branch position.
+
+    Unlike merge_epic_on_close() which requires being on the epic branch,
+    this function handles merging from any current branch position:
+    - If on the epic branch: merge directly (same as merge_epic_on_close)
+    - If on a different branch: stash position, checkout main, merge, return
+
+    Called eagerly when all epic children close, before close-service runs.
+    This decouples code integration from documentation/quality gates.
+
+    Args:
+        epic_id: The epic bead issue ID.
+        epic_title: The epic title for commit message.
+        cwd: Working directory of the git repository.
+
+    Returns:
+        Tuple of (success, error_type). error_type values:
+        - None: No error (success=True), no branch found, or generic failure
+        - "merge_conflict": Merge failed due to conflicts
+        - "merge_abort_failed": Failed to abort merge after conflict
+    """
+    epic_branch = f"epic/{epic_id}"
+
+    # Check if epic branch exists
+    try:
+        result = run_subprocess(
+            ["git", "show-ref", "--verify", f"refs/heads/{epic_branch}"],
+            GIT_SYNC_TIMEOUT, cwd
+        )
+        if result.returncode != 0:
+            logger.debug(f"Epic branch {epic_branch} does not exist, skipping merge")
+            return (True, None)  # No branch = nothing to merge = success
+    except Exception:
+        logger.debug(f"Error checking epic branch {epic_branch}")
+        return (True, None)
+
+    current = get_current_branch(cwd)
+
+    if current == epic_branch:
+        # On the epic branch: use existing merge flow
+        return merge_epic_on_close(epic_id, epic_title, cwd)
+
+    # On a different branch: save position, merge, return
+    try:
+        # Checkout main and pull
+        result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"Failed to checkout main for merge: {result.stderr}")
+            return (False, None)
+        result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+        if result.returncode != 0:
+            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+
+        # Attempt merge
+        merge_result = run_subprocess(
+            ["git", "merge", "--no-ff", epic_branch, "-m", f"Merge epic {epic_id}: {epic_title}"],
+            GIT_SYNC_TIMEOUT, cwd
+        )
+
+        if merge_result.returncode != 0:
+            # Merge conflict - abort and restore position
+            abort_result = run_subprocess(["git", "merge", "--abort"], GIT_SYNC_TIMEOUT, cwd)
+            if abort_result.returncode != 0:
+                logger.error(f"Failed to abort merge for epic {epic_id}: {abort_result.stderr}")
+                # Try to return to original branch anyway
+                if current:
+                    run_subprocess(["git", "checkout", current], GIT_SYNC_TIMEOUT, cwd)
+                return (False, "merge_abort_failed")
+
+            # Return to original branch
+            if current:
+                run_subprocess(["git", "checkout", current], GIT_SYNC_TIMEOUT, cwd)
+
+            # Create bug bead for follow-up
+            run_subprocess(
+                [
+                    "bd", "create",
+                    "--title", f"Resolve merge conflict for epic {epic_id}",
+                    "--type", "bug",
+                    "--priority", "1",
+                    "--description", f"Epic {epic_id} ({epic_title}) completed but merge to main failed due to conflicts."
+                ],
+                BD_COMMAND_TIMEOUT, cwd
+            )
+
+            logger.warning(f"Merge conflict for epic {epic_id}, created bug bead")
+            return (False, "merge_conflict")
+
+        # Success - delete branch and push
+        run_subprocess(["git", "branch", "-d", epic_branch], GIT_SYNC_TIMEOUT, cwd)
+        run_subprocess(["git", "push", "origin", "main"], GIT_SYNC_TIMEOUT, cwd)
+        run_subprocess(["git", "push", "origin", "--delete", epic_branch], GIT_SYNC_TIMEOUT, cwd)
+
+        # Return to original branch (if it wasn't the epic branch we just deleted)
+        if current and current != epic_branch:
+            run_subprocess(["git", "checkout", current], GIT_SYNC_TIMEOUT, cwd)
+
+        logger.info(f"Merged and deleted epic branch: {epic_branch}")
+        return (True, None)
+    except Exception as e:
+        logger.warning(f"Failed to merge epic branch {epic_branch}: {e}")
+        # Try to return to original branch
+        if current:
+            try:
+                run_subprocess(["git", "checkout", current], GIT_SYNC_TIMEOUT, cwd)
+            except Exception:
+                pass
+        return (False, None)
+
+
 def run_loop(
     max_iterations: int,
     stop_on_blocked: bool,
@@ -4259,37 +4456,19 @@ def run_loop(
             current_retries = 0
             last_task_id = None
 
-        # Merge epic branches closed during this iteration
-        if result.success and result.closed_epics:
-            for closed_epic_id in result.closed_epics:
-                epic_title = get_task_title(closed_epic_id, cwd) or ""
-                merged, merge_error = merge_epic_on_close(closed_epic_id, epic_title, cwd)
-                if merged and not json_output:
-                    print(f"  Branch: epic/{closed_epic_id} merged to main")
-                elif merge_error == "merge_conflict" and not json_output:
-                    print(f"  WARNING: Merge conflict for epic/{closed_epic_id}")
-                    print(f"           Bug bead created for manual resolution")
+        # Log merge results from iteration (merge now happens at iteration level)
+        if result.success and result.merged_epics:
+            for merged_epic_id in result.merged_epics:
+                logger.info(f"Epic branch epic/{merged_epic_id} merged to main during iteration")
 
         # Check for epic completions after each successful iteration
         # Catch-all: detect epics eligible for closure that iteration missed
         # (e.g., external closes, or iteration's hierarchy walk didn't reach epic)
+        # Merge and close-service are now handled inside check_epic_completion()
         if result.success:
             already_handled = set(result.closed_epics)
             epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled)
             if epic_summaries:
-                # Merge epic branches to main for each completed epic
-                for epic in epic_summaries:
-                    epic_id = epic.get("id")
-                    if not epic_id or epic_id in already_handled:
-                        continue
-                    epic_title = epic.get("title", "")
-                    merged, merge_error = merge_epic_on_close(epic_id, epic_title, cwd)
-                    if merged and not json_output:
-                        print(f"  Branch: epic/{epic_id} merged to main")
-                    elif merge_error == "merge_conflict" and not json_output:
-                        print(f"  WARNING: Merge conflict for epic/{epic_id}")
-                        print(f"           Bug bead created for manual resolution")
-
                 # Update status file with epic completions
                 if status_file:
                     try:

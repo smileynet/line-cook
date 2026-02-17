@@ -18,6 +18,7 @@ Read and follow `line-prep.md` to sync state and identify available work.
 
 Wait for prep to complete.
 
+
 ### Step 2: Run @line-cook
 
 Read and follow `line-cook.md` to execute work.
@@ -55,8 +56,28 @@ bd show <task-id>
 1. Run @line-plate to validate the feature:
    - Read and follow `line-plate.md`
 
-2. If plate output shows "EPIC READY TO CLOSE", run close-service:
+2. If plate output shows "EPIC READY TO CLOSE":
+
+   **First, merge the epic branch to main:**
+   ```bash
+   EPIC_BRANCH="epic/<epic-id>"
+   CURRENT=$(git branch --show-current)
+   if [ "$CURRENT" = "$EPIC_BRANCH" ]; then
+     git checkout main && git pull --rebase
+     git merge --no-ff $EPIC_BRANCH -m "Merge epic <epic-id>: <epic-title>"
+     git branch -d $EPIC_BRANCH
+     git push origin main
+     git push origin --delete $EPIC_BRANCH 2>/dev/null || true
+   fi
+   ```
+
+   If merge fails (conflict): `git merge --abort`, return to epic branch, create bug bead.
+
+   **Then run close-service for documentation:**
    - Read and follow `line-close-service.md`
+
+   **If close-service fails:** close the epic (`bd close <epic-id>`) and create
+   a standalone P1 task for documentation completion.
 
 ### Step 6: Cycle Summary
 
