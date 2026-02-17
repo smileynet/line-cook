@@ -122,6 +122,7 @@ from .loop import (
     auto_commit_wip,
     ensure_epic_branch,
     merge_epic_on_close,
+    merge_completed_epic,
     periodic_sync,
     should_periodic_sync,
 )
@@ -222,6 +223,7 @@ __all__ = [
     "auto_commit_wip",
     "ensure_epic_branch",
     "merge_epic_on_close",
+    "merge_completed_epic",
     "periodic_sync",
     "should_periodic_sync",
 ]

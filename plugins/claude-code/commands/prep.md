@@ -59,6 +59,10 @@ Before selecting a task, check branching context:
 
 Use the branching table above to decide the action: create, switch, or stay.
 
+**Execute branching:** If the state snapshot shows a `branch_recommendation`, follow it:
+- If recommending `epic/<id>` and not already on that branch, switch now
+- If recommending main and on an epic branch with no uncommitted work, switch to main
+
 If preparing to work on a standalone feature (has `--type=feature` with no epic parent):
 ```bash
 bd show <feature-id>  # Confirm it's a feature
