@@ -121,10 +121,14 @@ Domain-specific addons that enhance planning. Spices load automatically during `
 
 | Spice | What it adds |
 |-------|-------------|
-| [game-spice](https://github.com/smileynet/game-spice) | MLP scoping, core loop design, game planning anti-patterns |
+| [game-spice](https://github.com/smileynet/game-spice) | Interactive game design workflow — brainstorm, simulate, and build-plan commands plus 14 knowledge skills covering MLP scoping, core loops, economy design, mechanics palette, playtesting, and architecture review |
+| [code-spice](https://github.com/smileynet/code-spice) | Code quality foundations — readability, naming, refactoring, error handling, antipatterns, tradeoff analysis, testing guidance, and an automated code-quality critic for `/line:serve` |
+
+**game-spice** is for game projects (design sessions, balance checks, walkthroughs). **code-spice** is for any software project (code quality, review prep, smell detection). Both can be installed together.
 
 ```bash
-/plugin install game-spice@line-cook
+/plugin install game@line-cook   # game design workflow
+/plugin install code@line-cook   # code quality toolkit
 ```
 
 ## License
