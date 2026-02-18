@@ -1,7 +1,7 @@
 # Planning Context: GitHub Issue Agent
 
-**Status:** brainstormed
-**Epic:** <!-- epic-bead-id (after finalize) -->
+**Status:** finalized
+**Epic:** lc-wbo (Phase 1), lc-p62 (Phase 2), lc-769 (Phase 3)
 **Created:** 2026-02-18
 
 ## Problem
@@ -19,9 +19,18 @@ Use `anthropics/claude-code-action@v1` in a dual-mode GitHub Actions workflow: a
 
 ## Artifacts
 - Brainstorm: docs/planning/brainstorm-github-issue-agent.md
-- Menu plan: docs/planning/menu-plan.yaml
+- Menu plan: docs/planning/menu-plan-github-issue-agent.yaml
 - Architecture: docs/planning/context-github-issue-agent/architecture.md
 - Decisions: docs/planning/context-github-issue-agent/decisions.log
 
 ## Scope
-<!-- Added during /scope phase -->
+Phases: 3, Features: 5, Tasks: 11
+
+- **Phase 1: Auto-Triage** (1-2 sessions)
+  - Feature 1.1: Auto-analyze and respond to new issues (3 tasks)
+- **Phase 2: Fix Proposals & Follow-up** (2-3 sessions)
+  - Feature 2.1: Propose fixes on test branches (2 tasks)
+  - Feature 2.2: Interactive follow-up via @mention (2 tasks)
+- **Phase 3: Hardening & Generalization** (2-3 sessions)
+  - Feature 3.1: GitHub App identity for CI-triggering fix branches (2 tasks)
+  - Feature 3.2: Reusable issue agent template (2 tasks)
