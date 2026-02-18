@@ -1,0 +1,28 @@
+name: Issue Agent
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-agent-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    if: github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Analyze issue
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          max_turns: 10
+          prompt: "Analyze this issue and comment with your findings."
