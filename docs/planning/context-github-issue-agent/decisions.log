@@ -1,0 +1,10 @@
+# Decisions Log
+# Append-only: date | context | decision | rationale
+# Seeded during brainstorm, updated during scope and finalize
+
+2026-02-18 | brainstorm | Use claude-code-action over raw API | Official action handles tool access, context loading, GitHub integration; lowest effort path
+2026-02-18 | brainstorm | Dual-mode triggers (auto + @mention) | Covers both new issue triage and follow-up conversation use cases
+2026-02-18 | brainstorm | Start line-cook-specific | Generalize later as a spice/template once patterns are proven
+2026-02-18 | brainstorm | No GitHub App initially | GITHUB_TOKEN sufficient for MVP; App token adds complexity for CI-on-branches which isn't needed yet
+2026-02-18 | brainstorm | Never auto-merge fixes | All proposed fixes are on test branches for human verification; safety over speed
+2026-02-18 | brainstorm | MVP is analysis + comments only | Graduate to branch creation in full feature phase; de-risk by proving analysis quality first
