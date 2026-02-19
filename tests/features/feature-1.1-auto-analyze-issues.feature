@@ -14,13 +14,20 @@ Feature: Auto-analyze and respond to new issues
     Then the issue should have a comment from the agent
     And the comment should contain a structured analysis section
 
-  Scenario: Issue classified and labeled
+  Scenario: Bug issue gets bug label
     When I create an issue describing a bug
     And I wait for the issue-agent workflow to complete
     Then the issue should have the "bug" label applied
+
+  Scenario: Feature request gets enhancement label
     When I create an issue describing a feature request
     And I wait for the issue-agent workflow to complete
     Then the issue should have the "enhancement" label applied
+
+  Scenario: Question issue gets question label
+    When I create an issue asking a question about usage
+    And I wait for the issue-agent workflow to complete
+    Then the issue should have the "question" label applied
 
   Scenario: Unclear issue gets clarifying questions
     When I create an issue with a vague description like "something is broken"
