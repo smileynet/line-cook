@@ -1161,7 +1161,11 @@ def detect_eligible_epics(cwd: Path) -> list[str]:
         return []
 
 
-def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> list[dict]:
+def check_epic_completion(
+    cwd: Path,
+    exclude_ids: Optional[set[str]] = None,
+    cli_profile: Optional[dict] = None
+) -> list[dict]:
     """Detect newly completable epics, merge branches, and close via close-service.
 
     Merges epic branches eagerly before running close-service for documentation.
@@ -1171,6 +1175,7 @@ def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> 
     Args:
         cwd: Working directory containing the .beads project.
         exclude_ids: Optional set of epic IDs to skip (already handled by caller).
+        cli_profile: Optional CLI profile dict for phase invocation.
 
     Returns list of completed epic summaries for display.
     """
@@ -1198,7 +1203,7 @@ def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> 
 
         # Step 2: Run close-service for documentation
         logger.info(f"Running close-service for epic {epic_id}")
-        cs_result = run_phase("close-service", cwd, args=epic_id)
+        cs_result = run_phase("close-service", cwd, args=epic_id, cli_profile=cli_profile)
 
         if cs_result.error:
             logger.warning(f"Close-service failed for epic {epic_id}: {cs_result.error}")
@@ -1340,7 +1345,8 @@ def run_iteration(
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     before_snapshot: Optional[BeadSnapshot] = None,
-    target_task_id: Optional[str] = None
+    target_task_id: Optional[str] = None,
+    cli_profile: Optional[dict] = None
 ) -> IterationResult:
     """Execute individual phases (cook→serve→tidy) with retry logic.
 
@@ -1362,6 +1368,8 @@ def run_iteration(
         idle_timeout: Override idle timeout, or None to use per-phase defaults
         idle_action: Action on idle - "warn" or "terminate"
         before_snapshot: Optional pre-captured snapshot (avoids redundant bd query)
+        target_task_id: Optional task ID to assign (skips task selection)
+        cli_profile: Optional CLI profile dict for phase invocation
     """
     start_time = datetime.now()
     logger.info(f"Starting iteration {iteration}/{max_iterations}")
@@ -1425,7 +1433,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("cook")
-        cook_result = run_phase("cook", cwd, args=target_task_id or "", on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+        cook_result = run_phase("cook", cwd, args=target_task_id or "", on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
@@ -1532,7 +1540,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("serve")
-        serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+        serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
         all_output.append(serve_result.output)
@@ -1709,7 +1717,7 @@ def run_iteration(
 
     if progress_state:
         progress_state.start_phase("tidy")
-    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
     all_actions.extend(tidy_result.actions)
     all_output.append("\n=== TIDY PHASE ===\n")
     all_output.append(tidy_result.output)
@@ -1761,7 +1769,7 @@ def run_iteration(
 
             if progress_state:
                 progress_state.start_phase("plate")
-            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
             all_actions.extend(plate_result.actions)
             all_output.append("\n=== PLATE PHASE ===\n")
             all_output.append(plate_result.output)
@@ -1802,7 +1810,7 @@ def run_iteration(
 
                     if progress_state:
                         progress_state.start_phase("close-service")
-                    cs_result = run_phase("close-service", cwd, args=epic_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+                    cs_result = run_phase("close-service", cwd, args=epic_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
                     all_actions.extend(cs_result.actions)
                     all_output.append("\n=== CLOSE-SERVICE PHASE ===\n")
                     all_output.append(cs_result.output)

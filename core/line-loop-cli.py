@@ -24,6 +24,8 @@ from typing import Optional
 # Import from the line_loop package
 from line_loop import (
     # Config constants
+    CLI_PROFILES,
+    DEFAULT_CLI,
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_TASK_FAILURES,
     DEFAULT_PHASE_TIMEOUTS,
@@ -219,6 +221,12 @@ Examples:
         default=DEFAULT_IDLE_ACTION,
         help=f"Action to take when idle detected: warn (log warning) or terminate (stop phase) (default: {DEFAULT_IDLE_ACTION})"
     )
+    parser.add_argument(
+        "--cli",
+        choices=list(CLI_PROFILES.keys()),
+        default=DEFAULT_CLI,
+        help=f"CLI to use for phase execution (default: {DEFAULT_CLI})"
+    )
 
     args = parser.parse_args()
 
@@ -288,7 +296,8 @@ Examples:
             max_task_failures=args.max_task_failures,
             idle_timeout=args.idle_timeout,
             idle_action=args.idle_action,
-            epic_mode=args.epic
+            epic_mode=args.epic,
+            cli_name=args.cli
         )
     finally:
         # Clean up PID file on exit
