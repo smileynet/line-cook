@@ -1,240 +1,161 @@
 phases:
-  - id: phase-loop-optimization
-    title: "Phase: Line Loop Process Optimization"
-    description: "Fix bugs, reduce subprocess overhead, add findings tracking, and improve long-running loop resilience"
-    duration: "5-7 sessions"
+  - id: phase-kiro-loop
+    title: "Phase 1: Kiro Loop Support"
+    description: "Make the autonomous line-loop work with Kiro CLI in addition to Claude Code CLI"
+    duration: "2-4 sessions"
 
     features:
-      - id: feature-correctness
-        title: "Feature: Correct loop failure handling"
-        priority: 1
-        user_story: "As a loop operator, I want the circuit breaker and task detection to work correctly so that the loop stops when it should and attributes work to the right task"
+      - id: feature-1.1
+        title: "Feature 1.1: Run autonomous loop with Kiro CLI"
+        priority: 2
+        user_story: "As a Line Cook user running Kiro CLI, I want to use @line-loop start so that I get the same autonomous batch execution that Claude Code users have"
         acceptance_criteria:
-          - "Circuit breaker trips when failure_threshold failures occur anywhere in the window (not just last N)"
-          - "detect_worked_task prefers the target_task_id when it appears in the changed set"
-          - "Circuit breaker patterns like [F,F,F,F,F,S,F,F,F,F] (9/10 failures) correctly trip the breaker"
-          - "Existing circuit breaker and detect_worked_task tests continue passing"
+          - "Loop starts with --cli kiro and invokes kiro-cli instead of claude"
+          - "All phases (cook, serve, tidy, plate, close-service) execute via Kiro"
+          - "Signal detection works (KITCHEN_COMPLETE, SERVE_RESULT, KITCHEN_IDLE)"
+          - "Tool action tracking works from Kiro plain-text output"
+          - "Existing Claude loop behavior is unchanged (backward compatible)"
         tracer_strategy:
-          minimal_flow: "Record failures → Check window → Trip breaker → Loop stops"
-          layers: "models.py (CircuitBreaker) → iteration.py (detect_worked_task) → loop.py (post-iteration check)"
-          expansion: "Adaptive thresholds, per-epic breakers (deferred)"
-        blocks: ["feature-performance"]
+          minimal_flow: "CLI profile → build_phase_command() → subprocess kiro-cli → parse stdout → detect signal"
+          layers: "config.py (profiles) → phase.py (invocation + parsing) → iteration.py (orchestration)"
+          expansion: "Kiro hooks integration, session resume, OpenCode loop support"
         bdd_tests:
-          - test: "TestFeature_CorrectLoopFailureHandling"
+          - test: "TestFeature_KiroLoopSupport"
             scenarios:
-              - "Circuit_breaker_trips_on_threshold_failures_in_full_window"
-              - "Detect_worked_task_prefers_target_over_heuristic"
-              - "Mixed_failure_patterns_evaluated_correctly"
-              - "Existing_behavior_preserved_for_normal_cases"
+              - "Acceptance_Criterion_1_Loop_starts_with_kiro_cli"
+              - "Acceptance_Criterion_2_All_phases_execute_via_kiro"
+              - "Acceptance_Criterion_3_Signal_detection_works"
+              - "Acceptance_Criterion_4_Tool_action_tracking"
+              - "Acceptance_Criterion_5_Claude_backward_compatible"
         smoke_tests:
-          - "python3 -m unittest tests.test_line_loop.TestCircuitBreaker -v passes"
-          - "python3 -m unittest tests.test_line_loop.TestDetectWorkedTask -v passes"
-          - "Bundle succeeds: ./dev/release.py --bundle"
+          - "line-loop.py --cli kiro --max-iterations 1 starts kiro-cli subprocess"
+          - "Signal KITCHEN_COMPLETE detected from Kiro output"
+          - "line-loop.py (no --cli flag) still uses claude (backward compatible)"
 
         tasks:
-          - title: "Fix circuit breaker window logic"
+          - title: "Add CLI profiles and Kiro output parser"
             priority: 1
-            tracer: "Proves breaker correctly evaluates full window — foundation for all failure handling"
+            tracer: "Foundation — proves config-driven CLI selection and Kiro output parsing work"
             description: |
-              - Change `self.window[-self.failure_threshold:]` to `self.window` in is_open()
-              - Bug: currently checks only last 5 items, not full 10-item window
-              - Pattern [F,F,F,F,F,S,F,F,F,F] has 9/10 failures but doesn't trip
-              - Add test case for this pattern to TestCircuitBreaker
-            deliverable: "Fixed CircuitBreaker.is_open() with new test cases"
-            reference: "core/line_loop/models.py:74-79"
+              config.py:
+              - Add CLI_PROFILES dict with 'claude' and 'kiro' entries
+              - Claude profile: binary='claude', prompt_format='/line:{phase}',
+                permission_flags=['--dangerously-skip-permissions'],
+                output_flags=['--output-format', 'stream-json', '--verbose'],
+                has_streaming_json=True
+              - Kiro profile: binary='kiro-cli', subcommand='chat',
+                prompt_format='@line-{phase}',
+                permission_flags=['--trust-all-tools'],
+                extra_flags=['--no-interactive', '--wrap', 'never', '--agent', 'line-cook'],
+                has_streaming_json=False
+              - Add DEFAULT_CLI = 'claude'
+              - Add get_cli_profile(name) → dict helper with KeyError on unknown CLI
+
+              parsing.py:
+              - Add strip_ansi(text) — regex to remove ANSI escape sequences
+              - Add parse_kiro_tool_action(line) — extract tool name from '(using tool: <name>)' pattern
+              - Add parse_kiro_tool_result(line) — detect success (checkmark) or failure (cross) patterns
+              - Add extract_kiro_actions_from_line(line, pending_actions) → list[ActionRecord]
+                to parallel extract_actions_from_event() for Kiro output
+
+              Leave all existing Claude parsing functions unchanged.
+            deliverable: "CLI profiles in config.py, Kiro parsers in parsing.py, with unit tests"
             tdd: true
 
-          - title: "Fix detect_worked_task tiebreaker"
+          - title: "Refactor run_phase for CLI-agnostic invocation"
             priority: 1
-            depends_on: ["Fix circuit breaker window logic"]
-            tracer: "Proves task attribution works when multiple tasks change — critical for retry logic"
+            depends_on: ["Add CLI profiles and Kiro output parser"]
+            tracer: "Core abstraction — proves phase execution works with any CLI profile"
             description: |
-              - Add optional target_task_id parameter to detect_worked_task()
-              - If target is in the changed set, prefer it over dot-count heuristic
-              - Update call sites in run_iteration() to pass target_task_id
-              - Add test: multiple tasks change, target_task_id preferred
-            deliverable: "detect_worked_task with target preference, updated call sites, new tests"
-            reference: "core/line_loop/iteration.py:221-259"
+              phase.py:
+              - Add build_phase_command(phase, args, cli_profile) → list[str]
+                - Claude: ["claude", "-p", "/line:cook args", "--dangerously-skip-permissions",
+                  "--output-format", "stream-json", "--verbose"]
+                - Kiro: ["kiro-cli", "chat", "--no-interactive", "--trust-all-tools",
+                  "--wrap", "never", "--agent", "line-cook", "@line-cook args"]
+              - Add process_output_line(line, cli_profile, pending_actions) → tuple[list[ActionRecord], str]
+                Returns (new_actions, cleaned_text).
+                - When has_streaming_json: parse JSON event, extract actions, extract text
+                - When not: strip ANSI, parse Kiro tool patterns, return cleaned line as text
+              - Modify run_phase() signature: add optional cli_profile parameter
+                - Default: None → get_cli_profile(DEFAULT_CLI) for backward compatibility
+                - Replace hardcoded ["claude", ...] with build_phase_command()
+                - Replace inline stream-json parsing loop with process_output_line()
+                - Signal detection reads cleaned text (works for both CLIs)
+                - For non-streaming CLIs: update last_action_time on any non-empty stdout
+              - Stderr handling: always stderr=DEVNULL (already the case for Claude)
+
+              CRITICAL: Zero call-site changes needed. Existing run_phase("cook", cwd) calls
+              continue to work identically (defaults to Claude profile).
+            deliverable: "CLI-agnostic run_phase() with build_phase_command() and process_output_line(), with unit tests"
             tdd: true
 
-          - title: "Add integration tests for failure patterns"
-            priority: 2
-            depends_on: ["Fix detect_worked_task tiebreaker"]
-            tracer: "Proves correctness across combined failure scenarios"
+          - title: "Wire --cli flag through loop and CLI entry point"
+            priority: 1
+            depends_on: ["Refactor run_phase for CLI-agnostic invocation"]
+            tracer: "Integration — proves end-to-end loop works with --cli kiro"
             description: |
-              - TestCircuitBreakerPatterns: intermittent [S,F,S,F,...], burst, recovery
-              - TestDetectWorkedTaskWithTarget: multi-task change, target absent, target present
-              - Verify circuit breaker + skip list interaction
-            deliverable: "New test classes covering failure edge cases"
-            reference: "tests/test_line_loop.py"
+              iteration.py:
+              - Add cli_profile parameter to run_iteration() signature (default None)
+              - Pass cli_profile to all run_phase() calls: cook, serve, tidy, plate, close-service
+              - In check_epic_completion() where it calls run_phase("close-service"): accept and pass cli_profile
+
+              loop.py:
+              - Add cli_name parameter to run_loop() signature (default None → DEFAULT_CLI)
+              - Resolve CLI profile at loop start via get_cli_profile(cli_name)
+              - Pass cli_profile to run_iteration() calls
+              - Pass cli_profile to any direct run_phase() calls in loop.py
+
+              core/line-loop-cli.py:
+              - Add --cli argument to argparse
+                choices=list(CLI_PROFILES.keys()), default=DEFAULT_CLI
+              - Pass args.cli to run_loop() as cli_name parameter
+            deliverable: "--cli flag working end-to-end: CLI → loop → iteration → phase → subprocess"
             tdd: true
 
-      - id: feature-performance
-        title: "Feature: Reduced iteration overhead"
-        priority: 2
-        user_story: "As a loop operator, I want iterations to complete faster so that more work gets done per hour of autonomous execution"
-        acceptance_criteria:
-          - "BeadSnapshot.get_by_id() uses O(1) dict lookup instead of O(n) list scan"
-          - "Epic ancestor lookups are cached per-snapshot (built once, used many times)"
-          - "Redundant snapshot captures eliminated — one before cook, one after tidy"
-          - "Subprocess calls per iteration reduced from ~30 to ~15"
-        tracer_strategy:
-          minimal_flow: "Build index → Cache ancestors → Take snapshot once → Reuse throughout"
-          layers: "models.py (index) → iteration.py (cache + consolidation) → loop.py (reuse)"
-          expansion: "Adaptive snapshot invalidation, subprocess call metrics (deferred)"
-        blocks: ["feature-findings"]
-        bdd_tests:
-          - test: "TestFeature_ReducedIterationOverhead"
-            scenarios:
-              - "BeadSnapshot_get_by_id_uses_dict_index"
-              - "Ancestor_cache_built_once_per_snapshot"
-              - "Snapshot_taken_once_before_cook_once_after_tidy"
-              - "Subprocess_calls_reduced"
-        smoke_tests:
-          - "python3 -m unittest tests.test_line_loop.TestBeadSnapshot -v passes"
-          - "python3 -m unittest tests.test_line_loop.TestBuildEpicAncestorMap -v passes"
-          - "Bundle succeeds: ./dev/release.py --bundle"
-
-        tasks:
-          - title: "Add dict index to BeadSnapshot.get_by_id()"
-            priority: 2
-            tracer: "Foundation for all performance work — O(1) lookups enable efficient caching"
+          - title: "Update loop command template to pass --cli flag"
+            priority: 1
+            depends_on: ["Wire --cli flag through loop and CLI entry point"]
+            tracer: "Wrapper integration — proves @line-loop start invokes the correct CLI"
             description: |
-              - Add _index field (Optional[dict]) to BeadSnapshot dataclass
-              - Lazy build on first access via _build_index()
-              - Replace linear scan in get_by_id() with dict lookup
-              - Exclude _index from repr and compare (field metadata)
-            deliverable: "O(1) get_by_id() with lazy index, existing tests pass"
-            reference: "core/line_loop/models.py:267-310"
+              core/templates/commands/loop.md.template:
+              - In the "Launch Background Loop" section, add --cli flag:
+                - Claude Code (@IF_CLAUDECODE@): pass nothing (default is claude)
+                - Kiro (@IF_KIRO@): pass --cli kiro
+              - The template already uses @IF_KIRO@ conditionals — add --cli kiro
+                inside the Kiro-specific launch block
+
+              dev/sync-commands.sh:
+              - Run sync to propagate template changes to all three plugin dirs
+              - Verify plugins/kiro/prompts/line-loop.md includes --cli kiro
+
+              Background execution for Kiro:
+              - Kiro's shell tool may not support run_in_background like Claude Code
+              - The template should use nohup + & for Kiro's launch command:
+                nohup python3 <path> --cli kiro ... > $LOOP_DIR/loop.log 2>&1 &
+                echo $! > $LOOP_DIR/loop.pid
+              - Test: verify nohup process survives after shell tool call returns
+              - If nohup doesn't work, document limitation and consider delegate tool
+
+              Script discovery for Kiro:
+              - Kiro prompt already has script discovery logic (find line-loop.py)
+              - Verify it finds the script via either:
+                a. plugins/claude-code/scripts/line-loop.py (shared bundle)
+                b. core/line-loop-cli.py (development/source path)
+              - If neither works, add scripts/line-loop.py symlink to plugins/kiro/
+            deliverable: "Updated loop template with --cli kiro, synced to all plugins, background launch verified"
             tdd: true
 
-          - title: "Build ancestor cache per snapshot"
+          - title: "Re-bundle and verify backward compatibility"
             priority: 2
-            depends_on: ["Add dict index to BeadSnapshot.get_by_id()"]
-            tracer: "Proves hierarchy walks can be done once per snapshot — eliminates repeated parent lookups"
+            depends_on: ["Update loop command template to pass --cli flag"]
+            tracer: "Verification — proves bundled artifact works and nothing is broken"
             description: |
-              - Add build_epic_ancestor_map(snapshot, cwd) → dict[str, Optional[str]]
-              - Walk every ready_work item's parent chain once, cache all traversed beads
-              - Use in detect_first_epic(), _filter_excluded_epics(), get_next_ready_task()
-              - Replace per-item find_epic_ancestor()/is_descendant_of_epic() calls
-            deliverable: "Ancestor cache function, integrated into loop.py epic filtering"
-            reference: "core/line_loop/iteration.py, core/line_loop/loop.py"
-            tdd: true
-
-          - title: "Consolidate snapshot captures"
-            priority: 2
-            depends_on: ["Build ancestor cache per snapshot"]
-            tracer: "Proves iteration works with minimal snapshots — largest subprocess reduction"
-            description: |
-              - run_iteration(): Remove redundant intermediate snapshots
-              - Take before snapshot once (passed by caller), after once post-tidy
-              - Reuse after snapshot for completion cascade checks
-              - Remove after_cook snapshot in non-timeout path
-              - Cache get_task_info() results in local dict through cascade
-              - loop.py: Reuse iteration's after counts for status/summary writes
-            deliverable: "~15 subprocess calls per iteration (down from ~30)"
-            reference: "core/line_loop/iteration.py:1080-1578, core/line_loop/loop.py"
-            tdd: true
-
-      - id: feature-findings
-        title: "Feature: Autonomous findings tracking"
-        priority: 2
-        user_story: "As a loop operator, I want to see what findings were filed during each iteration so that I can monitor code quality trends in watch mode"
-        acceptance_criteria:
-          - "IterationResult includes findings_count field"
-          - "Findings count derived from snapshot delta (newly_filed items)"
-          - "Watch mode status shows findings count per iteration"
-          - "History JSONL includes findings_count for each iteration"
-        tracer_strategy:
-          minimal_flow: "Tidy completes → Compute delta → Count newly_filed → Show in output"
-          layers: "models.py (IterationResult field) → iteration.py (delta counting) → loop.py (display + serialization)"
-          expansion: "Findings by severity, quality trend alerts, escalation integration (deferred)"
-        blocks: ["feature-resilience"]
-        bdd_tests:
-          - test: "TestFeature_AutonomousFindingsTracking"
-            scenarios:
-              - "IterationResult_findings_count_set_from_delta"
-              - "Findings_shown_in_human_readable_output"
-              - "Findings_serialized_in_status_and_history"
-              - "Zero_findings_handled_gracefully"
-        smoke_tests:
-          - "python3 -m unittest tests.test_line_loop -v passes"
-          - "Bundle succeeds: ./dev/release.py --bundle"
-
-        tasks:
-          - title: "Track findings in IterationResult"
-            priority: 2
-            tracer: "Proves finding metadata flows through the iteration pipeline"
-            description: |
-              - Add findings_count: int = 0 to IterationResult
-              - After tidy, count delta.newly_filed items
-              - In print_human_iteration(): show "Findings: N filed" if > 0
-              - In serialize_iteration_for_status() and serialize_full_iteration(): include findings_count
-              - In watch mode status: show findings in milestone display
-            deliverable: "Findings count in IterationResult, status output, and history"
-            reference: "core/line_loop/models.py, core/line_loop/iteration.py, core/line_loop/loop.py"
-            tdd: true
-
-      - id: feature-resilience
-        title: "Feature: Resilient long-running execution"
-        priority: 2
-        user_story: "As a loop operator, I want long-running loops to stay in sync with remote state and detect stuck phases appropriately so that multi-hour loops run reliably"
-        acceptance_criteria:
-          - "bd sync runs every 5 iterations to refresh bead state"
-          - "Each phase has its own idle timeout (cook: 180s, serve: 300s, tidy: 90s)"
-          - "Serve/plate timeouts reduced from 600s to 450s, close-service from 900s to 750s"
-          - "All existing tests pass with new timeouts"
-        tracer_strategy:
-          minimal_flow: "Check iteration count → Periodic sync → Phase-specific idle check → Timeout"
-          layers: "config.py (constants) → phase.py (idle lookup) → loop.py (periodic sync)"
-          expansion: "Adaptive timeouts from phase duration history, full git sync at intervals (deferred)"
-        bdd_tests:
-          - test: "TestFeature_ResilientLongRunningExecution"
-            scenarios:
-              - "Periodic_sync_fires_every_N_iterations"
-              - "Phase_specific_idle_timeouts_applied"
-              - "Tuned_timeouts_applied_to_serve_plate_close_service"
-              - "Explicit_idle_timeout_overrides_per_phase_default"
-        smoke_tests:
-          - "python3 -m unittest tests.test_line_loop -v passes"
-          - "Bundle succeeds: ./dev/release.py --bundle"
-
-        tasks:
-          - title: "Add periodic bd sync every N iterations"
-            priority: 2
-            tracer: "Proves loop stays fresh during long runs — simplest resilience improvement"
-            description: |
-              - Add PERIODIC_SYNC_INTERVAL = 5 to config.py
-              - In main loop, check iteration % interval == 0
-              - Run bd sync with GIT_SYNC_TIMEOUT
-              - Log sync attempt and result
-            deliverable: "Periodic sync with configurable interval"
-            reference: "core/line_loop/config.py, core/line_loop/loop.py"
-            tdd: true
-
-          - title: "Add per-phase idle timeouts and tune phase timeouts"
-            priority: 2
-            depends_on: ["Add periodic bd sync every N iterations"]
-            tracer: "Proves phases are monitored with appropriate sensitivity"
-            description: |
-              - Add DEFAULT_PHASE_IDLE_TIMEOUTS dict to config.py
-                cook: 180, serve: 300, tidy: 90, plate: 300, close-service: 600
-              - In run_phase(): look up phase-specific idle timeout when no explicit one passed
-              - Reduce DEFAULT_PHASE_TIMEOUTS: serve 600→450, plate 600→450, close-service 900→750
-              - Explicit idle_timeout parameter overrides per-phase default
-            deliverable: "Per-phase idle timeouts, tuned phase timeouts, updated tests"
-            reference: "core/line_loop/config.py, core/line_loop/phase.py"
-            tdd: true
-
-          - title: "Add integration tests for resilience features"
-            priority: 2
-            depends_on: ["Add per-phase idle timeouts and tune phase timeouts"]
-            tracer: "Proves resilience features work together correctly"
-            description: |
-              - TestPeriodicSync: verify sync called at correct intervals (mock run_subprocess)
-              - TestPerPhaseIdleTimeout: verify phase-specific idle timeout lookup
-              - TestIdleDetection: test check_idle() with various time deltas
-              - Update TestDefaultPhaseTimeouts assertions for new values
-            deliverable: "Integration test classes for resilience features"
-            reference: "tests/test_line_loop.py"
+              - Run ./dev/release.py --bundle to regenerate plugins/claude-code/scripts/line-loop.py
+              - Run full test suite: python3 -m unittest tests.test_line_loop -v
+              - Verify: line-loop.py --help shows --cli flag with choices [claude, kiro]
+              - Verify: line-loop.py (no --cli) defaults to claude (backward compat)
+              - Verify: line-loop.py --cli kiro --max-iterations 0 exits cleanly (no crash)
+              - Commit the bundled file and all changes
+            deliverable: "Bundled line-loop.py with --cli support, all tests passing, committed"
             tdd: true
