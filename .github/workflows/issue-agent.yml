@@ -32,8 +32,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          max_turns: 10
-          # Git write tools for fix-proposal workflow (Steps 5-6)
+          max_turns: 15
+          # Read/Grep/Glob for codebase search (Step 1), Edit/Write for fix proposals (Step 5),
+          # gh/git Bash tools for labeling (Step 3) and branch creation (Steps 5-6)
           claude_args: '--allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit),Bash(gh label),Bash(git checkout -b:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin:*)"'
           prompt: |
             You are an issue triage agent for this project. Analyze the issue below, search the codebase for relevant context, classify it, apply a label, and respond with a structured analysis.
