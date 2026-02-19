@@ -3,6 +3,8 @@ name: Issue Agent
 on:
   issues:
     types: [opened]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -15,7 +17,7 @@ concurrency:
 
 jobs:
   analyze:
-    if: github.event.issue.user.type != 'Bot'
+    if: github.event_name == 'issues' && github.event.issue.user.type != 'Bot'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -162,3 +164,24 @@ jobs:
             - State what you understand so far
             - Ask 2-3 specific clarifying questions about what information is missing
             - Still apply the best-fit label based on what you can determine
+
+  respond:
+    if: >-
+      github.event_name == 'issue_comment'
+      && contains(github.event.comment.body, '@claude')
+      && github.event.comment.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Respond to mention
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          trigger_phrase: "@claude"
+          max_turns: 15
+          # Read-only codebase access for interactive follow-up
+          claude_args: '--allowedTools "Read,Grep,Glob"'
