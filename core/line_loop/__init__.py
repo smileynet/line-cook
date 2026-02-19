@@ -18,6 +18,8 @@ __version__ = "0.1.0"
 
 # Re-export config constants for convenience
 from .config import (
+    CLI_PROFILES,
+    DEFAULT_CLI,
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_TASK_FAILURES,
     DEFAULT_PHASE_TIMEOUTS,
@@ -32,6 +34,7 @@ from .config import (
     LOG_FILE_MAX_BYTES,
     LOG_FILE_BACKUP_COUNT,
     PERIODIC_SYNC_INTERVAL,
+    get_cli_profile,
 )
 
 # Re-export models for convenience
@@ -63,6 +66,10 @@ from .parsing import (
     extract_text_from_event,
     extract_actions_from_event,
     update_action_from_result,
+    strip_ansi,
+    parse_kiro_tool_action,
+    parse_kiro_tool_result,
+    extract_kiro_actions_from_line,
 )
 
 # Re-export phase execution functions
@@ -134,6 +141,9 @@ if TYPE_CHECKING:
 
 __all__ = [
     # Config
+    "CLI_PROFILES",
+    "DEFAULT_CLI",
+    "get_cli_profile",
     "DEFAULT_MAX_ITERATIONS",
     "DEFAULT_MAX_TASK_FAILURES",
     "DEFAULT_PHASE_TIMEOUTS",
@@ -173,6 +183,10 @@ __all__ = [
     "extract_text_from_event",
     "extract_actions_from_event",
     "update_action_from_result",
+    "strip_ansi",
+    "parse_kiro_tool_action",
+    "parse_kiro_tool_result",
+    "extract_kiro_actions_from_line",
     # Phase execution
     "run_phase",
     "run_subprocess",

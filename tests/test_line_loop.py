@@ -3350,5 +3350,218 @@ class TestClosedEpicsPopulatedWithMerge(unittest.TestCase):
         self.assertIn("lc-abc", result.closed_epics)
 
 
+class TestCliProfiles(unittest.TestCase):
+    """Test CLI_PROFILES configuration and get_cli_profile()."""
+
+    def test_claude_profile_exists(self):
+        """Claude profile is defined in CLI_PROFILES."""
+        self.assertIn('claude', line_loop.CLI_PROFILES)
+
+    def test_kiro_profile_exists(self):
+        """Kiro profile is defined in CLI_PROFILES."""
+        self.assertIn('kiro', line_loop.CLI_PROFILES)
+
+    def test_claude_profile_binary(self):
+        """Claude profile has binary='claude'."""
+        self.assertEqual(line_loop.CLI_PROFILES['claude']['binary'], 'claude')
+
+    def test_claude_profile_prompt_format(self):
+        """Claude profile prompt_format uses /line:{phase}."""
+        self.assertEqual(line_loop.CLI_PROFILES['claude']['prompt_format'], '/line:{phase}')
+
+    def test_claude_profile_has_streaming_json(self):
+        """Claude profile has streaming JSON support."""
+        self.assertTrue(line_loop.CLI_PROFILES['claude']['has_streaming_json'])
+
+    def test_claude_profile_permission_flags(self):
+        """Claude profile uses --dangerously-skip-permissions."""
+        self.assertIn('--dangerously-skip-permissions', line_loop.CLI_PROFILES['claude']['permission_flags'])
+
+    def test_claude_profile_output_flags(self):
+        """Claude profile has stream-json output flags."""
+        flags = line_loop.CLI_PROFILES['claude']['output_flags']
+        self.assertIn('--output-format', flags)
+        self.assertIn('stream-json', flags)
+        self.assertIn('--verbose', flags)
+
+    def test_kiro_profile_binary(self):
+        """Kiro profile has binary='kiro-cli'."""
+        self.assertEqual(line_loop.CLI_PROFILES['kiro']['binary'], 'kiro-cli')
+
+    def test_kiro_profile_subcommand(self):
+        """Kiro profile has subcommand='chat'."""
+        self.assertEqual(line_loop.CLI_PROFILES['kiro']['subcommand'], 'chat')
+
+    def test_kiro_profile_prompt_format(self):
+        """Kiro profile prompt_format uses @line-{phase}."""
+        self.assertEqual(line_loop.CLI_PROFILES['kiro']['prompt_format'], '@line-{phase}')
+
+    def test_kiro_profile_no_streaming_json(self):
+        """Kiro profile does not have streaming JSON support."""
+        self.assertFalse(line_loop.CLI_PROFILES['kiro']['has_streaming_json'])
+
+    def test_kiro_profile_permission_flags(self):
+        """Kiro profile uses --trust-all-tools."""
+        self.assertIn('--trust-all-tools', line_loop.CLI_PROFILES['kiro']['permission_flags'])
+
+    def test_kiro_profile_extra_flags(self):
+        """Kiro profile has expected extra flags."""
+        flags = line_loop.CLI_PROFILES['kiro']['extra_flags']
+        self.assertIn('--no-interactive', flags)
+        self.assertIn('--wrap', flags)
+        self.assertIn('never', flags)
+        self.assertIn('--agent', flags)
+        self.assertIn('line-cook', flags)
+
+    def test_default_cli(self):
+        """DEFAULT_CLI is 'claude'."""
+        self.assertEqual(line_loop.DEFAULT_CLI, 'claude')
+
+    def test_get_cli_profile_claude(self):
+        """get_cli_profile('claude') returns the Claude profile."""
+        profile = line_loop.get_cli_profile('claude')
+        self.assertEqual(profile, line_loop.CLI_PROFILES['claude'])
+
+    def test_get_cli_profile_kiro(self):
+        """get_cli_profile('kiro') returns the Kiro profile."""
+        profile = line_loop.get_cli_profile('kiro')
+        self.assertEqual(profile, line_loop.CLI_PROFILES['kiro'])
+
+    def test_get_cli_profile_unknown_raises(self):
+        """get_cli_profile raises KeyError for unknown CLI."""
+        with self.assertRaises(KeyError):
+            line_loop.get_cli_profile('unknown-cli')
+
+
+class TestStripAnsi(unittest.TestCase):
+    """Test strip_ansi() ANSI escape sequence removal."""
+
+    def test_strips_color_codes(self):
+        """Color escape sequences are removed."""
+        self.assertEqual(line_loop.strip_ansi('\x1b[31mred\x1b[0m'), 'red')
+
+    def test_strips_bold(self):
+        """Bold escape sequence is removed."""
+        self.assertEqual(line_loop.strip_ansi('\x1b[1mbold\x1b[0m'), 'bold')
+
+    def test_plain_text_unchanged(self):
+        """Plain text without ANSI codes is returned unchanged."""
+        self.assertEqual(line_loop.strip_ansi('hello world'), 'hello world')
+
+    def test_empty_string(self):
+        """Empty string returns empty string."""
+        self.assertEqual(line_loop.strip_ansi(''), '')
+
+    def test_complex_escape_sequences(self):
+        """Multiple ANSI sequences are all stripped."""
+        text = '\x1b[38;5;196mhello\x1b[0m \x1b[48;2;0;255;0mworld\x1b[0m'
+        self.assertEqual(line_loop.strip_ansi(text), 'hello world')
+
+
+class TestParseKiroToolAction(unittest.TestCase):
+    """Test parse_kiro_tool_action() for extracting tool names."""
+
+    def test_extracts_tool_name(self):
+        """Extracts tool name from '(using tool: Read)' pattern."""
+        self.assertEqual(line_loop.parse_kiro_tool_action('(using tool: Read)'), 'Read')
+
+    def test_extracts_tool_name_with_surrounding_text(self):
+        """Extracts tool name when surrounded by other text."""
+        self.assertEqual(line_loop.parse_kiro_tool_action('Some text (using tool: Edit) more text'), 'Edit')
+
+    def test_returns_none_for_no_match(self):
+        """Returns None when no tool action pattern found."""
+        self.assertIsNone(line_loop.parse_kiro_tool_action('just plain text'))
+
+    def test_returns_none_for_empty_string(self):
+        """Returns None for empty string."""
+        self.assertIsNone(line_loop.parse_kiro_tool_action(''))
+
+    def test_extracts_bash_tool(self):
+        """Extracts Bash tool name."""
+        self.assertEqual(line_loop.parse_kiro_tool_action('(using tool: Bash)'), 'Bash')
+
+
+class TestParseKiroToolResult(unittest.TestCase):
+    """Test parse_kiro_tool_result() for detecting success/failure."""
+
+    def test_detects_success_checkmark(self):
+        """Detects success from checkmark character."""
+        self.assertTrue(line_loop.parse_kiro_tool_result('\u2713 Tool completed successfully'))
+
+    def test_detects_success_heavy_checkmark(self):
+        """Detects success from heavy check mark."""
+        self.assertTrue(line_loop.parse_kiro_tool_result('\u2714 Done'))
+
+    def test_detects_failure_cross(self):
+        """Detects failure from cross mark."""
+        self.assertFalse(line_loop.parse_kiro_tool_result('\u2717 Tool failed'))
+
+    def test_detects_failure_heavy_cross(self):
+        """Detects failure from heavy ballot X."""
+        self.assertFalse(line_loop.parse_kiro_tool_result('\u2718 Error'))
+
+    def test_returns_none_for_no_indicator(self):
+        """Returns None when no success/failure indicator found."""
+        self.assertIsNone(line_loop.parse_kiro_tool_result('just some text'))
+
+    def test_returns_none_for_empty_string(self):
+        """Returns None for empty string."""
+        self.assertIsNone(line_loop.parse_kiro_tool_result(''))
+
+
+class TestExtractKiroActionsFromLine(unittest.TestCase):
+    """Test extract_kiro_actions_from_line() for Kiro output parsing."""
+
+    def test_creates_action_for_tool_use(self):
+        """Creates ActionRecord when tool use pattern detected."""
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line('(using tool: Read)', pending)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].tool_name, 'Read')
+        self.assertTrue(actions[0].success)  # Default until result
+
+    def test_pending_action_tracked(self):
+        """New tool use is added to pending_actions."""
+        pending = {}
+        line_loop.extract_kiro_actions_from_line('(using tool: Glob)', pending)
+        self.assertEqual(len(pending), 1)
+
+    def test_success_result_updates_pending(self):
+        """Success result updates pending action."""
+        pending = {}
+        line_loop.extract_kiro_actions_from_line('(using tool: Edit)', pending)
+        # Now get a success result
+        line_loop.extract_kiro_actions_from_line('\u2713 Tool completed', pending)
+        # Pending should be cleared after result
+        self.assertEqual(len(pending), 0)
+
+    def test_failure_result_marks_action_failed(self):
+        """Failure result marks pending action as failed."""
+        pending = {}
+        line_loop.extract_kiro_actions_from_line('(using tool: Bash)', pending)
+        action = list(pending.values())[0]
+        line_loop.extract_kiro_actions_from_line('\u2717 Command failed', pending)
+        self.assertFalse(action.success)
+
+    def test_no_action_for_plain_text(self):
+        """Returns empty list for plain text."""
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line('just some output', pending)
+        self.assertEqual(len(actions), 0)
+
+    def test_result_without_pending_is_noop(self):
+        """Result line without pending action is ignored."""
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line('\u2713 Success', pending)
+        self.assertEqual(len(actions), 0)
+
+    def test_action_record_has_kiro_tool_use_id(self):
+        """ActionRecord from Kiro gets a generated tool_use_id."""
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line('(using tool: Write)', pending)
+        self.assertTrue(actions[0].tool_use_id.startswith('kiro-'))
+
+
 if __name__ == "__main__":
     unittest.main()
