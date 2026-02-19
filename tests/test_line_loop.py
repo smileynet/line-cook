@@ -3755,5 +3755,254 @@ class TestProcessOutputLine(unittest.TestCase):
         self.assertEqual(actions, [])
 
 
+class TestCliProfileWiring(unittest.TestCase):
+    """Test that cli_profile is threaded through iteration, loop, and CLI."""
+
+    def test_run_iteration_passes_cli_profile_to_all_phases(self):
+        """run_iteration passes cli_profile to cook, serve, and tidy phases."""
+        from unittest.mock import patch
+
+        kiro_profile = line_loop.get_cli_profile('kiro')
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+
+        phase_profiles = []
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            phase_profiles.append((phase, kwargs.get("cli_profile")))
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_result
+            else:
+                return tidy_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-123"), \
+             patch("line_loop.iteration.get_task_title", return_value="Test task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(False, None)):
+            line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot,
+                target_task_id="lc-123",
+                cli_profile=kiro_profile
+            )
+
+        # All phases should have received the kiro profile
+        for phase, profile in phase_profiles:
+            self.assertEqual(profile, kiro_profile,
+                f"{phase} phase did not receive cli_profile")
+
+    def test_run_iteration_cli_profile_defaults_to_none(self):
+        """run_iteration defaults cli_profile to None when not specified."""
+        from unittest.mock import patch
+
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+
+        cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+
+        phase_profiles = []
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            phase_profiles.append((phase, kwargs.get("cli_profile")))
+            if phase == "cook":
+                return cook_result
+            elif phase == "serve":
+                return serve_result
+            else:
+                return tidy_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-123"), \
+             patch("line_loop.iteration.get_task_title", return_value="Test task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(False, None)):
+            line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot,
+                target_task_id="lc-123"
+            )
+
+        # All phases should have received None (default)
+        for phase, profile in phase_profiles:
+            self.assertIsNone(profile,
+                f"{phase} phase received non-None cli_profile when not specified")
+
+    def test_check_epic_completion_passes_cli_profile(self):
+        """check_epic_completion passes cli_profile to run_phase for close-service."""
+        from unittest.mock import patch
+
+        kiro_profile = line_loop.get_cli_profile('kiro')
+        phase_profiles = []
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            phase_profiles.append((phase, kwargs.get("cli_profile")))
+            return line_loop.PhaseResult(
+                phase=phase, success=True, output="",
+                exit_code=0, duration_seconds=1.0
+            )
+
+        with patch("line_loop.iteration.detect_eligible_epics", return_value=["lc-epic"]), \
+             patch("line_loop.iteration.get_task_title", return_value="Test Epic"), \
+             patch("line_loop.loop.merge_completed_epic", return_value=(True, None)), \
+             patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_epic_summary", return_value={"id": "lc-epic", "title": "Test", "children": []}), \
+             patch("line_loop.iteration.print_epic_completion"):
+            line_loop.check_epic_completion(Path("/tmp"), cli_profile=kiro_profile)
+
+        # close-service phase should have received the kiro profile
+        cs_calls = [(p, pr) for p, pr in phase_profiles if p == "close-service"]
+        self.assertEqual(len(cs_calls), 1)
+        self.assertEqual(cs_calls[0][1], kiro_profile)
+
+    def test_run_loop_resolves_cli_name_to_profile(self):
+        """run_loop resolves cli_name to a profile and passes to run_iteration."""
+        from unittest.mock import patch
+
+        kiro_profile = line_loop.get_cli_profile('kiro')
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+
+        # After one iteration, return empty snapshot to stop loop
+        empty_snapshot = line_loop.BeadSnapshot()
+        snapshot_call_count = [0]
+
+        def mock_get_snapshot(cwd):
+            snapshot_call_count[0] += 1
+            # First call: has work, subsequent: empty
+            return snapshot if snapshot_call_count[0] <= 1 else empty_snapshot
+
+        iteration_kwargs = []
+
+        def mock_run_iteration(iteration, max_iter, cwd, **kwargs):
+            iteration_kwargs.append(kwargs)
+            return make_iteration_result(outcome="completed", success=True)
+
+        with patch("line_loop.loop.sync_at_start"), \
+             patch("line_loop.loop.get_bead_snapshot", side_effect=mock_get_snapshot), \
+             patch("line_loop.loop.get_next_ready_task", return_value=("lc-123", "Test task")), \
+             patch("line_loop.loop.ensure_epic_branch", return_value=(None, False)), \
+             patch("line_loop.loop.run_iteration", side_effect=mock_run_iteration), \
+             patch("line_loop.loop.build_epic_ancestor_map", return_value={}), \
+             patch("line_loop.loop.check_epic_completion", return_value=[]):
+            report = line_loop.run_loop(
+                max_iterations=1,
+                stop_on_blocked=False,
+                stop_on_crash=False,
+                max_retries=0,
+                json_output=True,
+                output_file=None,
+                cwd=Path("/tmp"),
+                skip_initial_sync=True,
+                cli_name="kiro"
+            )
+
+        # Verify run_iteration received the resolved kiro profile
+        self.assertEqual(len(iteration_kwargs), 1)
+        self.assertEqual(iteration_kwargs[0].get("cli_profile"), kiro_profile)
+
+    def test_run_loop_default_cli_passes_claude_profile(self):
+        """run_loop with no cli_name passes claude profile to run_iteration."""
+        from unittest.mock import patch
+
+        claude_profile = line_loop.get_cli_profile('claude')
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+        empty_snapshot = line_loop.BeadSnapshot()
+        snapshot_call_count = [0]
+
+        def mock_get_snapshot(cwd):
+            snapshot_call_count[0] += 1
+            return snapshot if snapshot_call_count[0] <= 1 else empty_snapshot
+
+        iteration_kwargs = []
+
+        def mock_run_iteration(iteration, max_iter, cwd, **kwargs):
+            iteration_kwargs.append(kwargs)
+            return make_iteration_result(outcome="completed", success=True)
+
+        with patch("line_loop.loop.sync_at_start"), \
+             patch("line_loop.loop.get_bead_snapshot", side_effect=mock_get_snapshot), \
+             patch("line_loop.loop.get_next_ready_task", return_value=("lc-123", "Test task")), \
+             patch("line_loop.loop.ensure_epic_branch", return_value=(None, False)), \
+             patch("line_loop.loop.run_iteration", side_effect=mock_run_iteration), \
+             patch("line_loop.loop.build_epic_ancestor_map", return_value={}), \
+             patch("line_loop.loop.check_epic_completion", return_value=[]):
+            report = line_loop.run_loop(
+                max_iterations=1,
+                stop_on_blocked=False,
+                stop_on_crash=False,
+                max_retries=0,
+                json_output=True,
+                output_file=None,
+                cwd=Path("/tmp"),
+                skip_initial_sync=True
+            )
+
+        # Verify run_iteration received the default claude profile
+        self.assertEqual(len(iteration_kwargs), 1)
+        self.assertEqual(iteration_kwargs[0].get("cli_profile"), claude_profile)
+
+    def test_cli_argparse_has_cli_flag(self):
+        """CLI entry point has --cli argument with correct choices."""
+        import argparse
+
+        # Build parser the same way main() does, but just check the arg
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "--cli",
+            choices=list(line_loop.CLI_PROFILES.keys()),
+            default=line_loop.DEFAULT_CLI
+        )
+
+        # Test default
+        args = parser.parse_args([])
+        self.assertEqual(args.cli, 'claude')
+
+        # Test kiro
+        args = parser.parse_args(['--cli', 'kiro'])
+        self.assertEqual(args.cli, 'kiro')
+
+        # Test invalid choice raises
+        with self.assertRaises(SystemExit):
+            parser.parse_args(['--cli', 'invalid'])
+
+
 if __name__ == "__main__":
     unittest.main()

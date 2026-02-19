@@ -27,6 +27,7 @@ from typing import Optional
 
 from .config import (
     BD_COMMAND_TIMEOUT,
+    DEFAULT_CLI,
     DEFAULT_IDLE_ACTION,
     DEFAULT_MAX_TASK_FAILURES,
     EXCLUDED_EPIC_TITLES,
@@ -35,6 +36,7 @@ from .config import (
     PERIODIC_SYNC_INTERVAL,
     RECENT_ITERATIONS_DISPLAY,
     RECENT_ITERATIONS_LIMIT,
+    get_cli_profile,
 )
 from .models import (
     ActionRecord,
@@ -1051,7 +1053,8 @@ def run_loop(
     max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
-    epic_mode: Optional[str] = None
+    epic_mode: Optional[str] = None,
+    cli_name: Optional[str] = None
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat.
 
@@ -1067,6 +1070,9 @@ def run_loop(
     - None: default mode, excludes Retrospective/Backlog epics
     - "auto": auto-detect first non-excluded epic, work only its tasks
     - "<id>": work only the specified epic's tasks
+
+    CLI selection: cli_name selects the AI coding tool profile (e.g.,
+    "claude-code", "kiro"). Defaults to DEFAULT_CLI if not specified.
     """
     global _shutdown_requested
 
@@ -1081,7 +1087,10 @@ def run_loop(
     current_epic_title: Optional[str] = None
     exhausted_epic_ids: set[str] = set()  # Epics already tried in auto mode
 
-    logger.info(f"Loop starting: max_iterations={max_iterations}, epic_mode={epic_mode}")
+    # Resolve CLI profile at loop start
+    cli_profile = get_cli_profile(cli_name or DEFAULT_CLI)
+
+    logger.info(f"Loop starting: max_iterations={max_iterations}, epic_mode={epic_mode}, cli={cli_name or DEFAULT_CLI}")
 
     # Validate explicit epic ID upfront
     if epic_mode and epic_mode != "auto":
@@ -1276,7 +1285,8 @@ def run_loop(
             idle_timeout=idle_timeout,
             idle_action=idle_action,
             before_snapshot=snapshot,
-            target_task_id=target_task_id
+            target_task_id=target_task_id,
+            cli_profile=cli_profile
         )
         iterations.append(result)
 
@@ -1424,7 +1434,7 @@ def run_loop(
         # Merge and close-service are now handled inside check_epic_completion()
         if result.success:
             already_handled = set(result.closed_epics)
-            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled)
+            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled, cli_profile=cli_profile)
             if epic_summaries:
                 # Update status file with epic completions
                 if status_file:
