@@ -1,6 +1,8 @@
 """Phase execution for line-loop.
 
 Functions for running workflow phases:
+- build_phase_command: Build subprocess command list for a phase and CLI profile
+- process_output_line: Process a single output line from a CLI subprocess
 - run_phase: Execute a single phase (cook, serve, tidy, plate, close-service)
 - run_subprocess: Run command with timeout
 - check_idle: Check if phase has been idle beyond threshold
@@ -19,17 +21,21 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from .config import (
+    DEFAULT_CLI,
     DEFAULT_FALLBACK_PHASE_TIMEOUT,
     DEFAULT_IDLE_ACTION,
     DEFAULT_IDLE_TIMEOUT,
     DEFAULT_PHASE_IDLE_TIMEOUTS,
     DEFAULT_PHASE_TIMEOUTS,
+    get_cli_profile,
 )
 from .models import ActionRecord, PhaseResult
 from .parsing import (
     extract_actions_from_event,
+    extract_kiro_actions_from_line,
     extract_text_from_event,
     parse_stream_json_event,
+    strip_ansi,
     update_action_from_result,
 )
 
@@ -128,6 +134,76 @@ def detect_kitchen_idle(output: str) -> bool:
     return "KITCHEN_IDLE" in output or "KITCHEN IDLE" in output
 
 
+def build_phase_command(phase: str, args: str, cli_profile: dict) -> list[str]:
+    """Build the subprocess command list for a given phase and CLI profile.
+
+    Args:
+        phase: Phase name (cook, serve, tidy, plate, close-service)
+        args: Optional arguments (e.g., task ID)
+        cli_profile: CLI profile dict from get_cli_profile()
+
+    Returns:
+        Command list suitable for subprocess.Popen
+    """
+    prompt = cli_profile['prompt_format'].format(phase=phase)
+    if args:
+        prompt = f"{prompt} {args}"
+
+    cmd = [cli_profile['binary']]
+
+    if 'subcommand' in cli_profile:
+        cmd.append(cli_profile['subcommand'])
+
+    if cli_profile.get('has_streaming_json'):
+        # Claude-style: -p prompt, then flags
+        cmd.extend(['-p', prompt])
+        cmd.extend(cli_profile.get('permission_flags', []))
+        cmd.extend(cli_profile.get('output_flags', []))
+    else:
+        # Kiro-style: flags first, prompt at end
+        cmd.extend(cli_profile.get('extra_flags', []))
+        cmd.extend(cli_profile.get('permission_flags', []))
+        cmd.append(prompt)
+
+    return cmd
+
+
+def process_output_line(
+    line: str,
+    cli_profile: dict,
+    pending_actions: dict[str, ActionRecord]
+) -> tuple[list[ActionRecord], str]:
+    """Process a single output line from a CLI subprocess.
+
+    Handles both streaming JSON (Claude) and plain-text (Kiro) output formats
+    based on the cli_profile's has_streaming_json flag.
+
+    Args:
+        line: Raw output line from subprocess stdout
+        cli_profile: CLI profile dict from get_cli_profile()
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord
+
+    Returns:
+        Tuple of (new_actions, cleaned_text):
+        - new_actions: ActionRecords created from tool calls in this line
+        - cleaned_text: Human-readable text extracted from the line
+    """
+    if cli_profile.get('has_streaming_json'):
+        event = parse_stream_json_event(line)
+        if not event:
+            return [], ""
+        new_actions = extract_actions_from_event(event, pending_actions)
+        update_action_from_result(event, pending_actions)
+        text = ""
+        if event.get("type") == "assistant":
+            text = extract_text_from_event(event)
+        return new_actions, text
+    else:
+        cleaned = strip_ansi(line.rstrip('\n'))
+        new_actions = extract_kiro_actions_from_line(cleaned, pending_actions)
+        return new_actions, cleaned
+
+
 def run_phase(
     phase: str,
     cwd: Path,
@@ -136,7 +212,8 @@ def run_phase(
     on_progress: Optional[Callable[[int, str], None]] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
     idle_timeout: Optional[int] = None,
-    idle_action: str = DEFAULT_IDLE_ACTION
+    idle_action: str = DEFAULT_IDLE_ACTION,
+    cli_profile: Optional[dict] = None
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
 
@@ -151,21 +228,23 @@ def run_phase(
         idle_timeout: Override idle timeout, or None to use per-phase default from
             DEFAULT_PHASE_IDLE_TIMEOUTS (falls back to DEFAULT_IDLE_TIMEOUT)
         idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: warn)
+        cli_profile: CLI profile dict, or None to use DEFAULT_CLI (backward compatible)
 
     Returns:
         PhaseResult with output, signals, and success status
     """
+    if cli_profile is None:
+        cli_profile = get_cli_profile(DEFAULT_CLI)
+
     idle_timeout = resolve_idle_timeout(phase, idle_timeout)
     if timeout is None:
         timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
         fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
         timeout = timeouts.get(phase, fallback)
 
-    skill = f"/line:{phase}"
-    if args:
-        skill = f"{skill} {args}"
+    cmd = build_phase_command(phase, args, cli_profile)
 
-    logger.debug(f"Running phase {phase}: claude -p '{skill}' (timeout={timeout}s)")
+    logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s)")
     start_time = time.time()
 
     actions: list[ActionRecord] = []
@@ -179,10 +258,7 @@ def run_phase(
 
     try:
         process = subprocess.Popen(
-            ["claude", "-p", skill,
-             "--dangerously-skip-permissions",
-             "--output-format", "stream-json",
-             "--verbose"],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
@@ -206,7 +282,7 @@ def run_phase(
                         process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         logger.warning(f"Phase {phase} process did not terminate after SIGKILL")
-                raise subprocess.TimeoutExpired(cmd=f"claude -p {skill}", timeout=timeout)
+                raise subprocess.TimeoutExpired(cmd=' '.join(cmd), timeout=timeout)
 
             ready, _, _ = select.select([process.stdout], [], [], min(1.0, remaining))
             if ready:
@@ -214,47 +290,44 @@ def run_phase(
                 if not line:
                     break
                 output_lines.append(line)
-                event = parse_stream_json_event(line)
-                if event:
-                    # Extract tool_use from assistant messages
-                    new_actions = extract_actions_from_event(event, pending_actions)
-                    actions.extend(new_actions)
-                    # Update actions with tool_result from user messages
-                    update_action_from_result(event, pending_actions)
-                    # Track last action time for idle detection
-                    if new_actions:
-                        last_action_time = datetime.now()
-                        idle_warned = False  # Reset idle warning on new activity
-                    # Notify progress callback when new actions detected
-                    if new_actions and on_progress:
-                        last_ts = new_actions[-1].timestamp
-                        on_progress(len(actions), last_ts)
-                    # Detect signals during streaming
-                    if event.get("type") == "assistant":
-                        text = extract_text_from_event(event)
-                        if "SERVE_RESULT" in text:
-                            if "APPROVED" in text and "serve_approved" not in signals:
-                                signals.append("serve_approved")
-                            elif "NEEDS_CHANGES" in text and "serve_needs_changes" not in signals:
-                                signals.append("serve_needs_changes")
-                            elif "BLOCKED" in text and "serve_blocked" not in signals:
-                                signals.append("serve_blocked")
-                        if ("KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text) and "kitchen_complete" not in signals:
-                            signals.append("kitchen_complete")
-                        if detect_kitchen_idle(text) and "kitchen_idle" not in signals:
-                            signals.append("kitchen_idle")
-                        # Detect phase completion signal for early termination
-                        if "<phase_complete>DONE</phase_complete>" in text and "phase_complete" not in signals:
-                            signals.append("phase_complete")
-                            logger.info(f"Phase {phase} signaled completion, terminating early")
-                            # Graceful early termination
-                            process.terminate()
-                            try:
-                                process.wait(timeout=5)
-                            except subprocess.TimeoutExpired:
-                                process.kill()
-                                process.wait(timeout=5)
-                            break
+                new_actions, text = process_output_line(line, cli_profile, pending_actions)
+                actions.extend(new_actions)
+                # Track last action time for idle detection
+                if new_actions:
+                    last_action_time = datetime.now()
+                    idle_warned = False  # Reset idle warning on new activity
+                # For non-streaming CLIs: update last_action_time on any non-empty stdout
+                if not cli_profile.get('has_streaming_json') and text.strip():
+                    last_action_time = datetime.now()
+                # Notify progress callback when new actions detected
+                if new_actions and on_progress:
+                    last_ts = new_actions[-1].timestamp
+                    on_progress(len(actions), last_ts)
+                # Detect signals from text output
+                if text:
+                    if "SERVE_RESULT" in text:
+                        if "APPROVED" in text and "serve_approved" not in signals:
+                            signals.append("serve_approved")
+                        elif "NEEDS_CHANGES" in text and "serve_needs_changes" not in signals:
+                            signals.append("serve_needs_changes")
+                        elif "BLOCKED" in text and "serve_blocked" not in signals:
+                            signals.append("serve_blocked")
+                    if ("KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text) and "kitchen_complete" not in signals:
+                        signals.append("kitchen_complete")
+                    if detect_kitchen_idle(text) and "kitchen_idle" not in signals:
+                        signals.append("kitchen_idle")
+                    # Detect phase completion signal for early termination
+                    if "<phase_complete>DONE</phase_complete>" in text and "phase_complete" not in signals:
+                        signals.append("phase_complete")
+                        logger.info(f"Phase {phase} signaled completion, terminating early")
+                        # Graceful early termination
+                        process.terminate()
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait(timeout=5)
+                        break
             else:
                 if process.poll() is not None:
                     break
