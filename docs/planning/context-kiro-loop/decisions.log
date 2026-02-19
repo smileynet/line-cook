@@ -1,0 +1,18 @@
+# Decisions Log
+# Append-only: date | context | decision | rationale
+# Seeded during brainstorm, updated during scope and finalize
+
+2026-02-18 | brainstorm | Config-driven CLI selection over driver abstraction | Simpler, sufficient for two CLIs, avoids over-engineering
+2026-02-18 | brainstorm | Graceful degradation for action tracking | Signals are text-based (work anywhere); action tracking is nice-to-have
+2026-02-18 | brainstorm | Line-based idle detection as fallback | When no streaming JSON, track "any stdout output" instead of tool_use events
+2026-02-18 | brainstorm | Defer Kiro hooks, OpenCode loop, session resume | Keep scope focused on core loop functionality
+2026-02-18 | research | Kiro plain text is parseable for action tracking | `(using tool: name)` pattern with ✓/✗ results — regex parser viable
+2026-02-18 | research | @prompt syntax works as non-interactive input | `@line-prep` executed full workflow as kiro-cli input argument
+2026-02-18 | research | --agent line-cook loads in non-interactive mode | Steering files and tools confirmed available
+2026-02-18 | research | stderr=DEVNULL, no --verbose for loop execution | Banner/chrome on stderr, useful output on stdout
+2026-02-18 | scope | Feature-level scope (1 phase, 1 feature, 4 tasks) | Single user-observable capability, not complex enough for epic
+2026-02-18 | scope | Tracer sequence: config→phase→loop→bundle | Foundation first (CLI profiles+parser), then abstraction, then wiring, then verification
+2026-02-18 | scope | process_output_line() as dual-mode parser | Single entry point for both streaming JSON and plain text output parsing
+2026-02-18 | research | nohup+& for Kiro background launch | Kiro shell tool has no run_in_background equivalent; nohup is the best option, needs testing
+2026-02-18 | research | Loop template uses @IF_KIRO@ for --cli kiro | Template already supports platform conditionals; add --cli kiro in Kiro-specific block
+2026-02-18 | research | Script discovery works for both bundle and source | Kiro prompt's glob-based script finder handles both plugin and development paths
