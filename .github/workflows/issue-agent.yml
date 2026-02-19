@@ -115,7 +115,7 @@ jobs:
             **If confident — create a fix branch:**
             1. Create a branch: `git checkout -b fix/issue-${{ github.event.issue.number }}-<short-description>`
             2. Make the code changes using Edit or Write tools
-            3. Stage and commit: `git add <files> && git commit -m "fix: <description> (closes #${{ github.event.issue.number }})"`
+            3. Stage and commit: `git add <files> && git commit -m "fix: <description> (refs #${{ github.event.issue.number }})"`
             4. Push: `git push origin fix/issue-${{ github.event.issue.number }}-<short-description>`
             5. Proceed to Step 6 to post a fix-proposal comment
 
