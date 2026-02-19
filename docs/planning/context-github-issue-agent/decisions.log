@@ -1,0 +1,17 @@
+# Decisions Log
+# Append-only: date | context | decision | rationale
+# Seeded during brainstorm, updated during scope and finalize
+
+2026-02-18 | brainstorm | Use claude-code-action over raw API | Official action handles tool access, context loading, GitHub integration; lowest effort path
+2026-02-18 | brainstorm | Dual-mode triggers (auto + @mention) | Covers both new issue triage and follow-up conversation use cases
+2026-02-18 | brainstorm | Start line-cook-specific | Generalize later as a spice/template once patterns are proven
+2026-02-18 | brainstorm | No GitHub App initially | GITHUB_TOKEN sufficient for MVP; App token adds complexity for CI-on-branches which isn't needed yet
+2026-02-18 | brainstorm | Never auto-merge fixes | All proposed fixes are on test branches for human verification; safety over speed
+2026-02-18 | brainstorm | MVP is analysis + comments only | Graduate to branch creation in full feature phase; de-risk by proving analysis quality first
+2026-02-18 | scope | Epic scope with 3 phases | User wants full pipeline: auto-triage → fix proposals → generalization
+2026-02-18 | scope | Sequential feature blocking | Each phase builds on previous; prevents context switching
+2026-02-18 | scope | BDD/smoke tests via gh CLI integration | Workflow outputs tested by creating real issues and verifying comments/branches
+2026-02-18 | scope | 3-file guardrail on fix proposals | Prevents runaway edits; agent should only propose focused fixes
+2026-02-18 | finalize | Beads created: 3 epics, 5 features, 11 tasks | Full hierarchy with blocking dependencies across phases
+2026-02-18 | finalize | BDD specs as Gherkin .feature files | Integration tests via gh CLI for workflow validation
+2026-02-18 | finalize | TDD specs as markdown with test tables | Language-agnostic specs translated during /cook phase

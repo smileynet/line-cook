@@ -9,6 +9,7 @@
 | **Validate** (`validate.yml`) | Push to main, PRs | Plugin health, platform parity, documentation quality |
 | **CI** (`ci.yml`) | Push to main, PRs (opencode paths only) | TypeScript build and typecheck for the OpenCode plugin |
 | **Create Release** (`release.yml`) | Push to main (plugin.json change) | Creates GitHub release with changelog and install instructions |
+| **Issue Agent** (`issue-agent.yml`) | Issues opened | Automated issue triage: classification, labeling, and structured analysis |
 
 ## Validation Scripts
 
