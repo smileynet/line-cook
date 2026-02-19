@@ -74,6 +74,8 @@ from .parsing import (
 
 # Re-export phase execution functions
 from .phase import (
+    build_phase_command,
+    process_output_line,
     run_phase,
     run_subprocess,
     check_idle,
@@ -188,6 +190,8 @@ __all__ = [
     "parse_kiro_tool_result",
     "extract_kiro_actions_from_line",
     # Phase execution
+    "build_phase_command",
+    "process_output_line",
     "run_phase",
     "run_subprocess",
     "check_idle",

@@ -3,6 +3,7 @@
 
 import contextlib
 import io
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -3561,6 +3562,197 @@ class TestExtractKiroActionsFromLine(unittest.TestCase):
         pending = {}
         actions = line_loop.extract_kiro_actions_from_line('(using tool: Write)', pending)
         self.assertTrue(actions[0].tool_use_id.startswith('kiro-'))
+
+
+class TestBuildPhaseCommand(unittest.TestCase):
+    """Test build_phase_command() for constructing CLI commands."""
+
+    def setUp(self):
+        self.claude_profile = line_loop.get_cli_profile('claude')
+        self.kiro_profile = line_loop.get_cli_profile('kiro')
+
+    def test_claude_cook_no_args(self):
+        """Claude cook command with no args."""
+        cmd = line_loop.build_phase_command('cook', '', self.claude_profile)
+        self.assertEqual(cmd, [
+            'claude', '-p', '/line:cook',
+            '--dangerously-skip-permissions',
+            '--output-format', 'stream-json', '--verbose',
+        ])
+
+    def test_claude_cook_with_args(self):
+        """Claude cook command with task ID arg."""
+        cmd = line_loop.build_phase_command('cook', 'lc-042', self.claude_profile)
+        self.assertEqual(cmd, [
+            'claude', '-p', '/line:cook lc-042',
+            '--dangerously-skip-permissions',
+            '--output-format', 'stream-json', '--verbose',
+        ])
+
+    def test_claude_serve_command(self):
+        """Claude serve command."""
+        cmd = line_loop.build_phase_command('serve', '', self.claude_profile)
+        self.assertIn('-p', cmd)
+        self.assertEqual(cmd[cmd.index('-p') + 1], '/line:serve')
+
+    def test_kiro_cook_no_args(self):
+        """Kiro cook command with no args."""
+        cmd = line_loop.build_phase_command('cook', '', self.kiro_profile)
+        self.assertEqual(cmd, [
+            'kiro-cli', 'chat',
+            '--no-interactive', '--wrap', 'never', '--agent', 'line-cook',
+            '--trust-all-tools',
+            '@line-cook',
+        ])
+
+    def test_kiro_cook_with_args(self):
+        """Kiro cook command with task ID arg."""
+        cmd = line_loop.build_phase_command('cook', 'lc-042', self.kiro_profile)
+        self.assertEqual(cmd[-1], '@line-cook lc-042')
+
+    def test_kiro_serve_command(self):
+        """Kiro serve command has prompt at end."""
+        cmd = line_loop.build_phase_command('serve', '', self.kiro_profile)
+        self.assertEqual(cmd[-1], '@line-serve')
+        self.assertEqual(cmd[0], 'kiro-cli')
+        self.assertEqual(cmd[1], 'chat')
+
+    def test_claude_has_no_subcommand(self):
+        """Claude command has no subcommand between binary and -p."""
+        cmd = line_loop.build_phase_command('cook', '', self.claude_profile)
+        self.assertEqual(cmd[0], 'claude')
+        self.assertEqual(cmd[1], '-p')
+
+    def test_kiro_has_subcommand(self):
+        """Kiro command includes 'chat' subcommand."""
+        cmd = line_loop.build_phase_command('cook', '', self.kiro_profile)
+        self.assertEqual(cmd[0], 'kiro-cli')
+        self.assertEqual(cmd[1], 'chat')
+
+
+class TestProcessOutputLine(unittest.TestCase):
+    """Test process_output_line() for processing CLI output."""
+
+    def setUp(self):
+        self.claude_profile = line_loop.get_cli_profile('claude')
+        self.kiro_profile = line_loop.get_cli_profile('kiro')
+
+    def test_streaming_json_assistant_text(self):
+        """Extracts text from streaming JSON assistant message."""
+        event = {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "Hello world"}]}
+        }
+        line = json.dumps(event)
+        pending = {}
+        actions, text = line_loop.process_output_line(line, self.claude_profile, pending)
+        self.assertEqual(text, "Hello world")
+        self.assertEqual(actions, [])
+
+    def test_streaming_json_tool_use(self):
+        """Extracts actions from streaming JSON tool_use event."""
+        event = {
+            "type": "assistant",
+            "message": {"content": [
+                {"type": "tool_use", "id": "tu-1", "name": "Read",
+                 "input": {"file_path": "/tmp/test.py"}}
+            ]}
+        }
+        line = json.dumps(event)
+        pending = {}
+        actions, text = line_loop.process_output_line(line, self.claude_profile, pending)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].tool_name, "Read")
+        self.assertIn("tu-1", pending)
+
+    def test_streaming_json_invalid_returns_empty(self):
+        """Invalid JSON returns no actions and empty text."""
+        pending = {}
+        actions, text = line_loop.process_output_line("not json", self.claude_profile, pending)
+        self.assertEqual(actions, [])
+        self.assertEqual(text, "")
+
+    def test_streaming_json_empty_line(self):
+        """Empty line in streaming mode returns no actions and empty text."""
+        pending = {}
+        actions, text = line_loop.process_output_line("", self.claude_profile, pending)
+        self.assertEqual(actions, [])
+        self.assertEqual(text, "")
+
+    def test_streaming_json_user_message_no_text(self):
+        """User message events return no text."""
+        event = {"type": "user", "message": {"content": []}}
+        line = json.dumps(event)
+        pending = {}
+        actions, text = line_loop.process_output_line(line, self.claude_profile, pending)
+        self.assertEqual(text, "")
+
+    def test_non_streaming_strips_ansi(self):
+        """Non-streaming mode strips ANSI escape sequences."""
+        pending = {}
+        actions, text = line_loop.process_output_line(
+            '\x1b[31mhello\x1b[0m\n', self.kiro_profile, pending)
+        self.assertEqual(text, 'hello')
+
+    def test_non_streaming_extracts_kiro_actions(self):
+        """Non-streaming mode extracts Kiro tool actions."""
+        pending = {}
+        actions, text = line_loop.process_output_line(
+            '(using tool: Read)\n', self.kiro_profile, pending)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].tool_name, 'Read')
+
+    def test_non_streaming_plain_text(self):
+        """Non-streaming mode returns cleaned text for plain output."""
+        pending = {}
+        actions, text = line_loop.process_output_line(
+            'Some regular output\n', self.kiro_profile, pending)
+        self.assertEqual(text, 'Some regular output')
+        self.assertEqual(actions, [])
+
+    def test_streaming_json_updates_pending_on_result(self):
+        """Streaming JSON updates pending actions when tool_result arrives."""
+        # First, a tool_use event
+        tool_use_event = {
+            "type": "assistant",
+            "message": {"content": [
+                {"type": "tool_use", "id": "tu-2", "name": "Bash",
+                 "input": {"command": "echo hi"}}
+            ]}
+        }
+        pending = {}
+        line_loop.process_output_line(json.dumps(tool_use_event), self.claude_profile, pending)
+        self.assertIn("tu-2", pending)
+
+        # Then, a tool_result event
+        result_event = {
+            "type": "user",
+            "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "tu-2",
+                 "content": "hi", "is_error": False}
+            ]}
+        }
+        line_loop.process_output_line(json.dumps(result_event), self.claude_profile, pending)
+        self.assertNotIn("tu-2", pending)
+
+    def test_non_streaming_resolves_pending_action(self):
+        """Non-streaming mode resolves pending action on success indicator."""
+        pending = {}
+        # First, detect a tool use
+        line_loop.process_output_line('(using tool: Edit)\n', self.kiro_profile, pending)
+        self.assertEqual(len(pending), 1)
+        action = list(pending.values())[0]
+        # Then, process a success result line
+        line_loop.process_output_line('\u2713 Done\n', self.kiro_profile, pending)
+        self.assertEqual(len(pending), 0)
+        self.assertTrue(action.success)
+
+    def test_non_streaming_empty_line(self):
+        """Non-streaming mode handles empty lines."""
+        pending = {}
+        actions, text = line_loop.process_output_line('\n', self.kiro_profile, pending)
+        self.assertEqual(text, '')
+        self.assertEqual(actions, [])
 
 
 if __name__ == "__main__":
