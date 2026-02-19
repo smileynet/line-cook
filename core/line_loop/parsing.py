@@ -1,6 +1,6 @@
 """Output parsing functions for line-loop.
 
-Functions for parsing Claude output:
+Functions for parsing CLI output (Claude stream-json and Kiro plain-text):
 - parse_serve_result: Extract SERVE_RESULT block
 - parse_serve_feedback: Extract detailed review feedback
 - parse_intent_block: Extract INTENT block
@@ -8,6 +8,10 @@ Functions for parsing Claude output:
 - extract_text_from_event: Get text from streaming event
 - extract_actions_from_event: Get tool actions from event
 - update_action_from_result: Update actions with tool results
+- strip_ansi: Remove ANSI escape sequences
+- parse_kiro_tool_action: Extract tool name from Kiro output
+- parse_kiro_tool_result: Detect success/failure from Kiro indicators
+- extract_kiro_actions_from_line: Parse Kiro output into ActionRecords
 """
 
 from __future__ import annotations
@@ -19,6 +23,14 @@ from typing import Optional
 
 from .config import OUTPUT_SUMMARY_MAX_LENGTH
 from .models import ActionRecord, ServeFeedback, ServeFeedbackIssue, ServeResult
+
+# ANSI escape sequence pattern (covers SGR, cursor, and OSC sequences)
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07')
+
+# Kiro output patterns
+_KIRO_TOOL_USE_RE = re.compile(r'\(using tool:\s*(\w+)\)')
+_KIRO_SUCCESS_RE = re.compile(r'[\u2713\u2714]')  # ✓ ✔
+_KIRO_FAILURE_RE = re.compile(r'[\u2717\u2718]')  # ✗ ✘
 
 
 def parse_serve_result(output: str) -> Optional[ServeResult]:
@@ -362,4 +374,97 @@ def update_action_from_result(
                         action.output_summary = f"ERROR: {action.output_summary}"
                 # Remove from pending after processing
                 del pending_actions[tool_use_id]
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from text.
+
+    Args:
+        text: String potentially containing ANSI escape codes.
+
+    Returns:
+        Clean text with all ANSI sequences removed.
+    """
+    return _ANSI_RE.sub('', text)
+
+
+def parse_kiro_tool_action(line: str) -> Optional[str]:
+    """Extract tool name from Kiro's '(using tool: <name>)' pattern.
+
+    Args:
+        line: A single line from Kiro CLI output.
+
+    Returns:
+        Tool name string if found, None otherwise.
+    """
+    match = _KIRO_TOOL_USE_RE.search(line)
+    return match.group(1) if match else None
+
+
+def parse_kiro_tool_result(line: str) -> Optional[bool]:
+    """Detect success or failure from Kiro output indicators.
+
+    Kiro uses checkmark characters for success and cross marks for failure.
+
+    Args:
+        line: A single line from Kiro CLI output.
+
+    Returns:
+        True for success (checkmark), False for failure (cross),
+        None if no indicator found.
+    """
+    if _KIRO_SUCCESS_RE.search(line):
+        return True
+    if _KIRO_FAILURE_RE.search(line):
+        return False
+    return None
+
+
+def extract_kiro_actions_from_line(
+    line: str,
+    pending_actions: dict[str, ActionRecord]
+) -> list[ActionRecord]:
+    """Extract tool actions from a single line of Kiro CLI output.
+
+    Parallel to extract_actions_from_event() but for Kiro's plain-text output.
+    Detects tool use starts and result indicators, tracking actions in
+    pending_actions for correlation.
+
+    Args:
+        line: A single line from Kiro CLI output.
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord.
+                        New tool uses are added; completed ones are removed.
+
+    Returns:
+        List of new ActionRecords created from tool use patterns.
+        Empty list if no tool action detected.
+    """
+    actions: list[ActionRecord] = []
+
+    # Check for new tool use
+    tool_name = parse_kiro_tool_action(line)
+    if tool_name:
+        tool_use_id = f"kiro-{id(line)}-{datetime.now().timestamp()}"
+        action = ActionRecord(
+            tool_name=tool_name,
+            tool_use_id=tool_use_id,
+            input_summary="",
+            output_summary="",
+            success=True,
+            timestamp=datetime.now().isoformat(),
+        )
+        actions.append(action)
+        pending_actions[tool_use_id] = action
+        return actions
+
+    # Check for result indicator (resolves most recent pending action)
+    result = parse_kiro_tool_result(line)
+    if result is not None and pending_actions:
+        # Resolve the most recently added pending action
+        last_key = list(pending_actions.keys())[-1]
+        action = pending_actions[last_key]
+        action.success = result
+        del pending_actions[last_key]
+
+    return actions
 
