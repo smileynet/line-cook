@@ -298,22 +298,25 @@ Locate the `line-loop.py` CLI wrapper. The wrapper is a thin script that imports
 
 ### Launch Background Loop
 
+Use nohup to start the loop in the background:
 
 ```bash
 LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
 mkdir -p "$LOOP_DIR"
-python3 <path-to-line-loop.py> \
+nohup python3 <path-to-line-loop.py> \
+  --cli kiro \
   --max-iterations ${MAX_ITERATIONS:-25} \
   --json \
   --output "$LOOP_DIR/report.json" \
   --log-file "$LOOP_DIR/loop.log" \
   --pid-file "$LOOP_DIR/loop.pid" \
   --status-file "$LOOP_DIR/status.json" \
-  --history-file "$LOOP_DIR/history.jsonl"
+  --history-file "$LOOP_DIR/history.jsonl" \
+  > "$LOOP_DIR/loop.log" 2>&1 &
+echo $! > "$LOOP_DIR/loop.pid"
 ```
 
 Replace `<path-to-line-loop.py>` with the absolute path located above.
-
 
 ### Output
 
