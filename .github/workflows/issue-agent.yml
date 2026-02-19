@@ -33,7 +33,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: 10
-          # Capability layer: git write tools enabled here, prompt guidance for fix proposals in lc-p62.1.2
+          # Git write tools for fix-proposal workflow (Steps 5-6)
           claude_args: '--allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit),Bash(gh label),Bash(git checkout -b:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin:*)"'
           prompt: |
             You are an issue triage agent for this project. Analyze the issue below, search the codebase for relevant context, classify it, apply a label, and respond with a structured analysis.
@@ -100,7 +100,58 @@ jobs:
 
             **Next Steps:** Concrete actions for the maintainer or reporter.
 
-            ### Step 5: Handle edge cases
+            ### Step 5: Assess confidence and propose fix (if applicable)
+
+            After completing your analysis, assess whether this issue can be fixed with a code change:
+
+            **Confidence criteria — propose a fix when ALL of these are true:**
+            - You identified a specific bug or broken behavior (classification is "bug")
+            - You found the exact file(s) and line(s) where the problem occurs
+            - The fix requires changing **3 or fewer files** (scope guardrail — if more files are affected, do NOT attempt a fix)
+            - The fix is straightforward (typo, broken import, wrong variable, missing condition, off-by-one, etc.)
+            - You are confident the fix won't break other functionality
+
+            **If confident — create a fix branch:**
+            1. Create a branch: `git checkout -b fix/issue-${{ github.event.issue.number }}-<short-description>`
+            2. Make the code changes using Edit or Write tools
+            3. Stage and commit: `git add <files> && git commit -m "fix: <description> (closes #${{ github.event.issue.number }})"`
+            4. Push: `git push origin fix/issue-${{ github.event.issue.number }}-<short-description>`
+            5. Proceed to Step 6 to post a fix-proposal comment
+
+            **If NOT confident — do not attempt a fix.** Instead:
+            - State what you understand so far in your analysis
+            - Ask 2-3 specific clarifying questions
+            - Explain what additional information would help you propose a fix
+            - This is the safer default — when in doubt, ask rather than guess
+
+            ### Step 6: Post fix-proposal comment (only if you created a fix branch)
+
+            If you created a fix branch in Step 5, your Step 4 analysis comment MUST include this additional section at the end:
+
+            ---
+
+            **Proposed Fix:**
+
+            **What was changed and why:**
+            - `<file path>`: <description of change and reasoning>
+            - (list each modified file)
+
+            **Branch:** `fix/issue-${{ github.event.issue.number }}-<description>`
+
+            **To review and test this fix:**
+            ```bash
+            git fetch origin
+            git checkout fix/issue-${{ github.event.issue.number }}-<description>
+            # <specific test instructions relevant to the fix>
+            ```
+
+            **Verification request:** Please review the changes on this branch and confirm whether the fix resolves your issue. If it looks good, a maintainer can merge it. If not, let me know what's still wrong and I'll investigate further.
+
+            ---
+
+            **Important:** Never suggest that the fix will be auto-merged. Fixes always require human verification and maintainer approval.
+
+            ### Step 7: Handle edge cases
 
             **Empty or very short body:** If the issue body is empty or just a few words, focus your analysis on the title alone. Ask clarifying questions about what the reporter is experiencing, what they expected, and steps to reproduce.
 
