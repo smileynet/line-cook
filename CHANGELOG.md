@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Interactive follow-up via @mention in issue comments (lc-p62.2)
+  - `@claude` mention in any issue comment triggers a conversational response
+  - Agent searches codebase and provides referenced answers with file paths and line numbers
+  - Read-only tool scope with 8-turn limit for focused interactions
+  - Non-@claude comments and bot comments are ignored
+- Issue agent proposes fixes on test branches (lc-p62.1)
+  - Agent creates `fix/issue-{number}` branches when it identifies clear, fixable bugs
+  - Structured comment with what changed, branch name, checkout instructions, and verification request
+  - Confidence criteria with 3-file scope guardrail — asks clarifying questions when unsure
+  - Uses `refs #N` instead of `closes #N` to keep issues open for human verification
+
 ## [0.16.1] - 2026-02-15
 ### Added
 - Kiro troubleshooting guide covering installation, common errors, and the argument-passing workaround (`docs/dev/kiro-troubleshooting.md`)
