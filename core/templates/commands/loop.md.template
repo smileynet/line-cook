@@ -390,7 +390,6 @@ The `line_loop/` package should be a sibling directory to the script.
 
 @IF_CLAUDECODE@
 Use the Bash tool with `run_in_background: true` to start the loop:
-@ENDIF_CLAUDECODE@
 
 ```bash
 LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
@@ -407,9 +406,51 @@ python3 <path-to-line-loop.py> \
 
 Replace `<path-to-line-loop.py>` with the absolute path located above.
 
-@IF_CLAUDECODE@
 **Important:** Set `run_in_background: true` on the Bash tool call.
 @ENDIF_CLAUDECODE@
+@IF_KIRO@
+Use nohup to start the loop in the background:
+
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+mkdir -p "$LOOP_DIR"
+nohup python3 <path-to-line-loop.py> \
+  --cli kiro \
+  --max-iterations ${MAX_ITERATIONS:-25} \
+  --json \
+  --output "$LOOP_DIR/report.json" \
+  --log-file "$LOOP_DIR/loop.log" \
+  --pid-file "$LOOP_DIR/loop.pid" \
+  --status-file "$LOOP_DIR/status.json" \
+  --history-file "$LOOP_DIR/history.jsonl" \
+  > "$LOOP_DIR/loop.log" 2>&1 &
+echo $! > "$LOOP_DIR/loop.pid"
+```
+
+Replace `<path-to-line-loop.py>` with the absolute path located above.
+@ENDIF_KIRO@
+@IF_NOT_KIRO@
+@IF_OPENCODE@
+Use nohup to start the loop in the background:
+
+```bash
+LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+mkdir -p "$LOOP_DIR"
+nohup python3 <path-to-line-loop.py> \
+  --max-iterations ${MAX_ITERATIONS:-25} \
+  --json \
+  --output "$LOOP_DIR/report.json" \
+  --log-file "$LOOP_DIR/loop.log" \
+  --pid-file "$LOOP_DIR/loop.pid" \
+  --status-file "$LOOP_DIR/status.json" \
+  --history-file "$LOOP_DIR/history.jsonl" \
+  > "$LOOP_DIR/loop.log" 2>&1 &
+echo $! > "$LOOP_DIR/loop.pid"
+```
+
+Replace `<path-to-line-loop.py>` with the absolute path located above.
+@ENDIF_OPENCODE@
+@ENDIF_NOT_KIRO@
 
 ### Output
 
