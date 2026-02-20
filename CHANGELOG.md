@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 3: Hardening & Generalization (lc-769)
+  - GitHub App identity for CI integration — fix branches now trigger CI workflows automatically
+  - Reusable issue agent template — install in any repo with minimal configuration
+  - E2E smoke tests for issue agent workflow — validates critical user journeys
+  - Features: GitHub App identity (lc-769.1), reusable template (lc-769.2), E2E tests (lc-769.3)
 - Interactive follow-up via @mention in issue comments (lc-p62.2)
   - `@claude` mention in any issue comment triggers a conversational response
   - Agent searches codebase and provides referenced answers with file paths and line numbers
