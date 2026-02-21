@@ -26,7 +26,9 @@ from pathlib import Path
 from typing import Optional
 
 from .config import (
+    BACKLOG_PRIORITY_THRESHOLD,
     BD_COMMAND_TIMEOUT,
+    DEFAULT_CLI,
     DEFAULT_IDLE_ACTION,
     DEFAULT_MAX_TASK_FAILURES,
     EXCLUDED_EPIC_TITLES,
@@ -35,6 +37,7 @@ from .config import (
     PERIODIC_SYNC_INTERVAL,
     RECENT_ITERATIONS_DISPLAY,
     RECENT_ITERATIONS_LIMIT,
+    get_cli_profile,
 )
 from .models import (
     ActionRecord,
@@ -182,6 +185,8 @@ def detect_first_epic(
     for bead in snapshot.ready_work:
         if bead.id in skip_ids:
             continue
+        if bead.priority is not None and bead.priority >= BACKLOG_PRIORITY_THRESHOLD:
+            continue
         if ancestor_map is not None:
             epic_id = ancestor_map.get(bead.id)
             if epic_id and epic_id not in excluded_ids and epic_id not in exhausted_set:
@@ -283,6 +288,11 @@ def get_next_ready_task(
                 candidates, excluded_epic_ids, snapshot, cwd,
                 ancestor_map=ancestor_map
             )
+        # Filter out backlog-priority items
+        candidates = [
+            b for b in candidates
+            if b.priority is None or b.priority < BACKLOG_PRIORITY_THRESHOLD
+        ]
         # Two-pass: prefer tasks over features
         for bead in candidates:
             if bead.id not in skip_ids and bead.issue_type == "task":
@@ -308,7 +318,8 @@ def get_next_ready_task(
             work_items = [
                 i for i in issues
                 if isinstance(i, dict) and i.get("issue_type") != "epic"
-                and i.get("id", "") and i.get("id", "") not in skip_ids
+                and i.get("id") and i["id"] not in skip_ids
+                and (i.get("priority") is None or int(i.get("priority", 0)) < BACKLOG_PRIORITY_THRESHOLD)
             ]
             for issue in work_items:
                 if issue.get("issue_type") == "task":
@@ -566,7 +577,8 @@ def write_status_file(
     skipped_tasks: Optional[list] = None,
     escalation: Optional[dict] = None,
     epic_mode: Optional[str] = None,
-    current_epic: Optional[str] = None
+    current_epic: Optional[str] = None,
+    cli_name: Optional[str] = None
 ):
     """Write live status JSON for external monitoring.
 
@@ -603,6 +615,10 @@ def write_status_file(
         status["epic_mode"] = epic_mode
     if current_epic:
         status["current_epic"] = current_epic
+
+    # Add CLI name (omit when default to keep output clean)
+    if cli_name and cli_name != DEFAULT_CLI:
+        status["cli"] = cli_name
 
     # Add intra-iteration progress fields
     if current_phase:
@@ -801,8 +817,10 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
                 return (None, False)
             result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
-                # Pull failed but we're on main - continue with possibly stale state
-                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+                if "no tracking information" in result.stderr.lower():
+                    logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+                else:
+                    logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
             result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
                 logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
@@ -825,7 +843,12 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
                     if result.returncode != 0:
                         logger.warning(f"Failed to checkout main: {result.stderr}")
                         return (None, False)
-                    run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    pull_result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    if pull_result.returncode != 0:
+                        if "no tracking information" in pull_result.stderr.lower():
+                            logger.debug(f"git pull skipped (no upstream): {pull_result.stderr}")
+                        else:
+                            logger.warning(f"Failed to pull main (continuing anyway): {pull_result.stderr}")
                     result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
                     if result.returncode != 0:
                         logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
@@ -874,8 +897,10 @@ def merge_epic_on_close(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool,
             return (False, None)
         result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
-            # Pull failed but continue - merge might still work
-            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            if "no tracking information" in result.stderr.lower():
+                logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+            else:
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
 
         # Attempt merge
         merge_result = run_subprocess(
@@ -976,7 +1001,10 @@ def merge_completed_epic(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool
             return (False, None)
         result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
-            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            if "no tracking information" in result.stderr.lower():
+                logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+            else:
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
 
         # Attempt merge
         merge_result = run_subprocess(
@@ -1051,7 +1079,8 @@ def run_loop(
     max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
-    epic_mode: Optional[str] = None
+    epic_mode: Optional[str] = None,
+    cli_name: Optional[str] = None
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat.
 
@@ -1067,6 +1096,9 @@ def run_loop(
     - None: default mode, excludes Retrospective/Backlog epics
     - "auto": auto-detect first non-excluded epic, work only its tasks
     - "<id>": work only the specified epic's tasks
+
+    CLI selection: cli_name selects the AI coding tool profile (e.g.,
+    "claude-code", "kiro"). Defaults to DEFAULT_CLI if not specified.
     """
     global _shutdown_requested
 
@@ -1081,7 +1113,10 @@ def run_loop(
     current_epic_title: Optional[str] = None
     exhausted_epic_ids: set[str] = set()  # Epics already tried in auto mode
 
-    logger.info(f"Loop starting: max_iterations={max_iterations}, epic_mode={epic_mode}")
+    # Resolve CLI profile at loop start
+    cli_profile = get_cli_profile(cli_name or DEFAULT_CLI)
+
+    logger.info(f"Loop starting: max_iterations={max_iterations}, epic_mode={epic_mode}, cli={cli_name or DEFAULT_CLI}")
 
     # Validate explicit epic ID upfront
     if epic_mode and epic_mode != "auto":
@@ -1263,7 +1298,8 @@ def run_loop(
                 tasks_completed=completed_count,
                 tasks_remaining=ready_work_count,
                 started_at=started_at,
-                iterations=iterations
+                iterations=iterations,
+                cli_name=cli_name
             )
 
         # Run iteration with individual phase invocations
@@ -1276,7 +1312,8 @@ def run_loop(
             idle_timeout=idle_timeout,
             idle_action=idle_action,
             before_snapshot=snapshot,
-            target_task_id=target_task_id
+            target_task_id=target_task_id,
+            cli_profile=cli_profile
         )
         iterations.append(result)
 
@@ -1307,7 +1344,8 @@ def run_loop(
                 started_at=started_at,
                 iterations=iterations,
                 epic_mode=epic_mode,
-                current_epic=current_epic_id
+                current_epic=current_epic_id,
+                cli_name=cli_name
             )
 
         # Append iteration to history JSONL file (full action details)
@@ -1424,7 +1462,7 @@ def run_loop(
         # Merge and close-service are now handled inside check_epic_completion()
         if result.success:
             already_handled = set(result.closed_epics)
-            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled)
+            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled, cli_profile=cli_profile)
             if epic_summaries:
                 # Update status file with epic completions
                 if status_file:
@@ -1507,7 +1545,8 @@ def run_loop(
             skipped_tasks=skip_list.get_skipped_tasks(),
             escalation=escalation,
             epic_mode=epic_mode,
-            current_epic=current_epic_id
+            current_epic=current_epic_id,
+            cli_name=cli_name
         )
 
     # Write history summary record to mark end of loop

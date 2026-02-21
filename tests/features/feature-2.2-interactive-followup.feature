@@ -26,3 +26,13 @@ Feature: Interactive follow-up via @mention
     And I wait for the issue-agent workflow to complete
     Then the response should reference both the original issue and prior comments
     And the response should include analysis of config.yaml
+
+  Scenario: Cross-feature integration - analyze then respond
+    Given I create an issue describing a clear, reproducible bug
+    And I wait for the issue-agent workflow to complete
+    And a branch named "fix/issue-{number}" exists with commits
+    When I add a comment "@claude can you explain why this fix works?"
+    And I wait for the issue-agent workflow to complete
+    Then the response should reference the fix branch
+    And the response should explain the changes made in the fix
+    And the response should address my specific question

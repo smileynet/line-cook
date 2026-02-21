@@ -15,6 +15,35 @@ Integration tests for Line Cook commands across Claude Code, OpenCode, and Kiro.
 ./tests/run-tests.sh
 ```
 
+## E2E Tests
+
+### Issue Agent Workflow
+
+E2E tests for the issue-agent GitHub Actions workflow:
+
+```bash
+# Run all E2E tests
+./tests/test-issue-agent-e2e.sh
+
+# Run specific test
+./tests/test-issue-agent-e2e.sh --test=auth    # GitHub App authentication
+./tests/test-issue-agent-e2e.sh --test=branch  # Fix branch creation
+./tests/test-issue-agent-e2e.sh --test=ci      # CI workflow triggers
+```
+
+**What's tested:**
+- Workflow triggers on issue creation
+- GitHub App authentication succeeds
+- Fix branches are created with correct identity
+- CI workflows trigger on fix branches
+
+**Requirements:**
+- `gh` CLI authenticated
+- `CLAUDE_CODE_OAUTH_TOKEN` secret configured in repo
+- `issue-agent.yml` workflow deployed
+
+**Cost:** ~$0.10-0.50 per test run (Claude API calls)
+
 ## Smoke Tests
 
 The smoke test executes a real coding task through the full Line Cook workflow.
