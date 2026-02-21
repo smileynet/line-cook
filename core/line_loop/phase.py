@@ -36,6 +36,7 @@ from .parsing import (
     extract_actions_from_event,
     extract_kiro_actions_from_line,
     extract_text_from_event,
+    normalize_signal_text,
     parse_stream_json_event,
     strip_ansi,
     update_action_from_result,
@@ -149,7 +150,12 @@ def build_phase_command(phase: str, args: str, cli_profile: dict) -> list[str]:
     """
     prompt = cli_profile['prompt_format'].format(phase=phase)
     if args:
-        prompt = f"{prompt} {args}"
+        injection = cli_profile.get('task_injection')
+        if injection:
+            # Prepend args before @ command (workaround for Kiro bug #4141)
+            prompt = f"{injection.format(args=args)}{prompt}"
+        else:
+            prompt = f"{prompt} {args}"
 
     cmd = [cli_profile['binary']]
 
@@ -323,19 +329,21 @@ def run_phase(
                     on_progress(len(actions), last_ts)
                 # Detect signals from text output
                 if text:
-                    if "SERVE_RESULT" in text:
-                        if "APPROVED" in text and "serve_approved" not in signals:
+                    # Normalize to strip code fences/box-drawing that might wrap signals (GAP 6)
+                    sig_text = normalize_signal_text(text)
+                    if "SERVE_RESULT" in sig_text:
+                        if "APPROVED" in sig_text and "serve_approved" not in signals:
                             signals.append("serve_approved")
-                        elif "NEEDS_CHANGES" in text and "serve_needs_changes" not in signals:
+                        elif "NEEDS_CHANGES" in sig_text and "serve_needs_changes" not in signals:
                             signals.append("serve_needs_changes")
-                        elif "BLOCKED" in text and "serve_blocked" not in signals:
+                        elif "BLOCKED" in sig_text and "serve_blocked" not in signals:
                             signals.append("serve_blocked")
-                    if ("KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text) and "kitchen_complete" not in signals:
+                    if ("KITCHEN_COMPLETE" in sig_text or "KITCHEN COMPLETE" in sig_text) and "kitchen_complete" not in signals:
                         signals.append("kitchen_complete")
-                    if detect_kitchen_idle(text) and "kitchen_idle" not in signals:
+                    if detect_kitchen_idle(sig_text) and "kitchen_idle" not in signals:
                         signals.append("kitchen_idle")
                     # Detect phase completion signal for early termination
-                    if "<phase_complete>DONE</phase_complete>" in text and "phase_complete" not in signals:
+                    if "<phase_complete>DONE</phase_complete>" in sig_text and "phase_complete" not in signals:
                         signals.append("phase_complete")
                         logger.info(f"Phase {phase} signaled completion, terminating early")
                         # Graceful early termination
