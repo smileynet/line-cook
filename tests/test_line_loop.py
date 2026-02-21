@@ -2349,6 +2349,48 @@ class TestCircuitBreakerSkipListInteraction(unittest.TestCase):
         self.assertTrue(sl.is_skipped("lc-001"))  # Skip list unaffected
 
 
+class TestInferParentFromId(unittest.TestCase):
+    """Test _infer_parent_from_id function."""
+
+    def test_task_under_feature(self):
+        from line_loop.iteration import _infer_parent_from_id
+        self.assertEqual(_infer_parent_from_id("demo-001.1.1"), "demo-001.1")
+
+    def test_feature_under_epic(self):
+        from line_loop.iteration import _infer_parent_from_id
+        self.assertEqual(_infer_parent_from_id("demo-001.1"), "demo-001")
+
+    def test_top_level_id(self):
+        from line_loop.iteration import _infer_parent_from_id
+        self.assertIsNone(_infer_parent_from_id("demo-001"))
+
+    def test_empty_id(self):
+        from line_loop.iteration import _infer_parent_from_id
+        self.assertIsNone(_infer_parent_from_id(""))
+
+    def test_parse_bead_info_infers_parent(self):
+        """_parse_bead_info infers parent when not in JSON."""
+        from line_loop.iteration import _parse_bead_info
+        info = _parse_bead_info({
+            "id": "demo-001.1.1",
+            "title": "Task",
+            "issue_type": "task",
+            "priority": 2,
+        })
+        self.assertEqual(info.parent, "demo-001.1")
+
+    def test_parse_bead_info_prefers_explicit_parent(self):
+        """_parse_bead_info uses explicit parent when provided."""
+        from line_loop.iteration import _parse_bead_info
+        info = _parse_bead_info({
+            "id": "demo-001.1.1",
+            "title": "Task",
+            "issue_type": "task",
+            "parent": "custom-parent",
+        })
+        self.assertEqual(info.parent, "custom-parent")
+
+
 class TestBuildEpicAncestorMap(unittest.TestCase):
     """Test build_epic_ancestor_map function."""
 
