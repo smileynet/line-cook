@@ -23,6 +23,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -75,6 +76,53 @@ CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
 
 # Hierarchy traversal
 HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks
+
+# Priority filtering
+BACKLOG_PRIORITY_THRESHOLD = 4      # Skip P4+ beads in auto-selection (parking lot)
+
+# CLI profiles for multi-CLI support
+CLI_PROFILES = {
+    'claude': {
+        'binary': 'claude',
+        'prompt_format': '/line:{phase}',
+        'permission_flags': ['--dangerously-skip-permissions'],
+        'output_flags': ['--output-format', 'stream-json', '--verbose'],
+        'has_streaming_json': True,
+        'install_hint': 'Install Claude Code: https://docs.anthropic.com/en/docs/claude-code',
+        'phase_timeout_multiplier': 1.0,
+    },
+    'kiro': {
+        'binary': 'kiro-cli',
+        'subcommand': 'chat',
+        'prompt_format': '@line-{phase}',
+        'permission_flags': ['--trust-all-tools'],
+        'extra_flags': ['--no-interactive', '--wrap', 'never', '--agent', 'line-cook'],
+        'has_streaming_json': False,
+        'install_hint': 'Install Kiro CLI: https://kiro.dev/docs/cli',
+        'phase_timeout_multiplier': 1.5,
+        # Kiro bug #4141: args after @ commands are silently dropped.
+        # Inject task ID as text before the @ command so the agent receives it.
+        'task_injection': '[task-id: {args}] ',
+    },
+}
+
+DEFAULT_CLI = 'claude'
+
+
+def get_cli_profile(name: str) -> dict:
+    """Get CLI profile by name.
+
+    Args:
+        name: Profile name ('claude' or 'kiro').
+
+    Returns:
+        Profile dict with binary, prompt_format, flags, etc.
+
+    Raises:
+        KeyError: If profile name is not found.
+    """
+    return CLI_PROFILES[name]
+
 
 # Epic titles to exclude from auto-selection (parking lot pattern)
 # See .kiro/steering/line-cook.md, parking lot section
@@ -492,7 +540,7 @@ class ActionRecord:
     tool_use_id: str         # For correlation with results
     input_summary: str       # Truncated input (file path, command, etc.)
     output_summary: str      # Truncated output or error message
-    success: bool            # True if no error
+    success: Optional[bool]  # True if no error, None if unresolved
     timestamp: str           # ISO timestamp
     duration_ms: Optional[float] = None  # Duration in milliseconds (set on result)
 
@@ -612,6 +660,9 @@ class ProgressState:
     last_action_time: Optional[datetime] = None
     _last_write: float = 0.0  # Throttle to 1 write per 5 seconds
 
+    # CLI identification
+    cli_name: Optional[str] = None
+
     # Idle detection fields
     idle_detected: bool = False
     idle_since: Optional[datetime] = None
@@ -664,11 +715,48 @@ class ProgressState:
             current_phase=self.current_phase,
             phase_start_time=self.phase_start_time,
             current_action_count=self.current_action_count,
-            last_action_time=self.last_action_time
+            last_action_time=self.last_action_time,
+            cli_name=self.cli_name
         )
 
 
 # --- parsing.py ---
+
+# ANSI escape sequence pattern (covers SGR, cursor, and OSC sequences)
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07')
+
+# Kiro output patterns
+# Case-insensitive with optional parentheses for robustness (GAP 3)
+_KIRO_TOOL_USE_RE = re.compile(r'\(?\s*using\s+tool:\s*(\w+)\s*\)?', re.IGNORECASE)
+_KIRO_SUCCESS_RE = re.compile(r'[\u2713\u2714]')  # ✓ ✔
+_KIRO_FAILURE_RE = re.compile(r'[\u2717\u2718]')  # ✗ ✘
+
+
+# Box-drawing characters used in terminal UI borders
+_BOX_DRAWING_RE = re.compile(r'[│┌┐└┘├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬]')
+
+
+def normalize_signal_text(text: str) -> str:
+    """Normalize text for signal detection.
+
+    Strips formatting that might wrap signal markers (SERVE_RESULT,
+    KITCHEN_COMPLETE, etc.) when CLIs emit markdown fences, box-drawing
+    borders, or other decorative formatting.
+
+    Args:
+        text: Raw output text that may contain signals.
+
+    Returns:
+        Cleaned text suitable for substring signal detection.
+    """
+    # Strip markdown code fences
+    text = re.sub(r'```[a-z]*', '', text)
+    # Strip backtick inline code
+    text = text.replace('`', '')
+    # Strip box-drawing border characters
+    text = _BOX_DRAWING_RE.sub(' ', text)
+    return text
+
 
 def parse_serve_result(output: str) -> Optional[ServeResult]:
     """Parse SERVE_RESULT block from serve phase output.
@@ -714,6 +802,20 @@ def parse_serve_result(output: str) -> Optional[ServeResult]:
             continue_=continue_match.group(1).lower() == "true" if continue_match else True,
             next_step=next_step_match.group(1) if next_step_match else None,
             blocking_issues=int(blocking_match.group(1)) if blocking_match else 0
+        )
+
+    # Keyword fallback: infer verdict from natural language
+    approval_keywords = re.search(
+        r'\b(LGTM|approved|no issues found|looks good|ship it)\b',
+        output, re.IGNORECASE
+    )
+    if approval_keywords:
+        logger.warning(f"SERVE_RESULT block missing, inferred APPROVED from keyword: '{approval_keywords.group(0)}'")
+        return ServeResult(
+            verdict="APPROVED",
+            continue_=True,
+            next_step=None,
+            blocking_issues=0
         )
 
     return None
@@ -1013,6 +1115,113 @@ def update_action_from_result(
                 del pending_actions[tool_use_id]
 
 
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from text.
+
+    Args:
+        text: String potentially containing ANSI escape codes.
+
+    Returns:
+        Clean text with all ANSI sequences removed.
+    """
+    return _ANSI_RE.sub('', text)
+
+
+def parse_kiro_tool_action(line: str) -> Optional[str]:
+    """Extract tool name from Kiro's '(using tool: <name>)' pattern.
+
+    Args:
+        line: A single line from Kiro CLI output.
+
+    Returns:
+        Tool name string if found, None otherwise.
+    """
+    match = _KIRO_TOOL_USE_RE.search(line)
+    return match.group(1) if match else None
+
+
+def parse_kiro_tool_result(line: str) -> Optional[bool]:
+    """Detect success or failure from Kiro output indicators.
+
+    Kiro uses checkmark characters for success and cross marks for failure.
+
+    Args:
+        line: A single line from Kiro CLI output.
+
+    Returns:
+        True for success (checkmark), False for failure (cross),
+        None if no indicator found.
+    """
+    if _KIRO_SUCCESS_RE.search(line):
+        return True
+    if _KIRO_FAILURE_RE.search(line):
+        return False
+    return None
+
+
+_kiro_action_seq = iter(range(1, 2**63))
+
+
+def extract_kiro_actions_from_line(
+    line: str,
+    pending_actions: dict[str, ActionRecord]
+) -> list[ActionRecord]:
+    """Extract tool actions from a single line of Kiro CLI output.
+
+    Parallel to extract_actions_from_event() but for Kiro's plain-text output.
+    Detects tool use starts and result indicators, tracking actions in
+    pending_actions for correlation.
+
+    Args:
+        line: A single line from Kiro CLI output.
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord.
+                        New tool uses are added; completed ones are removed.
+
+    Returns:
+        List of new ActionRecords created from tool use patterns.
+        Empty list if no tool action detected.
+    """
+    actions: list[ActionRecord] = []
+
+    # Check for new tool use
+    tool_name = parse_kiro_tool_action(line)
+    if tool_name:
+        tool_use_id = f"kiro-{next(_kiro_action_seq)}-{datetime.now().timestamp()}"
+        # Extract context from the same line (GAP 7: input summaries)
+        match = _KIRO_TOOL_USE_RE.search(line)
+        prefix = line[:match.start()].strip() if match else ""
+        suffix = line[match.end():].strip() if match else ""
+        input_summary = (prefix or suffix)[:100]
+        action = ActionRecord(
+            tool_name=tool_name,
+            tool_use_id=tool_use_id,
+            input_summary=input_summary,
+            output_summary="",
+            success=None,  # Unknown until result indicator (GAP 5)
+            timestamp=datetime.now().isoformat(),
+        )
+        actions.append(action)
+        pending_actions[tool_use_id] = action
+        return actions
+
+    # Check for result indicator (resolves most recent pending action)
+    result = parse_kiro_tool_result(line)
+    if result is not None and pending_actions:
+        if len(pending_actions) > 1:
+            # GAP 4: FIFO resolution is unreliable with parallel tools
+            logger.debug(
+                f"Multiple pending actions ({len(pending_actions)}), "
+                "resolving most recent — parallel tool results may misattribute"
+            )
+        # Resolve the most recently added pending action
+        last_key = list(pending_actions.keys())[-1]
+        action = pending_actions[last_key]
+        action.success = result
+        del pending_actions[last_key]
+
+    return actions
+
+
 # --- phase.py ---
 
 def check_idle(last_action_time: Optional[datetime], idle_timeout: int) -> bool:
@@ -1107,6 +1316,90 @@ def detect_kitchen_idle(output: str) -> bool:
     return "KITCHEN_IDLE" in output or "KITCHEN IDLE" in output
 
 
+def build_phase_command(phase: str, args: str, cli_profile: dict) -> list[str]:
+    """Build the subprocess command list for a given phase and CLI profile.
+
+    Args:
+        phase: Phase name (cook, serve, tidy, plate, close-service)
+        args: Optional arguments (e.g., task ID)
+        cli_profile: CLI profile dict from get_cli_profile()
+
+    Returns:
+        Command list suitable for subprocess.Popen
+    """
+    prompt = cli_profile['prompt_format'].format(phase=phase)
+    if args:
+        injection = cli_profile.get('task_injection')
+        if injection:
+            # Prepend args before @ command (workaround for Kiro bug #4141)
+            prompt = f"{injection.format(args=args)}{prompt}"
+        else:
+            prompt = f"{prompt} {args}"
+
+    cmd = [cli_profile['binary']]
+
+    if 'subcommand' in cli_profile:
+        cmd.append(cli_profile['subcommand'])
+
+    if cli_profile.get('has_streaming_json'):
+        # Claude-style: -p prompt, then flags
+        cmd.extend(['-p', prompt])
+        cmd.extend(cli_profile.get('permission_flags', []))
+        cmd.extend(cli_profile.get('output_flags', []))
+    else:
+        # Kiro-style: flags first, prompt at end
+        cmd.extend(cli_profile.get('extra_flags', []))
+        cmd.extend(cli_profile.get('permission_flags', []))
+        cmd.append(prompt)
+
+    return cmd
+
+
+def process_output_line(
+    line: str,
+    cli_profile: dict,
+    pending_actions: dict[str, ActionRecord]
+) -> tuple[list[ActionRecord], str]:
+    """Process a single output line from a CLI subprocess.
+
+    Handles both streaming JSON (Claude) and plain-text (Kiro) output formats
+    based on the cli_profile's has_streaming_json flag.
+
+    Args:
+        line: Raw output line from subprocess stdout
+        cli_profile: CLI profile dict from get_cli_profile()
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord
+
+    Returns:
+        Tuple of (new_actions, cleaned_text):
+        - new_actions: ActionRecords created from tool calls in this line
+        - cleaned_text: Human-readable text extracted from the line
+    """
+    if cli_profile.get('has_streaming_json'):
+        event = parse_stream_json_event(line)
+        if not event:
+            return [], ""
+        new_actions = extract_actions_from_event(event, pending_actions)
+        update_action_from_result(event, pending_actions)
+        text = ""
+        if event.get("type") == "assistant":
+            text = extract_text_from_event(event)
+        return new_actions, text
+    else:
+        cleaned = strip_ansi(line.rstrip('\n'))
+        new_actions = extract_kiro_actions_from_line(cleaned, pending_actions)
+        return new_actions, cleaned
+
+
+def _cleanup_stderr_file(stderr_file):
+    """Close and remove a stderr temp file, ignoring errors."""
+    try:
+        stderr_file.close()
+        os.unlink(stderr_file.name)
+    except (OSError, AttributeError):
+        pass
+
+
 def run_phase(
     phase: str,
     cwd: Path,
@@ -1115,7 +1408,8 @@ def run_phase(
     on_progress: Optional[Callable[[int, str], None]] = None,
     phase_timeouts: Optional[dict[str, int]] = None,
     idle_timeout: Optional[int] = None,
-    idle_action: str = DEFAULT_IDLE_ACTION
+    idle_action: str = DEFAULT_IDLE_ACTION,
+    cli_profile: Optional[dict] = None
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
 
@@ -1130,21 +1424,28 @@ def run_phase(
         idle_timeout: Override idle timeout, or None to use per-phase default from
             DEFAULT_PHASE_IDLE_TIMEOUTS (falls back to DEFAULT_IDLE_TIMEOUT)
         idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: warn)
+        cli_profile: CLI profile dict, or None to use DEFAULT_CLI (backward compatible)
 
     Returns:
         PhaseResult with output, signals, and success status
     """
+    if cli_profile is None:
+        cli_profile = get_cli_profile(DEFAULT_CLI)
+
     idle_timeout = resolve_idle_timeout(phase, idle_timeout)
     if timeout is None:
         timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
         fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
         timeout = timeouts.get(phase, fallback)
 
-    skill = f"/line:{phase}"
-    if args:
-        skill = f"{skill} {args}"
+    # Apply per-CLI timeout multiplier
+    multiplier = cli_profile.get('phase_timeout_multiplier', 1.0)
+    timeout = int(timeout * multiplier)
+    idle_timeout = int(idle_timeout * multiplier)
 
-    logger.debug(f"Running phase {phase}: claude -p '{skill}' (timeout={timeout}s)")
+    cmd = build_phase_command(phase, args, cli_profile)
+
+    logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s)")
     start_time = time.time()
 
     actions: list[ActionRecord] = []
@@ -1155,15 +1456,17 @@ def run_phase(
     error: Optional[str] = None
     last_action_time: Optional[datetime] = None
     idle_warned: bool = False
+    stderr_output: str = ""
+
+    stderr_file = tempfile.NamedTemporaryFile(
+        mode='w+', prefix=f'line-loop-{phase}-stderr-', suffix='.log', delete=False
+    )
 
     try:
         process = subprocess.Popen(
-            ["claude", "-p", skill,
-             "--dangerously-skip-permissions",
-             "--output-format", "stream-json",
-             "--verbose"],
+            cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_file,
             text=True,
             cwd=cwd
         )
@@ -1185,7 +1488,7 @@ def run_phase(
                         process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         logger.warning(f"Phase {phase} process did not terminate after SIGKILL")
-                raise subprocess.TimeoutExpired(cmd=f"claude -p {skill}", timeout=timeout)
+                raise subprocess.TimeoutExpired(cmd=' '.join(cmd), timeout=timeout)
 
             ready, _, _ = select.select([process.stdout], [], [], min(1.0, remaining))
             if ready:
@@ -1193,47 +1496,43 @@ def run_phase(
                 if not line:
                     break
                 output_lines.append(line)
-                event = parse_stream_json_event(line)
-                if event:
-                    # Extract tool_use from assistant messages
-                    new_actions = extract_actions_from_event(event, pending_actions)
-                    actions.extend(new_actions)
-                    # Update actions with tool_result from user messages
-                    update_action_from_result(event, pending_actions)
-                    # Track last action time for idle detection
-                    if new_actions:
-                        last_action_time = datetime.now()
-                        idle_warned = False  # Reset idle warning on new activity
-                    # Notify progress callback when new actions detected
-                    if new_actions and on_progress:
-                        last_ts = new_actions[-1].timestamp
-                        on_progress(len(actions), last_ts)
-                    # Detect signals during streaming
-                    if event.get("type") == "assistant":
-                        text = extract_text_from_event(event)
-                        if "SERVE_RESULT" in text:
-                            if "APPROVED" in text and "serve_approved" not in signals:
-                                signals.append("serve_approved")
-                            elif "NEEDS_CHANGES" in text and "serve_needs_changes" not in signals:
-                                signals.append("serve_needs_changes")
-                            elif "BLOCKED" in text and "serve_blocked" not in signals:
-                                signals.append("serve_blocked")
-                        if ("KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text) and "kitchen_complete" not in signals:
-                            signals.append("kitchen_complete")
-                        if detect_kitchen_idle(text) and "kitchen_idle" not in signals:
-                            signals.append("kitchen_idle")
-                        # Detect phase completion signal for early termination
-                        if "<phase_complete>DONE</phase_complete>" in text and "phase_complete" not in signals:
-                            signals.append("phase_complete")
-                            logger.info(f"Phase {phase} signaled completion, terminating early")
-                            # Graceful early termination
-                            process.terminate()
-                            try:
-                                process.wait(timeout=5)
-                            except subprocess.TimeoutExpired:
-                                process.kill()
-                                process.wait(timeout=5)
-                            break
+                new_actions, text = process_output_line(line, cli_profile, pending_actions)
+                actions.extend(new_actions)
+                # Track last action time for idle detection
+                if new_actions:
+                    last_action_time = datetime.now()
+                    idle_warned = False  # Reset idle warning on new activity
+                # Notify progress callback when new actions detected
+                if new_actions and on_progress:
+                    last_ts = new_actions[-1].timestamp
+                    on_progress(len(actions), last_ts)
+                # Detect signals from text output
+                if text:
+                    # Normalize to strip code fences/box-drawing that might wrap signals (GAP 6)
+                    sig_text = normalize_signal_text(text)
+                    if "SERVE_RESULT" in sig_text:
+                        if "APPROVED" in sig_text and "serve_approved" not in signals:
+                            signals.append("serve_approved")
+                        elif "NEEDS_CHANGES" in sig_text and "serve_needs_changes" not in signals:
+                            signals.append("serve_needs_changes")
+                        elif "BLOCKED" in sig_text and "serve_blocked" not in signals:
+                            signals.append("serve_blocked")
+                    if detect_kitchen_complete(sig_text) and "kitchen_complete" not in signals:
+                        signals.append("kitchen_complete")
+                    if detect_kitchen_idle(sig_text) and "kitchen_idle" not in signals:
+                        signals.append("kitchen_idle")
+                    # Detect phase completion signal for early termination
+                    if "<phase_complete>DONE</phase_complete>" in sig_text and "phase_complete" not in signals:
+                        signals.append("phase_complete")
+                        logger.info(f"Phase {phase} signaled completion, terminating early")
+                        # Graceful early termination
+                        process.terminate()
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait(timeout=5)
+                        break
             else:
                 if process.poll() is not None:
                     break
@@ -1261,9 +1560,28 @@ def run_phase(
         if remaining_out:
             output_lines.extend(remaining_out.splitlines(keepends=True))
         process.wait()
+
+        # Flush unresolved pending actions (e.g., CLI crashed mid-tool-use).
+        # Actions are already in the actions list from initial detection;
+        # just mark them unresolved in-place.
+        for tool_use_id, action in pending_actions.items():
+            action.success = None
+            logger.debug(f"Unresolved pending action: {action.tool_name} ({tool_use_id})")
+        pending_actions.clear()
+
+        # Read stderr from temp file
+        stderr_file.seek(0)
+        stderr_output = stderr_file.read().strip()
+        stderr_file.close()
+        os.unlink(stderr_file.name)
+
+        if stderr_output:
+            logger.debug(f"Phase {phase} stderr: {stderr_output[:500]}")
+
         exit_code = process.returncode
 
     except subprocess.TimeoutExpired:
+        _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         logger.warning(f"Phase {phase} timed out after {duration:.1f}s")
         return PhaseResult(
@@ -1277,6 +1595,7 @@ def run_phase(
             error=f"Timeout after {timeout}s"
         )
     except Exception as e:
+        _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         logger.error(f"Phase {phase} crashed: {e}")
         return PhaseResult(
@@ -1298,6 +1617,13 @@ def run_phase(
 
     logger.debug(f"Phase {phase} completed in {duration:.1f}s, exit={exit_code}, signals={signals}, early_completion={early_completion}")
 
+    # Include stderr in error for failed phases
+    error_msg = None
+    if not success:
+        error_msg = f"Exit code {exit_code}"
+        if stderr_output:
+            error_msg = f"{error_msg}. stderr: {stderr_output[:200]}"
+
     return PhaseResult(
         phase=phase,
         success=success,
@@ -1306,7 +1632,7 @@ def run_phase(
         duration_seconds=duration,
         signals=signals,
         actions=actions,
-        error=None if success else f"Exit code {exit_code}",
+        error=error_msg,
         early_completion=early_completion
     )
 
@@ -1471,14 +1797,25 @@ def parse_bd_json_item(data: Any) -> Optional[dict]:
 
     Returns:
         Issue dict, or None if data is empty or invalid.
+
+    Note:
+        Mutates the input dict to add an inferred parent field when
+        the bd JSON omits it and the ID is hierarchical (dot-separated).
     """
     if isinstance(data, list):
         if not data:
             return None
-        return data[0] if isinstance(data[0], dict) else None
+        item = data[0] if isinstance(data[0], dict) else None
     elif isinstance(data, dict):
-        return data
-    return None
+        item = data
+    else:
+        return None
+    # Infer parent from hierarchical ID when bd JSON omits it
+    if item is not None and item.get("parent") is None:
+        inferred = _infer_parent_from_id(item.get("id", ""))
+        if inferred:
+            item["parent"] = inferred
+    return item
 
 
 def _prefer_target_or_deepest(candidates: set[str], target_task_id: Optional[str]) -> str:
@@ -1762,6 +2099,19 @@ def build_epic_ancestor_map(snapshot: BeadSnapshot, cwd: Path) -> dict[str, Opti
     return cache
 
 
+def _infer_parent_from_id(bead_id: str) -> Optional[str]:
+    """Infer parent ID from bead ID convention (e.g. demo-001.1.1 → demo-001.1).
+
+    Beads uses dot-separated hierarchical IDs. When the bd JSON output
+    doesn't include an explicit parent field, we can infer it by stripping
+    the last segment.
+    """
+    dot_pos = bead_id.rfind(".")
+    if dot_pos > 0:
+        return bead_id[:dot_pos]
+    return None
+
+
 def _parse_bead_info(issue: dict) -> BeadInfo:
     """Parse a bd JSON issue dict into a BeadInfo object."""
     priority = issue.get("priority")
@@ -1770,11 +2120,14 @@ def _parse_bead_info(issue: dict) -> BeadInfo:
             priority = int(priority)
         except (ValueError, TypeError):
             priority = None
+    parent = issue.get("parent")
+    if parent is None:
+        parent = _infer_parent_from_id(issue.get("id", ""))
     return BeadInfo(
         id=issue.get("id", ""),
         title=issue.get("title", ""),
         issue_type=issue.get("issue_type", ""),
-        parent=issue.get("parent"),
+        parent=parent,
         priority=priority,
         status=issue.get("status"),
     )
@@ -2418,7 +2771,11 @@ def detect_eligible_epics(cwd: Path) -> list[str]:
         return []
 
 
-def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> list[dict]:
+def check_epic_completion(
+    cwd: Path,
+    exclude_ids: Optional[set[str]] = None,
+    cli_profile: Optional[dict] = None
+) -> list[dict]:
     """Detect newly completable epics, merge branches, and close via close-service.
 
     Merges epic branches eagerly before running close-service for documentation.
@@ -2428,6 +2785,7 @@ def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> 
     Args:
         cwd: Working directory containing the .beads project.
         exclude_ids: Optional set of epic IDs to skip (already handled by caller).
+        cli_profile: Optional CLI profile dict for phase invocation.
 
     Returns list of completed epic summaries for display.
     """
@@ -2454,7 +2812,7 @@ def check_epic_completion(cwd: Path, exclude_ids: Optional[set[str]] = None) -> 
 
         # Step 2: Run close-service for documentation
         logger.info(f"Running close-service for epic {epic_id}")
-        cs_result = run_phase("close-service", cwd, args=epic_id)
+        cs_result = run_phase("close-service", cwd, args=epic_id, cli_profile=cli_profile)
 
         if cs_result.error:
             logger.warning(f"Close-service failed for epic {epic_id}: {cs_result.error}")
@@ -2596,7 +2954,8 @@ def run_iteration(
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     before_snapshot: Optional[BeadSnapshot] = None,
-    target_task_id: Optional[str] = None
+    target_task_id: Optional[str] = None,
+    cli_profile: Optional[dict] = None
 ) -> IterationResult:
     """Execute individual phases (cook→serve→tidy) with retry logic.
 
@@ -2618,6 +2977,8 @@ def run_iteration(
         idle_timeout: Override idle timeout, or None to use per-phase defaults
         idle_action: Action on idle - "warn" or "terminate"
         before_snapshot: Optional pre-captured snapshot (avoids redundant bd query)
+        target_task_id: Optional task ID to assign (skips task selection)
+        cli_profile: Optional CLI profile dict for phase invocation
     """
     start_time = datetime.now()
     logger.info(f"Starting iteration {iteration}/{max_iterations}")
@@ -2681,7 +3042,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("cook")
-        cook_result = run_phase("cook", cwd, args=target_task_id or "", on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+        cook_result = run_phase("cook", cwd, args=target_task_id or "", on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
@@ -2788,7 +3149,7 @@ def run_iteration(
 
         if progress_state:
             progress_state.start_phase("serve")
-        serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+        serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
         all_output.append(serve_result.output)
@@ -2965,7 +3326,7 @@ def run_iteration(
 
     if progress_state:
         progress_state.start_phase("tidy")
-    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+    tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
     all_actions.extend(tidy_result.actions)
     all_output.append("\n=== TIDY PHASE ===\n")
     all_output.append(tidy_result.output)
@@ -3017,7 +3378,7 @@ def run_iteration(
 
             if progress_state:
                 progress_state.start_phase("plate")
-            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+            plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
             all_actions.extend(plate_result.actions)
             all_output.append("\n=== PLATE PHASE ===\n")
             all_output.append(plate_result.output)
@@ -3057,7 +3418,7 @@ def run_iteration(
 
                     if progress_state:
                         progress_state.start_phase("close-service")
-                    cs_result = run_phase("close-service", cwd, args=epic_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action)
+                    cs_result = run_phase("close-service", cwd, args=epic_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
                     all_actions.extend(cs_result.actions)
                     all_output.append("\n=== CLOSE-SERVICE PHASE ===\n")
                     all_output.append(cs_result.output)
@@ -3225,6 +3586,8 @@ def detect_first_epic(
     for bead in snapshot.ready_work:
         if bead.id in skip_ids:
             continue
+        if bead.priority is not None and bead.priority >= BACKLOG_PRIORITY_THRESHOLD:
+            continue
         if ancestor_map is not None:
             epic_id = ancestor_map.get(bead.id)
             if epic_id and epic_id not in excluded_ids and epic_id not in exhausted_set:
@@ -3326,6 +3689,11 @@ def get_next_ready_task(
                 candidates, excluded_epic_ids, snapshot, cwd,
                 ancestor_map=ancestor_map
             )
+        # Filter out backlog-priority items
+        candidates = [
+            b for b in candidates
+            if b.priority is None or b.priority < BACKLOG_PRIORITY_THRESHOLD
+        ]
         # Two-pass: prefer tasks over features
         for bead in candidates:
             if bead.id not in skip_ids and bead.issue_type == "task":
@@ -3351,7 +3719,8 @@ def get_next_ready_task(
             work_items = [
                 i for i in issues
                 if isinstance(i, dict) and i.get("issue_type") != "epic"
-                and i.get("id", "") and i.get("id", "") not in skip_ids
+                and i.get("id") and i["id"] not in skip_ids
+                and (i.get("priority") is None or int(i.get("priority", 0)) < BACKLOG_PRIORITY_THRESHOLD)
             ]
             for issue in work_items:
                 if issue.get("issue_type") == "task":
@@ -3609,7 +3978,8 @@ def write_status_file(
     skipped_tasks: Optional[list] = None,
     escalation: Optional[dict] = None,
     epic_mode: Optional[str] = None,
-    current_epic: Optional[str] = None
+    current_epic: Optional[str] = None,
+    cli_name: Optional[str] = None
 ):
     """Write live status JSON for external monitoring.
 
@@ -3646,6 +4016,10 @@ def write_status_file(
         status["epic_mode"] = epic_mode
     if current_epic:
         status["current_epic"] = current_epic
+
+    # Add CLI name (omit when default to keep output clean)
+    if cli_name and cli_name != DEFAULT_CLI:
+        status["cli"] = cli_name
 
     # Add intra-iteration progress fields
     if current_phase:
@@ -3844,8 +4218,10 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
                 return (None, False)
             result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
-                # Pull failed but we're on main - continue with possibly stale state
-                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+                if "no tracking information" in result.stderr.lower():
+                    logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+                else:
+                    logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
             result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
                 logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
@@ -3868,7 +4244,12 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
                     if result.returncode != 0:
                         logger.warning(f"Failed to checkout main: {result.stderr}")
                         return (None, False)
-                    run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    pull_result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    if pull_result.returncode != 0:
+                        if "no tracking information" in pull_result.stderr.lower():
+                            logger.debug(f"git pull skipped (no upstream): {pull_result.stderr}")
+                        else:
+                            logger.warning(f"Failed to pull main (continuing anyway): {pull_result.stderr}")
                     result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
                     if result.returncode != 0:
                         logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
@@ -3917,8 +4298,10 @@ def merge_epic_on_close(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool,
             return (False, None)
         result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
-            # Pull failed but continue - merge might still work
-            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            if "no tracking information" in result.stderr.lower():
+                logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+            else:
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
 
         # Attempt merge
         merge_result = run_subprocess(
@@ -4019,7 +4402,10 @@ def merge_completed_epic(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool
             return (False, None)
         result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
-            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            if "no tracking information" in result.stderr.lower():
+                logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+            else:
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
 
         # Attempt merge
         merge_result = run_subprocess(
@@ -4094,7 +4480,8 @@ def run_loop(
     max_task_failures: int = DEFAULT_MAX_TASK_FAILURES,
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
-    epic_mode: Optional[str] = None
+    epic_mode: Optional[str] = None,
+    cli_name: Optional[str] = None
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat.
 
@@ -4110,6 +4497,9 @@ def run_loop(
     - None: default mode, excludes Retrospective/Backlog epics
     - "auto": auto-detect first non-excluded epic, work only its tasks
     - "<id>": work only the specified epic's tasks
+
+    CLI selection: cli_name selects the AI coding tool profile (e.g.,
+    "claude-code", "kiro"). Defaults to DEFAULT_CLI if not specified.
     """
     global _shutdown_requested
 
@@ -4124,7 +4514,10 @@ def run_loop(
     current_epic_title: Optional[str] = None
     exhausted_epic_ids: set[str] = set()  # Epics already tried in auto mode
 
-    logger.info(f"Loop starting: max_iterations={max_iterations}, epic_mode={epic_mode}")
+    # Resolve CLI profile at loop start
+    cli_profile = get_cli_profile(cli_name or DEFAULT_CLI)
+
+    logger.info(f"Loop starting: max_iterations={max_iterations}, epic_mode={epic_mode}, cli={cli_name or DEFAULT_CLI}")
 
     # Validate explicit epic ID upfront
     if epic_mode and epic_mode != "auto":
@@ -4306,7 +4699,8 @@ def run_loop(
                 tasks_completed=completed_count,
                 tasks_remaining=ready_work_count,
                 started_at=started_at,
-                iterations=iterations
+                iterations=iterations,
+                cli_name=cli_name
             )
 
         # Run iteration with individual phase invocations
@@ -4319,7 +4713,8 @@ def run_loop(
             idle_timeout=idle_timeout,
             idle_action=idle_action,
             before_snapshot=snapshot,
-            target_task_id=target_task_id
+            target_task_id=target_task_id,
+            cli_profile=cli_profile
         )
         iterations.append(result)
 
@@ -4350,7 +4745,8 @@ def run_loop(
                 started_at=started_at,
                 iterations=iterations,
                 epic_mode=epic_mode,
-                current_epic=current_epic_id
+                current_epic=current_epic_id,
+                cli_name=cli_name
             )
 
         # Append iteration to history JSONL file (full action details)
@@ -4467,7 +4863,7 @@ def run_loop(
         # Merge and close-service are now handled inside check_epic_completion()
         if result.success:
             already_handled = set(result.closed_epics)
-            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled)
+            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled, cli_profile=cli_profile)
             if epic_summaries:
                 # Update status file with epic completions
                 if status_file:
@@ -4550,7 +4946,8 @@ def run_loop(
             skipped_tasks=skip_list.get_skipped_tasks(),
             escalation=escalation,
             epic_mode=epic_mode,
-            current_epic=current_epic_id
+            current_epic=current_epic_id,
+            cli_name=cli_name
         )
 
     # Write history summary record to mark end of loop
@@ -4684,15 +5081,54 @@ def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     )
 
 
-def check_health(cwd: Path) -> dict:
+def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
     """Verify environment before starting loop."""
+    profile = get_cli_profile(cli_name)
+    binary = profile['binary']
     checks = {
-        'claude_cli': shutil.which('claude') is not None,
+        f'{cli_name}_cli': shutil.which(binary) is not None,
         'bd_cli': shutil.which('bd') is not None,
         'git_repo': (cwd / '.git').exists(),
         'beads_init': (cwd / '.beads').exists(),
     }
-    return {'healthy': all(checks.values()), 'checks': checks}
+    hints = {}
+    warnings = []
+    if not checks[f'{cli_name}_cli'] and 'install_hint' in profile:
+        hints[f'{cli_name}_cli'] = profile['install_hint']
+    # Kiro-specific checks
+    if cli_name == 'kiro':
+        # Agent configuration check
+        agent_local = cwd / '.kiro' / 'agents' / 'line-cook.json'
+        agent_global = Path.home() / '.kiro' / 'agents' / 'line-cook.json'
+        checks['kiro_agent'] = agent_local.exists() or agent_global.exists()
+        if not checks['kiro_agent']:
+            hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-loop/)'
+        # Version check (GAP 8: diagnostic, not gating)
+        if checks[f'{cli_name}_cli']:
+            try:
+                result = subprocess.run(
+                    [binary, '--version'], capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    checks['kiro_version'] = result.stdout.strip()
+                else:
+                    checks['kiro_version'] = 'unknown'
+            except Exception:
+                checks['kiro_version'] = 'unknown'
+        # Sub-agent limitation warning (GAP 2)
+        warnings.append(
+            'Kiro lacks Task tool: sub-agent quality gates (taster, sous-chef, polisher, '
+            'maitre, critic) will use inline fallbacks instead of dedicated agents'
+        )
+    healthy = all(
+        v for k, v in checks.items()
+        if k != 'kiro_version'  # Version is diagnostic, not gating
+        and isinstance(v, bool)
+    )
+    result = {'healthy': healthy, 'checks': checks, 'hints': hints}
+    if warnings:
+        result['warnings'] = warnings
+    return result
 
 
 def main():
@@ -4832,6 +5268,12 @@ Examples:
         default=DEFAULT_IDLE_ACTION,
         help=f"Action to take when idle detected: warn (log warning) or terminate (stop phase) (default: {DEFAULT_IDLE_ACTION})"
     )
+    parser.add_argument(
+        "--cli",
+        choices=list(CLI_PROFILES.keys()),
+        default=DEFAULT_CLI,
+        help=f"CLI to use for phase execution (default: {DEFAULT_CLI})"
+    )
 
     args = parser.parse_args()
 
@@ -4853,15 +5295,26 @@ Examples:
 
     # Health check mode
     if args.health_check:
-        health = check_health(cwd)
+        health = check_health(cwd, cli_name=args.cli)
         if args.json:
             print(json.dumps(health, indent=2))
         else:
             print("Environment Health Check")
             print("=" * 30)
-            for check, passed in health['checks'].items():
-                status = "OK" if passed else "FAIL"
+            for check, value in health['checks'].items():
+                if isinstance(value, bool):
+                    status = "OK" if value else "FAIL"
+                else:
+                    status = str(value)
                 print(f"  {check}: {status}")
+            if health.get('hints'):
+                print("-" * 30)
+                for check_name, hint in health['hints'].items():
+                    print(f"  hint: {hint}")
+            if health.get('warnings'):
+                print("-" * 30)
+                for warning in health['warnings']:
+                    print(f"  warn: {warning}")
             print("=" * 30)
             overall = "HEALTHY" if health['healthy'] else "UNHEALTHY"
             print(f"Overall: {overall}")
@@ -4884,6 +5337,15 @@ Examples:
         'plate': args.plate_timeout,
     }
 
+    # Fail fast if CLI binary not found
+    profile = get_cli_profile(args.cli)
+    if not shutil.which(profile['binary']):
+        logger.error(f"CLI binary '{profile['binary']}' not found in PATH")
+        logger.error(f"Selected CLI: --cli {args.cli}")
+        if args.cli == 'kiro':
+            logger.error("Install Kiro CLI: https://kiro.dev")
+        sys.exit(1)
+
     try:
         report = run_loop(
             max_iterations=args.max_iterations,
@@ -4901,7 +5363,8 @@ Examples:
             max_task_failures=args.max_task_failures,
             idle_timeout=args.idle_timeout,
             idle_action=args.idle_action,
-            epic_mode=args.epic
+            epic_mode=args.epic,
+            cli_name=args.cli
         )
     finally:
         # Clean up PID file on exit

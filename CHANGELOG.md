@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `/loop` now supports Kiro via `--cli kiro` flag — autonomous loop runs in any CLI that supports streaming output
+  - CLI profiles abstract tool-use parsing and invocation differences between Claude Code and Kiro
+  - Kiro output parser handles Kiro's streaming format with monotonic counter for tool_use_id
+- Demo loop (`docs/demos/demo-loop/`) replaces demo-kiro with comprehensive loop testing scenarios
+- Phase 3: Hardening & Generalization (lc-769)
+  - GitHub App identity for CI integration — fix branches now trigger CI workflows automatically
+  - Reusable issue agent template — install in any repo with minimal configuration
+  - E2E smoke tests for issue agent workflow — validates critical user journeys
+  - Features: GitHub App identity (lc-769.1), reusable template (lc-769.2), E2E tests (lc-769.3)
 - Interactive follow-up via @mention in issue comments (lc-p62.2)
   - `@claude` mention in any issue comment triggers a conversational response
   - Agent searches codebase and provides referenced answers with file paths and line numbers
@@ -18,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Structured comment with what changed, branch name, checkout instructions, and verification request
   - Confidence criteria with 3-file scope guardrail — asks clarifying questions when unsure
   - Uses `refs #N` instead of `closes #N` to keep issues open for human verification
+
+### Fixed
+- `/loop` no longer shows duplicate action entries when flushing pending actions
+- `/loop` now uses `detect_kitchen_complete()` consistently for signal detection
+- `/loop` resolves 15 UX gaps found during Kiro walkthrough analysis (epic close handling, P4 filter, git warnings, and more)
+- Epic branch merge decoupled from close-service — merges fire independently after epic closure
+
+### Changed
+- `/loop` phase runner refactored for CLI-agnostic invocation — cleaner separation between loop logic and CLI-specific behavior
 
 ## [0.16.1] - 2026-02-15
 ### Added

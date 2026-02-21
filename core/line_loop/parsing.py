@@ -1,6 +1,6 @@
 """Output parsing functions for line-loop.
 
-Functions for parsing Claude output:
+Functions for parsing CLI output (Claude stream-json and Kiro plain-text):
 - parse_serve_result: Extract SERVE_RESULT block
 - parse_serve_feedback: Extract detailed review feedback
 - parse_intent_block: Extract INTENT block
@@ -8,17 +8,59 @@ Functions for parsing Claude output:
 - extract_text_from_event: Get text from streaming event
 - extract_actions_from_event: Get tool actions from event
 - update_action_from_result: Update actions with tool results
+- strip_ansi: Remove ANSI escape sequences
+- parse_kiro_tool_action: Extract tool name from Kiro output
+- parse_kiro_tool_result: Detect success/failure from Kiro indicators
+- extract_kiro_actions_from_line: Parse Kiro output into ActionRecords
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime
 from typing import Optional
 
 from .config import OUTPUT_SUMMARY_MAX_LENGTH
 from .models import ActionRecord, ServeFeedback, ServeFeedbackIssue, ServeResult
+
+logger = logging.getLogger(__name__)
+
+# ANSI escape sequence pattern (covers SGR, cursor, and OSC sequences)
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07')
+
+# Kiro output patterns
+# Case-insensitive with optional parentheses for robustness (GAP 3)
+_KIRO_TOOL_USE_RE = re.compile(r'\(?\s*using\s+tool:\s*(\w+)\s*\)?', re.IGNORECASE)
+_KIRO_SUCCESS_RE = re.compile(r'[\u2713\u2714]')  # ✓ ✔
+_KIRO_FAILURE_RE = re.compile(r'[\u2717\u2718]')  # ✗ ✘
+
+
+# Box-drawing characters used in terminal UI borders
+_BOX_DRAWING_RE = re.compile(r'[│┌┐└┘├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬]')
+
+
+def normalize_signal_text(text: str) -> str:
+    """Normalize text for signal detection.
+
+    Strips formatting that might wrap signal markers (SERVE_RESULT,
+    KITCHEN_COMPLETE, etc.) when CLIs emit markdown fences, box-drawing
+    borders, or other decorative formatting.
+
+    Args:
+        text: Raw output text that may contain signals.
+
+    Returns:
+        Cleaned text suitable for substring signal detection.
+    """
+    # Strip markdown code fences
+    text = re.sub(r'```[a-z]*', '', text)
+    # Strip backtick inline code
+    text = text.replace('`', '')
+    # Strip box-drawing border characters
+    text = _BOX_DRAWING_RE.sub(' ', text)
+    return text
 
 
 def parse_serve_result(output: str) -> Optional[ServeResult]:
@@ -65,6 +107,20 @@ def parse_serve_result(output: str) -> Optional[ServeResult]:
             continue_=continue_match.group(1).lower() == "true" if continue_match else True,
             next_step=next_step_match.group(1) if next_step_match else None,
             blocking_issues=int(blocking_match.group(1)) if blocking_match else 0
+        )
+
+    # Keyword fallback: infer verdict from natural language
+    approval_keywords = re.search(
+        r'\b(LGTM|approved|no issues found|looks good|ship it)\b',
+        output, re.IGNORECASE
+    )
+    if approval_keywords:
+        logger.warning(f"SERVE_RESULT block missing, inferred APPROVED from keyword: '{approval_keywords.group(0)}'")
+        return ServeResult(
+            verdict="APPROVED",
+            continue_=True,
+            next_step=None,
+            blocking_issues=0
         )
 
     return None
@@ -362,4 +418,111 @@ def update_action_from_result(
                         action.output_summary = f"ERROR: {action.output_summary}"
                 # Remove from pending after processing
                 del pending_actions[tool_use_id]
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from text.
+
+    Args:
+        text: String potentially containing ANSI escape codes.
+
+    Returns:
+        Clean text with all ANSI sequences removed.
+    """
+    return _ANSI_RE.sub('', text)
+
+
+def parse_kiro_tool_action(line: str) -> Optional[str]:
+    """Extract tool name from Kiro's '(using tool: <name>)' pattern.
+
+    Args:
+        line: A single line from Kiro CLI output.
+
+    Returns:
+        Tool name string if found, None otherwise.
+    """
+    match = _KIRO_TOOL_USE_RE.search(line)
+    return match.group(1) if match else None
+
+
+def parse_kiro_tool_result(line: str) -> Optional[bool]:
+    """Detect success or failure from Kiro output indicators.
+
+    Kiro uses checkmark characters for success and cross marks for failure.
+
+    Args:
+        line: A single line from Kiro CLI output.
+
+    Returns:
+        True for success (checkmark), False for failure (cross),
+        None if no indicator found.
+    """
+    if _KIRO_SUCCESS_RE.search(line):
+        return True
+    if _KIRO_FAILURE_RE.search(line):
+        return False
+    return None
+
+
+_kiro_action_seq = iter(range(1, 2**63))
+
+
+def extract_kiro_actions_from_line(
+    line: str,
+    pending_actions: dict[str, ActionRecord]
+) -> list[ActionRecord]:
+    """Extract tool actions from a single line of Kiro CLI output.
+
+    Parallel to extract_actions_from_event() but for Kiro's plain-text output.
+    Detects tool use starts and result indicators, tracking actions in
+    pending_actions for correlation.
+
+    Args:
+        line: A single line from Kiro CLI output.
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord.
+                        New tool uses are added; completed ones are removed.
+
+    Returns:
+        List of new ActionRecords created from tool use patterns.
+        Empty list if no tool action detected.
+    """
+    actions: list[ActionRecord] = []
+
+    # Check for new tool use
+    tool_name = parse_kiro_tool_action(line)
+    if tool_name:
+        tool_use_id = f"kiro-{next(_kiro_action_seq)}-{datetime.now().timestamp()}"
+        # Extract context from the same line (GAP 7: input summaries)
+        match = _KIRO_TOOL_USE_RE.search(line)
+        prefix = line[:match.start()].strip() if match else ""
+        suffix = line[match.end():].strip() if match else ""
+        input_summary = (prefix or suffix)[:100]
+        action = ActionRecord(
+            tool_name=tool_name,
+            tool_use_id=tool_use_id,
+            input_summary=input_summary,
+            output_summary="",
+            success=None,  # Unknown until result indicator (GAP 5)
+            timestamp=datetime.now().isoformat(),
+        )
+        actions.append(action)
+        pending_actions[tool_use_id] = action
+        return actions
+
+    # Check for result indicator (resolves most recent pending action)
+    result = parse_kiro_tool_result(line)
+    if result is not None and pending_actions:
+        if len(pending_actions) > 1:
+            # GAP 4: FIFO resolution is unreliable with parallel tools
+            logger.debug(
+                f"Multiple pending actions ({len(pending_actions)}), "
+                "resolving most recent — parallel tool results may misattribute"
+            )
+        # Resolve the most recently added pending action
+        last_key = list(pending_actions.keys())[-1]
+        action = pending_actions[last_key]
+        action.success = result
+        del pending_actions[last_key]
+
+    return actions
 

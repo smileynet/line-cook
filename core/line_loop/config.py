@@ -43,6 +43,53 @@ CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
 # Hierarchy traversal
 HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks
 
+# Priority filtering
+BACKLOG_PRIORITY_THRESHOLD = 4      # Skip P4+ beads in auto-selection (parking lot)
+
+# CLI profiles for multi-CLI support
+CLI_PROFILES = {
+    'claude': {
+        'binary': 'claude',
+        'prompt_format': '/line:{phase}',
+        'permission_flags': ['--dangerously-skip-permissions'],
+        'output_flags': ['--output-format', 'stream-json', '--verbose'],
+        'has_streaming_json': True,
+        'install_hint': 'Install Claude Code: https://docs.anthropic.com/en/docs/claude-code',
+        'phase_timeout_multiplier': 1.0,
+    },
+    'kiro': {
+        'binary': 'kiro-cli',
+        'subcommand': 'chat',
+        'prompt_format': '@line-{phase}',
+        'permission_flags': ['--trust-all-tools'],
+        'extra_flags': ['--no-interactive', '--wrap', 'never', '--agent', 'line-cook'],
+        'has_streaming_json': False,
+        'install_hint': 'Install Kiro CLI: https://kiro.dev/docs/cli',
+        'phase_timeout_multiplier': 1.5,
+        # Kiro bug #4141: args after @ commands are silently dropped.
+        # Inject task ID as text before the @ command so the agent receives it.
+        'task_injection': '[task-id: {args}] ',
+    },
+}
+
+DEFAULT_CLI = 'claude'
+
+
+def get_cli_profile(name: str) -> dict:
+    """Get CLI profile by name.
+
+    Args:
+        name: Profile name ('claude' or 'kiro').
+
+    Returns:
+        Profile dict with binary, prompt_format, flags, etc.
+
+    Raises:
+        KeyError: If profile name is not found.
+    """
+    return CLI_PROFILES[name]
+
+
 # Epic titles to exclude from auto-selection (parking lot pattern)
 # See .kiro/steering/line-cook.md, parking lot section
 EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})

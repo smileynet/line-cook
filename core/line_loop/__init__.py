@@ -18,6 +18,9 @@ __version__ = "0.1.0"
 
 # Re-export config constants for convenience
 from .config import (
+    BACKLOG_PRIORITY_THRESHOLD,
+    CLI_PROFILES,
+    DEFAULT_CLI,
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_TASK_FAILURES,
     DEFAULT_PHASE_TIMEOUTS,
@@ -32,6 +35,7 @@ from .config import (
     LOG_FILE_MAX_BYTES,
     LOG_FILE_BACKUP_COUNT,
     PERIODIC_SYNC_INTERVAL,
+    get_cli_profile,
 )
 
 # Re-export models for convenience
@@ -63,10 +67,17 @@ from .parsing import (
     extract_text_from_event,
     extract_actions_from_event,
     update_action_from_result,
+    strip_ansi,
+    normalize_signal_text,
+    parse_kiro_tool_action,
+    parse_kiro_tool_result,
+    extract_kiro_actions_from_line,
 )
 
 # Re-export phase execution functions
 from .phase import (
+    build_phase_command,
+    process_output_line,
     run_phase,
     run_subprocess,
     check_idle,
@@ -134,6 +145,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     # Config
+    "BACKLOG_PRIORITY_THRESHOLD",
+    "CLI_PROFILES",
+    "DEFAULT_CLI",
+    "get_cli_profile",
     "DEFAULT_MAX_ITERATIONS",
     "DEFAULT_MAX_TASK_FAILURES",
     "DEFAULT_PHASE_TIMEOUTS",
@@ -173,7 +188,14 @@ __all__ = [
     "extract_text_from_event",
     "extract_actions_from_event",
     "update_action_from_result",
+    "strip_ansi",
+    "normalize_signal_text",
+    "parse_kiro_tool_action",
+    "parse_kiro_tool_result",
+    "extract_kiro_actions_from_line",
     # Phase execution
+    "build_phase_command",
+    "process_output_line",
     "run_phase",
     "run_subprocess",
     "check_idle",
