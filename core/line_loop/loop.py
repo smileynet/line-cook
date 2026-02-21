@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import (
+    BACKLOG_PRIORITY_THRESHOLD,
     BD_COMMAND_TIMEOUT,
     DEFAULT_CLI,
     DEFAULT_IDLE_ACTION,
@@ -184,6 +185,8 @@ def detect_first_epic(
     for bead in snapshot.ready_work:
         if bead.id in skip_ids:
             continue
+        if bead.priority is not None and bead.priority >= BACKLOG_PRIORITY_THRESHOLD:
+            continue
         if ancestor_map is not None:
             epic_id = ancestor_map.get(bead.id)
             if epic_id and epic_id not in excluded_ids and epic_id not in exhausted_set:
@@ -285,6 +288,11 @@ def get_next_ready_task(
                 candidates, excluded_epic_ids, snapshot, cwd,
                 ancestor_map=ancestor_map
             )
+        # Filter out backlog-priority items
+        candidates = [
+            b for b in candidates
+            if b.priority is None or b.priority < BACKLOG_PRIORITY_THRESHOLD
+        ]
         # Two-pass: prefer tasks over features
         for bead in candidates:
             if bead.id not in skip_ids and bead.issue_type == "task":
@@ -310,7 +318,8 @@ def get_next_ready_task(
             work_items = [
                 i for i in issues
                 if isinstance(i, dict) and i.get("issue_type") != "epic"
-                and i.get("id", "") and i.get("id", "") not in skip_ids
+                and i.get("id") and i["id"] not in skip_ids
+                and (i.get("priority") is None or int(i.get("priority", 0)) < BACKLOG_PRIORITY_THRESHOLD)
             ]
             for issue in work_items:
                 if issue.get("issue_type") == "task":
@@ -808,8 +817,10 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
                 return (None, False)
             result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
-                # Pull failed but we're on main - continue with possibly stale state
-                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+                if "no tracking information" in result.stderr.lower():
+                    logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+                else:
+                    logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
             result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
                 logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
@@ -832,7 +843,12 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
                     if result.returncode != 0:
                         logger.warning(f"Failed to checkout main: {result.stderr}")
                         return (None, False)
-                    run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    pull_result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    if pull_result.returncode != 0:
+                        if "no tracking information" in pull_result.stderr.lower():
+                            logger.debug(f"git pull skipped (no upstream): {pull_result.stderr}")
+                        else:
+                            logger.warning(f"Failed to pull main (continuing anyway): {pull_result.stderr}")
                     result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
                     if result.returncode != 0:
                         logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
@@ -881,8 +897,10 @@ def merge_epic_on_close(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool,
             return (False, None)
         result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
-            # Pull failed but continue - merge might still work
-            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            if "no tracking information" in result.stderr.lower():
+                logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+            else:
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
 
         # Attempt merge
         merge_result = run_subprocess(
@@ -983,7 +1001,10 @@ def merge_completed_epic(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool
             return (False, None)
         result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
-            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            if "no tracking information" in result.stderr.lower():
+                logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+            else:
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
 
         # Attempt merge
         merge_result = run_subprocess(

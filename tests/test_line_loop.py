@@ -17,9 +17,9 @@ import line_loop
 
 # --- Shared test helpers ---
 
-def make_bead(id, title="", issue_type="task", parent=None):
+def make_bead(id, title="", issue_type="task", parent=None, priority=None):
     """Create a BeadInfo for testing."""
-    return line_loop.BeadInfo(id=id, title=title, issue_type=issue_type, parent=parent)
+    return line_loop.BeadInfo(id=id, title=title, issue_type=issue_type, parent=parent, priority=priority)
 
 
 def make_snapshot(beads):
@@ -4777,6 +4777,92 @@ class TestHealthCheckKiroVersion(unittest.TestCase):
         self.assertEqual(health['checks']['kiro_version'], 'unknown')
         # healthy is True because kiro_version is not a bool check
         self.assertTrue(health['healthy'])
+
+
+class TestParseBdJsonItemParentInference(unittest.TestCase):
+    """Test that parse_bd_json_item infers parent from hierarchical ID."""
+
+    def test_infers_parent_from_dotted_id(self):
+        """A dict without parent gets parent inferred from ID."""
+        result = line_loop.iteration.parse_bd_json_item(
+            {"id": "demo-001.1.1", "title": "Task", "status": "open"}
+        )
+        self.assertEqual(result["parent"], "demo-001.1")
+
+    def test_preserves_explicit_parent(self):
+        """An explicit parent field is not overwritten."""
+        result = line_loop.iteration.parse_bd_json_item(
+            {"id": "demo-001.1.1", "title": "Task", "parent": "custom-parent"}
+        )
+        self.assertEqual(result["parent"], "custom-parent")
+
+    def test_top_level_id_no_parent(self):
+        """A top-level ID (no dots) gets no parent inferred."""
+        result = line_loop.iteration.parse_bd_json_item(
+            {"id": "demo-001", "title": "Epic"}
+        )
+        self.assertIsNone(result.get("parent"))
+
+    def test_list_input_infers_parent(self):
+        """List-wrapped input also gets parent inference."""
+        result = line_loop.iteration.parse_bd_json_item(
+            [{"id": "demo-001.2", "title": "Feature"}]
+        )
+        self.assertEqual(result["parent"], "demo-001")
+
+
+class TestDetectFirstEpicP4Filter(unittest.TestCase):
+    """Test that detect_first_epic skips P4 backlog items."""
+
+    def test_skips_p4_tasks(self):
+        """P4 tasks are not used for epic detection."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        p4_task = make_bead("task-p4", "Parked", "task", parent="epic-1", priority=4)
+        p3_task = make_bead("task-p3", "Normal", "task", parent="epic-1", priority=3)
+        snapshot = make_snapshot([epic, p4_task, p3_task])
+        result = line_loop.detect_first_epic(snapshot, set(), set(), Path("/tmp"))
+        self.assertIsNotNone(result)
+        # Should detect via p3_task, not p4_task
+        self.assertEqual(result[0], "epic-1")
+
+    def test_skips_all_p4_returns_none(self):
+        """When only P4 items exist under an epic, that epic is not detected."""
+        epic = make_bead("epic-1", "Epic", "epic")
+        p4_task = make_bead("task-p4", "Parked", "task", parent="epic-1", priority=4)
+        snapshot = make_snapshot([epic, p4_task])
+        result = line_loop.detect_first_epic(snapshot, set(), set(), Path("/tmp"))
+        self.assertIsNone(result)
+
+
+class TestGetNextReadyTaskP4Filter(unittest.TestCase):
+    """Test that get_next_ready_task excludes P4 backlog items."""
+
+    def test_excludes_p4_tasks(self):
+        """P4 tasks are not selected as next work."""
+        snapshot = make_snapshot([
+            make_bead("t-p4", "Parked", "task", priority=4),
+            make_bead("t-p2", "Normal", "task", priority=2),
+        ])
+        result = line_loop.get_next_ready_task(Path("/tmp"), snapshot=snapshot)
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "t-p2")
+
+    def test_returns_none_when_only_p4(self):
+        """Returns None when only P4 tasks are available."""
+        snapshot = make_snapshot([
+            make_bead("t-p4", "Parked", "task", priority=4),
+        ])
+        result = line_loop.get_next_ready_task(Path("/tmp"), snapshot=snapshot)
+        self.assertIsNone(result)
+
+    def test_none_priority_included(self):
+        """Tasks with no priority set are still selected."""
+        snapshot = make_snapshot([
+            make_bead("t-none", "No Priority", "task", priority=None),
+        ])
+        result = line_loop.get_next_ready_task(Path("/tmp"), snapshot=snapshot)
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "t-none")
 
 
 if __name__ == "__main__":

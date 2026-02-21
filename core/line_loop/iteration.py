@@ -214,14 +214,25 @@ def parse_bd_json_item(data: Any) -> Optional[dict]:
 
     Returns:
         Issue dict, or None if data is empty or invalid.
+
+    Note:
+        Mutates the input dict to add an inferred parent field when
+        the bd JSON omits it and the ID is hierarchical (dot-separated).
     """
     if isinstance(data, list):
         if not data:
             return None
-        return data[0] if isinstance(data[0], dict) else None
+        item = data[0] if isinstance(data[0], dict) else None
     elif isinstance(data, dict):
-        return data
-    return None
+        item = data
+    else:
+        return None
+    # Infer parent from hierarchical ID when bd JSON omits it
+    if item is not None and item.get("parent") is None:
+        inferred = _infer_parent_from_id(item.get("id", ""))
+        if inferred:
+            item["parent"] = inferred
+    return item
 
 
 def _prefer_target_or_deepest(candidates: set[str], target_task_id: Optional[str]) -> str:
@@ -375,7 +386,7 @@ def find_epic_ancestor(bead: BeadInfo, snapshot: BeadSnapshot, cwd: Path) -> Opt
                     id=issue.get("id", parent_id),
                     title=issue.get("title", ""),
                     issue_type=issue.get("issue_type", "unknown"),
-                    parent=issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id)),
+                    parent=issue.get("parent"),
                 )
                 if info.issue_type == "epic":
                     return info
@@ -428,7 +439,7 @@ def is_descendant_of_epic(bead: BeadInfo, epic_id: str, snapshot: BeadSnapshot, 
                     break
                 if issue.get("issue_type") == "epic":
                     return issue.get("id") == epic_id
-                parent_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id))
+                parent_id = issue.get("parent")
             except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
                 logger.debug(f"Error checking descendant for {parent_id}: {e}")
                 break
@@ -493,7 +504,7 @@ def build_epic_ancestor_map(snapshot: BeadSnapshot, cwd: Path) -> dict[str, Opti
                     if issue.get("issue_type") == "epic":
                         epic_id = parent_id
                         break
-                    parent_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id))
+                    parent_id = issue.get("parent")
                 except Exception as e:
                     logger.debug(f"Error building ancestor map for {parent_id}: {e}")
                     break
@@ -818,7 +829,7 @@ def get_epic_for_task(task_id: str, cwd: Path) -> Optional[str]:
                 return None
             if issue.get("issue_type") == "epic":
                 return current_id
-            current_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", current_id))
+            current_id = issue.get("parent")
         except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
             logger.debug(f"Error traversing hierarchy for {current_id}: {e}")
             return None
