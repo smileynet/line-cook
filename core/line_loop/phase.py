@@ -338,7 +338,7 @@ def run_phase(
                             signals.append("serve_needs_changes")
                         elif "BLOCKED" in sig_text and "serve_blocked" not in signals:
                             signals.append("serve_blocked")
-                    if ("KITCHEN_COMPLETE" in sig_text or "KITCHEN COMPLETE" in sig_text) and "kitchen_complete" not in signals:
+                    if detect_kitchen_complete(sig_text) and "kitchen_complete" not in signals:
                         signals.append("kitchen_complete")
                     if detect_kitchen_idle(sig_text) and "kitchen_idle" not in signals:
                         signals.append("kitchen_idle")
