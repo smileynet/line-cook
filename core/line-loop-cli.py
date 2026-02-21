@@ -97,7 +97,7 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
         agent_global = Path.home() / '.kiro' / 'agents' / 'line-cook.json'
         checks['kiro_agent'] = agent_local.exists() or agent_global.exists()
         if not checks['kiro_agent']:
-            hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-kiro/)'
+            hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-loop/)'
         # Version check (GAP 8: diagnostic, not gating)
         if checks[f'{cli_name}_cli']:
             try:

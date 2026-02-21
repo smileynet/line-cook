@@ -1955,7 +1955,7 @@ def find_epic_ancestor(bead: BeadInfo, snapshot: BeadSnapshot, cwd: Path) -> Opt
                     id=issue.get("id", parent_id),
                     title=issue.get("title", ""),
                     issue_type=issue.get("issue_type", "unknown"),
-                    parent=issue.get("parent"),
+                    parent=issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id)),
                 )
                 if info.issue_type == "epic":
                     return info
@@ -2008,7 +2008,7 @@ def is_descendant_of_epic(bead: BeadInfo, epic_id: str, snapshot: BeadSnapshot, 
                     break
                 if issue.get("issue_type") == "epic":
                     return issue.get("id") == epic_id
-                parent_id = issue.get("parent")
+                parent_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id))
             except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
                 logger.debug(f"Error checking descendant for {parent_id}: {e}")
                 break
@@ -2073,7 +2073,7 @@ def build_epic_ancestor_map(snapshot: BeadSnapshot, cwd: Path) -> dict[str, Opti
                     if issue.get("issue_type") == "epic":
                         epic_id = parent_id
                         break
-                    parent_id = issue.get("parent")
+                    parent_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id))
                 except Exception as e:
                     logger.debug(f"Error building ancestor map for {parent_id}: {e}")
                     break
@@ -2085,6 +2085,19 @@ def build_epic_ancestor_map(snapshot: BeadSnapshot, cwd: Path) -> dict[str, Opti
     return cache
 
 
+def _infer_parent_from_id(bead_id: str) -> Optional[str]:
+    """Infer parent ID from bead ID convention (e.g. demo-001.1.1 → demo-001.1).
+
+    Beads uses dot-separated hierarchical IDs. When the bd JSON output
+    doesn't include an explicit parent field, we can infer it by stripping
+    the last segment.
+    """
+    dot_pos = bead_id.rfind(".")
+    if dot_pos > 0:
+        return bead_id[:dot_pos]
+    return None
+
+
 def _parse_bead_info(issue: dict) -> BeadInfo:
     """Parse a bd JSON issue dict into a BeadInfo object."""
     priority = issue.get("priority")
@@ -2093,11 +2106,14 @@ def _parse_bead_info(issue: dict) -> BeadInfo:
             priority = int(priority)
         except (ValueError, TypeError):
             priority = None
+    parent = issue.get("parent")
+    if parent is None:
+        parent = _infer_parent_from_id(issue.get("id", ""))
     return BeadInfo(
         id=issue.get("id", ""),
         title=issue.get("title", ""),
         issue_type=issue.get("issue_type", ""),
-        parent=issue.get("parent"),
+        parent=parent,
         priority=priority,
         status=issue.get("status"),
     )
@@ -2382,7 +2398,7 @@ def get_epic_for_task(task_id: str, cwd: Path) -> Optional[str]:
                 return None
             if issue.get("issue_type") == "epic":
                 return current_id
-            current_id = issue.get("parent")
+            current_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", current_id))
         except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
             logger.debug(f"Error traversing hierarchy for {current_id}: {e}")
             return None
@@ -5052,7 +5068,7 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
         agent_global = Path.home() / '.kiro' / 'agents' / 'line-cook.json'
         checks['kiro_agent'] = agent_local.exists() or agent_global.exists()
         if not checks['kiro_agent']:
-            hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-kiro/)'
+            hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-loop/)'
         # Version check (GAP 8: diagnostic, not gating)
         if checks[f'{cli_name}_cli']:
             try:
