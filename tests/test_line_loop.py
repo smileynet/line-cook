@@ -4202,11 +4202,11 @@ class TestFlushPendingActions(unittest.TestCase):
             with patch("line_loop.phase.os.unlink"):
                 result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
 
-        # The Edit action appears twice: once from initial detection, once from flush.
-        # Both point to the same object, so both have success=None after flush.
+        # The Edit action appears once (from initial detection) with success=None
+        # after flush marks it unresolved in-place.
         flushed = [a for a in result.actions if a.success is None]
-        self.assertEqual(len(flushed), 2)
-        self.assertTrue(all(a.tool_name == "Edit" for a in flushed))
+        self.assertEqual(len(flushed), 1)
+        self.assertEqual(flushed[0].tool_name, "Edit")
 
     def test_resolved_actions_unchanged(self):
         """Already-resolved actions keep their original success value."""

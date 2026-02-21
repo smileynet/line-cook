@@ -374,11 +374,13 @@ def run_phase(
             output_lines.extend(remaining_out.splitlines(keepends=True))
         process.wait()
 
-        # Flush unresolved pending actions (e.g., CLI crashed mid-tool-use)
+        # Flush unresolved pending actions (e.g., CLI crashed mid-tool-use).
+        # Actions are already in the actions list from initial detection;
+        # just mark them unresolved in-place.
         for tool_use_id, action in pending_actions.items():
-            action.success = None  # Mark as unresolved
-            actions.append(action)
+            action.success = None
             logger.debug(f"Unresolved pending action: {action.tool_name} ({tool_use_id})")
+        pending_actions.clear()
 
         # Read stderr from temp file
         stderr_file.seek(0)
