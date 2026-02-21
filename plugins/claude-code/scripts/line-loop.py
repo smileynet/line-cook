@@ -1107,6 +1107,9 @@ def parse_kiro_tool_result(line: str) -> Optional[bool]:
     return None
 
 
+_kiro_action_seq = iter(range(1, 2**63))
+
+
 def extract_kiro_actions_from_line(
     line: str,
     pending_actions: dict[str, ActionRecord]
@@ -1131,7 +1134,7 @@ def extract_kiro_actions_from_line(
     # Check for new tool use
     tool_name = parse_kiro_tool_action(line)
     if tool_name:
-        tool_use_id = f"kiro-{id(line)}-{datetime.now().timestamp()}"
+        tool_use_id = f"kiro-{next(_kiro_action_seq)}-{datetime.now().timestamp()}"
         action = ActionRecord(
             tool_name=tool_name,
             tool_use_id=tool_use_id,
