@@ -77,6 +77,9 @@ CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
 # Hierarchy traversal
 HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks
 
+# Priority filtering
+BACKLOG_PRIORITY_THRESHOLD = 4      # Skip P4+ beads in auto-selection (parking lot)
+
 # CLI profiles for multi-CLI support
 CLI_PROFILES = {
     'claude': {
@@ -1794,14 +1797,25 @@ def parse_bd_json_item(data: Any) -> Optional[dict]:
 
     Returns:
         Issue dict, or None if data is empty or invalid.
+
+    Note:
+        Mutates the input dict to add an inferred parent field when
+        the bd JSON omits it and the ID is hierarchical (dot-separated).
     """
     if isinstance(data, list):
         if not data:
             return None
-        return data[0] if isinstance(data[0], dict) else None
+        item = data[0] if isinstance(data[0], dict) else None
     elif isinstance(data, dict):
-        return data
-    return None
+        item = data
+    else:
+        return None
+    # Infer parent from hierarchical ID when bd JSON omits it
+    if item is not None and item.get("parent") is None:
+        inferred = _infer_parent_from_id(item.get("id", ""))
+        if inferred:
+            item["parent"] = inferred
+    return item
 
 
 def _prefer_target_or_deepest(candidates: set[str], target_task_id: Optional[str]) -> str:
@@ -1955,7 +1969,7 @@ def find_epic_ancestor(bead: BeadInfo, snapshot: BeadSnapshot, cwd: Path) -> Opt
                     id=issue.get("id", parent_id),
                     title=issue.get("title", ""),
                     issue_type=issue.get("issue_type", "unknown"),
-                    parent=issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id)),
+                    parent=issue.get("parent"),
                 )
                 if info.issue_type == "epic":
                     return info
@@ -2008,7 +2022,7 @@ def is_descendant_of_epic(bead: BeadInfo, epic_id: str, snapshot: BeadSnapshot, 
                     break
                 if issue.get("issue_type") == "epic":
                     return issue.get("id") == epic_id
-                parent_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id))
+                parent_id = issue.get("parent")
             except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
                 logger.debug(f"Error checking descendant for {parent_id}: {e}")
                 break
@@ -2073,7 +2087,7 @@ def build_epic_ancestor_map(snapshot: BeadSnapshot, cwd: Path) -> dict[str, Opti
                     if issue.get("issue_type") == "epic":
                         epic_id = parent_id
                         break
-                    parent_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", parent_id))
+                    parent_id = issue.get("parent")
                 except Exception as e:
                     logger.debug(f"Error building ancestor map for {parent_id}: {e}")
                     break
@@ -2398,7 +2412,7 @@ def get_epic_for_task(task_id: str, cwd: Path) -> Optional[str]:
                 return None
             if issue.get("issue_type") == "epic":
                 return current_id
-            current_id = issue.get("parent") or _infer_parent_from_id(issue.get("id", current_id))
+            current_id = issue.get("parent")
         except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
             logger.debug(f"Error traversing hierarchy for {current_id}: {e}")
             return None
@@ -3572,6 +3586,8 @@ def detect_first_epic(
     for bead in snapshot.ready_work:
         if bead.id in skip_ids:
             continue
+        if bead.priority is not None and bead.priority >= BACKLOG_PRIORITY_THRESHOLD:
+            continue
         if ancestor_map is not None:
             epic_id = ancestor_map.get(bead.id)
             if epic_id and epic_id not in excluded_ids and epic_id not in exhausted_set:
@@ -3673,6 +3689,11 @@ def get_next_ready_task(
                 candidates, excluded_epic_ids, snapshot, cwd,
                 ancestor_map=ancestor_map
             )
+        # Filter out backlog-priority items
+        candidates = [
+            b for b in candidates
+            if b.priority is None or b.priority < BACKLOG_PRIORITY_THRESHOLD
+        ]
         # Two-pass: prefer tasks over features
         for bead in candidates:
             if bead.id not in skip_ids and bead.issue_type == "task":
@@ -3698,7 +3719,8 @@ def get_next_ready_task(
             work_items = [
                 i for i in issues
                 if isinstance(i, dict) and i.get("issue_type") != "epic"
-                and i.get("id", "") and i.get("id", "") not in skip_ids
+                and i.get("id") and i["id"] not in skip_ids
+                and (i.get("priority") is None or int(i.get("priority", 0)) < BACKLOG_PRIORITY_THRESHOLD)
             ]
             for issue in work_items:
                 if issue.get("issue_type") == "task":
@@ -4196,8 +4218,10 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
                 return (None, False)
             result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
-                # Pull failed but we're on main - continue with possibly stale state
-                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+                if "no tracking information" in result.stderr.lower():
+                    logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+                else:
+                    logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
             result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
             if result.returncode != 0:
                 logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
@@ -4220,7 +4244,12 @@ def ensure_epic_branch(task_id: str, cwd: Path) -> tuple[Optional[str], bool]:
                     if result.returncode != 0:
                         logger.warning(f"Failed to checkout main: {result.stderr}")
                         return (None, False)
-                    run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    pull_result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
+                    if pull_result.returncode != 0:
+                        if "no tracking information" in pull_result.stderr.lower():
+                            logger.debug(f"git pull skipped (no upstream): {pull_result.stderr}")
+                        else:
+                            logger.warning(f"Failed to pull main (continuing anyway): {pull_result.stderr}")
                     result = run_subprocess(["git", "checkout", "-b", expected_branch], GIT_SYNC_TIMEOUT, cwd)
                     if result.returncode != 0:
                         logger.warning(f"Failed to create branch {expected_branch}: {result.stderr}")
@@ -4269,8 +4298,10 @@ def merge_epic_on_close(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool,
             return (False, None)
         result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
-            # Pull failed but continue - merge might still work
-            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            if "no tracking information" in result.stderr.lower():
+                logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+            else:
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
 
         # Attempt merge
         merge_result = run_subprocess(
@@ -4371,7 +4402,10 @@ def merge_completed_epic(epic_id: str, epic_title: str, cwd: Path) -> tuple[bool
             return (False, None)
         result = run_subprocess(["git", "pull", "--rebase"], GIT_SYNC_TIMEOUT, cwd)
         if result.returncode != 0:
-            logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
+            if "no tracking information" in result.stderr.lower():
+                logger.debug(f"git pull skipped (no upstream): {result.stderr}")
+            else:
+                logger.warning(f"Failed to pull main (continuing anyway): {result.stderr}")
 
         # Attempt merge
         merge_result = run_subprocess(

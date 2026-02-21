@@ -18,6 +18,7 @@ __version__ = "0.1.0"
 
 # Re-export config constants for convenience
 from .config import (
+    BACKLOG_PRIORITY_THRESHOLD,
     CLI_PROFILES,
     DEFAULT_CLI,
     DEFAULT_MAX_ITERATIONS,
@@ -144,6 +145,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     # Config
+    "BACKLOG_PRIORITY_THRESHOLD",
     "CLI_PROFILES",
     "DEFAULT_CLI",
     "get_cli_profile",

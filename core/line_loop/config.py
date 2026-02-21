@@ -43,6 +43,9 @@ CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
 # Hierarchy traversal
 HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks
 
+# Priority filtering
+BACKLOG_PRIORITY_THRESHOLD = 4      # Skip P4+ beads in auto-selection (parking lot)
+
 # CLI profiles for multi-CLI support
 CLI_PROFILES = {
     'claude': {
