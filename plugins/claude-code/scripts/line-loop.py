@@ -23,6 +23,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -84,6 +85,8 @@ CLI_PROFILES = {
         'permission_flags': ['--dangerously-skip-permissions'],
         'output_flags': ['--output-format', 'stream-json', '--verbose'],
         'has_streaming_json': True,
+        'install_hint': 'Install Claude Code: https://docs.anthropic.com/en/docs/claude-code',
+        'phase_timeout_multiplier': 1.0,
     },
     'kiro': {
         'binary': 'kiro-cli',
@@ -92,6 +95,8 @@ CLI_PROFILES = {
         'permission_flags': ['--trust-all-tools'],
         'extra_flags': ['--no-interactive', '--wrap', 'never', '--agent', 'line-cook'],
         'has_streaming_json': False,
+        'install_hint': 'Install Kiro CLI: https://kiro.dev/docs/cli',
+        'phase_timeout_multiplier': 1.5,
     },
 }
 
@@ -529,7 +534,7 @@ class ActionRecord:
     tool_use_id: str         # For correlation with results
     input_summary: str       # Truncated input (file path, command, etc.)
     output_summary: str      # Truncated output or error message
-    success: bool            # True if no error
+    success: Optional[bool]  # True if no error, None if unresolved
     timestamp: str           # ISO timestamp
     duration_ms: Optional[float] = None  # Duration in milliseconds (set on result)
 
@@ -764,6 +769,20 @@ def parse_serve_result(output: str) -> Optional[ServeResult]:
             continue_=continue_match.group(1).lower() == "true" if continue_match else True,
             next_step=next_step_match.group(1) if next_step_match else None,
             blocking_issues=int(blocking_match.group(1)) if blocking_match else 0
+        )
+
+    # Keyword fallback: infer verdict from natural language
+    approval_keywords = re.search(
+        r'\b(LGTM|approved|no issues found|looks good|ship it)\b',
+        output, re.IGNORECASE
+    )
+    if approval_keywords:
+        logger.warning(f"SERVE_RESULT block missing, inferred APPROVED from keyword: '{approval_keywords.group(0)}'")
+        return ServeResult(
+            verdict="APPROVED",
+            continue_=True,
+            next_step=None,
+            blocking_issues=0
         )
 
     return None
@@ -1323,6 +1342,15 @@ def process_output_line(
         return new_actions, cleaned
 
 
+def _cleanup_stderr_file(stderr_file):
+    """Close and remove a stderr temp file, ignoring errors."""
+    try:
+        stderr_file.close()
+        os.unlink(stderr_file.name)
+    except (OSError, AttributeError):
+        pass
+
+
 def run_phase(
     phase: str,
     cwd: Path,
@@ -1361,6 +1389,11 @@ def run_phase(
         fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
         timeout = timeouts.get(phase, fallback)
 
+    # Apply per-CLI timeout multiplier
+    multiplier = cli_profile.get('phase_timeout_multiplier', 1.0)
+    timeout = int(timeout * multiplier)
+    idle_timeout = int(idle_timeout * multiplier)
+
     cmd = build_phase_command(phase, args, cli_profile)
 
     logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s)")
@@ -1374,12 +1407,17 @@ def run_phase(
     error: Optional[str] = None
     last_action_time: Optional[datetime] = None
     idle_warned: bool = False
+    stderr_output: str = ""
+
+    stderr_file = tempfile.NamedTemporaryFile(
+        mode='w+', prefix=f'line-loop-{phase}-stderr-', suffix='.log', delete=False
+    )
 
     try:
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_file,
             text=True,
             cwd=cwd
         )
@@ -1415,9 +1453,6 @@ def run_phase(
                 if new_actions:
                     last_action_time = datetime.now()
                     idle_warned = False  # Reset idle warning on new activity
-                # For non-streaming CLIs: update last_action_time on any non-empty stdout
-                if not cli_profile.get('has_streaming_json') and text.strip():
-                    last_action_time = datetime.now()
                 # Notify progress callback when new actions detected
                 if new_actions and on_progress:
                     last_ts = new_actions[-1].timestamp
@@ -1474,9 +1509,26 @@ def run_phase(
         if remaining_out:
             output_lines.extend(remaining_out.splitlines(keepends=True))
         process.wait()
+
+        # Flush unresolved pending actions (e.g., CLI crashed mid-tool-use)
+        for tool_use_id, action in pending_actions.items():
+            action.success = None  # Mark as unresolved
+            actions.append(action)
+            logger.debug(f"Unresolved pending action: {action.tool_name} ({tool_use_id})")
+
+        # Read stderr from temp file
+        stderr_file.seek(0)
+        stderr_output = stderr_file.read().strip()
+        stderr_file.close()
+        os.unlink(stderr_file.name)
+
+        if stderr_output:
+            logger.debug(f"Phase {phase} stderr: {stderr_output[:500]}")
+
         exit_code = process.returncode
 
     except subprocess.TimeoutExpired:
+        _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         logger.warning(f"Phase {phase} timed out after {duration:.1f}s")
         return PhaseResult(
@@ -1490,6 +1542,7 @@ def run_phase(
             error=f"Timeout after {timeout}s"
         )
     except Exception as e:
+        _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         logger.error(f"Phase {phase} crashed: {e}")
         return PhaseResult(
@@ -1511,6 +1564,13 @@ def run_phase(
 
     logger.debug(f"Phase {phase} completed in {duration:.1f}s, exit={exit_code}, signals={signals}, early_completion={early_completion}")
 
+    # Include stderr in error for failed phases
+    error_msg = None
+    if not success:
+        error_msg = f"Exit code {exit_code}"
+        if stderr_output:
+            error_msg = f"{error_msg}. stderr: {stderr_output[:200]}"
+
     return PhaseResult(
         phase=phase,
         success=success,
@@ -1519,7 +1579,7 @@ def run_phase(
         duration_seconds=duration,
         signals=signals,
         actions=actions,
-        error=None if success else f"Exit code {exit_code}",
+        error=error_msg,
         early_completion=early_completion
     )
 
@@ -4931,7 +4991,17 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
         'git_repo': (cwd / '.git').exists(),
         'beads_init': (cwd / '.beads').exists(),
     }
-    return {'healthy': all(checks.values()), 'checks': checks}
+    hints = {}
+    if not checks[f'{cli_name}_cli'] and 'install_hint' in profile:
+        hints[f'{cli_name}_cli'] = profile['install_hint']
+    # Kiro-specific: check for agent configuration
+    if cli_name == 'kiro':
+        agent_local = cwd / '.kiro' / 'agents' / 'line-cook.json'
+        agent_global = Path.home() / '.kiro' / 'agents' / 'line-cook.json'
+        checks['kiro_agent'] = agent_local.exists() or agent_global.exists()
+        if not checks['kiro_agent']:
+            hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-kiro/)'
+    return {'healthy': all(checks.values()), 'checks': checks, 'hints': hints}
 
 
 def main():
@@ -5107,6 +5177,10 @@ Examples:
             for check, passed in health['checks'].items():
                 status = "OK" if passed else "FAIL"
                 print(f"  {check}: {status}")
+            if health.get('hints'):
+                print("-" * 30)
+                for check_name, hint in health['hints'].items():
+                    print(f"  hint: {hint}")
             print("=" * 30)
             overall = "HEALTHY" if health['healthy'] else "UNHEALTHY"
             print(f"Overall: {overall}")

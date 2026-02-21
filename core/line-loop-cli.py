@@ -85,7 +85,17 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
         'git_repo': (cwd / '.git').exists(),
         'beads_init': (cwd / '.beads').exists(),
     }
-    return {'healthy': all(checks.values()), 'checks': checks}
+    hints = {}
+    if not checks[f'{cli_name}_cli'] and 'install_hint' in profile:
+        hints[f'{cli_name}_cli'] = profile['install_hint']
+    # Kiro-specific: check for agent configuration
+    if cli_name == 'kiro':
+        agent_local = cwd / '.kiro' / 'agents' / 'line-cook.json'
+        agent_global = Path.home() / '.kiro' / 'agents' / 'line-cook.json'
+        checks['kiro_agent'] = agent_local.exists() or agent_global.exists()
+        if not checks['kiro_agent']:
+            hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-kiro/)'
+    return {'healthy': all(checks.values()), 'checks': checks, 'hints': hints}
 
 
 def main():
@@ -261,6 +271,10 @@ Examples:
             for check, passed in health['checks'].items():
                 status = "OK" if passed else "FAIL"
                 print(f"  {check}: {status}")
+            if health.get('hints'):
+                print("-" * 30)
+                for check_name, hint in health['hints'].items():
+                    print(f"  hint: {hint}")
             print("=" * 30)
             overall = "HEALTHY" if health['healthy'] else "UNHEALTHY"
             print(f"Overall: {overall}")

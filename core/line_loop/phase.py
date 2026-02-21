@@ -13,8 +13,10 @@ Functions for running workflow phases:
 from __future__ import annotations
 
 import logging
+import os
 import select
 import subprocess
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -204,6 +206,15 @@ def process_output_line(
         return new_actions, cleaned
 
 
+def _cleanup_stderr_file(stderr_file):
+    """Close and remove a stderr temp file, ignoring errors."""
+    try:
+        stderr_file.close()
+        os.unlink(stderr_file.name)
+    except (OSError, AttributeError):
+        pass
+
+
 def run_phase(
     phase: str,
     cwd: Path,
@@ -242,6 +253,11 @@ def run_phase(
         fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
         timeout = timeouts.get(phase, fallback)
 
+    # Apply per-CLI timeout multiplier
+    multiplier = cli_profile.get('phase_timeout_multiplier', 1.0)
+    timeout = int(timeout * multiplier)
+    idle_timeout = int(idle_timeout * multiplier)
+
     cmd = build_phase_command(phase, args, cli_profile)
 
     logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s)")
@@ -255,12 +271,17 @@ def run_phase(
     error: Optional[str] = None
     last_action_time: Optional[datetime] = None
     idle_warned: bool = False
+    stderr_output: str = ""
+
+    stderr_file = tempfile.NamedTemporaryFile(
+        mode='w+', prefix=f'line-loop-{phase}-stderr-', suffix='.log', delete=False
+    )
 
     try:
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_file,
             text=True,
             cwd=cwd
         )
@@ -296,9 +317,6 @@ def run_phase(
                 if new_actions:
                     last_action_time = datetime.now()
                     idle_warned = False  # Reset idle warning on new activity
-                # For non-streaming CLIs: update last_action_time on any non-empty stdout
-                if not cli_profile.get('has_streaming_json') and text.strip():
-                    last_action_time = datetime.now()
                 # Notify progress callback when new actions detected
                 if new_actions and on_progress:
                     last_ts = new_actions[-1].timestamp
@@ -355,9 +373,26 @@ def run_phase(
         if remaining_out:
             output_lines.extend(remaining_out.splitlines(keepends=True))
         process.wait()
+
+        # Flush unresolved pending actions (e.g., CLI crashed mid-tool-use)
+        for tool_use_id, action in pending_actions.items():
+            action.success = None  # Mark as unresolved
+            actions.append(action)
+            logger.debug(f"Unresolved pending action: {action.tool_name} ({tool_use_id})")
+
+        # Read stderr from temp file
+        stderr_file.seek(0)
+        stderr_output = stderr_file.read().strip()
+        stderr_file.close()
+        os.unlink(stderr_file.name)
+
+        if stderr_output:
+            logger.debug(f"Phase {phase} stderr: {stderr_output[:500]}")
+
         exit_code = process.returncode
 
     except subprocess.TimeoutExpired:
+        _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         logger.warning(f"Phase {phase} timed out after {duration:.1f}s")
         return PhaseResult(
@@ -371,6 +406,7 @@ def run_phase(
             error=f"Timeout after {timeout}s"
         )
     except Exception as e:
+        _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         logger.error(f"Phase {phase} crashed: {e}")
         return PhaseResult(
@@ -392,6 +428,13 @@ def run_phase(
 
     logger.debug(f"Phase {phase} completed in {duration:.1f}s, exit={exit_code}, signals={signals}, early_completion={early_completion}")
 
+    # Include stderr in error for failed phases
+    error_msg = None
+    if not success:
+        error_msg = f"Exit code {exit_code}"
+        if stderr_output:
+            error_msg = f"{error_msg}. stderr: {stderr_output[:200]}"
+
     return PhaseResult(
         phase=phase,
         success=success,
@@ -400,6 +443,6 @@ def run_phase(
         duration_seconds=duration,
         signals=signals,
         actions=actions,
-        error=None if success else f"Exit code {exit_code}",
+        error=error_msg,
         early_completion=early_completion
     )

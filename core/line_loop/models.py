@@ -424,7 +424,7 @@ class ActionRecord:
     tool_use_id: str         # For correlation with results
     input_summary: str       # Truncated input (file path, command, etc.)
     output_summary: str      # Truncated output or error message
-    success: bool            # True if no error
+    success: Optional[bool]  # True if no error, None if unresolved
     timestamp: str           # ISO timestamp
     duration_ms: Optional[float] = None  # Duration in milliseconds (set on result)
 
