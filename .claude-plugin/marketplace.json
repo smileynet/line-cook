@@ -20,6 +20,16 @@
       "description": "Game design spice — MLP scoping, core loop frameworks, and anti-patterns",
       "category": "domain-knowledge",
       "tags": ["game-design", "spice", "planning"]
+    },
+    {
+      "name": "code-spice",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/smileynet/code-spice.git"
+      },
+      "description": "Code quality spice — quality pillars, abstraction layers, antipattern detection, refactoring patterns, error handling, tradeoff analysis, YAGNI decision frameworks, dead code pruning, and scope boundary analysis",
+      "category": "domain-knowledge",
+      "tags": ["code-quality", "spice", "antipatterns", "refactoring", "code-review", "testing", "yagni", "pruning", "dead-code", "scope-boundaries"]
     }
   ]
 }
