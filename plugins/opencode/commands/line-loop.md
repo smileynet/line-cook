@@ -54,6 +54,7 @@ description: Manage autonomous loop execution from TUI
 | Focus on specific epic | `/line-loop start --epic lc-001` |
 | Epic milestone review | `/line-loop start --break-on-epic` |
 | Complex tasks (40min) | `/line-loop start --cook-timeout 2400` |
+| Use Kiro backend | `/line-loop start --cli kiro` |
 
 ---
 
@@ -174,14 +175,15 @@ Start Options:
   --epic [EPIC_ID]      Focus on one epic (auto-select first, or specify ID)
   --max-iterations N    Maximum iterations (default: 25)
   --cook-timeout S      Cook phase timeout in seconds (default: 1200)
-  --serve-timeout S     Serve phase timeout in seconds (default: 600)
+  --serve-timeout S     Serve phase timeout in seconds (default: 450)
   --tidy-timeout S      Tidy phase timeout in seconds (default: 240)
-  --plate-timeout S     Plate phase timeout in seconds (default: 600)
+  --plate-timeout S     Plate phase timeout in seconds (default: 450)
   --idle-timeout S      Seconds without tool actions before idle triggers (default: 180, 0 to disable)
   --idle-action ACTION  Action on idle: warn (log warning) or terminate (stop phase) (default: warn)
   --max-retries N       Max retries per task on NEEDS_CHANGES (default: 2)
   --max-task-failures N Skip task after this many failures (default: 3)
   --stop-on-blocked     Stop if task is BLOCKED (default: continue)
+  --cli CLI             AI backend: claude (default) or kiro
   --stop-on-crash       Stop on subprocess crash (default: continue)
   --break-on-epic       Pause loop when an epic completes (default: continue)
   --skip-initial-sync   Skip git fetch/pull and bd sync at loop start
@@ -244,6 +246,7 @@ Extract the subcommand from the user's input:
 Input examples:
   "start"                      -> subcommand: start
   "start --max-iterations 10"  -> subcommand: start, max_iterations: 10
+  "start --cli kiro"           -> subcommand: start, cli: kiro
   "watch"                      -> subcommand: watch
   "status"                     -> subcommand: status
   "stop"                       -> subcommand: stop
@@ -321,6 +324,8 @@ echo $! > "$LOOP_DIR/loop.pid"
 
 Replace `<path-to-line-loop.py>` with the absolute path located above.
 
+If the user specified `--cli <name>` (e.g., `--cli kiro`), append `--cli <name>` to the python3 command. Omit `--cli` when using the default (`claude`).
+
 ### Output
 
 ```
@@ -369,6 +374,7 @@ Loop Status: RUNNING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Project: <project-name>
+CLI: kiro                        ← only shown when not default (claude)
 Iteration: 3/25
 Current Task: lc-042 - Fix timeout handling
 Last Verdict: APPROVED
@@ -442,6 +448,7 @@ Read `$LOOP_DIR/status.json`. The status file includes:
 ```json
 {
   "running": true,
+  "cli": "kiro",
   "iteration": 3,
   "max_iterations": 25,
   "current_task": "lc-042",
@@ -487,6 +494,7 @@ The following fields provide real-time visibility during long-running phases:
 | `last_action_time` | Timestamp of most recent tool action |
 | `epic_mode` | Epic filter mode if active (`auto` or epic ID) |
 | `current_epic` | Currently focused epic ID (in epic mode) |
+| `cli` | CLI backend name, only present when not default (`claude`) |
 
 These enable:
 - **Progress visibility**: Action count increasing = work happening

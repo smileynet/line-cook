@@ -544,6 +544,9 @@ class ProgressState:
     last_action_time: Optional[datetime] = None
     _last_write: float = 0.0  # Throttle to 1 write per 5 seconds
 
+    # CLI identification
+    cli_name: Optional[str] = None
+
     # Idle detection fields
     idle_detected: bool = False
     idle_since: Optional[datetime] = None
@@ -596,5 +599,6 @@ class ProgressState:
             current_phase=self.current_phase,
             phase_start_time=self.phase_start_time,
             current_action_count=self.current_action_count,
-            last_action_time=self.last_action_time
+            last_action_time=self.last_action_time,
+            cli_name=self.cli_name
         )
