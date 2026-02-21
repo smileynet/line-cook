@@ -568,7 +568,8 @@ def write_status_file(
     skipped_tasks: Optional[list] = None,
     escalation: Optional[dict] = None,
     epic_mode: Optional[str] = None,
-    current_epic: Optional[str] = None
+    current_epic: Optional[str] = None,
+    cli_name: Optional[str] = None
 ):
     """Write live status JSON for external monitoring.
 
@@ -605,6 +606,10 @@ def write_status_file(
         status["epic_mode"] = epic_mode
     if current_epic:
         status["current_epic"] = current_epic
+
+    # Add CLI name (omit when default to keep output clean)
+    if cli_name and cli_name != DEFAULT_CLI:
+        status["cli"] = cli_name
 
     # Add intra-iteration progress fields
     if current_phase:
@@ -1272,7 +1277,8 @@ def run_loop(
                 tasks_completed=completed_count,
                 tasks_remaining=ready_work_count,
                 started_at=started_at,
-                iterations=iterations
+                iterations=iterations,
+                cli_name=cli_name
             )
 
         # Run iteration with individual phase invocations
@@ -1317,7 +1323,8 @@ def run_loop(
                 started_at=started_at,
                 iterations=iterations,
                 epic_mode=epic_mode,
-                current_epic=current_epic_id
+                current_epic=current_epic_id,
+                cli_name=cli_name
             )
 
         # Append iteration to history JSONL file (full action details)
@@ -1517,7 +1524,8 @@ def run_loop(
             skipped_tasks=skip_list.get_skipped_tasks(),
             escalation=escalation,
             epic_mode=epic_mode,
-            current_epic=current_epic_id
+            current_epic=current_epic_id,
+            cli_name=cli_name
         )
 
     # Write history summary record to mark end of loop

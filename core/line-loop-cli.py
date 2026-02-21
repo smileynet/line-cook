@@ -33,6 +33,8 @@ from line_loop import (
     DEFAULT_IDLE_ACTION,
     LOG_FILE_MAX_BYTES,
     LOG_FILE_BACKUP_COUNT,
+    # Config helpers
+    get_cli_profile,
     # Main loop function
     run_loop,
     request_shutdown,
@@ -73,10 +75,12 @@ def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     )
 
 
-def check_health(cwd: Path) -> dict:
+def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
     """Verify environment before starting loop."""
+    profile = get_cli_profile(cli_name)
+    binary = profile['binary']
     checks = {
-        'claude_cli': shutil.which('claude') is not None,
+        f'{cli_name}_cli': shutil.which(binary) is not None,
         'bd_cli': shutil.which('bd') is not None,
         'git_repo': (cwd / '.git').exists(),
         'beads_init': (cwd / '.beads').exists(),
@@ -248,7 +252,7 @@ Examples:
 
     # Health check mode
     if args.health_check:
-        health = check_health(cwd)
+        health = check_health(cwd, cli_name=args.cli)
         if args.json:
             print(json.dumps(health, indent=2))
         else:
@@ -278,6 +282,15 @@ Examples:
         'tidy': args.tidy_timeout,
         'plate': args.plate_timeout,
     }
+
+    # Fail fast if CLI binary not found
+    profile = get_cli_profile(args.cli)
+    if not shutil.which(profile['binary']):
+        logger.error(f"CLI binary '{profile['binary']}' not found in PATH")
+        logger.error(f"Selected CLI: --cli {args.cli}")
+        if args.cli == 'kiro':
+            logger.error("Install Kiro CLI: https://kiro.dev")
+        sys.exit(1)
 
     try:
         report = run_loop(

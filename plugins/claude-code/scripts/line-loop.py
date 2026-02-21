@@ -649,6 +649,9 @@ class ProgressState:
     last_action_time: Optional[datetime] = None
     _last_write: float = 0.0  # Throttle to 1 write per 5 seconds
 
+    # CLI identification
+    cli_name: Optional[str] = None
+
     # Idle detection fields
     idle_detected: bool = False
     idle_since: Optional[datetime] = None
@@ -701,7 +704,8 @@ class ProgressState:
             current_phase=self.current_phase,
             phase_start_time=self.phase_start_time,
             current_action_count=self.current_action_count,
-            last_action_time=self.last_action_time
+            last_action_time=self.last_action_time,
+            cli_name=self.cli_name
         )
 
 
@@ -3823,7 +3827,8 @@ def write_status_file(
     skipped_tasks: Optional[list] = None,
     escalation: Optional[dict] = None,
     epic_mode: Optional[str] = None,
-    current_epic: Optional[str] = None
+    current_epic: Optional[str] = None,
+    cli_name: Optional[str] = None
 ):
     """Write live status JSON for external monitoring.
 
@@ -3860,6 +3865,10 @@ def write_status_file(
         status["epic_mode"] = epic_mode
     if current_epic:
         status["current_epic"] = current_epic
+
+    # Add CLI name (omit when default to keep output clean)
+    if cli_name and cli_name != DEFAULT_CLI:
+        status["cli"] = cli_name
 
     # Add intra-iteration progress fields
     if current_phase:
@@ -4527,7 +4536,8 @@ def run_loop(
                 tasks_completed=completed_count,
                 tasks_remaining=ready_work_count,
                 started_at=started_at,
-                iterations=iterations
+                iterations=iterations,
+                cli_name=cli_name
             )
 
         # Run iteration with individual phase invocations
@@ -4572,7 +4582,8 @@ def run_loop(
                 started_at=started_at,
                 iterations=iterations,
                 epic_mode=epic_mode,
-                current_epic=current_epic_id
+                current_epic=current_epic_id,
+                cli_name=cli_name
             )
 
         # Append iteration to history JSONL file (full action details)
@@ -4772,7 +4783,8 @@ def run_loop(
             skipped_tasks=skip_list.get_skipped_tasks(),
             escalation=escalation,
             epic_mode=epic_mode,
-            current_epic=current_epic_id
+            current_epic=current_epic_id,
+            cli_name=cli_name
         )
 
     # Write history summary record to mark end of loop
@@ -4906,10 +4918,12 @@ def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     )
 
 
-def check_health(cwd: Path) -> dict:
+def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
     """Verify environment before starting loop."""
+    profile = get_cli_profile(cli_name)
+    binary = profile['binary']
     checks = {
-        'claude_cli': shutil.which('claude') is not None,
+        f'{cli_name}_cli': shutil.which(binary) is not None,
         'bd_cli': shutil.which('bd') is not None,
         'git_repo': (cwd / '.git').exists(),
         'beads_init': (cwd / '.beads').exists(),
@@ -5081,7 +5095,7 @@ Examples:
 
     # Health check mode
     if args.health_check:
-        health = check_health(cwd)
+        health = check_health(cwd, cli_name=args.cli)
         if args.json:
             print(json.dumps(health, indent=2))
         else:
@@ -5111,6 +5125,15 @@ Examples:
         'tidy': args.tidy_timeout,
         'plate': args.plate_timeout,
     }
+
+    # Fail fast if CLI binary not found
+    profile = get_cli_profile(args.cli)
+    if not shutil.which(profile['binary']):
+        logger.error(f"CLI binary '{profile['binary']}' not found in PATH")
+        logger.error(f"Selected CLI: --cli {args.cli}")
+        if args.cli == 'kiro':
+            logger.error("Install Kiro CLI: https://kiro.dev")
+        sys.exit(1)
 
     try:
         report = run_loop(
