@@ -17,12 +17,15 @@ Functions for parsing CLI output (Claude stream-json and Kiro plain-text):
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime
 from typing import Optional
 
 from .config import OUTPUT_SUMMARY_MAX_LENGTH
 from .models import ActionRecord, ServeFeedback, ServeFeedbackIssue, ServeResult
+
+logger = logging.getLogger(__name__)
 
 # ANSI escape sequence pattern (covers SGR, cursor, and OSC sequences)
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07')
@@ -77,6 +80,20 @@ def parse_serve_result(output: str) -> Optional[ServeResult]:
             continue_=continue_match.group(1).lower() == "true" if continue_match else True,
             next_step=next_step_match.group(1) if next_step_match else None,
             blocking_issues=int(blocking_match.group(1)) if blocking_match else 0
+        )
+
+    # Keyword fallback: infer verdict from natural language
+    approval_keywords = re.search(
+        r'\b(LGTM|approved|no issues found|looks good|ship it)\b',
+        output, re.IGNORECASE
+    )
+    if approval_keywords:
+        logger.warning(f"SERVE_RESULT block missing, inferred APPROVED from keyword: '{approval_keywords.group(0)}'")
+        return ServeResult(
+            verdict="APPROVED",
+            continue_=True,
+            next_step=None,
+            blocking_issues=0
         )
 
     return None

@@ -51,6 +51,8 @@ CLI_PROFILES = {
         'permission_flags': ['--dangerously-skip-permissions'],
         'output_flags': ['--output-format', 'stream-json', '--verbose'],
         'has_streaming_json': True,
+        'install_hint': 'Install Claude Code: https://docs.anthropic.com/en/docs/claude-code',
+        'phase_timeout_multiplier': 1.0,
     },
     'kiro': {
         'binary': 'kiro-cli',
@@ -59,6 +61,8 @@ CLI_PROFILES = {
         'permission_flags': ['--trust-all-tools'],
         'extra_flags': ['--no-interactive', '--wrap', 'never', '--agent', 'line-cook'],
         'has_streaming_json': False,
+        'install_hint': 'Install Kiro CLI: https://kiro.dev/docs/cli',
+        'phase_timeout_multiplier': 1.5,
     },
 }
 

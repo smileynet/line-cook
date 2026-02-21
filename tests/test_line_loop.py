@@ -4004,5 +4004,474 @@ class TestCliProfileWiring(unittest.TestCase):
             parser.parse_args(['--cli', 'invalid'])
 
 
+class TestKiroIdleDetection(unittest.TestCase):
+    """Test that Kiro idle detection only resets on tool actions, not text output."""
+
+    def test_kiro_idle_not_reset_by_text_output(self):
+        """Plain text lines don't reset idle timer for non-streaming CLIs."""
+        from unittest.mock import patch, MagicMock
+        import subprocess
+
+        kiro_profile = line_loop.get_cli_profile('kiro')
+
+        # Simulate a process that outputs text but no tool calls, then exits
+        lines = iter([
+            "Thinking about the problem...\n",
+            "Let me analyze the code...\n",
+            "Here's what I found:\n",
+            "",  # EOF
+        ])
+
+        mock_process = MagicMock()
+        mock_process.stdout.readline = lambda: next(lines)
+        mock_process.stdout.read.return_value = ""
+        mock_process.stdout.fileno = lambda: 0
+        mock_process.wait.return_value = None
+        mock_process.returncode = 0
+        mock_process.poll.return_value = None
+
+        with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
+             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
+             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
+            mock_file = MagicMock()
+            mock_file.read.return_value = ""
+            mock_file.name = "/tmp/test-stderr"
+            mock_tf.return_value = mock_file
+            with patch("line_loop.phase.os.unlink"):
+                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
+
+        # Phase should complete but last_action_time should never have been set
+        # (no tool actions), so idle detection would not fire (None check)
+        self.assertTrue(result.success)
+        self.assertEqual(len(result.actions), 0)
+
+    def test_kiro_idle_reset_by_tool_action(self):
+        """Tool use line resets idle timer for Kiro."""
+        from line_loop.phase import process_output_line
+        from datetime import datetime
+
+        kiro_profile = line_loop.get_cli_profile('kiro')
+        pending = {}
+
+        # Plain text should produce no actions (doesn't reset timer)
+        actions, _ = process_output_line("Some reasoning text\n", kiro_profile, pending)
+        self.assertEqual(len(actions), 0)
+
+        # Tool use should produce an action (resets timer)
+        actions, _ = process_output_line("(using tool: Read)\n", kiro_profile, pending)
+        self.assertEqual(len(actions), 1)
+
+    def test_kiro_idle_fires_when_only_text(self):
+        """With only text output (no tool actions), last_action_time stays None."""
+        from line_loop.phase import process_output_line
+
+        kiro_profile = line_loop.get_cli_profile('kiro')
+        pending = {}
+
+        # Process multiple text lines
+        for text in ["line 1\n", "line 2\n", "line 3\n"]:
+            actions, _ = process_output_line(text, kiro_profile, pending)
+            self.assertEqual(len(actions), 0)
+
+        # Since no actions were ever produced, last_action_time would remain None
+        # and check_idle(None, ...) returns False — idle never fires before first action
+        self.assertFalse(line_loop.check_idle(None, 180))
+
+
+class TestStderrCapture(unittest.TestCase):
+    """Test stderr capture to temp file in run_phase."""
+
+    def test_stderr_captured_on_failure(self):
+        """stderr contents appear in PhaseResult.error when phase fails."""
+        from unittest.mock import patch, MagicMock
+        import io
+
+        claude_profile = line_loop.get_cli_profile('claude')
+
+        mock_process = MagicMock()
+        mock_process.stdout.readline.return_value = ""
+        mock_process.stdout.read.return_value = ""
+        mock_process.stdout.fileno = lambda: 0
+        mock_process.wait.return_value = None
+        mock_process.returncode = 1
+        mock_process.poll.return_value = 0
+
+        with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
+             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
+             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
+            mock_file = MagicMock()
+            mock_file.read.return_value = "kiro-cli: segmentation fault"
+            mock_file.name = "/tmp/test-stderr"
+            mock_tf.return_value = mock_file
+            with patch("line_loop.phase.os.unlink"):
+                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
+
+        self.assertFalse(result.success)
+        self.assertIn("stderr:", result.error)
+        self.assertIn("segmentation fault", result.error)
+
+    def test_stderr_logged_on_success(self):
+        """stderr logged at debug level even on success."""
+        from unittest.mock import patch, MagicMock
+
+        claude_profile = line_loop.get_cli_profile('claude')
+
+        mock_process = MagicMock()
+        mock_process.stdout.readline.return_value = ""
+        mock_process.stdout.read.return_value = ""
+        mock_process.stdout.fileno = lambda: 0
+        mock_process.wait.return_value = None
+        mock_process.returncode = 0
+        mock_process.poll.return_value = 0
+
+        with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
+             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
+             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
+            mock_file = MagicMock()
+            mock_file.read.return_value = "some warning"
+            mock_file.name = "/tmp/test-stderr"
+            mock_tf.return_value = mock_file
+            with patch("line_loop.phase.os.unlink"), \
+                 patch("line_loop.phase.logger") as mock_logger:
+                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
+
+        self.assertTrue(result.success)
+        # Check that debug was called with stderr content
+        debug_calls = [str(c) for c in mock_logger.debug.call_args_list]
+        stderr_logged = any("stderr:" in c and "some warning" in c for c in debug_calls)
+        self.assertTrue(stderr_logged, f"stderr not logged in debug calls: {debug_calls}")
+
+    def test_stderr_file_cleaned_up(self):
+        """Temp file is deleted after use."""
+        from unittest.mock import patch, MagicMock
+
+        claude_profile = line_loop.get_cli_profile('claude')
+
+        mock_process = MagicMock()
+        mock_process.stdout.readline.return_value = ""
+        mock_process.stdout.read.return_value = ""
+        mock_process.stdout.fileno = lambda: 0
+        mock_process.wait.return_value = None
+        mock_process.returncode = 0
+        mock_process.poll.return_value = 0
+
+        with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
+             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
+             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
+            mock_file = MagicMock()
+            mock_file.read.return_value = ""
+            mock_file.name = "/tmp/test-stderr-cleanup"
+            mock_tf.return_value = mock_file
+            with patch("line_loop.phase.os.unlink") as mock_unlink:
+                line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
+
+        mock_file.close.assert_called()
+        mock_unlink.assert_called_with("/tmp/test-stderr-cleanup")
+
+
+class TestFlushPendingActions(unittest.TestCase):
+    """Test flushing of orphaned pending actions on phase end."""
+
+    def test_pending_actions_flushed_on_phase_end(self):
+        """Unresolved actions appear in PhaseResult with success=None."""
+        from unittest.mock import patch, MagicMock
+
+        kiro_profile = line_loop.get_cli_profile('kiro')
+
+        # Process outputs a tool use but never a result indicator
+        lines = iter([
+            "(using tool: Edit)\n",
+            "",  # EOF — crash before result
+        ])
+
+        mock_process = MagicMock()
+        mock_process.stdout.readline = lambda: next(lines)
+        mock_process.stdout.read.return_value = ""
+        mock_process.stdout.fileno = lambda: 0
+        mock_process.wait.return_value = None
+        mock_process.returncode = 1  # Crashed
+        mock_process.poll.return_value = None
+
+        with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
+             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
+             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
+            mock_file = MagicMock()
+            mock_file.read.return_value = ""
+            mock_file.name = "/tmp/test-stderr"
+            mock_tf.return_value = mock_file
+            with patch("line_loop.phase.os.unlink"):
+                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
+
+        # The Edit action appears twice: once from initial detection, once from flush.
+        # Both point to the same object, so both have success=None after flush.
+        flushed = [a for a in result.actions if a.success is None]
+        self.assertEqual(len(flushed), 2)
+        self.assertTrue(all(a.tool_name == "Edit" for a in flushed))
+
+    def test_resolved_actions_unchanged(self):
+        """Already-resolved actions keep their original success value."""
+        from unittest.mock import patch, MagicMock
+
+        kiro_profile = line_loop.get_cli_profile('kiro')
+
+        lines = iter([
+            "(using tool: Read)\n",
+            "\u2713 Done\n",
+            "",  # EOF
+        ])
+
+        mock_process = MagicMock()
+        mock_process.stdout.readline = lambda: next(lines)
+        mock_process.stdout.read.return_value = ""
+        mock_process.stdout.fileno = lambda: 0
+        mock_process.wait.return_value = None
+        mock_process.returncode = 0
+        mock_process.poll.return_value = None
+
+        with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
+             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
+             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
+            mock_file = MagicMock()
+            mock_file.read.return_value = ""
+            mock_file.name = "/tmp/test-stderr"
+            mock_tf.return_value = mock_file
+            with patch("line_loop.phase.os.unlink"):
+                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
+
+        # Only 1 action, resolved with success=True (not flushed as unresolved)
+        self.assertEqual(len(result.actions), 1)
+        self.assertTrue(result.actions[0].success)
+
+
+class TestActionRecordOptionalSuccess(unittest.TestCase):
+    """Test ActionRecord.success accepts Optional[bool]."""
+
+    def test_success_none_allowed(self):
+        """ActionRecord can have success=None for unresolved actions."""
+        action = line_loop.ActionRecord(
+            tool_name="Edit",
+            tool_use_id="test-1",
+            input_summary="",
+            output_summary="",
+            success=None,
+            timestamp="2024-01-01T00:00:00"
+        )
+        self.assertIsNone(action.success)
+
+    def test_success_true_still_works(self):
+        """ActionRecord success=True still works."""
+        action = line_loop.ActionRecord(
+            tool_name="Read",
+            tool_use_id="test-2",
+            input_summary="",
+            output_summary="",
+            success=True,
+            timestamp="2024-01-01T00:00:00"
+        )
+        self.assertTrue(action.success)
+
+    def test_success_false_still_works(self):
+        """ActionRecord success=False still works."""
+        action = line_loop.ActionRecord(
+            tool_name="Bash",
+            tool_use_id="test-3",
+            input_summary="",
+            output_summary="",
+            success=False,
+            timestamp="2024-01-01T00:00:00"
+        )
+        self.assertFalse(action.success)
+
+
+class TestCliProfileInstallHints(unittest.TestCase):
+    """Test install_hint field in CLI profiles."""
+
+    def test_claude_profile_has_install_hint(self):
+        """Claude profile includes install_hint."""
+        self.assertIn('install_hint', line_loop.CLI_PROFILES['claude'])
+
+    def test_kiro_profile_has_install_hint(self):
+        """Kiro profile includes install_hint."""
+        self.assertIn('install_hint', line_loop.CLI_PROFILES['kiro'])
+
+    def test_install_hints_are_urls(self):
+        """Install hints contain URLs."""
+        for name, profile in line_loop.CLI_PROFILES.items():
+            self.assertIn('https://', profile['install_hint'], f"{name} install_hint missing URL")
+
+
+class TestHealthCheckHints(unittest.TestCase):
+    """Test health check returns hints on failure."""
+
+    def test_health_check_returns_hints_on_failure(self):
+        """Hints populated when binary not found."""
+        from unittest.mock import patch
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
+        # Import check_health from the CLI module
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "line_loop_cli",
+            Path(__file__).parent.parent / "core" / "line-loop-cli.py"
+        )
+        cli_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli_mod)
+
+        with patch("shutil.which", return_value=None):
+            health = cli_mod.check_health(Path("/tmp/nonexistent"), cli_name="kiro")
+
+        self.assertIn('hints', health)
+        self.assertIn('kiro_cli', health['hints'])
+        self.assertIn('kiro.dev', health['hints']['kiro_cli'])
+
+    def test_health_check_no_hints_when_healthy(self):
+        """No hints when all checks pass."""
+        from unittest.mock import patch
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "line_loop_cli",
+            Path(__file__).parent.parent / "core" / "line-loop-cli.py"
+        )
+        cli_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli_mod)
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            health = cli_mod.check_health(Path("/tmp"), cli_name="claude")
+
+        # hints should be empty (or not contain cli hint)
+        self.assertEqual(health.get('hints', {}), {})
+
+
+class TestHealthCheckKiroAgent(unittest.TestCase):
+    """Test Kiro agent config check in health check."""
+
+    def test_health_check_kiro_verifies_agent_config(self):
+        """Agent config check included for Kiro."""
+        from unittest.mock import patch
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "line_loop_cli",
+            Path(__file__).parent.parent / "core" / "line-loop-cli.py"
+        )
+        cli_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli_mod)
+
+        with patch("shutil.which", return_value=None):
+            health = cli_mod.check_health(Path("/tmp/nonexistent"), cli_name="kiro")
+
+        self.assertIn('kiro_agent', health['checks'])
+
+    def test_health_check_claude_no_agent_check(self):
+        """Agent config check NOT included for Claude."""
+        from unittest.mock import patch
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "line_loop_cli",
+            Path(__file__).parent.parent / "core" / "line-loop-cli.py"
+        )
+        cli_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli_mod)
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            health = cli_mod.check_health(Path("/tmp"), cli_name="claude")
+
+        self.assertNotIn('kiro_agent', health['checks'])
+
+
+class TestServeResultKeywordFallback(unittest.TestCase):
+    """Test keyword fallback for SERVE_RESULT parsing."""
+
+    def test_parse_serve_result_keyword_fallback_lgtm(self):
+        """'LGTM' infers APPROVED verdict."""
+        result = line_loop.parse_serve_result("Overall the code looks great. LGTM!")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.verdict, "APPROVED")
+        self.assertTrue(result.continue_)
+        self.assertEqual(result.blocking_issues, 0)
+
+    def test_parse_serve_result_keyword_fallback_no_issues(self):
+        """'no issues found' infers APPROVED verdict."""
+        result = line_loop.parse_serve_result("Review complete. No issues found in the implementation.")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.verdict, "APPROVED")
+
+    def test_parse_serve_result_keyword_fallback_looks_good(self):
+        """'looks good' infers APPROVED verdict."""
+        result = line_loop.parse_serve_result("The code looks good to me.")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.verdict, "APPROVED")
+
+    def test_parse_serve_result_keyword_fallback_ship_it(self):
+        """'ship it' infers APPROVED verdict."""
+        result = line_loop.parse_serve_result("No blockers, ship it!")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.verdict, "APPROVED")
+
+    def test_parse_serve_result_structured_takes_precedence(self):
+        """Structured SERVE_RESULT block wins over keywords."""
+        output = """
+SERVE_RESULT
+verdict: NEEDS_CHANGES
+continue: true
+blocking_issues: 2
+
+But overall LGTM and looks good.
+"""
+        result = line_loop.parse_serve_result(output)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.verdict, "NEEDS_CHANGES")
+        self.assertEqual(result.blocking_issues, 2)
+
+    def test_parse_serve_result_no_match_returns_none(self):
+        """No keywords or structure returns None."""
+        result = line_loop.parse_serve_result("I see several issues that need to be fixed.")
+        self.assertIsNone(result)
+
+    def test_parse_serve_result_individual_fields_take_precedence(self):
+        """Individual verdict: field wins over keywords."""
+        output = "verdict: BLOCKED\ncontinue: false\nLGTM"
+        result = line_loop.parse_serve_result(output)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.verdict, "BLOCKED")
+
+
+class TestTimeoutMultiplier(unittest.TestCase):
+    """Test per-CLI phase timeout multiplier."""
+
+    def test_kiro_timeout_multiplier_applied(self):
+        """Kiro cook timeout = 1200 * 1.5 = 1800."""
+        profile = line_loop.get_cli_profile('kiro')
+        base_timeout = line_loop.DEFAULT_PHASE_TIMEOUTS['cook']
+        multiplier = profile.get('phase_timeout_multiplier', 1.0)
+        self.assertEqual(int(base_timeout * multiplier), 1800)
+
+    def test_claude_timeout_multiplier_default(self):
+        """Claude cook timeout unchanged at 1200."""
+        profile = line_loop.get_cli_profile('claude')
+        base_timeout = line_loop.DEFAULT_PHASE_TIMEOUTS['cook']
+        multiplier = profile.get('phase_timeout_multiplier', 1.0)
+        self.assertEqual(int(base_timeout * multiplier), 1200)
+
+    def test_kiro_idle_timeout_multiplied(self):
+        """Kiro idle timeout is also multiplied (180 * 1.5 = 270)."""
+        profile = line_loop.get_cli_profile('kiro')
+        base_idle = line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['cook']
+        multiplier = profile.get('phase_timeout_multiplier', 1.0)
+        self.assertEqual(int(base_idle * multiplier), 270)
+
+    def test_claude_idle_timeout_unchanged(self):
+        """Claude idle timeout stays at 180."""
+        profile = line_loop.get_cli_profile('claude')
+        base_idle = line_loop.DEFAULT_PHASE_IDLE_TIMEOUTS['cook']
+        multiplier = profile.get('phase_timeout_multiplier', 1.0)
+        self.assertEqual(int(base_idle * multiplier), 180)
+
+    def test_multiplier_profiles_have_key(self):
+        """Both profiles have phase_timeout_multiplier."""
+        for name in ('claude', 'kiro'):
+            profile = line_loop.get_cli_profile(name)
+            self.assertIn('phase_timeout_multiplier', profile, f"{name} missing multiplier")
+
+
 if __name__ == "__main__":
     unittest.main()
