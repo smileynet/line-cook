@@ -31,9 +31,36 @@ logger = logging.getLogger(__name__)
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07')
 
 # Kiro output patterns
-_KIRO_TOOL_USE_RE = re.compile(r'\(using tool:\s*(\w+)\)')
+# Case-insensitive with optional parentheses for robustness (GAP 3)
+_KIRO_TOOL_USE_RE = re.compile(r'\(?\s*using\s+tool:\s*(\w+)\s*\)?', re.IGNORECASE)
 _KIRO_SUCCESS_RE = re.compile(r'[\u2713\u2714]')  # ✓ ✔
 _KIRO_FAILURE_RE = re.compile(r'[\u2717\u2718]')  # ✗ ✘
+
+
+# Box-drawing characters used in terminal UI borders
+_BOX_DRAWING_RE = re.compile(r'[│┌┐└┘├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬]')
+
+
+def normalize_signal_text(text: str) -> str:
+    """Normalize text for signal detection.
+
+    Strips formatting that might wrap signal markers (SERVE_RESULT,
+    KITCHEN_COMPLETE, etc.) when CLIs emit markdown fences, box-drawing
+    borders, or other decorative formatting.
+
+    Args:
+        text: Raw output text that may contain signals.
+
+    Returns:
+        Cleaned text suitable for substring signal detection.
+    """
+    # Strip markdown code fences
+    text = re.sub(r'```[a-z]*', '', text)
+    # Strip backtick inline code
+    text = text.replace('`', '')
+    # Strip box-drawing border characters
+    text = _BOX_DRAWING_RE.sub(' ', text)
+    return text
 
 
 def parse_serve_result(output: str) -> Optional[ServeResult]:
@@ -465,12 +492,17 @@ def extract_kiro_actions_from_line(
     tool_name = parse_kiro_tool_action(line)
     if tool_name:
         tool_use_id = f"kiro-{next(_kiro_action_seq)}-{datetime.now().timestamp()}"
+        # Extract context from the same line (GAP 7: input summaries)
+        match = _KIRO_TOOL_USE_RE.search(line)
+        prefix = line[:match.start()].strip() if match else ""
+        suffix = line[match.end():].strip() if match else ""
+        input_summary = (prefix or suffix)[:100]
         action = ActionRecord(
             tool_name=tool_name,
             tool_use_id=tool_use_id,
-            input_summary="",
+            input_summary=input_summary,
             output_summary="",
-            success=True,
+            success=None,  # Unknown until result indicator (GAP 5)
             timestamp=datetime.now().isoformat(),
         )
         actions.append(action)
@@ -480,6 +512,12 @@ def extract_kiro_actions_from_line(
     # Check for result indicator (resolves most recent pending action)
     result = parse_kiro_tool_result(line)
     if result is not None and pending_actions:
+        if len(pending_actions) > 1:
+            # GAP 4: FIFO resolution is unreliable with parallel tools
+            logger.debug(
+                f"Multiple pending actions ({len(pending_actions)}), "
+                "resolving most recent — parallel tool results may misattribute"
+            )
         # Resolve the most recently added pending action
         last_key = list(pending_actions.keys())[-1]
         action = pending_actions[last_key]

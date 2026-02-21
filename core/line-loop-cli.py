@@ -17,6 +17,7 @@ import logging.handlers
 import os
 import shutil
 import signal
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -86,16 +87,43 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
         'beads_init': (cwd / '.beads').exists(),
     }
     hints = {}
+    warnings = []
     if not checks[f'{cli_name}_cli'] and 'install_hint' in profile:
         hints[f'{cli_name}_cli'] = profile['install_hint']
-    # Kiro-specific: check for agent configuration
+    # Kiro-specific checks
     if cli_name == 'kiro':
+        # Agent configuration check
         agent_local = cwd / '.kiro' / 'agents' / 'line-cook.json'
         agent_global = Path.home() / '.kiro' / 'agents' / 'line-cook.json'
         checks['kiro_agent'] = agent_local.exists() or agent_global.exists()
         if not checks['kiro_agent']:
             hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-kiro/)'
-    return {'healthy': all(checks.values()), 'checks': checks, 'hints': hints}
+        # Version check (GAP 8: diagnostic, not gating)
+        if checks[f'{cli_name}_cli']:
+            try:
+                result = subprocess.run(
+                    [binary, '--version'], capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    checks['kiro_version'] = result.stdout.strip()
+                else:
+                    checks['kiro_version'] = 'unknown'
+            except Exception:
+                checks['kiro_version'] = 'unknown'
+        # Sub-agent limitation warning (GAP 2)
+        warnings.append(
+            'Kiro lacks Task tool: sub-agent quality gates (taster, sous-chef, polisher, '
+            'maitre, critic) will use inline fallbacks instead of dedicated agents'
+        )
+    healthy = all(
+        v for k, v in checks.items()
+        if k != 'kiro_version'  # Version is diagnostic, not gating
+        and isinstance(v, bool)
+    )
+    result = {'healthy': healthy, 'checks': checks, 'hints': hints}
+    if warnings:
+        result['warnings'] = warnings
+    return result
 
 
 def main():
@@ -268,13 +296,20 @@ Examples:
         else:
             print("Environment Health Check")
             print("=" * 30)
-            for check, passed in health['checks'].items():
-                status = "OK" if passed else "FAIL"
+            for check, value in health['checks'].items():
+                if isinstance(value, bool):
+                    status = "OK" if value else "FAIL"
+                else:
+                    status = str(value)
                 print(f"  {check}: {status}")
             if health.get('hints'):
                 print("-" * 30)
                 for check_name, hint in health['hints'].items():
                     print(f"  hint: {hint}")
+            if health.get('warnings'):
+                print("-" * 30)
+                for warning in health['warnings']:
+                    print(f"  warn: {warning}")
             print("=" * 30)
             overall = "HEALTHY" if health['healthy'] else "UNHEALTHY"
             print(f"Overall: {overall}")

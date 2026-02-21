@@ -97,6 +97,9 @@ CLI_PROFILES = {
         'has_streaming_json': False,
         'install_hint': 'Install Kiro CLI: https://kiro.dev/docs/cli',
         'phase_timeout_multiplier': 1.5,
+        # Kiro bug #4141: args after @ commands are silently dropped.
+        # Inject task ID as text before the @ command so the agent receives it.
+        'task_injection': '[task-id: {args}] ',
     },
 }
 
@@ -720,9 +723,36 @@ class ProgressState:
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07')
 
 # Kiro output patterns
-_KIRO_TOOL_USE_RE = re.compile(r'\(using tool:\s*(\w+)\)')
+# Case-insensitive with optional parentheses for robustness (GAP 3)
+_KIRO_TOOL_USE_RE = re.compile(r'\(?\s*using\s+tool:\s*(\w+)\s*\)?', re.IGNORECASE)
 _KIRO_SUCCESS_RE = re.compile(r'[\u2713\u2714]')  # ✓ ✔
 _KIRO_FAILURE_RE = re.compile(r'[\u2717\u2718]')  # ✗ ✘
+
+
+# Box-drawing characters used in terminal UI borders
+_BOX_DRAWING_RE = re.compile(r'[│┌┐└┘├┤┬┴┼─═║╔╗╚╝╠╣╦╩╬]')
+
+
+def normalize_signal_text(text: str) -> str:
+    """Normalize text for signal detection.
+
+    Strips formatting that might wrap signal markers (SERVE_RESULT,
+    KITCHEN_COMPLETE, etc.) when CLIs emit markdown fences, box-drawing
+    borders, or other decorative formatting.
+
+    Args:
+        text: Raw output text that may contain signals.
+
+    Returns:
+        Cleaned text suitable for substring signal detection.
+    """
+    # Strip markdown code fences
+    text = re.sub(r'```[a-z]*', '', text)
+    # Strip backtick inline code
+    text = text.replace('`', '')
+    # Strip box-drawing border characters
+    text = _BOX_DRAWING_RE.sub(' ', text)
+    return text
 
 
 def parse_serve_result(output: str) -> Optional[ServeResult]:
@@ -1154,12 +1184,17 @@ def extract_kiro_actions_from_line(
     tool_name = parse_kiro_tool_action(line)
     if tool_name:
         tool_use_id = f"kiro-{next(_kiro_action_seq)}-{datetime.now().timestamp()}"
+        # Extract context from the same line (GAP 7: input summaries)
+        match = _KIRO_TOOL_USE_RE.search(line)
+        prefix = line[:match.start()].strip() if match else ""
+        suffix = line[match.end():].strip() if match else ""
+        input_summary = (prefix or suffix)[:100]
         action = ActionRecord(
             tool_name=tool_name,
             tool_use_id=tool_use_id,
-            input_summary="",
+            input_summary=input_summary,
             output_summary="",
-            success=True,
+            success=None,  # Unknown until result indicator (GAP 5)
             timestamp=datetime.now().isoformat(),
         )
         actions.append(action)
@@ -1169,6 +1204,12 @@ def extract_kiro_actions_from_line(
     # Check for result indicator (resolves most recent pending action)
     result = parse_kiro_tool_result(line)
     if result is not None and pending_actions:
+        if len(pending_actions) > 1:
+            # GAP 4: FIFO resolution is unreliable with parallel tools
+            logger.debug(
+                f"Multiple pending actions ({len(pending_actions)}), "
+                "resolving most recent — parallel tool results may misattribute"
+            )
         # Resolve the most recently added pending action
         last_key = list(pending_actions.keys())[-1]
         action = pending_actions[last_key]
@@ -1285,7 +1326,12 @@ def build_phase_command(phase: str, args: str, cli_profile: dict) -> list[str]:
     """
     prompt = cli_profile['prompt_format'].format(phase=phase)
     if args:
-        prompt = f"{prompt} {args}"
+        injection = cli_profile.get('task_injection')
+        if injection:
+            # Prepend args before @ command (workaround for Kiro bug #4141)
+            prompt = f"{injection.format(args=args)}{prompt}"
+        else:
+            prompt = f"{prompt} {args}"
 
     cmd = [cli_profile['binary']]
 
@@ -1459,19 +1505,21 @@ def run_phase(
                     on_progress(len(actions), last_ts)
                 # Detect signals from text output
                 if text:
-                    if "SERVE_RESULT" in text:
-                        if "APPROVED" in text and "serve_approved" not in signals:
+                    # Normalize to strip code fences/box-drawing that might wrap signals (GAP 6)
+                    sig_text = normalize_signal_text(text)
+                    if "SERVE_RESULT" in sig_text:
+                        if "APPROVED" in sig_text and "serve_approved" not in signals:
                             signals.append("serve_approved")
-                        elif "NEEDS_CHANGES" in text and "serve_needs_changes" not in signals:
+                        elif "NEEDS_CHANGES" in sig_text and "serve_needs_changes" not in signals:
                             signals.append("serve_needs_changes")
-                        elif "BLOCKED" in text and "serve_blocked" not in signals:
+                        elif "BLOCKED" in sig_text and "serve_blocked" not in signals:
                             signals.append("serve_blocked")
-                    if ("KITCHEN_COMPLETE" in text or "KITCHEN COMPLETE" in text) and "kitchen_complete" not in signals:
+                    if ("KITCHEN_COMPLETE" in sig_text or "KITCHEN COMPLETE" in sig_text) and "kitchen_complete" not in signals:
                         signals.append("kitchen_complete")
-                    if detect_kitchen_idle(text) and "kitchen_idle" not in signals:
+                    if detect_kitchen_idle(sig_text) and "kitchen_idle" not in signals:
                         signals.append("kitchen_idle")
                     # Detect phase completion signal for early termination
-                    if "<phase_complete>DONE</phase_complete>" in text and "phase_complete" not in signals:
+                    if "<phase_complete>DONE</phase_complete>" in sig_text and "phase_complete" not in signals:
                         signals.append("phase_complete")
                         logger.info(f"Phase {phase} signaled completion, terminating early")
                         # Graceful early termination
@@ -4994,16 +5042,43 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
         'beads_init': (cwd / '.beads').exists(),
     }
     hints = {}
+    warnings = []
     if not checks[f'{cli_name}_cli'] and 'install_hint' in profile:
         hints[f'{cli_name}_cli'] = profile['install_hint']
-    # Kiro-specific: check for agent configuration
+    # Kiro-specific checks
     if cli_name == 'kiro':
+        # Agent configuration check
         agent_local = cwd / '.kiro' / 'agents' / 'line-cook.json'
         agent_global = Path.home() / '.kiro' / 'agents' / 'line-cook.json'
         checks['kiro_agent'] = agent_local.exists() or agent_global.exists()
         if not checks['kiro_agent']:
             hints['kiro_agent'] = 'Create agent config: .kiro/agents/line-cook.json (see docs/demos/demo-kiro/)'
-    return {'healthy': all(checks.values()), 'checks': checks, 'hints': hints}
+        # Version check (GAP 8: diagnostic, not gating)
+        if checks[f'{cli_name}_cli']:
+            try:
+                result = subprocess.run(
+                    [binary, '--version'], capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    checks['kiro_version'] = result.stdout.strip()
+                else:
+                    checks['kiro_version'] = 'unknown'
+            except Exception:
+                checks['kiro_version'] = 'unknown'
+        # Sub-agent limitation warning (GAP 2)
+        warnings.append(
+            'Kiro lacks Task tool: sub-agent quality gates (taster, sous-chef, polisher, '
+            'maitre, critic) will use inline fallbacks instead of dedicated agents'
+        )
+    healthy = all(
+        v for k, v in checks.items()
+        if k != 'kiro_version'  # Version is diagnostic, not gating
+        and isinstance(v, bool)
+    )
+    result = {'healthy': healthy, 'checks': checks, 'hints': hints}
+    if warnings:
+        result['warnings'] = warnings
+    return result
 
 
 def main():
@@ -5176,13 +5251,20 @@ Examples:
         else:
             print("Environment Health Check")
             print("=" * 30)
-            for check, passed in health['checks'].items():
-                status = "OK" if passed else "FAIL"
+            for check, value in health['checks'].items():
+                if isinstance(value, bool):
+                    status = "OK" if value else "FAIL"
+                else:
+                    status = str(value)
                 print(f"  {check}: {status}")
             if health.get('hints'):
                 print("-" * 30)
                 for check_name, hint in health['hints'].items():
                     print(f"  hint: {hint}")
+            if health.get('warnings'):
+                print("-" * 30)
+                for warning in health['warnings']:
+                    print(f"  warn: {warning}")
             print("=" * 30)
             overall = "HEALTHY" if health['healthy'] else "UNHEALTHY"
             print(f"Overall: {overall}")

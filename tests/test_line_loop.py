@@ -3520,7 +3520,7 @@ class TestExtractKiroActionsFromLine(unittest.TestCase):
         actions = line_loop.extract_kiro_actions_from_line('(using tool: Read)', pending)
         self.assertEqual(len(actions), 1)
         self.assertEqual(actions[0].tool_name, 'Read')
-        self.assertTrue(actions[0].success)  # Default until result
+        self.assertIsNone(actions[0].success)  # Unknown until result (GAP 5)
 
     def test_pending_action_tracked(self):
         """New tool use is added to pending_actions."""
@@ -3606,9 +3606,10 @@ class TestBuildPhaseCommand(unittest.TestCase):
         ])
 
     def test_kiro_cook_with_args(self):
-        """Kiro cook command with task ID arg."""
+        """Kiro cook command with task ID prepended before @ command (GAP 1)."""
         cmd = line_loop.build_phase_command('cook', 'lc-042', self.kiro_profile)
-        self.assertEqual(cmd[-1], '@line-cook lc-042')
+        # Task ID is prepended as natural language before @ command
+        self.assertEqual(cmd[-1], '[task-id: lc-042] @line-cook')
 
     def test_kiro_serve_command(self):
         """Kiro serve command has prompt at end."""
@@ -4471,6 +4472,269 @@ class TestTimeoutMultiplier(unittest.TestCase):
         for name in ('claude', 'kiro'):
             profile = line_loop.get_cli_profile(name)
             self.assertIn('phase_timeout_multiplier', profile, f"{name} missing multiplier")
+
+
+class TestKiroTaskInjection(unittest.TestCase):
+    """Test task ID injection for Kiro (GAP 1)."""
+
+    def setUp(self):
+        self.kiro_profile = line_loop.get_cli_profile('kiro')
+        self.claude_profile = line_loop.get_cli_profile('claude')
+
+    def test_kiro_profile_has_task_injection(self):
+        """Kiro profile includes task_injection key."""
+        self.assertIn('task_injection', self.kiro_profile)
+
+    def test_claude_profile_no_task_injection(self):
+        """Claude profile does not have task_injection (args appended normally)."""
+        self.assertNotIn('task_injection', self.claude_profile)
+
+    def test_kiro_cook_args_prepended(self):
+        """Task ID prepended before @line-cook for Kiro."""
+        cmd = line_loop.build_phase_command('cook', 'lc-042', self.kiro_profile)
+        prompt = cmd[-1]
+        self.assertIn('lc-042', prompt)
+        self.assertIn('@line-cook', prompt)
+        # Task ID comes before @command
+        self.assertTrue(prompt.index('lc-042') < prompt.index('@line-cook'))
+
+    def test_kiro_plate_args_prepended(self):
+        """Feature ID prepended before @line-plate for plate phase."""
+        cmd = line_loop.build_phase_command('plate', 'lc-feat-1', self.kiro_profile)
+        prompt = cmd[-1]
+        self.assertIn('lc-feat-1', prompt)
+        self.assertIn('@line-plate', prompt)
+        self.assertTrue(prompt.index('lc-feat-1') < prompt.index('@line-plate'))
+
+    def test_kiro_close_service_args_prepended(self):
+        """Epic ID prepended before @line-close-service."""
+        cmd = line_loop.build_phase_command('close-service', 'lc-epic-1', self.kiro_profile)
+        prompt = cmd[-1]
+        self.assertIn('lc-epic-1', prompt)
+        self.assertIn('@line-close-service', prompt)
+
+    def test_kiro_no_args_unchanged(self):
+        """Without args, Kiro prompt is just the @command."""
+        cmd = line_loop.build_phase_command('cook', '', self.kiro_profile)
+        self.assertEqual(cmd[-1], '@line-cook')
+
+    def test_claude_args_still_appended(self):
+        """Claude profile still appends args after prompt."""
+        cmd = line_loop.build_phase_command('cook', 'lc-042', self.claude_profile)
+        prompt = cmd[cmd.index('-p') + 1]
+        self.assertEqual(prompt, '/line:cook lc-042')
+
+
+class TestKiroActionRegexRobustness(unittest.TestCase):
+    """Test Kiro tool action regex handles format variations (GAP 3)."""
+
+    def test_original_format(self):
+        """Standard format: (using tool: Read)"""
+        self.assertEqual(line_loop.parse_kiro_tool_action('(using tool: Read)'), 'Read')
+
+    def test_case_insensitive(self):
+        """Case variation: (Using Tool: Read)"""
+        self.assertEqual(line_loop.parse_kiro_tool_action('(Using Tool: Read)'), 'Read')
+
+    def test_uppercase(self):
+        """All caps: (USING TOOL: Read)"""
+        self.assertEqual(line_loop.parse_kiro_tool_action('(USING TOOL: Read)'), 'Read')
+
+    def test_without_parens(self):
+        """Without parentheses: using tool: Read"""
+        self.assertEqual(line_loop.parse_kiro_tool_action('using tool: Read'), 'Read')
+
+    def test_extra_whitespace(self):
+        """Extra whitespace: ( using tool:  Edit )"""
+        self.assertEqual(line_loop.parse_kiro_tool_action('( using tool:  Edit )'), 'Edit')
+
+    def test_embedded_in_text(self):
+        """Pattern embedded in surrounding text."""
+        result = line_loop.parse_kiro_tool_action('Agent is (using tool: Bash) now')
+        self.assertEqual(result, 'Bash')
+
+    def test_no_match_plain_text(self):
+        """Plain text returns None."""
+        self.assertIsNone(line_loop.parse_kiro_tool_action('just some regular output'))
+
+
+class TestKiroSuccessDefault(unittest.TestCase):
+    """Test that Kiro actions default to success=None (GAP 5)."""
+
+    def test_new_action_success_is_none(self):
+        """New Kiro actions have success=None (unknown)."""
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line('(using tool: Read)', pending)
+        self.assertIsNone(actions[0].success)
+
+    def test_success_resolved_by_checkmark(self):
+        """Checkmark resolves success to True."""
+        pending = {}
+        line_loop.extract_kiro_actions_from_line('(using tool: Read)', pending)
+        action = list(pending.values())[0]
+        line_loop.extract_kiro_actions_from_line('\u2713 Done', pending)
+        self.assertTrue(action.success)
+
+    def test_failure_resolved_by_crossmark(self):
+        """Crossmark resolves success to False."""
+        pending = {}
+        line_loop.extract_kiro_actions_from_line('(using tool: Bash)', pending)
+        action = list(pending.values())[0]
+        line_loop.extract_kiro_actions_from_line('\u2717 Failed', pending)
+        self.assertFalse(action.success)
+
+    def test_unresolved_stays_none(self):
+        """Without result indicator, action stays success=None."""
+        pending = {}
+        line_loop.extract_kiro_actions_from_line('(using tool: Read)', pending)
+        action = list(pending.values())[0]
+        # No result line follows
+        self.assertIsNone(action.success)
+
+
+class TestKiroInputSummary(unittest.TestCase):
+    """Test that Kiro extracts input summaries from context (GAP 7)."""
+
+    def test_context_after_tool_pattern(self):
+        """Text after (using tool: Read) captured as input_summary."""
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line(
+            '(using tool: Read) /src/main.py', pending
+        )
+        self.assertEqual(actions[0].input_summary, '/src/main.py')
+
+    def test_context_before_tool_pattern(self):
+        """Text before (using tool: Edit) captured as input_summary."""
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line(
+            'Reading file (using tool: Read)', pending
+        )
+        self.assertEqual(actions[0].input_summary, 'Reading file')
+
+    def test_no_context_empty_summary(self):
+        """Bare tool pattern gives empty input_summary."""
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line(
+            '(using tool: Glob)', pending
+        )
+        self.assertEqual(actions[0].input_summary, '')
+
+    def test_summary_truncated(self):
+        """Long context is truncated to 100 chars."""
+        long_text = 'x' * 200
+        pending = {}
+        actions = line_loop.extract_kiro_actions_from_line(
+            f'(using tool: Read) {long_text}', pending
+        )
+        self.assertLessEqual(len(actions[0].input_summary), 100)
+
+
+class TestNormalizeSignalText(unittest.TestCase):
+    """Test normalize_signal_text() for signal detection robustness (GAP 6)."""
+
+    def test_plain_text_unchanged(self):
+        """Plain signal text passes through."""
+        text = "KITCHEN_COMPLETE: task lc-042 done"
+        self.assertIn("KITCHEN_COMPLETE", line_loop.normalize_signal_text(text))
+
+    def test_strips_code_fences(self):
+        """Strips markdown code fences around signals."""
+        text = "```\nKITCHEN_COMPLETE\n```"
+        normalized = line_loop.normalize_signal_text(text)
+        self.assertIn("KITCHEN_COMPLETE", normalized)
+        self.assertNotIn("```", normalized)
+
+    def test_strips_backticks(self):
+        """Strips inline backticks around signal text."""
+        text = "Signal: `SERVE_RESULT` verdict: `APPROVED`"
+        normalized = line_loop.normalize_signal_text(text)
+        self.assertIn("SERVE_RESULT", normalized)
+        self.assertIn("APPROVED", normalized)
+        self.assertNotIn("`", normalized)
+
+    def test_strips_box_drawing(self):
+        """Strips box-drawing border characters."""
+        text = "│ SERVE_RESULT │\n│ verdict: APPROVED │"
+        normalized = line_loop.normalize_signal_text(text)
+        self.assertIn("SERVE_RESULT", normalized)
+        self.assertIn("APPROVED", normalized)
+
+    def test_code_fence_with_language(self):
+        """Strips fences with language markers."""
+        text = "```text\nKITCHEN_COMPLETE\n```"
+        normalized = line_loop.normalize_signal_text(text)
+        self.assertIn("KITCHEN_COMPLETE", normalized)
+
+    def test_mixed_formatting(self):
+        """Handles multiple formatting types at once."""
+        text = "```\n│ `SERVE_RESULT` │\n│ verdict: `APPROVED` │\n```"
+        normalized = line_loop.normalize_signal_text(text)
+        self.assertIn("SERVE_RESULT", normalized)
+        self.assertIn("APPROVED", normalized)
+
+
+class TestHealthCheckKiroVersion(unittest.TestCase):
+    """Test Kiro version check in health check (GAP 8)."""
+
+    def test_health_check_includes_version(self):
+        """Kiro health check includes version info."""
+        from unittest.mock import patch, MagicMock
+        with patch('shutil.which', return_value='/usr/bin/kiro-cli'):
+            with patch('subprocess.run') as mock_run:
+                mock_run.return_value = MagicMock(
+                    returncode=0, stdout='1.2.3\n'
+                )
+                with patch.object(Path, 'exists', return_value=False):
+                    # Import check_health from CLI module
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location(
+                        "cli_mod",
+                        Path(__file__).parent.parent / "core" / "line-loop-cli.py"
+                    )
+                    cli_mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(cli_mod)
+                    health = cli_mod.check_health(Path("/tmp/nonexistent"), cli_name="kiro")
+        self.assertIn('kiro_version', health['checks'])
+        self.assertEqual(health['checks']['kiro_version'], '1.2.3')
+
+    def test_health_check_warnings_for_kiro(self):
+        """Kiro health check includes sub-agent warning."""
+        from unittest.mock import patch, MagicMock
+        with patch('shutil.which', return_value='/usr/bin/kiro-cli'):
+            with patch('subprocess.run') as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout='1.0.0\n')
+                with patch.object(Path, 'exists', return_value=False):
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location(
+                        "cli_mod2",
+                        Path(__file__).parent.parent / "core" / "line-loop-cli.py"
+                    )
+                    cli_mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(cli_mod)
+                    health = cli_mod.check_health(Path("/tmp/nonexistent"), cli_name="kiro")
+        self.assertIn('warnings', health)
+        self.assertTrue(any('sub-agent' in w.lower() or 'task tool' in w.lower()
+                           for w in health['warnings']))
+
+    def test_health_check_version_not_gating(self):
+        """Version check doesn't gate health status."""
+        from unittest.mock import patch, MagicMock
+        # All boolean checks pass but version is unknown
+        with patch('shutil.which', return_value='/usr/bin/kiro-cli'):
+            with patch('subprocess.run', side_effect=Exception("timeout")):
+                with patch.object(Path, 'exists', return_value=True):
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location(
+                        "cli_mod3",
+                        Path(__file__).parent.parent / "core" / "line-loop-cli.py"
+                    )
+                    cli_mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(cli_mod)
+                    health = cli_mod.check_health(Path("/tmp/nonexistent"), cli_name="kiro")
+        # Version is unknown but health should still be True if bool checks pass
+        self.assertEqual(health['checks']['kiro_version'], 'unknown')
+        # healthy is True because kiro_version is not a bool check
+        self.assertTrue(health['healthy'])
 
 
 if __name__ == "__main__":
