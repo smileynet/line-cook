@@ -7,35 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-02-21
 ### Added
-- `/loop` now supports Kiro via `--cli kiro` flag — autonomous loop runs in any CLI that supports streaming output
-  - CLI profiles abstract tool-use parsing and invocation differences between Claude Code and Kiro
-  - Kiro output parser handles Kiro's streaming format with monotonic counter for tool_use_id
-- Demo loop (`docs/demos/demo-loop/`) replaces demo-kiro with comprehensive loop testing scenarios
-- Phase 3: Hardening & Generalization (lc-769)
-  - GitHub App identity for CI integration — fix branches now trigger CI workflows automatically
-  - Reusable issue agent template — install in any repo with minimal configuration
-  - E2E smoke tests for issue agent workflow — validates critical user journeys
-  - Features: GitHub App identity (lc-769.1), reusable template (lc-769.2), E2E tests (lc-769.3)
-- Interactive follow-up via @mention in issue comments (lc-p62.2)
-  - `@claude` mention in any issue comment triggers a conversational response
-  - Agent searches codebase and provides referenced answers with file paths and line numbers
-  - Read-only tool scope with 8-turn limit for focused interactions
-  - Non-@claude comments and bot comments are ignored
-- Issue agent proposes fixes on test branches (lc-p62.1)
-  - Agent creates `fix/issue-{number}` branches when it identifies clear, fixable bugs
-  - Structured comment with what changed, branch name, checkout instructions, and verification request
-  - Confidence criteria with 3-file scope guardrail — asks clarifying questions when unsure
-  - Uses `refs #N` instead of `closes #N` to keep issues open for human verification
+- `/loop` now supports Kiro via `--cli kiro` flag — run the autonomous loop in Kiro or any CLI that supports streaming output
+- Issue agent automatically triages new GitHub issues — analyzes the codebase, classifies severity, and applies labels
+- Issue agent proposes fixes on test branches when it identifies clear, fixable bugs — creates a branch, posts a structured comment with checkout instructions, and keeps the issue open for your review
+- `@claude` mention in any issue comment triggers a conversational follow-up — the agent searches the codebase and responds with referenced file paths and line numbers
+- Issue agent can be installed in any repo with a reusable template and GitHub App identity for CI integration
 
 ### Fixed
 - `/loop` no longer shows duplicate action entries when flushing pending actions
-- `/loop` now uses `detect_kitchen_complete()` consistently for signal detection
-- `/loop` resolves 15 UX gaps found during Kiro walkthrough analysis (epic close handling, P4 filter, git warnings, and more)
-- Epic branch merge decoupled from close-service — merges fire independently after epic closure
-
-### Changed
-- `/loop` phase runner refactored for CLI-agnostic invocation — cleaner separation between loop logic and CLI-specific behavior
+- `/loop` resolves 15 UX gaps found during Kiro walkthrough (epic close handling, P4 filter, git warnings, and more)
+- Epic branch merges now fire independently after epic closure instead of being coupled to close-service
 
 ## [0.16.1] - 2026-02-15
 ### Added
@@ -376,7 +359,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.16.1...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/smileynet/line-cook/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/smileynet/line-cook/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/smileynet/line-cook/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/smileynet/line-cook/compare/v0.14.0...v0.15.0
