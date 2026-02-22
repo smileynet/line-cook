@@ -55,7 +55,11 @@ gh issue edit {{ISSUE_NUMBER}} --add-label "<classification>"
 
 ### Step 4: Post structured analysis comment
 
-Post your analysis as a comment on the issue using `gh issue comment {{ISSUE_NUMBER}} --body "..."`. Use this format:
+Write your analysis to a file, then post it as a comment:
+1. Use the Write tool to create `/tmp/analysis.md` with your analysis
+2. Post: `gh issue comment {{ISSUE_NUMBER}} --body-file /tmp/analysis.md`
+
+Use this format for the analysis:
 
 **Classification:** bug | enhancement | question
 
