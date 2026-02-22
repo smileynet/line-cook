@@ -21,11 +21,11 @@ Foundation — proves GitHub Actions triggers on issue events and runs claude-co
 | Workflow YAML | Has `timeout-minutes:` | ADR-0013 compliance |
 | Workflow YAML | Has `concurrency:` group | ADR-0013 compliance |
 | claude-code-action step | Uses `claude_code_oauth_token` | Auth via Max subscription |
-| claude-code-action step | Has `--max-turns 10` | Cost/usage cap |
+| claude-code-action step | Has `--max-turns 15` in `claude_args` | Cost/usage cap |
 
 ## Validation Checklist
-- [ ] Workflow triggers on `issues: [opened]`
-- [ ] Permissions are explicit and minimal (`contents: read`, `issues: write`)
+- [ ] Workflow triggers on `issues: [opened, reopened]`
+- [ ] Permissions are explicit and minimal (`contents: write`, `issues: write`)
 - [ ] Timeout is set (suggest 15 minutes for Claude analysis)
 - [ ] Concurrency group prevents duplicate runs
 - [ ] Bot-created issues are filtered out

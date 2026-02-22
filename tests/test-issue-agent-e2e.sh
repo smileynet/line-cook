@@ -27,6 +27,15 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/test-utils.sh"
 setup_colors
 
+# Cleanup on unexpected exit
+do_cleanup() {
+    if [[ -n "${CLEANUP_ISSUE:-}" ]]; then
+        log "Cleaning up issue #${CLEANUP_ISSUE}..."
+        gh issue close "$CLEANUP_ISSUE" --comment "E2E test cleanup (unexpected exit)" 2>/dev/null || true
+    fi
+}
+trap do_cleanup EXIT
+
 # Defaults
 TEST_NAME="all"
 VERBOSE=false
@@ -65,25 +74,24 @@ This issue should trigger the workflow to perform git operations.
 
 Label: e2e-test"
     
-    local issue_url=$(gh issue create \
+    local issue_number=$(gh issue create \
         --title "$issue_title" \
         --body "$issue_body" \
-        --label "e2e-test" 2>&1)
-    
-    local issue_number=$(echo "$issue_url" | grep -oP '#\d+' | head -1 | tr -d '#')
-    
+        --label "e2e-test" \
+        --json number -q .number)
+
     if [[ -z "$issue_number" ]]; then
         log_error "Failed to create issue or parse issue number"
-        log "Output: $issue_url"
         return 1
     fi
-    
+
+    CLEANUP_ISSUE="$issue_number"
     log "Created issue #${issue_number}"
-    
+
     # When: Wait for workflow to complete
     local workflow_start=$(date +%s)
     local workflow_run_id=""
-    
+
     # Poll for workflow run
     while true; do
         local elapsed=$(($(date +%s) - workflow_start))
@@ -92,21 +100,21 @@ Label: e2e-test"
             gh issue close "$issue_number" --comment "E2E test cleanup (timeout)"
             return 1
         fi
-        
+
         workflow_run_id=$(gh run list \
             --workflow=issue-agent.yml \
             --limit 5 \
             --json databaseId,status \
             --jq '.[] | select(.status != "completed") | .databaseId' \
             | head -1)
-        
+
         if [[ -n "$workflow_run_id" ]]; then
             break
         fi
-        
+
         sleep 5
     done
-    
+
     # Wait for completion
     while true; do
         local elapsed=$(($(date +%s) - workflow_start))
@@ -115,9 +123,9 @@ Label: e2e-test"
             gh issue close "$issue_number" --comment "E2E test cleanup (timeout)"
             return 1
         fi
-        
+
         local status=$(gh run view "$workflow_run_id" --json status -q .status)
-        
+
         if [[ "$status" == "completed" ]]; then
             local conclusion=$(gh run view "$workflow_run_id" --json conclusion -q .conclusion)
             if [[ "$conclusion" != "success" ]]; then
@@ -127,23 +135,26 @@ Label: e2e-test"
             fi
             break
         fi
-        
+
         sleep 10
     done
-    
+
     # Then: Verify git identity in workflow logs
+    # NOTE: Currently uses github-actions[bot]. GitHub App integration is configured
+    # as secrets but not yet wired into the workflow identity.
     log "Checking workflow logs for git identity..."
     local logs=$(gh run view "$workflow_run_id" --log 2>&1 || true)
-    
+
     if echo "$logs" | grep -q "github-actions\[bot\]"; then
-        log_success "GitHub App identity verified in logs"
+        log_success "Git identity verified in logs (github-actions[bot])"
     else
-        log_warning "Could not verify GitHub App identity in logs"
+        log_warning "Could not verify git identity in logs"
         log "This may be expected if git operations weren't performed"
     fi
-    
+
     # Cleanup
     gh issue close "$issue_number" --comment "E2E test cleanup"
+    CLEANUP_ISSUE=""
     log_success "TEST PASSED: GitHub App Authentication"
 }
 
@@ -163,25 +174,24 @@ The agent should create a fix branch with the docstring added.
 
 Label: e2e-test"
     
-    local issue_url=$(gh issue create \
+    local issue_number=$(gh issue create \
         --title "$issue_title" \
         --body "$issue_body" \
-        --label "e2e-test" 2>&1)
-    
-    local issue_number=$(echo "$issue_url" | grep -oP '#\d+' | head -1 | tr -d '#')
-    
+        --label "e2e-test" \
+        --json number -q .number)
+
     if [[ -z "$issue_number" ]]; then
         log_error "Failed to create issue or parse issue number"
-        log "Output: $issue_url"
         return 1
     fi
-    
+
+    CLEANUP_ISSUE="$issue_number"
     log "Created issue #${issue_number}"
-    
+
     # When: Wait for workflow to complete
     local workflow_start=$(date +%s)
     local workflow_run_id=""
-    
+
     # Poll for workflow run
     while true; do
         local elapsed=$(($(date +%s) - workflow_start))
@@ -190,21 +200,21 @@ Label: e2e-test"
             gh issue close "$issue_number" --comment "E2E test cleanup (timeout)"
             return 1
         fi
-        
+
         workflow_run_id=$(gh run list \
             --workflow=issue-agent.yml \
             --limit 5 \
             --json databaseId,status \
             --jq '.[] | select(.status != "completed") | .databaseId' \
             | head -1)
-        
+
         if [[ -n "$workflow_run_id" ]]; then
             break
         fi
-        
+
         sleep 5
     done
-    
+
     # Wait for completion
     while true; do
         local elapsed=$(($(date +%s) - workflow_start))
@@ -213,43 +223,44 @@ Label: e2e-test"
             gh issue close "$issue_number" --comment "E2E test cleanup (timeout)"
             return 1
         fi
-        
+
         local status=$(gh run view "$workflow_run_id" --json status -q .status)
-        
+
         if [[ "$status" == "completed" ]]; then
             break
         fi
-        
+
         sleep 10
     done
-    
-    # Then: Check if fix branch was created
-    log "Checking for fix branches..."
-    local fix_branches=$(git ls-remote origin "refs/heads/fix/*" | wc -l)
-    
+
+    # Then: Check if fix branch was created for this specific issue
+    log "Checking for fix branches for issue #${issue_number}..."
+    local fix_branches=$(git ls-remote origin "refs/heads/fix/issue-${issue_number}*" | wc -l)
+
     if [[ $fix_branches -gt 0 ]]; then
-        log_success "Fix branch(es) found: ${fix_branches}"
-        
+        log_success "Fix branch(es) found for issue #${issue_number}: ${fix_branches}"
+
         # Verify branch identity
-        local latest_branch=$(git ls-remote origin "refs/heads/fix/*" | tail -1 | awk '{print $2}' | sed 's|refs/heads/||')
+        local latest_branch=$(git ls-remote origin "refs/heads/fix/issue-${issue_number}*" | tail -1 | awk '{print $2}' | sed 's|refs/heads/||')
         log "Latest fix branch: ${latest_branch}"
-        
+
         # Fetch and check commit author
         git fetch origin "$latest_branch" 2>/dev/null || true
         local author=$(git log -1 --format='%an <%ae>' "origin/${latest_branch}" 2>/dev/null || echo "unknown")
-        
+
         if echo "$author" | grep -q "github-actions\[bot\]"; then
-            log_success "Fix branch created with GitHub App identity: ${author}"
+            log_success "Fix branch created with correct identity: ${author}"
         else
             log_warning "Fix branch author: ${author}"
         fi
     else
-        log_warning "No fix branches found"
+        log_warning "No fix branches found for issue #${issue_number}"
         log "This may be expected if the agent didn't create a fix"
     fi
-    
+
     # Cleanup
     gh issue close "$issue_number" --comment "E2E test cleanup"
+    CLEANUP_ISSUE=""
     log_success "TEST PASSED: Fix Branch Creation"
 }
 

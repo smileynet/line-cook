@@ -2,7 +2,7 @@ name: Issue Agent
 
 on:
   issues:
-    types: [opened]
+    types: [opened, reopened]
   issue_comment:
     types: [created]
 
@@ -32,26 +32,37 @@ jobs:
 
       - name: Load issue agent prompt
         id: prompt
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          PROMPT=$(cat core/templates/agents/issue-agent.md.template)
-          PROMPT="${PROMPT//\{\{ISSUE_NUMBER\}\}/${{ github.event.issue.number }}}"
-          PROMPT="${PROMPT//\{\{ISSUE_TITLE\}\}/${{ github.event.issue.title }}}"
-          PROMPT="${PROMPT//\{\{ISSUE_BODY\}\}/${{ github.event.issue.body }}}"
-          echo "content<<EOF" >> $GITHUB_OUTPUT
+          PROMPT=$(python3 -c "
+          import os, sys
+          template = open('core/templates/agents/issue-agent.md.template').read()
+          template = template.replace('{{ISSUE_NUMBER}}', os.environ['ISSUE_NUMBER'])
+          template = template.replace('{{ISSUE_TITLE}}', os.environ['ISSUE_TITLE'])
+          template = template.replace('{{ISSUE_BODY}}', os.environ['ISSUE_BODY'])
+          sys.stdout.write(template)
+          ")
+          DELIMITER="PROMPT_EOF_$(openssl rand -hex 8)"
+          echo "content<<$DELIMITER" >> $GITHUB_OUTPUT
           echo "$PROMPT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
 
       - name: Analyze issue
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          max_turns: 15
           # Read/Grep/Glob for codebase search (Step 1), Edit/Write for fix proposals (Step 5),
           # gh/git Bash tools for labeling (Step 3) and branch creation (Steps 5-6)
-          claude_args: '--allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit),Bash(gh label),Bash(git checkout -b:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin:*)"'
+          claude_args: '--max-turns 15 --allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit),Bash(gh label),Bash(git checkout -b fix/issue-*),Bash(git add:*),Bash(git commit:*),Bash(git push origin fix/*)"'
           prompt: ${{ steps.prompt.outputs.content }}
 
   respond:
+    permissions:
+      contents: read
+      issues: write
     if: >-
       github.event_name == 'issue_comment'
       && contains(github.event.comment.body, '@claude')
@@ -68,9 +79,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           trigger_phrase: "@claude"
-          max_turns: 8
           # Read/Grep/Glob for codebase search, gh for posting replies
           claude_args: >-
+            --max-turns 8
             --allowedTools "Read,Grep,Glob,Bash(gh issue comment)"
             --append-system-prompt "You are responding to a follow-up question
             on a GitHub issue. Search the codebase to provide accurate,
