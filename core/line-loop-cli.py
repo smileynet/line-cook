@@ -64,6 +64,7 @@ def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     level = logging.DEBUG if verbose else logging.INFO
     handlers = [logging.StreamHandler()]
     if log_file:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
         handlers.append(logging.handlers.RotatingFileHandler(
             log_file,
             maxBytes=LOG_FILE_MAX_BYTES,

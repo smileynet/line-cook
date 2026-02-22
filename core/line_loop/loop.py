@@ -61,7 +61,6 @@ from .iteration import (
     get_bead_snapshot,
     get_current_branch,
     get_epic_for_task,
-    get_task_title,
     is_descendant_of_epic,
     is_first_epic_work,
     parse_bd_json_item,
@@ -1112,6 +1111,7 @@ def run_loop(
     current_epic_id: Optional[str] = None
     current_epic_title: Optional[str] = None
     exhausted_epic_ids: set[str] = set()  # Epics already tried in auto mode
+    loop_closed_epics: set[str] = set()  # Epics closed across all iterations (prevents repeated close-service)
 
     # Resolve CLI profile at loop start
     cli_profile = get_cli_profile(cli_name or DEFAULT_CLI)
@@ -1451,19 +1451,24 @@ def run_loop(
             current_retries = 0
             last_task_id = None
 
-        # Log merge results from iteration (merge now happens at iteration level)
+        # Log merge results from iteration
         if result.success and result.merged_epics:
             for merged_epic_id in result.merged_epics:
                 logger.info(f"Epic branch epic/{merged_epic_id} merged to main during iteration")
 
-        # Check for epic completions after each successful iteration
+        # Track epics closed during this iteration
+        if result.closed_epics:
+            loop_closed_epics.update(result.closed_epics)
+
         # Catch-all: detect epics eligible for closure that iteration missed
         # (e.g., external closes, or iteration's hierarchy walk didn't reach epic)
-        # Merge and close-service are now handled inside check_epic_completion()
         if result.success:
-            already_handled = set(result.closed_epics)
-            epic_summaries = check_epic_completion(cwd, exclude_ids=already_handled, cli_profile=cli_profile)
+            epic_summaries = check_epic_completion(cwd, exclude_ids=loop_closed_epics, cli_profile=cli_profile)
             if epic_summaries:
+                # Track these epics as closed for future iterations
+                for epic in epic_summaries:
+                    loop_closed_epics.add(epic["id"])
+
                 # Update status file with epic completions
                 if status_file:
                     try:
@@ -1498,6 +1503,18 @@ def run_loop(
         logger.info(f"Reached iteration limit ({max_iterations})")
         if not json_output:
             print(f"\nReached iteration limit ({max_iterations}). Stopping.")
+
+    # Final catch-all: close any eligible epics before exit
+    # This handles cases where the loop exits (no_work, shutdown, etc.)
+    # before the per-iteration check_epic_completion() runs
+    try:
+        final_epics = check_epic_completion(cwd, exclude_ids=loop_closed_epics, cli_profile=cli_profile)
+        if final_epics:
+            logger.info(f"Final epic completion: {[e['id'] for e in final_epics]}")
+            for epic in final_epics:
+                loop_closed_epics.add(epic["id"])
+    except Exception as e:
+        logger.warning(f"Error in final epic completion check: {e}")
 
     ended_at = datetime.now()
     duration = (ended_at - started_at).total_seconds()
