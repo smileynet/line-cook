@@ -29,7 +29,7 @@ This epic delivers GitHub App identity for CI integration and extraction of the 
 **Validation:**
 - E2E test validates issue creation triggers workflow
 - GitHub App authentication succeeds
-- Fix branches created with `github-actions[bot]` identity (GitHub App token is configured as secrets but not yet integrated into the workflow — fix branches won't trigger downstream CI until App identity is wired in)
+- Fix branches created with GitHub App bot identity via `actions/create-github-app-token@v2` (App token passed via `github_token` input to `claude-code-action`)
 - Test file: `tests/test-issue-agent-e2e.sh`
 
 ### Journey 3: Fix Branch Triggers CI
