@@ -11,14 +11,13 @@ permissions:
   issues: write
   id-token: write
 
-concurrency:
-  # Per-issue deduplication (issues don't have a branch ref)
-  group: issue-agent-${{ github.event.issue.number }}
-  cancel-in-progress: true
-
 jobs:
   analyze:
     if: github.event_name == 'issues' && github.event.issue.user.type != 'Bot'
+    concurrency:
+      # Per-issue deduplication — job-level so bot status comments don't cancel running jobs
+      group: issue-agent-analyze-${{ github.event.issue.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -77,6 +76,9 @@ jobs:
       github.event_name == 'issue_comment'
       && contains(github.event.comment.body, '@claude')
       && github.event.comment.user.type != 'Bot'
+    concurrency:
+      group: issue-agent-respond-${{ github.event.issue.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
