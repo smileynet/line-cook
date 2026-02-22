@@ -111,18 +111,10 @@ The `--cli kiro` flag runs loop phases via `kiro-cli` instead of `claude`, using
 
 ### How to Invoke
 
-@IF_CLAUDECODE@
 ```bash
 /@NAMESPACE@loop start --cli kiro
 /@NAMESPACE@loop start --cli kiro --max-iterations 5  # Test run
 ```
-@ENDIF_CLAUDECODE@
-@IF_OPENCODE@
-```bash
-/@NAMESPACE@loop start --cli kiro
-/@NAMESPACE@loop start --cli kiro --max-iterations 5  # Test run
-```
-@ENDIF_OPENCODE@
 
 ### Key Differences from Default (`claude`) Backend
 
