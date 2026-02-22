@@ -11,7 +11,8 @@ The issue agent is a GitHub Actions workflow that automatically triages issues u
 ## Prerequisites
 
 - GitHub repository with Actions enabled
-- Claude Code OAuth token (from Max subscription)
+- Claude Code OAuth token (from Max subscription, generated via `claude setup-token`)
+- GitHub App installed on the repository (for bot identity and CI-triggering branches)
 - Repository write access to configure secrets
 
 ## Installation Steps
@@ -48,16 +49,25 @@ claude setup-token
 
 This will output a token string. Copy it.
 
-### 4. Add the token as a repository secret
+### 4. Set up GitHub App
+
+Create a GitHub App for the issue agent's bot identity:
+
+1. Go to **Settings** → **Developer settings** → **GitHub Apps** → **New GitHub App**
+2. Set permissions: `Contents: Read & write`, `Issues: Read & write`
+3. Install the App on your repository
+4. Note the **App ID** and generate a **Private Key**
+
+### 5. Add secrets
 
 1. Go to your repository on GitHub
 2. Navigate to **Settings** → **Secrets and variables** → **Actions**
-3. Click **New repository secret**
-4. Name: `CLAUDE_CODE_OAUTH_TOKEN`
-5. Value: Paste the token from step 3
-6. Click **Add secret**
+3. Add these repository secrets:
+   - `CLAUDE_CODE_OAUTH_TOKEN` — Token from step 3 (`claude setup-token`)
+   - `LINE_COOK_APP_ID` — GitHub App ID from step 4
+   - `LINE_COOK_APP_PRIVATE_KEY` — GitHub App private key from step 4
 
-### 5. Test the workflow
+### 6. Test the workflow
 
 Open a test issue in your repository. The workflow should trigger automatically and:
 - Add a classification label (bug, enhancement, or question)
@@ -71,11 +81,11 @@ Edit `.github/workflows/issue-agent.yml` to customize behavior:
 
 ### Max turns
 
-Controls how many tool-use iterations Claude can perform:
+Controls how many tool-use iterations Claude can perform. Set via `claude_args`:
 
 ```yaml
-max_turns: 15  # Default for analysis job
-max_turns: 8   # Default for respond job
+claude_args: '--max-turns 15 ...'  # Default for analysis job
+claude_args: '--max-turns 8 ...'   # Default for respond job
 ```
 
 Higher values allow more thorough analysis but increase cost and runtime.
@@ -85,22 +95,24 @@ Higher values allow more thorough analysis but increase cost and runtime.
 Controls which tools Claude can use:
 
 ```yaml
-claude_args: '--allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit),Bash(gh label),Bash(git checkout -b:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin:*)"'
+claude_args: '--allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit *),Bash(gh label *),Bash(git checkout -b fix/issue-*),Bash(git add *),Bash(git commit *),Bash(git push origin fix/*)"'
 ```
 
 **Analysis job tools:**
 - `Read,Grep,Glob` — Codebase search
 - `Edit,Write` — File modifications for fix proposals
-- `Bash(gh issue edit)` — Apply labels
-- `Bash(gh label)` — Create labels
-- `Bash(git checkout -b:*)` — Create fix branches
-- `Bash(git add:*)` — Stage changes
-- `Bash(git commit:*)` — Commit changes
-- `Bash(git push origin:*)` — Push fix branches
+- `Bash(gh issue edit *)` — Apply labels (wildcard matches arguments)
+- `Bash(gh label *)` — Create labels
+- `Bash(git checkout -b fix/issue-*)` — Create fix branches
+- `Bash(git add *)` — Stage changes
+- `Bash(git commit *)` — Commit changes
+- `Bash(git push origin fix/*)` — Push fix branches
 
 **Respond job tools:**
 - `Read,Grep,Glob` — Codebase search
-- `Bash(gh issue comment)` — Post replies
+- `Bash(gh issue comment *)` — Post replies
+
+**Important:** `allowedTools` patterns are prefix-matched. `Bash(gh label)` only allows the literal command `gh label` — it blocks `gh label create "bug" --force`. Always add a wildcard suffix (` *`) for commands that take arguments.
 
 Remove tools you don't want the agent to use.
 
@@ -170,6 +182,23 @@ Triggers when a comment containing `@claude` is posted by a human (not a bot).
 - Cannot modify files or create branches
 - Can only post comments
 
+## Token Refresh
+
+The `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` has a 1-year expiry. The repository includes a `check-oauth-token.yml` workflow that runs monthly and opens an issue if the token has expired.
+
+To refresh the token:
+
+```bash
+claude setup-token
+# Copy the output token
+gh secret set CLAUDE_CODE_OAUTH_TOKEN
+# Paste the token when prompted
+```
+
+**Antipatterns to avoid:**
+- Extracting the short-lived access token from `~/.claude/.credentials.json` (expires in hours)
+- Using third-party OAuth refresh tools that store refresh tokens as secrets (single-use token race condition)
+
 ## Security Considerations
 
 ### Bot loop prevention
@@ -181,6 +210,9 @@ Both jobs have `if: github.event.*.user.type != 'Bot'` guards to prevent infinit
 The workflow has minimal permissions:
 - `contents: write` — Required for creating fix branches
 - `issues: write` — Required for labeling and commenting
+- `id-token: write` — Required for OIDC auth with Claude Code
+
+The GitHub App token (from `actions/create-github-app-token@v2`) provides a named bot identity and enables fix branches to trigger downstream CI workflows (which `GITHUB_TOKEN` cannot do).
 
 ### Concurrency
 
@@ -224,6 +256,8 @@ This prevents malicious issue bodies from hijacking the agent's behavior.
 
 ### Agent posts but doesn't apply labels
 
+- Verify `allowedTools` patterns use wildcard suffix (e.g., `Bash(gh issue edit *)` not `Bash(gh issue edit)`)
+- Check that the GitHub App is installed on the repository and secrets are set (`LINE_COOK_APP_ID`, `LINE_COOK_APP_PRIVATE_KEY`)
 - Check that the repository has the `bug`, `enhancement`, and `question` labels
 - The agent will create missing labels automatically
 - Verify `issues: write` permission is set in the workflow

@@ -26,10 +26,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LINE_COOK_APP_ID }}
+          private-key: ${{ secrets.LINE_COOK_APP_PRIVATE_KEY }}
+
       - name: Configure git identity
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "line-cook-app[bot]"
+          git config user.email "${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
       - name: Load issue agent prompt
         id: prompt
@@ -55,9 +62,10 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
           # Read/Grep/Glob for codebase search (Step 1), Edit/Write for fix proposals (Step 5),
           # gh/git Bash tools for labeling (Step 3) and branch creation (Steps 5-6)
-          claude_args: '--max-turns 15 --allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit),Bash(gh label),Bash(git checkout -b fix/issue-*),Bash(git add:*),Bash(git commit:*),Bash(git push origin fix/*)"'
+          claude_args: '--max-turns 15 --allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit *),Bash(gh label *),Bash(git checkout -b fix/issue-*),Bash(git add *),Bash(git commit *),Bash(git push origin fix/*)"'
           prompt: ${{ steps.prompt.outputs.content }}
 
   respond:
@@ -76,15 +84,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LINE_COOK_APP_ID }}
+          private-key: ${{ secrets.LINE_COOK_APP_PRIVATE_KEY }}
+
       - name: Respond to mention
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
           trigger_phrase: "@claude"
           # Read/Grep/Glob for codebase search, gh for posting replies
           claude_args: >-
             --max-turns 8
-            --allowedTools "Read,Grep,Glob,Bash(gh issue comment)"
+            --allowedTools "Read,Grep,Glob,Bash(gh issue comment *)"
             --append-system-prompt "You are responding to a follow-up question
             on a GitHub issue. Search the codebase to provide accurate,
             referenced answers. Keep responses concise and include file paths

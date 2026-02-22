@@ -22,12 +22,11 @@ Auth layer — proves App token works for git push and triggers downstream CI
 | gh issue comment | Still uses GITHUB_TOKEN | Separate auth |
 
 ## Validation Checklist
-- [ ] `actions/create-github-app-token@v2` step added
-- [ ] App token passed to `actions/checkout` via `token:` input
-- [ ] Git operations use App token (not GITHUB_TOKEN)
-- [ ] Issue comments still use GITHUB_TOKEN (simpler, sufficient)
+- [ ] `actions/create-github-app-token@v2` step added to both analyze and respond jobs
+- [ ] App token passed via `github_token` input to `claude-code-action` (wires it to `gh` CLI internally)
+- [ ] Git identity configured as App bot, not github-actions[bot]
 - [ ] Fix branch push triggers Validate workflow
-- [ ] Commit author is App bot, not github-actions[bot]
+- [ ] `allowedTools` patterns use wildcard suffix (`Bash(gh issue edit *)` not `Bash(gh issue edit)`)
 
 ## Implementation Notes
 The key test is whether downstream CI triggers. GITHUB_TOKEN commits don't trigger workflows, but App token commits do.

@@ -1,0 +1,36 @@
+name: Check OAuth Token Expiry
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # 1st of each month at 9am UTC
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Test Claude Code auth
+        id: test
+        uses: anthropics/claude-code-action@v1
+        continue-on-error: true
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--max-turns 1 --allowedTools ""'
+          prompt: "Reply with: token-ok"
+
+      - name: Alert on failure
+        if: steps.test.outcome == 'failure'
+        run: |
+          EXISTING=$(gh issue list --search "CLAUDE_CODE_OAUTH_TOKEN needs refresh" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$EXISTING" ]; then
+            gh issue create \
+              --title "CLAUDE_CODE_OAUTH_TOKEN needs refresh" \
+              --body "The monthly token check failed. Run \`claude setup-token\` and update the secret." \
+              --label "maintenance"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
