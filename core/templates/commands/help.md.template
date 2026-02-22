@@ -231,7 +231,7 @@ Quick reference for all commands:
 | `/@NAMESPACE@cook` | Execution | Execute task with TDD guardrails |
 | `/@NAMESPACE@serve` | Execution | Review changes (sous-chef subagent) |
 | `/@NAMESPACE@tidy` | Execution | Commit and push |
-| `/@NAMESPACE@plate` | Execution | Validate completed feature (maître subagent) |
+| `/@NAMESPACE@plate` | Execution | Validate completed feature (maitre subagent) |
 | `/@NAMESPACE@close-service` | Execution | Validate completed epic (critic subagent) |
 | `/@NAMESPACE@loop` | Reference | Autonomous loop management |
 | `/@NAMESPACE@help` | Reference | Contextual help for Line Cook commands |

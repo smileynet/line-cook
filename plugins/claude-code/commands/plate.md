@@ -46,12 +46,12 @@ Execute tests to verify feature works end-to-end:
 - Re-run tests
 - Do NOT proceed with plate phase until tests pass
 
-### Step 3: Review BDD Test Quality with Maître
+### Step 3: Review BDD Test Quality with Maitre
 
-Delegate BDD test quality review to maître subagent:
+Delegate BDD test quality review to maitre subagent:
 
 ```
-Use Task tool to invoke maître subagent:
+Use Task tool to invoke maitre subagent:
 Task(description="Review feature test quality", prompt="Review BDD tests for feature <feature-id>
 
 Feature: <feature-title>
@@ -158,7 +158,7 @@ git commit -m "feat: complete <feature-title> (<feature-id>)
 
 Feature validation complete:
 - All acceptance criteria verified
-- BDD tests approved by maître
+- BDD tests approved by maitre
 - Smoke tests passing
 
 Acceptance report: docs/features/<feature-id>-acceptance.md"
@@ -183,7 +183,7 @@ Acceptance Criteria:
 
 Quality Assurance:
   [✓] Tests passing
-  [✓] BDD tests approved (maître)
+  [✓] BDD tests approved (maitre)
   [✓] Code review complete (sous-chef)
 
 Deliverables:
@@ -245,7 +245,7 @@ Critical Issues:
 
 Actions:
   1. Address critical BDD issues
-  2. Re-run BDD review with maître
+  2. Re-run BDD review with maitre
   3. Retry /line:plate <feature-id>
 
 ───────────────────────────────────────────
@@ -256,7 +256,7 @@ Actions:
 The plate phase ensures features are production-ready before completion:
 
 1. **End-to-end validation** - All tests must pass
-2. **BDD quality** - Tests must meet quality bar (maître review)
+2. **BDD quality** - Tests must meet quality bar (maitre review)
 3. **Documentation** - Acceptance report provides comprehensive record
 4. **Changelog** - Track feature delivery for users
 

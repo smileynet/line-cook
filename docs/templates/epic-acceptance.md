@@ -113,7 +113,7 @@ Quality assurance by Line Cook agents:
 |-------|------|--------|
 | **Taster** | Unit test quality | Approved |
 | **Sous-Chef** | Code review | Approved |
-| **Maître** | Feature BDD quality | Approved |
+| **Maitre** | Feature BDD quality | Approved |
 | **Critic** | Epic E2E coverage | Approved |
 
 ---

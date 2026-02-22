@@ -113,7 +113,7 @@ bd show <task-id>
    Skill(skill="line:plate", args="<feature-id>")
    ```
 
-2. Wait for plate to complete. Plate handles maître review, acceptance docs, and CHANGELOG.
+2. Wait for plate to complete. Plate handles maitre review, acceptance docs, and CHANGELOG.
 
 3. If plate output shows "EPIC READY TO CLOSE":
 
@@ -164,7 +164,7 @@ WORK CYCLE: Complete
 Quality Gates:
   [✓] Test quality approved (taster)
   [✓] Code quality approved (sous-chef)
-  [✓] BDD tests approved (maître, if applicable)
+  [✓] BDD tests approved (maitre, if applicable)
 
 ──────────────────────────────────────────
 

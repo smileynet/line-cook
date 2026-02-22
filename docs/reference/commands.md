@@ -201,9 +201,10 @@ Run multiple execution cycles autonomously.
 ```
 /line:loop                     # Run until no ready tasks
 /line:loop max-iterations=5    # Limit to 5 cycles
+/line:loop start --cli kiro    # Use Kiro as the AI backend
 ```
 
-Repeats the Run Cycle until no ready tasks remain. Same quality gates as `/line:run`. See [Loop Cycle](../cycles/loop-cycle.md).
+Repeats the Run Cycle until no ready tasks remain. Same quality gates as `/line:run`. Supports Claude Code (default) and Kiro backends. See [Loop Cycle](../cycles/loop-cycle.md).
 
 ---
 

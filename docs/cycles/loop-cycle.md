@@ -49,7 +49,10 @@ Each iteration is a full Run Cycle with all quality gates. Loop just automates t
 ```
 /line:loop                    # Run until no ready tasks
 /line:loop max-iterations=5   # Stop after 5 cycles
+/line:loop start --cli kiro   # Use Kiro as the AI backend
 ```
+
+The Loop supports both Claude Code (default) and Kiro as AI backends.
 
 Loop will:
 1. Run `/line:prep` to find the next ready task
