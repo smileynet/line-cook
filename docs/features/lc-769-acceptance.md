@@ -20,7 +20,7 @@ This epic delivers GitHub App identity for CI integration and extraction of the 
 
 **Validation:**
 - Template extraction to `core/templates/agents/issue-agent.md.template`
-- Installation documentation in `docs/issue-agent-setup.md`
+- Installation documentation in `docs/installation/issue-agent.md`
 - Minimal configuration required (GitHub App token secret + workflow copy)
 
 ### Journey 2: Issue Creation Triggers Workflow
@@ -29,7 +29,7 @@ This epic delivers GitHub App identity for CI integration and extraction of the 
 **Validation:**
 - E2E test validates issue creation triggers workflow
 - GitHub App authentication succeeds
-- Fix branches created with correct bot identity (not github-actions[bot])
+- Fix branches created with `github-actions[bot]` identity (GitHub App token is configured as secrets but not yet integrated into the workflow — fix branches won't trigger downstream CI until App identity is wired in)
 - Test file: `tests/test-issue-agent-e2e.sh`
 
 ### Journey 3: Fix Branch Triggers CI
@@ -100,7 +100,7 @@ Users can now:
 - Feature acceptance: lc-769.1 (GitHub App identity)
 - Feature acceptance: lc-769.2 (Reusable template)
 - Task completion: lc-769.3 (E2E smoke tests)
-- Installation guide: `docs/issue-agent-setup.md`
+- Installation guide: `docs/installation/issue-agent.md`
 - E2E test suite: `tests/test-issue-agent-e2e.sh`
 
 ---

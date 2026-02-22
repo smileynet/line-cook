@@ -82,6 +82,9 @@ do_cleanup() {
     log_success "Cleanup complete"
 }
 
+# Cleanup on unexpected exit
+trap do_cleanup EXIT
+
 # Dry run mode
 if [[ "$MODE" == "dry-run" ]]; then
     log_step "Checking dependencies..."
