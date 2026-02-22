@@ -58,6 +58,46 @@ description: Manage autonomous loop execution from TUI
 
 ---
 
+## Using Kiro Backend
+
+The `--cli kiro` flag runs loop phases via `kiro-cli` instead of `claude`, using the Kiro AI backend.
+
+### Prerequisites
+
+- `kiro-cli` must be installed and available on PATH
+- The Line Cook Kiro plugin must be installed (`plugins/kiro/`)
+
+### How to Invoke
+
+```bash
+/line-loop start --cli kiro
+/line-loop start --cli kiro --max-iterations 5  # Test run
+```
+
+### Key Differences from Default (`claude`) Backend
+
+| Aspect | `claude` (default) | `kiro` |
+|--------|-------------------|--------|
+| **Subprocess** | `claude` CLI | `kiro-cli chat` |
+| **Phase invocation** | `/line-{phase}` skills | `@line-{phase}` prompts |
+| **Default cook timeout** | 20 minutes | 30 minutes (1.5x multiplier) |
+| **Output parsing** | Streaming JSON | Text-based (less real-time action tracking) |
+| **Trust mode** | `--allowedTools` per phase | `--trust-all-tools` (handled automatically) |
+
+### Monitoring
+
+The same monitoring commands work regardless of backend:
+
+```bash
+/line-loop watch     # Live progress
+/line-loop status    # One-shot check
+/line-loop tail      # View logs
+```
+
+When using the Kiro backend, `status.json` includes `"cli": "kiro"` and the watch/status output displays the CLI in use.
+
+---
+
 ## Timeout Behavior
 
 **Loop execution** manages its own subprocess timeouts, providing:
