@@ -82,9 +82,12 @@ After completing your analysis, assess whether this issue can be fixed with a co
 **If confident — create a fix branch:**
 1. Create a branch: `git checkout -b fix/issue-{{ISSUE_NUMBER}}-<short-description>`
 2. Make the code changes using Edit or Write tools
-3. Stage and commit: `git add <files> && git commit -m "fix: <description> (refs #{{ISSUE_NUMBER}})"`
-4. Push: `git push origin fix/issue-{{ISSUE_NUMBER}}-<short-description>`
-5. Proceed to Step 6 to post a fix-proposal comment
+3. Stage files: `git add <files>` (one command — do NOT chain with &&)
+4. Commit: `git commit -m "fix: <description> (refs #{{ISSUE_NUMBER}})"` (separate command)
+5. Push: `git push origin fix/issue-{{ISSUE_NUMBER}}-<short-description>`
+6. Proceed to Step 6 to post a fix-proposal comment
+
+**IMPORTANT:** Each git command must be a separate Bash call. Do NOT combine with `&&` or `;`.
 
 **If NOT confident — do not attempt a fix.** Instead:
 - State what you understand so far in your analysis
