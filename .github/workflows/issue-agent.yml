@@ -64,7 +64,7 @@ jobs:
           github_token: ${{ steps.app-token.outputs.token }}
           # Read/Grep/Glob for codebase search (Step 1), Edit/Write for fix proposals (Step 5),
           # gh/git Bash tools for labeling (Step 3) and branch creation (Steps 5-6)
-          claude_args: '--max-turns 15 --allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit *),Bash(gh label *),Bash(git checkout -b fix/issue-*),Bash(git add *),Bash(git commit *),Bash(git push origin fix/*)"'
+          claude_args: '--max-turns 15 --allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue comment *),Bash(gh issue edit *),Bash(gh label *),Bash(git checkout -b fix/issue-*),Bash(git add *),Bash(git commit *),Bash(git push origin fix/*)"'
           prompt: ${{ steps.prompt.outputs.content }}
 
   respond:
