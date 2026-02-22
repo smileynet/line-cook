@@ -62,11 +62,13 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.app-token.outputs.token }}
+          bot_id: "262583447"
+          bot_name: "line-sous-chef[bot]"
           # Read/Grep/Glob for codebase search (Step 1), Edit/Write for fix proposals (Step 5),
           # gh/git Bash tools for labeling (Step 3) and branch creation (Steps 5-6)
           claude_args: >-
             --max-turns 25
-            --allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue comment *),Bash(gh issue edit *),Bash(gh label *),Bash(git checkout -b fix/issue-*),Bash(git add *),Bash(git commit *),Bash(git push origin fix/*)"
+            --allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue comment *),Bash(gh issue edit *),Bash(gh label *),Bash(git checkout -b fix/issue-*),Bash(git fetch *),Bash(git add *),Bash(git commit *),Bash(git push origin fix/*)"
           prompt: ${{ steps.prompt.outputs.content }}
 
   respond:
@@ -100,6 +102,8 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.app-token.outputs.token }}
+          bot_id: "262583447"
+          bot_name: "line-sous-chef[bot]"
           trigger_phrase: "@claude"
           # Read/Grep/Glob for codebase search, gh for posting replies
           claude_args: >-
