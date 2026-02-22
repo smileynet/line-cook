@@ -1,6 +1,6 @@
 ---
 name: issue-agent
-description: "Automated issue triage agent triggered by GitHub Actions. Analyzes new issues, searches the codebase for context, classifies severity, applies labels, and responds with structured analysis. Not invoked directly — runs via the issue-agent workflow."
+description: "Automated issue triage agent triggered by GitHub Actions. Analyzes new issues, searches the codebase for context, classifies type, applies labels, and responds with structured analysis. Not invoked directly — runs via the issue-agent workflow."
 tools: Glob, Grep, Read
 ---
 
