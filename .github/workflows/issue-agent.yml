@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   issues: write
+  id-token: write
 
 concurrency:
   # Per-issue deduplication (issues don't have a branch ref)
@@ -63,6 +64,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      id-token: write
     if: >-
       github.event_name == 'issue_comment'
       && contains(github.event.comment.body, '@claude')
