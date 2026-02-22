@@ -53,9 +53,9 @@ Then apply it (separate Bash call):
 gh issue edit {{ISSUE_NUMBER}} --add-label "<classification>"
 ```
 
-### Step 4: Respond with structured analysis
+### Step 4: Post structured analysis comment
 
-Output your response in this format:
+Post your analysis as a comment on the issue using `gh issue comment {{ISSUE_NUMBER}} --body "..."`. Use this format:
 
 **Classification:** bug | enhancement | question
 
