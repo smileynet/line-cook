@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-02-21
 ### Fixed
 - `/loop` no longer crashes when the log directory doesn't exist yet
 - `/loop` no longer silently skips epic completion checks when exiting due to no available work
@@ -364,7 +365,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.17.1...HEAD
+[0.17.1]: https://github.com/smileynet/line-cook/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/smileynet/line-cook/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/smileynet/line-cook/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/smileynet/line-cook/compare/v0.15.0...v0.16.0
