@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `/release` command for quick release health checks (`/release`), bundling (`/release --bundle`), or starting the full interactive release workflow (`/release 0.18.0`)
+
+### Fixed
+- `/loop` no longer crashes when the log directory doesn't exist yet
+- `/loop` no longer silently skips epic completion checks when exiting due to no available work
+- `/loop` no longer triggers duplicate close-service runs for the same epic within a single loop session
+
 ## [0.17.0] - 2026-02-21
 ### Added
 - `/loop` now supports Kiro via `--cli kiro` flag — run the autonomous loop in Kiro or any CLI that supports streaming output
