@@ -86,6 +86,18 @@ If `$ARGUMENTS` matches a version number (e.g. `0.18.0`), optionally followed by
 
 **IMPORTANT:** Run the workflow inline in this session — do NOT spawn a subagent. The release-editor is an interactive collaborator that needs dialogue with the user (changelog review, fix suggestions, push confirmation).
 
+### Post-Release: Install Local Plugins
+
+After a successful release (commit created and pushed), install the new version locally for all three TUIs:
+
+```bash
+./dev/install-claude-code.sh
+PATH="$HOME/.bun/bin:$PATH" plugins/opencode/install.sh
+python3 plugins/kiro/install.py --global
+```
+
+Report the installed version for each platform to confirm they all match the release.
+
 ### Path D: Unrecognized Arguments
 
 If `$ARGUMENTS` doesn't match any pattern above, show usage help:
