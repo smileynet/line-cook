@@ -133,7 +133,7 @@ DEFAULT_PHASE_TIMEOUTS = {
     'cook': 1200,           # 20 min - Main work phase: TDD cycle, file edits, test runs
     'serve': 450,           # 7.5 min - Code review by sous-chef subagent
     'tidy': 240,            # 4 min - Commit, bd sync, git push
-    'plate': 450,           # 7.5 min - BDD review via maître, acceptance doc
+    'plate': 450,           # 7.5 min - BDD review via maitre, acceptance doc
     'close-service': 750,   # 12.5 min - Critic E2E review + epic acceptance doc
 }
 

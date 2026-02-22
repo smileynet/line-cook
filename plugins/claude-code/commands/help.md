@@ -215,7 +215,7 @@ Quick reference for all commands:
 | `/line:cook` | Execution | Execute task with TDD guardrails |
 | `/line:serve` | Execution | Review changes (sous-chef subagent) |
 | `/line:tidy` | Execution | Commit and push |
-| `/line:plate` | Execution | Validate completed feature (maître subagent) |
+| `/line:plate` | Execution | Validate completed feature (maitre subagent) |
 | `/line:close-service` | Execution | Validate completed epic (critic subagent) |
 | `/line:loop` | Reference | Autonomous loop management |
 | `/line:help` | Reference | Contextual help for Line Cook commands |

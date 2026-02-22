@@ -38,7 +38,7 @@ The testing pyramid now has four agents, each at a different tier:
 |-------|------|-------|
 | Taster | Task (TDD) | Test structure, isolation |
 | Sous-chef | Task | Code quality, security |
-| Maître | Feature (BDD) | Acceptance criteria coverage |
+| Maitre | Feature (BDD) | Acceptance criteria coverage |
 | Critic | Epic (E2E) | User journey validation |
 
 ## Consequences

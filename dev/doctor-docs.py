@@ -43,7 +43,7 @@ AGENT_REQUIRED_FIELDS = {"name", "description", "tools"}
 README_REQUIRED_SECTIONS = {"quick start", "installation", "workflow"}
 
 # Required sections in AGENTS.md
-AGENTS_REQUIRED_SECTIONS = {"agents", "taster", "sous-chef", "maître"}
+AGENTS_REQUIRED_SECTIONS = {"agents", "taster", "sous-chef", "maitre"}
 
 
 def parse_version(version: str) -> tuple[int, ...]:

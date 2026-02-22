@@ -52,17 +52,17 @@ Execute tests to verify feature works end-to-end:
 - Do NOT proceed with plate phase until tests pass
 
 @IF_CLAUDECODE@
-### Step 3: Review BDD Test Quality with Maître
+### Step 3: Review BDD Test Quality with Maitre
 @ENDIF_CLAUDECODE@
 @IF_OPENCODE@
 ### Step 3: Review BDD Test Quality with Maitre
 @ENDIF_OPENCODE@
 
 @IF_CLAUDECODE@
-Delegate BDD test quality review to maître subagent:
+Delegate BDD test quality review to maitre subagent:
 
 ```
-Use Task tool to invoke maître subagent:
+Use Task tool to invoke maitre subagent:
 Task(description="Review feature test quality", prompt="Review BDD tests for feature <feature-id>
 
 Feature: <feature-title>
@@ -214,7 +214,7 @@ git commit -m "feat: complete <feature-title> (<feature-id>)
 
 Feature validation complete:
 - All acceptance criteria verified
-- BDD tests approved by maître
+- BDD tests approved by maitre
 - Smoke tests passing
 
 Acceptance report: docs/features/<feature-id>-acceptance.md"
@@ -255,7 +255,7 @@ Acceptance Criteria:
 
 Quality Assurance:
   [✓] Tests passing
-  [✓] BDD tests approved (maître)
+  [✓] BDD tests approved (maitre)
   [✓] Code review complete (sous-chef)
 
 Deliverables:
@@ -377,7 +377,7 @@ Critical Issues:
 Actions:
   1. Address critical BDD issues
 @IF_CLAUDECODE@
-  2. Re-run BDD review with maître
+  2. Re-run BDD review with maitre
 @ENDIF_CLAUDECODE@
 @IF_OPENCODE@
   2. Re-run BDD review with maitre
@@ -398,7 +398,7 @@ The plate phase ensures features are production-ready before completion:
 
 1. **End-to-end validation** - All tests must pass
 @IF_CLAUDECODE@
-2. **BDD quality** - Tests must meet quality bar (maître review)
+2. **BDD quality** - Tests must meet quality bar (maitre review)
 @ENDIF_CLAUDECODE@
 @IF_OPENCODE@
 2. **BDD quality** - Tests must meet quality bar (maitre review)

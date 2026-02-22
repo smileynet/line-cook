@@ -25,6 +25,7 @@
 - [Claude Code](installation/claude-code.md)
 - [OpenCode](installation/opencode.md)
 - [Kiro](installation/kiro.md)
+- [Issue Agent](installation/issue-agent.md)
 
 ## Development
 

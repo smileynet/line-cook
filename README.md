@@ -37,7 +37,7 @@ Prep → Cook → Serve → Tidy. Execute one task at a time with TDD, AI peer r
 
 ### Loop: Autonomous Execution (Advanced)
 
-Repeat Run Cycles hands-free until no ready tasks remain. Same quality gates, no supervision needed.
+Repeat Run Cycles hands-free until no ready tasks remain. Same quality gates, no supervision needed. Supports Claude Code and Kiro via `--cli kiro`.
 
 [Learn more →](docs/cycles/loop-cycle.md)
 

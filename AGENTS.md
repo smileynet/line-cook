@@ -70,6 +70,10 @@ Or use `/run` for the full execution cycle, `/mise` for the full planning cycle.
 | `/plate` | Validate completed feature |
 | `/close-service` | Validate completed epic |
 | `/run` | Run full workflow cycle |
+| `/loop` | Autonomous loop management |
+| `/architecture-audit` | Analyze codebase structure and code smells |
+| `/decision` | Record, list, or supersede architecture decisions |
+| `/help` | Contextual help for Line Cook commands |
 
 ## Platform Command Naming
 
@@ -101,7 +105,7 @@ Line Cook provides separate implementations for each:
 ## Dependencies
 
 - **beads** (`bd`) - Git-native issue tracking for multi-session work
-- **Claude Code** or **OpenCode** - AI coding assistant
+- **Claude Code**, **OpenCode**, or **Kiro** - AI coding assistant
 
 ## Spice Rack (Domain Addon Plugins)
 
@@ -120,6 +124,7 @@ Line Cook provides separate implementations for each:
 | Spice | Repo | What it adds |
 |-------|------|-------------|
 | **game-spice** | [smileynet/game-spice](https://github.com/smileynet/game-spice) | MLP scoping, core loop design, MDA framework, game planning anti-patterns |
+| **code-spice** | [smileynet/code-spice](https://github.com/smileynet/code-spice) | Readability, naming, refactoring, error handling, anti-pattern detection, code-quality critic |
 
 ### Creating a New Spice
 
@@ -145,6 +150,9 @@ Line Cook provides agents for each platform:
 | **polisher** | Code refinement | Simplify and polish code before review |
 | **maitre** | BDD review | Review feature acceptance and BDD test quality |
 | **critic** | E2E review | Review epic-level E2E and user journey coverage |
+| **issue-agent** | CI triage | Automated issue triage, classification, and fix proposals |
+
+> **Note:** issue-agent has a steering file (`plugins/kiro/steering/issue-agent.md`) but no JSON agent config, since it runs via GitHub Actions rather than interactive Kiro sessions.
 
 ### Claude Code Commands (plugins/claude-code/commands/)
 
@@ -183,8 +191,9 @@ Claude Code subagents are specialized agents invoked during workflow phases:
 | **taster** | Cook (RED) | Reviews test quality |
 | **polisher** | Serve | Refines code for clarity before review |
 | **sous-chef** | Serve | Reviews code changes |
-| **maître** | Plate (Feature) | Reviews feature acceptance |
+| **maitre** | Plate (Feature) | Reviews feature acceptance |
 | **critic** | Close-service (Epic) | Reviews E2E and user journey coverage |
+| **issue-agent** | GitHub Actions | Automated issue triage, classification, and fix proposals |
 
 ### Project-Specific Agents (.claude/agents/)
 
@@ -203,7 +212,7 @@ OpenCode plugin uses markdown commands in `plugins/opencode/commands/` and agent
 | Component | Type | Purpose |
 |----------|------|---------|
 | **Commands** | OpenCode commands | `/line-prep`, `/line-cook`, `/line-serve`, `/line-tidy`, `/line-mise`, `/line-brainstorm`, `/line-scope`, `/line-finalize`, `/line-plate`, `/line-close-service`, `/line-run`, `/line-getting-started`, `/line-architecture-audit`, `/line-decision`, `/line-help`, `/line-loop`, `/line-plan-audit`, `/line-init`, `/line-onboarding`, `/line-whats-new`, `/line-doctor` |
-| **Agents** | OpenCode subagents | taster, polisher, sous-chef, maitre, critic (markdown files in `plugins/opencode/agents/`) |
+| **Agents** | OpenCode subagents | taster, polisher, sous-chef, maitre, critic, issue-agent (markdown files in `plugins/opencode/agents/`) |
 
 ### OpenCode Subagents (plugins/opencode/agents/)
 
@@ -216,6 +225,7 @@ OpenCode subagents are defined as markdown files with YAML frontmatter (mode: su
 | **sous-chef** | Serve | Reviews code changes |
 | **maitre** | Plate (Feature) | Reviews feature acceptance |
 | **critic** | Close-service (Epic) | Reviews E2E and user journey coverage |
+| **issue-agent** | GitHub Actions | Automated issue triage, classification, and fix proposals |
 
 ## Role Details
 
@@ -267,7 +277,7 @@ Detailed responsibilities and outputs for each agent role, shared across all pla
 - **Trigger**: Automatically after RED phase (write failing test)
 - **Output**: Test quality assessment with critical issue blocking if needed
 
-### maître
+### maitre
 
 - **Purpose**: Review feature (BDD) test quality before plate phase
 - **Responsibilities**:
@@ -291,6 +301,19 @@ Detailed responsibilities and outputs for each agent role, shared across all pla
 - **Trigger**: Automatically during close-service (when last feature completes)
 - **Output**: E2E coverage assessment (PASS, NEEDS_WORK, or FAIL)
 - **Documentation**: See [FAQ — Advanced](docs/faq.md#how-do-i-validate-an-epic)
+
+### issue-agent
+
+- **Purpose**: Automated GitHub issue triage via GitHub Actions
+- **Responsibilities**:
+  - Search codebase for relevant context
+  - Classify issue type and severity
+  - Apply appropriate labels
+  - Post analysis comment with findings
+  - Optionally propose fix branch for straightforward issues
+- **Trigger**: GitHub Actions on issue open or `@claude` mention
+- **Output**: Label + analysis comment + optional fix branch
+- **Documentation**: See [Issue Agent Installation](docs/installation/issue-agent.md)
 
 ## Workflow Principles
 
@@ -384,7 +407,7 @@ Line Cook maintains commands for Claude Code (`plugins/claude-code/commands/`), 
 Review agents are also generated from shared templates to prevent drift between Claude Code, OpenCode, and Kiro.
 
 **Agent template system:**
-- Source templates live in `core/templates/agents/` (5 templates)
+- Source templates live in `core/templates/agents/` (6 templates)
 - Same conditional block syntax as commands: `@IF_CLAUDECODE@`, `@IF_OPENCODE@`, `@IF_KIRO@`, `@IF_NOT_KIRO@`
 - No `@NAMESPACE@` substitution needed (agents don't reference command namespaces)
 
@@ -393,7 +416,7 @@ Review agents are also generated from shared templates to prevent drift between 
 - OpenCode: YAML frontmatter with `description`, `mode`, `hidden`, `tools`, `permission`, concise review format (mirrors Claude Code)
 - Kiro: No frontmatter (steering files only), includes context-loading instructions (`bd show`, `git diff`), detailed checklists, red flags, code examples, and anti-pattern sections
 
-**Synced agents:** All 5 review agents — sous-chef, taster, maitre, polisher, critic (to all three platforms)
+**Synced agents:** All 6 agents — sous-chef, taster, maitre, polisher, critic, issue-agent (to all three platforms). Note: issue-agent is a CI triage agent, not a review agent invoked during workflow phases.
 
 **NOT templatized:**
 - Kiro JSON agent configs (`plugins/kiro/agents/*.json`) — platform-specific metadata
