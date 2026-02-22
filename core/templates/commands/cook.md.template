@@ -374,7 +374,6 @@ Only after all guardrails pass:
 bd close <id>
 bd comments add <id> "PHASE: COOK
 Status: completed
-@IF_CLAUDECODE@
 
 SEMANTIC CONTEXT (for tidy summary):
 Intent: <why this change was made, from task description>
@@ -383,12 +382,6 @@ After: <new state - what's now possible/fixed>
 
 Files: <count> changed
 Findings: <issues/improvements noted for tidy>"
-@ENDIF_CLAUDECODE@
-@IF_OPENCODE@
-Summary: <what was done>
-Files: <count> changed
-Findings: <issues/improvements noted for tidy>"
-@ENDIF_OPENCODE@
 ```
 
 **Completion output format:**
@@ -404,7 +397,6 @@ Build: ✓ Successful
 
 Signal: KITCHEN_COMPLETE
 
-@IF_CLAUDECODE@
 INTENT:
   <1-2 sentences from task description>
   Goal: <deliverable or acceptance criteria>
@@ -412,11 +404,6 @@ INTENT:
 BEFORE → AFTER:
   <previous state> → <new state>
   <what couldn't be done> → <what can be done now>
-@ENDIF_CLAUDECODE@
-@IF_OPENCODE@
-Summary:
-  <1-2 sentence description of what was accomplished>
-@ENDIF_OPENCODE@
 
 Files changed:
   M src/foo.ts

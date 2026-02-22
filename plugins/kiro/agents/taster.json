@@ -1,11 +1,11 @@
 {
   "name": "taster",
   "description": "Reviews test quality during TDD cycle",
-  "prompt": "file://.kiro/steering/taster.md",
+  "prompt": "file://../steering/taster.md",
   "tools": ["read", "shell"],
   "allowedTools": ["read", "shell"],
   "resources": [
     "file://AGENTS.md",
-    "file://.kiro/steering/**/*.md"
+    "file://../steering/**/*.md"
   ]
 }

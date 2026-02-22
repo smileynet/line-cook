@@ -1,11 +1,11 @@
 {
   "name": "sous-chef",
   "description": "Code review specialist - ensures code quality before commit in Line Cook workflow",
-  "prompt": "file://.kiro/steering/sous-chef.md",
+  "prompt": "file://../steering/sous-chef.md",
   "tools": ["read", "shell"],
   "allowedTools": ["read", "shell"],
   "resources": [
     "file://AGENTS.md",
-    "file://.kiro/steering/**/*.md"
+    "file://../steering/**/*.md"
   ]
 }
