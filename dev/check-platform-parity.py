@@ -46,8 +46,8 @@ CORE_COMMANDS = {
 
 # Commands with intentional differences
 PLATFORM_SPECIFIC_COMMANDS = {
-    "claude-code": {"service"},      # Claude Code only: service (full orchestration)
-    "opencode": {"work"},            # OpenCode only: work (orchestration)
+    "claude-code": set(),
+    "opencode": set(),
     "kiro": set(),                   # Kiro uses steering files, not commands
 }
 
@@ -169,10 +169,12 @@ def check_command_parity(
             result.info.append(f"OpenCode has additional command: {cmd}")
 
     # Check platform-specific commands are correctly exclusive
-    if "service" not in claude_code.commands:
-        result.warnings.append("Claude Code missing platform-specific: service")
-    if "work" not in opencode.commands:
-        result.warnings.append("OpenCode missing platform-specific: work")
+    for cmd in PLATFORM_SPECIFIC_COMMANDS["claude-code"]:
+        if cmd not in claude_code.commands:
+            result.warnings.append(f"Claude Code missing platform-specific: {cmd}")
+    for cmd in PLATFORM_SPECIFIC_COMMANDS["opencode"]:
+        if cmd not in opencode.commands:
+            result.warnings.append(f"OpenCode missing platform-specific: {cmd}")
 
     # Check naming conventions
     result.info.append(f"Claude Code commands: {sorted(claude_code.commands)}")
