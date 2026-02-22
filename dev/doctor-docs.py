@@ -40,7 +40,7 @@ COMMAND_REQUIRED_FIELDS = {"description", "allowed-tools"}
 AGENT_REQUIRED_FIELDS = {"name", "description", "tools"}
 
 # Required sections in README.md
-README_REQUIRED_SECTIONS = {"quick start", "installation", "workflow"}
+README_REQUIRED_SECTIONS = {"quick start", "installation", "two cycles"}
 
 # Required sections in AGENTS.md
 AGENTS_REQUIRED_SECTIONS = {"agents", "taster", "sous-chef", "maitre"}
