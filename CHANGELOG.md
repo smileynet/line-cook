@@ -7,9 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- `/release` command for quick release health checks (`/release`), bundling (`/release --bundle`), or starting the full interactive release workflow (`/release 0.18.0`)
-
 ### Fixed
 - `/loop` no longer crashes when the log directory doesn't exist yet
 - `/loop` no longer silently skips epic completion checks when exiting due to no available work
