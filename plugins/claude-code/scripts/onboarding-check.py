@@ -235,6 +235,14 @@ def find_marketplace_json() -> Optional[Path]:
     if installed_candidate.is_file():
         return installed_candidate
 
+    # Cache layout: scripts/ -> version/ -> plugin-id/ -> marketplace-name/ -> cache/ -> plugins/
+    # marketplace.json lives under plugins/marketplaces/<name>/ not plugins/cache/<name>/
+    plugins_root = script_dir.parent.parent.parent.parent.parent
+    marketplace_name = script_dir.parent.parent.parent.name
+    cache_layout_candidate = plugins_root / "marketplaces" / marketplace_name / ".claude-plugin" / "marketplace.json"
+    if cache_layout_candidate.is_file():
+        return cache_layout_candidate
+
     # Repo layout: scripts/ -> claude-code/ -> plugins/ -> repo-root/
     repo_candidate = script_dir.parent.parent.parent / ".claude-plugin" / "marketplace.json"
     if repo_candidate.is_file():
