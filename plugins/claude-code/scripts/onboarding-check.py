@@ -242,17 +242,21 @@ def find_marketplace_json() -> Optional[Path]:
 
     # Cache layout: plugins/cache/<marketplace>/<plugin>/.../<scripts>/
     # marketplace.json lives at plugins/marketplaces/<marketplace>/.claude-plugin/marketplace.json
-    # Walk up to find the 'cache' directory, then check its sibling 'marketplaces/'
+    # Walk up to find the 'cache' directory, extract the marketplace name from
+    # the path component directly under cache/, then check that specific
+    # marketplace directory (deterministic in multi-marketplace setups).
     path = script_dir
+    child_name = path.name
     for _ in range(8):
         if path.name == "cache":
-            marketplaces_dir = path.parent / "marketplaces"
-            if marketplaces_dir.is_dir():
-                for mp_dir in marketplaces_dir.iterdir():
-                    candidate = mp_dir / ".claude-plugin" / "marketplace.json"
-                    if candidate.is_file():
-                        return candidate
+            candidate = (
+                path.parent / "marketplaces" / child_name
+                / ".claude-plugin" / "marketplace.json"
+            )
+            if candidate.is_file():
+                return candidate
             break
+        child_name = path.name
         path = path.parent
 
     # CWD is repo root
