@@ -1,11 +1,11 @@
 ---
 description: Review bot-created issue/PR pairs before merging
-allowed-tools: Bash, Read, Write, Glob, Grep, Task
+allowed-tools: Bash, Read, Glob, Grep, Task, AskUserQuestion
 ---
 
 ## Summary
 
-**Review all open bot-created PRs and produce a verdict for each.** Discovers PRs from `fix/issue-*` branches, delegates each to the inspector agent, acts on verdicts, and posts structured comments.
+**Review all open bot-created PRs and produce a verdict for each.** Discovers PRs from `fix/issue-*` branches, delegates each to the inspector agent, displays the full report locally, and prompts for action.
 
 **Usage:**
 - `/inspect` — review all open bot PRs
@@ -71,56 +71,68 @@ If reviewing multiple PRs, launch inspector agents in parallel.
 
 Parse the inspector's response to extract the verdict line (`**Verdict: <VERDICT>**`).
 
-### Step 4: Act on Verdicts
+### Step 4: Display Report Locally
 
-For each verdict:
+For each PR, display the inspector's full analysis (all 6 dimensions + verdict) directly in the terminal as markdown. Do NOT write to temp files. Do NOT post to GitHub.
 
-- **MERGE** — No action needed. The maintainer will merge manually.
-- **POLISH** — Run the polisher agent on the PR's changed files:
-  1. Note the current branch: `git branch --show-current`
-  2. Fetch and checkout the PR branch: `gh pr checkout <pr-number>`
-  3. Get the list of changed files: `git diff --name-only main...HEAD`
-  4. Launch the polisher: `Task(subagent_type="polisher", prompt="Polish these files: <file list>")`
-  5. If the polisher made changes, stage, commit, and push:
-     ```bash
-     git add <changed-files>
-     ```
-     ```bash
-     git commit -m "style: polish bot fix (refs #<issue-number>)"
-     ```
-     ```bash
-     git push
-     ```
-  6. Return to the original branch: `git checkout <original-branch>`
-- **FEEDBACK** — No code changes. Verdict comment only.
-- **REWORK** — No code changes. Verdict comment only.
-- **REJECT** — No code changes. Verdict comment only. Do NOT auto-close — the maintainer decides.
+### Step 5: Prompt User for Action
 
-### Step 5: Post Verdict to PR
+Use AskUserQuestion to present options based on the verdict:
 
-For each PR, write the inspector's full analysis to a temp file and post it as a PR comment.
+| Verdict | Options |
+|---------|---------|
+| **MERGE** | "Merge" (post concise comment + squash-merge the PR), "Skip" (no action) |
+| **POLISH** | "Polish" (run polisher agent on PR branch, then re-prompt with updated verdict), "Skip" |
+| **FEEDBACK** | "Comment" (post concise verdict comment only), "Skip" |
+| **REWORK** | "Comment" (post concise verdict comment only), "Skip" |
+| **REJECT** | "Comment" (post concise verdict comment only), "Skip" |
 
-Write the comment file:
+**Actions by choice:**
+
+**"Merge"** (MERGE verdict only):
+1. Post a concise comment to the PR (see format below)
+2. Squash-merge the PR: `gh pr merge <pr-number> --squash`
+
+**"Polish"** (POLISH verdict only):
+1. Note the current branch: `git branch --show-current`
+2. Fetch and checkout the PR branch: `gh pr checkout <pr-number>`
+3. Get the list of changed files: `git diff --name-only main...HEAD`
+4. Launch the polisher: `Task(subagent_type="polisher", prompt="Polish these files: <file list>")`
+5. If the polisher made changes, stage, commit, and push:
+   ```bash
+   git add <changed-files>
+   ```
+   ```bash
+   git commit -m "style: polish bot fix (refs #<issue-number>)"
+   ```
+   ```bash
+   git push
+   ```
+6. Return to the original branch: `git checkout <original-branch>`
+7. Re-run the inspector (Step 3) on the polished PR and re-prompt with the new verdict
+
+**"Comment"** (FEEDBACK/REWORK/REJECT verdicts):
+1. Post a concise comment to the PR (see format below)
+
+**"Skip":** No action taken for this PR.
+
+**Concise comment format** (not the full analysis):
 ```
-Write /tmp/inspect-verdict-<pr-number>.md with contents:
-
 <!-- line:inspect verdict -->
-## Inspection Report
-
-<inspector's full output (all 5 dimensions + verdict)>
-
+**Verdict: <VERDICT>**
+<1-2 sentence rationale>
 ---
-*Automated review by `/inspect`. Verdicts are advisory — maintainer decides.*
+*Reviewed by `/inspect`.*
 ```
 
-Post it:
+Post using:
 ```bash
-gh pr comment <pr-number> --body-file /tmp/inspect-verdict-<pr-number>.md
+gh pr comment <pr-number> --body "<comment>"
 ```
 
 ### Step 6: Output Summary
 
-Display a summary report with all verdicts:
+Display a summary report with all verdicts and actions taken:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
@@ -128,25 +140,22 @@ Display a summary report with all verdicts:
 ╚══════════════════════════════════════════════════════════════╝
 
 ┌─────────────────────────────────────────────────────────────┐
-│ PR #7   MERGE    Issue #6: <title truncated to fit>         │
-│ PR #12  REJECT   Issue #11: <title truncated to fit>        │
+│ PR #7   MERGE    Issue #6: <title>          → merged         │
+│ PR #12  REJECT   Issue #11: <title>         → commented      │
+│ PR #15  POLISH   Issue #14: <title>         → skipped        │
 └─────────────────────────────────────────────────────────────┘
 
   MERGE:    1 — ready to merge
-  POLISH:   0 — polished and ready
-  FEEDBACK: 0 — needs maintainer judgment
-  REWORK:   0 — fix needs rework
   REJECT:   1 — close issue and PR
-
-Verdict comments posted to each PR.
+  POLISH:   1 — polished and ready
 ```
 
-Group the tally by verdict type. Only show lines for verdicts that have a count > 0.
+Group the tally by verdict type. Only show lines for verdicts that have a count > 0. Annotate each PR line with the action taken (→ merged / → commented / → polished / → skipped).
 
 ## Error Handling
 
 - **gh CLI not authenticated:** Report the error and stop.
 - **Issue not found for a PR:** Skip that PR, note it in the summary as "SKIPPED — issue not found".
 - **Inspector fails:** Skip that PR, note it in the summary as "SKIPPED — inspection failed".
-- **Polisher fails on POLISH verdict:** Post the verdict comment anyway. Note in the summary that polish was attempted but failed.
-- **Comment posting fails:** Note in the summary. The verdict was still computed.
+- **Polisher fails on POLISH verdict:** Display the verdict anyway. Note in the summary that polish was attempted but failed.
+- **Merge fails:** Note in the summary. The verdict was still computed.
