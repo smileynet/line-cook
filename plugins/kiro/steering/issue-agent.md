@@ -117,11 +117,18 @@ Choose the format based on the path:
 
 **What I did:** I created a pull request with a proposed fix: #<PR-number>
 
-**Want to try it before it's merged?** You can test the fix locally:
-1. `git fetch origin && git checkout fix/issue-{{ISSUE_NUMBER}}-<description>`
-2. <plain-language test step specific to the fix>
+A maintainer will review and merge it. Once merged, you'll get the fix by running `/plugin update line` in Claude Code.
 
-If it works (or doesn't), leave a comment so a maintainer can verify and merge.
+<details>
+<summary>Want to test it before it's merged?</summary>
+
+If you have the repository cloned locally:
+1. `git fetch origin && git checkout fix/issue-{{ISSUE_NUMBER}}-<description>`
+2. Run `./dev/install-claude-code.sh` to install locally
+3. Restart Claude Code
+
+</details>
+
 If the fix doesn't look right, let me know and I'll investigate further.
 ```
 
@@ -133,9 +140,15 @@ If the fix doesn't look right, let me know and I'll investigate further.
 
 **What I did:** I created a fix on branch `fix/issue-{{ISSUE_NUMBER}}-<description>` but wasn't able to create a pull request automatically.
 
-To review: `git fetch origin && git checkout fix/issue-{{ISSUE_NUMBER}}-<description>`
+A maintainer can create a PR from this branch. Once merged, you'll get the fix by running `/plugin update line` in Claude Code.
 
-A maintainer can create a PR from this branch.
+<details>
+<summary>Want to review it locally?</summary>
+
+If you have the repository cloned:
+`git fetch origin && git checkout fix/issue-{{ISSUE_NUMBER}}-<description>`
+
+</details>
 ```
 
 **Path B — no fix, ask clarifying questions:**
