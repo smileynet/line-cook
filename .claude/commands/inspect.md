@@ -73,7 +73,9 @@ Parse the inspector's response to extract the verdict line (`**Verdict: <VERDICT
 
 ### Step 4: Display Report Locally
 
-For each PR, display the inspector's full analysis (all 6 dimensions + verdict) directly in the terminal as markdown. Do NOT write to temp files. Do NOT post to GitHub.
+For each PR, display the inspector's full analysis (all 8 dimensions + verdict) directly in the terminal as markdown. Do NOT write to temp files. Do NOT post to GitHub.
+
+Lead with **What Changed** and **Project Value** — these help the maintainer understand the change before seeing the safety checklist. The remaining 6 dimensions (validity, alignment, scope, security, quality, root cause) follow as due diligence.
 
 ### Step 5: Prompt User for Action
 
