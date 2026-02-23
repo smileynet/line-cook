@@ -117,11 +117,11 @@ Choose the format based on the path:
 
 **What I did:** I created a pull request with a proposed fix: #<PR-number>
 
-**How to verify:**
-1. <plain-language test step>
-2. <additional step if needed>
+**Want to try it before it's merged?** You can test the fix locally:
+1. `git fetch origin && git checkout fix/issue-{{ISSUE_NUMBER}}-<description>`
+2. <plain-language test step specific to the fix>
 
-The PR needs review and approval from a maintainer before merging.
+If it works (or doesn't), leave a comment so a maintainer can verify and merge.
 If the fix doesn't look right, let me know and I'll investigate further.
 ```
 
