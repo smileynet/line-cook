@@ -5,8 +5,8 @@ The issue agent is a GitHub Actions workflow that automatically triages issues u
 1. Searches the codebase for relevant context
 2. Classifies the issue (bug, enhancement, or question)
 3. Applies a label
-4. Posts a structured analysis
-5. Optionally proposes a fix branch for simple bugs
+4. Optionally creates a fix branch and pull request for simple bugs
+5. Posts a user-facing comment (with PR link, or clarifying questions)
 
 ## Prerequisites
 
@@ -54,7 +54,7 @@ This will output a token string. Copy it.
 Create a GitHub App for the issue agent's bot identity:
 
 1. Go to **Settings** → **Developer settings** → **GitHub Apps** → **New GitHub App**
-2. Set permissions: `Contents: Read & write`, `Issues: Read & write`
+2. Set permissions: `Contents: Read & write`, `Issues: Read & write`, `Pull requests: Read & write`
 3. Install the App on your repository
 4. Note the **App ID** and generate a **Private Key**
 
@@ -84,7 +84,7 @@ Edit `.github/workflows/issue-agent.yml` to customize behavior:
 Controls how many tool-use iterations Claude can perform. Set via `claude_args`:
 
 ```yaml
-claude_args: '--max-turns 15 ...'  # Default for analysis job
+claude_args: '--max-turns 25 ...'  # Default for analysis job
 claude_args: '--max-turns 8 ...'   # Default for respond job
 ```
 
@@ -95,15 +95,18 @@ Higher values allow more thorough analysis but increase cost and runtime.
 Controls which tools Claude can use:
 
 ```yaml
-claude_args: '--allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue edit *),Bash(gh label *),Bash(git checkout -b fix/issue-*),Bash(git add *),Bash(git commit *),Bash(git push origin fix/*)"'
+claude_args: '--allowedTools "Read,Grep,Glob,Edit,Write,Bash(gh issue comment *),Bash(gh issue edit *),Bash(gh label *),Bash(gh pr create *),Bash(git checkout -b fix/issue-*),Bash(git fetch *),Bash(git add *),Bash(git commit *),Bash(git push origin fix/*)"'
 ```
 
 **Analysis job tools:**
 - `Read,Grep,Glob` — Codebase search
 - `Edit,Write` — File modifications for fix proposals
+- `Bash(gh issue comment *)` — Post comments
 - `Bash(gh issue edit *)` — Apply labels (wildcard matches arguments)
 - `Bash(gh label *)` — Create labels
+- `Bash(gh pr create *)` — Create pull requests for fix branches
 - `Bash(git checkout -b fix/issue-*)` — Create fix branches
+- `Bash(git fetch *)` — Fetch remote refs
 - `Bash(git add *)` — Stage changes
 - `Bash(git commit *)` — Commit changes
 - `Bash(git push origin fix/*)` — Push fix branches
@@ -158,12 +161,14 @@ Triggers when a new issue is opened by a human (not a bot).
 1. Checkout repository
 2. Load issue agent prompt with issue details
 3. Run Claude Code with analysis instructions
-4. Claude searches codebase, classifies issue, applies label, posts analysis
-5. If confident, Claude may create a fix branch and push it
+4. Claude searches codebase, classifies issue, applies label
+5. If confident, Claude creates a fix branch, opens a PR with technical details, and posts a user-facing comment linking to the PR
+6. If not confident, Claude posts a user-facing comment with clarifying questions
 
 **Guardrails:**
 - Only adds labels (does not modify issue title, body, or assignees)
 - Only creates branches named `fix/issue-<number>-<description>`
+- Only creates PRs targeting `main` from fix branches (never merges, approves, or closes PRs)
 - Never pushes to `main`
 - Only modifies files in allowed directories
 - Only proposes fixes for bugs affecting 3 or fewer files
@@ -210,6 +215,7 @@ Both jobs have `if: github.event.*.user.type != 'Bot'` guards to prevent infinit
 The workflow has minimal permissions:
 - `contents: write` — Required for creating fix branches
 - `issues: write` — Required for labeling and commenting
+- `pull-requests: write` — Required for creating pull requests from fix branches
 - `id-token: write` — Required for OIDC auth with Claude Code
 
 The GitHub App token (from `actions/create-github-app-token@v2`) provides a named bot identity and enables fix branches to trigger downstream CI workflows (which `GITHUB_TOKEN` cannot do).
@@ -262,11 +268,11 @@ This prevents malicious issue bodies from hijacking the agent's behavior.
 - The agent will create missing labels automatically
 - Verify `issues: write` permission is set in the workflow
 
-### Fix branches aren't created
+### Fix branches or PRs aren't created
 
-- Check that `contents: write` permission is set
-- Verify git operations are in the allowed tools list
-- Review the agent's analysis comment for confidence assessment
+- Check that `contents: write` and `pull-requests: write` permissions are set
+- Verify git operations and `Bash(gh pr create *)` are in the allowed tools list
+- Review the agent's issue comment — if it asks clarifying questions, confidence criteria weren't met
 
 ## Cost Considerations
 
