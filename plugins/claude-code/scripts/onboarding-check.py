@@ -245,6 +245,21 @@ def find_marketplace_json() -> Optional[Path]:
     if cwd_candidate.is_file():
         return cwd_candidate
 
+    # Cache layout: plugins store scripts under cache/ but marketplace.json lives
+    # under the sibling marketplaces/ directory. Walk up until we find a directory
+    # that contains a marketplaces/ subdirectory, then search within it.
+    # e.g. cache/line-cook/line/0.16.1/scripts/ -> plugins/ -> marketplaces/
+    p = script_dir
+    while p != p.parent:
+        marketplaces_dir = p / "marketplaces"
+        if marketplaces_dir.is_dir():
+            for marketplace_dir in marketplaces_dir.iterdir():
+                candidate = marketplace_dir / ".claude-plugin" / "marketplace.json"
+                if candidate.is_file():
+                    return candidate
+            break
+        p = p.parent
+
     return None
 
 
