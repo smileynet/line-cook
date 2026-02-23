@@ -202,7 +202,7 @@ Agents for Line Cook development (not shipped with the plugin):
 | Agent | Purpose |
 |-------|---------|
 | **release-editor** | Interactive release coordinator for preparing new versions |
-| **inspector** | Read-only reviewer for bot-created issue/PR pairs (used by `/inspect`) |
+| **inspector** | Read-only reviewer for bot-created issue/PR pairs — evaluates validity, intent alignment, scope, security, code quality, and root cause depth (used by `/inspect`) |
 
 > **Note:** The shipped `plugins/claude-code/agents/sous-chef.md` is used directly for this project (no local override).
 
@@ -307,12 +307,14 @@ Detailed responsibilities and outputs for each agent role, shared across all pla
 
 - **Purpose**: Automated GitHub issue triage via GitHub Actions
 - **Responsibilities**:
-  - Search codebase for relevant context
-  - Classify issue type and severity
+  - Search codebase for relevant context (including ADRs, conventions, callers, git history)
+  - Safety check for prompt injection, scope expansion, credential requests
+  - Classify issue type (bug, enhancement, question)
   - Apply appropriate labels
+  - Root cause understanding gate (three-questions test) before proposing fixes
   - Post analysis comment with findings
   - Optionally propose fix branch for straightforward issues
-- **Trigger**: GitHub Actions on issue open or `@claude` mention
+- **Trigger**: GitHub Actions on issue open/reopen or `@claude` mention
 - **Output**: Label + analysis comment + optional fix branch
 - **Documentation**: See [Issue Agent Installation](docs/installation/issue-agent.md)
 
