@@ -1221,12 +1221,16 @@ def check_epic_completion(
         # Get epic title for merge commit
         epic_title = get_task_title(epic_id, cwd) or ""
 
-        # Step 1: Merge epic branch to main
-        merged, merge_error = merge_completed_epic(epic_id, epic_title, cwd)
-        if merged:
-            logger.info(f"Merged epic branch epic/{epic_id} to main")
-        elif merge_error == "merge_conflict":
-            logger.warning(f"Merge conflict for epic/{epic_id}, bug bead created")
+        # Step 1: Merge epic branch to main (only if on an epic branch)
+        current = get_current_branch(cwd)
+        if current and current.startswith("epic/"):
+            merged, merge_error = merge_completed_epic(epic_id, epic_title, cwd)
+            if merged:
+                logger.info(f"Merged epic branch epic/{epic_id} to main")
+            elif merge_error == "merge_conflict":
+                logger.warning(f"Merge conflict for epic/{epic_id}, bug bead created")
+        else:
+            logger.debug(f"Skipping merge for epic {epic_id} (not on epic branch)")
 
         # Step 2: Run close-service for documentation
         logger.info(f"Running close-service for epic {epic_id}")
@@ -1912,17 +1916,21 @@ def run_iteration(
                     epic_info = task_info_cache.get(epic_id)
                     epic_title_for_merge = epic_info.get("title", "") if epic_info else ""
 
-                    # Step 1: Merge epic branch to main BEFORE close-service
-                    from .loop import merge_completed_epic
-                    merged, merge_error = merge_completed_epic(epic_id, epic_title_for_merge, cwd)
-                    if merged:
-                        merged_epic_ids.append(epic_id)
-                        if not json_output:
-                            print(f"  Branch: epic/{epic_id} merged to main")
-                    elif merge_error == "merge_conflict":
-                        if not json_output:
-                            print(f"  WARNING: Merge conflict for epic/{epic_id}")
-                            print(f"           Bug bead created for manual resolution")
+                    # Step 1: Merge epic branch to main (only if on an epic branch)
+                    current_br = get_current_branch(cwd)
+                    if current_br and current_br.startswith("epic/"):
+                        from .loop import merge_completed_epic
+                        merged, merge_error = merge_completed_epic(epic_id, epic_title_for_merge, cwd)
+                        if merged:
+                            merged_epic_ids.append(epic_id)
+                            if not json_output:
+                                print(f"  Branch: epic/{epic_id} merged to main")
+                        elif merge_error == "merge_conflict":
+                            if not json_output:
+                                print(f"  WARNING: Merge conflict for epic/{epic_id}")
+                                print(f"           Bug bead created for manual resolution")
+                    else:
+                        logger.debug(f"Skipping merge for epic {epic_id} (not on epic branch)")
 
                     # Step 2: Run close-service for documentation
                     logger.info(f"Epic {epic_id} complete - running close-service phase")

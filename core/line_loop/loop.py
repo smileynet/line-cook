@@ -1139,7 +1139,8 @@ def run_loop(
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     epic_mode: Optional[str] = None,
-    cli_name: Optional[str] = None
+    cli_name: Optional[str] = None,
+    epic_branch: bool = False
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat.
 
@@ -1209,6 +1210,16 @@ def run_loop(
     # Sync git and beads once at loop start
     if not skip_initial_sync:
         sync_at_start(cwd, json_output)
+
+    # Pre-start: warn about non-main branch or uncommitted changes
+    if not epic_branch:
+        current = get_current_branch(cwd)
+        if current and current != "main" and current.startswith("epic/"):
+            logger.warning(f"Starting on epic branch '{current}' in trunk-based mode")
+            if not json_output:
+                print(f"\n  WARNING: On epic branch '{current}' but running in trunk-based mode.")
+                print(f"  Merge this branch to main before starting, or use --epic-branch.")
+                print()
 
     iteration = 0
     current_retries = 0
@@ -1350,8 +1361,8 @@ def run_loop(
                     print(f"    under: {' > '.join(chain_parts)}")
             print("-" * 44)
 
-        # Pre-cook: ensure correct branch for epic work
-        if target_task_id:
+        # Pre-cook: ensure correct branch for epic work (only when --epic-branch)
+        if epic_branch and target_task_id:
             branch_name, was_created = ensure_epic_branch(target_task_id, cwd)
             if branch_name and not json_output:
                 if was_created:
@@ -1601,20 +1612,19 @@ def run_loop(
     except Exception as e:
         logger.warning(f"Error in final epic completion check: {e}")
 
-    # Return to main branch before exit.
-    # Epic branches with partial work stay intact for future loop runs,
-    # but the working directory should always be left on main.
-    try:
-        current = get_current_branch(cwd)
-        if current and current != "main" and current.startswith("epic/"):
-            auto_commit_wip(current, cwd)
-            result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
-            if result.returncode == 0:
-                logger.info(f"Returned to main from {current} at end of loop")
-            else:
-                logger.warning(f"Failed to return to main from {current}: {result.stderr}")
-    except Exception as e:
-        logger.warning(f"Error returning to main at end of loop: {e}")
+    # Return to main branch before exit (only relevant when --epic-branch was used).
+    if epic_branch:
+        try:
+            current = get_current_branch(cwd)
+            if current and current != "main" and current.startswith("epic/"):
+                auto_commit_wip(current, cwd)
+                result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
+                if result.returncode == 0:
+                    logger.info(f"Returned to main from {current} at end of loop")
+                else:
+                    logger.warning(f"Failed to return to main from {current}: {result.stderr}")
+        except Exception as e:
+            logger.warning(f"Error returning to main at end of loop: {e}")
 
     ended_at = datetime.now()
     duration = (ended_at - started_at).total_seconds()
