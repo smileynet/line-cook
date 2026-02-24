@@ -14,72 +14,97 @@ This is where findings from `/line:cook` and `/line:serve` get filed as beads.
 
 ## Finding Filing Strategy
 
-Findings from cook and serve are filed as **siblings under the current task's parent feature**:
+Findings are triaged to **three destinations** based on markers from serve (or inferred during tidy):
 
-**Code/project findings (any priority)** → sibling tasks under parent feature
-**Process improvement suggestions** → Retrospective epic
+| Marker | Destination | Loop picks up? | Blocks feature? |
+|--------|-------------|----------------|-----------------|
+| `[FIX]` | Sibling under parent feature | Yes (next iteration) | Yes (must close before plate) |
+| `[DEFER]` | Child of **Backlog** epic | No (excluded epic) | No (different hierarchy) |
+| `[RETRO]` | Child of **Retrospective** epic | No (excluded epic) | No (different hierarchy) |
 
-This ensures:
-- Findings are addressed before the feature is plated (all children must close)
-- The loop picks them up next (highest priority first)
-- Context is maintained (findings cluster with related work)
+**Triage heuristic:**
+- `[FIX]` — Clear defects, P0-P2, or P3 within current feature scope
+- `[DEFER]` — Ambiguous suggestions, nits, P3 outside scope, P4 code items
+- `[RETRO]` — Process/workflow improvements (not code findings)
+- **Cook findings without serve markers** default to `[DEFER]` (safe — won't block features)
 
 **Edge cases:**
-- Task parent is an **epic** (no feature layer) → file under the epic
-- Task has **no parent** → file as standalone with appropriate priority
+- Task parent is an **epic** (no feature layer) → `[FIX]` files under the epic
+- Task has **no parent** → `[FIX]` files as standalone with appropriate priority
+
+**Promotion:** Users can promote deferred items back into scope:
+`bd update <id> --parent=<feature-id>`
+
+### Parking Epics (Backlog & Retrospective)
+
+Both are auto-created if they don't exist. The loop's `EXCLUDED_EPIC_TITLES` already skips children of "Backlog" and "Retrospective" epics.
+
+```bash
+# Find-or-create pattern (run in Step 1)
+BACKLOG_ID=$(bd list --type=epic --json 2>/dev/null | jq -r '.[] | select(.title=="Backlog") | .id' | head -1)
+[ -z "$BACKLOG_ID" ] && BACKLOG_ID=$(bd create --title="Backlog" --type=epic --priority=4 --json 2>/dev/null | jq -r '.[0].id // .[0]')
+
+RETRO_ID=$(bd list --type=epic --json 2>/dev/null | jq -r '.[] | select(.title=="Retrospective") | .id' | head -1)
+[ -z "$RETRO_ID" ] && RETRO_ID=$(bd create --title="Retrospective" --type=epic --priority=4 --json 2>/dev/null | jq -r '.[0].id // .[0]')
+```
 
 ### Bead Creation Reference
 
-**Always include a description** with discovery context:
+**All findings get enriched descriptions + `--notes` for structured metadata:**
 
 ```bash
-# Code/project findings → sibling under parent feature
+# [FIX] → sibling under parent feature (blocks feature closure)
 bd create --title="..." --type=task|bug --priority=0-4 \
   --parent=<parent-feature-or-epic> \
   --description="$(cat <<'EOF'
-Discovery Source: <source-task-id> - <source-task-title>
-Discovered During: <cook|serve> phase
-
-Impact:
-<why this matters - user impact, technical debt, or risk>
-
-Context:
-<before/after state if relevant, file/component involved>
+Problem: <what is wrong>
+Location: <file:line>
+Impact: <user impact, technical debt, or risk>
+Context: <what triggered discovery — task, phase, observation>
+Verify: <how to confirm the fix works>
+EOF
+)" \
+  --notes="$(cat <<'EOF'
+source_task: <source-task-id>
+source_phase: <cook|serve>
+serve_severity: <critical|major|minor|nit>
+location: <file:line>
 EOF
 )"
 
-# Priority: 0=critical, 1=high, 2=medium, 3=low, 4=backlog
-# Types: task, bug (broken), feature (new capability)
-
-# Process improvement suggestions → Retrospective epic
-# (Ways to improve cook, serve, tidy, plate, or other workflow phases)
-bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic> \
+# [DEFER] → child of Backlog epic (does NOT block feature closure)
+bd create --title="..." --type=task --priority=3-4 \
+  --parent=$BACKLOG_ID \
   --description="$(cat <<'EOF'
-Discovery Source: <source-task-id> - <source-task-title>
-Discovered During: <cook|serve> phase
-
-Suggestion:
-<how the workflow phase could be improved>
-
-Context:
-<observation that triggered this suggestion>
+Problem: <what could be improved>
+Location: <file:line>
+Impact: <why this matters if addressed>
+Context: <what triggered discovery>
+Verify: <how to confirm improvement>
+EOF
+)" \
+  --notes="$(cat <<'EOF'
+source_task: <source-task-id>
+source_phase: <cook|serve>
+serve_severity: <minor|nit>
+location: <file:line>
+original_parent: <parent-feature-id>
 EOF
 )"
-```
 
-**Retrospective epic:**
-
-Reserved for **process improvement suggestions** (not code findings):
-- Workflow phase improvements (cook, serve, tidy, etc.)
-- Tooling or automation suggestions
-- Process observations
-
-```bash
-# One-time setup (if not exists)
-bd create --title="Retrospective" --type=epic --priority=4
-
-# File process improvements as children
-bd create --title="Consider adding lint step to serve" --type=task --priority=4 --parent=<retro-epic-id>
+# [RETRO] → child of Retrospective epic (process improvements)
+bd create --title="..." --type=task --priority=4 \
+  --parent=$RETRO_ID \
+  --description="$(cat <<'EOF'
+Suggestion: <how the workflow could be improved>
+Context: <observation that triggered this>
+EOF
+)" \
+  --notes="$(cat <<'EOF'
+source_task: <source-task-id>
+source_phase: <cook|serve>
+EOF
+)"
 ```
 
 ## Process
@@ -93,6 +118,9 @@ TASK_ID="<current-task-id>"
 
 echo "=== PARENT ==="
 bd show $TASK_ID --json 2>/dev/null | jq -r '.[0].parent // empty' || echo "(none)"
+echo "=== PARKING EPICS ==="
+echo "Backlog: $(bd list --type=epic --json 2>/dev/null | jq -r '.[] | select(.title=="Backlog") | .id' | head -1)"
+echo "Retrospective: $(bd list --type=epic --json 2>/dev/null | jq -r '.[] | select(.title=="Retrospective") | .id' | head -1)"
 echo "=== IN PROGRESS ==="
 bd list --status=in_progress 2>/dev/null || echo "(none)"
 echo "=== EPIC ELIGIBLE ==="
@@ -101,7 +129,7 @@ echo "=== GIT STATUS ==="
 git status --porcelain
 ```
 
-Use the PARENT value from output as `--parent` for all code/project findings. If no parent exists, file as standalone beads.
+Use PARENT as `--parent` for `[FIX]` findings. Use PARKING EPICS for `[DEFER]` (Backlog) and `[RETRO]` (Retrospective) — create them if not found (see find-or-create pattern in Filing Strategy above).
 
 ### Step 2: File Discovered Issues
 
@@ -117,62 +145,68 @@ Look for `PHASE: COOK` and `PHASE: SERVE` comments containing `Findings:` sectio
 
 Create beads for all findings with full context.
 
-**Code/project findings** (file as siblings under parent feature/epic):
+**`[FIX]` findings** (sibling under parent — blocks feature closure):
 ```bash
 bd create --title="Fix race condition in session cleanup" \
   --type=bug --priority=2 \
   --parent=$PARENT \
   --description="$(cat <<'EOF'
-Discovery Source: lc-abc - Implement session timeout
-Discovered During: cook phase
-
-Impact:
-Sessions may not be cleaned up under load, causing resource leaks.
-This affects production reliability under concurrent requests.
-
-Context:
-Test for timeout cleanup failed intermittently.
-Related: internal/session/manager.go:145
+Problem: Sessions not cleaned up under concurrent load
+Location: internal/session/manager.go:145
+Impact: Resource leaks under production load
+Context: Discovered via intermittent test failure in lc-abc (cook phase)
+Verify: Run concurrent session tests — no leaked goroutines
+EOF
+)" \
+  --notes="$(cat <<'EOF'
+source_task: lc-abc
+source_phase: cook
+serve_severity: major
+location: internal/session/manager.go:145
 EOF
 )"
 ```
 
-**Lower-priority code findings** (still under parent, not retro):
+**`[DEFER]` findings** (child of Backlog — does NOT block feature closure):
 ```bash
 bd create --title="Consider caching session lookups" \
   --type=task --priority=4 \
-  --parent=$PARENT \
+  --parent=$BACKLOG_ID \
   --description="$(cat <<'EOF'
-Discovery Source: lc-abc - Implement session timeout
-Discovered During: cook phase (profiling)
-
-Impact:
-Performance optimization opportunity, not blocking.
-Could reduce latency by ~20ms per request in hot path.
-
-Context:
-Session.Get() called 10+ times per request in hot path.
-Related: internal/session/store.go
+Problem: Session.Get() called 10+ times per request in hot path
+Location: internal/session/store.go
+Impact: ~20ms latency reduction opportunity (not blocking)
+Context: Noticed during profiling in lc-abc cook phase
+Verify: Benchmark before/after with caching enabled
+EOF
+)" \
+  --notes="$(cat <<'EOF'
+source_task: lc-abc
+source_phase: cook
+serve_severity: nit
+location: internal/session/store.go
+original_parent: lc-parent-feature
 EOF
 )"
 ```
 
-**Process improvement suggestions** (file under Retrospective epic):
+**`[RETRO]` findings** (child of Retrospective — process improvements):
 ```bash
 bd create --title="Consider adding lint step to serve phase" \
-  --type=task --priority=4 --parent=<retro-epic> \
+  --type=task --priority=4 --parent=$RETRO_ID \
   --description="$(cat <<'EOF'
-Discovery Source: lc-abc - Implement session timeout
-Discovered During: serve phase
-
-Suggestion:
-Serve could run a linter before sous-chef review to catch style issues automatically.
-
-Context:
-Sous-chef spent review time on formatting issues that a linter would catch.
+Suggestion: Run linter before sous-chef review to catch style issues automatically
+Context: Sous-chef spent review time on formatting issues during lc-abc serve
+EOF
+)" \
+  --notes="$(cat <<'EOF'
+source_task: lc-abc
+source_phase: serve
 EOF
 )"
 ```
+
+**Cook findings without serve markers** default to `[DEFER]` (safe — avoids blocking features with ambiguous items).
 
 #### Research Findings (for research tasks)
 
@@ -376,10 +410,14 @@ Epics ready to close: <count>
   ★ <epic-id>: <title> (<N> children) → run /line:close-service
 
 Issues filed: <count>
-  Under parent (<parent-id>):
+  [FIX] Under parent (<parent-id>) — blocks feature closure:
     + <new-id>: <title> [P<n>]
       Source: <source-task-id> (<cook|serve> phase)
-  Under Retrospective:
+  [DEFER] Under Backlog — deferred, won't block feature:
+    + <new-id>: <title> [P<n>]
+      Source: <source-task-id> (<cook|serve> phase)
+      Promote: bd update <new-id> --parent=<feature-id>
+  [RETRO] Under Retrospective — process improvements:
     + <new-id>: <title> [P4/retro]
       Source: <source-task-id> (<cook|serve> phase)
 

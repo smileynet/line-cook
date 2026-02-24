@@ -181,12 +181,16 @@ Auto-fixed:
   - <file>:<line> - <fix applied>
 
 Issues to file in tidy (see tidy.md Finding Filing Strategy):
-  Code/project findings (siblings under parent):
-  - [P1] "<title>" - <description>
-  - [P3] "<title>" - <description>
-  - [P4] "<title>" - <minor code finding>
-  Process improvements (under Retrospective epic):
-  - [P4] "<title>" - <workflow suggestion>
+
+  Triage markers — apply ONE per finding:
+    [FIX]   Clear defect or required change (P0-P2, or P3 in current scope)
+    [DEFER] Ambiguous, suggestion, nit, or out-of-scope (P3 outside scope, P4)
+    [RETRO] Process/workflow improvement (not code)
+
+  Findings:
+  - [FIX]   "<title>" | <file:line> | P<n> — <problem + impact>
+  - [DEFER] "<title>" | <file:line> | P<n> — <suggestion + context>
+  - [RETRO] "<title>" | P4 — <workflow observation>
 
 Positive notes:
   - <good thing>

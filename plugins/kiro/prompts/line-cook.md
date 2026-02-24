@@ -177,12 +177,13 @@ Progress: 2/N complete
 TDD Phase: RED/GREEN/REFACTOR
 ```
 
-**Collecting findings:** As you execute, note (but do NOT file yet):
-- New tasks discovered
-- Potential issues or bugs
-- Areas for improvement
+**Collecting findings:** As you execute, note (but do NOT file yet) using structured format:
+- **Title** — short, actionable description
+- **Location** — file:line where the issue lives
+- **Severity** — critical, major, minor, or nit
+- **Impact** — why it matters (1 sentence)
 
-These will be filed as beads in tidy phase (see tidy.md Finding Filing Strategy).
+These will be triaged in tidy phase as `[FIX]`, `[DEFER]`, or `[RETRO]` (see tidy.md Finding Filing Strategy).
 
 ### Step 5: Verify Kitchen Equipment
 
@@ -221,7 +222,9 @@ Before: <previous state - what existed/didn't work>
 After: <new state - what's now possible/fixed>
 
 Files: <count> changed
-Findings: <issues/improvements noted for tidy>"
+Findings:
+  - <title> | <file:line> | <severity> | <impact>
+  - <title> | <file:line> | <severity> | <impact>"
 ```
 
 **Note:** The bead remains `in_progress` until tidy phase closes it after creating the git commit. This ensures beads are only closed when corresponding commits exist.
@@ -256,13 +259,9 @@ Verification:
   [✓] Code compiles
   [✓] Tests pass
 
-Findings (to file in tidy):
-  New tasks:
-    - "Add support for edge case X"
-  Potential issues:
-    - "Error handling in Y could be improved"
-  Improvements:
-    - "Consider refactoring Z for clarity"
+Findings (to triage in tidy as [FIX]/[DEFER]/[RETRO]):
+  - "<title>" | <file:line> | <severity> — <impact>
+  - "<title>" | <file:line> | <severity> — <impact>
 
 NEXT STEP: @line-serve (review) or @line-tidy (commit)
 ```
