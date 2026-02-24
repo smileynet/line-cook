@@ -1445,9 +1445,17 @@ def run_iteration(
         if progress_state:
             progress_state.update_progress(action_count, last_action_time)
 
+    # Per-phase timing breakdown
+    phase_timings: dict = {}
+
     # ===== PHASE 1: COOK (with retry loop) =====
     cook_attempts = 0
     cook_succeeded = False
+
+    cook_cumulative_duration = 0.0
+    cook_cumulative_actions = 0
+    serve_phase_duration = 0.0
+    serve_phase_actions = 0
 
     while cook_attempts <= max_cook_retries:
         cook_attempts += 1
@@ -1464,6 +1472,8 @@ def run_iteration(
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
+        cook_cumulative_duration += cook_result.duration_seconds
+        cook_cumulative_actions += len(cook_result.actions)
 
         # Track if task completed despite timeout (still need serve review)
         task_completed_despite_timeout = False
@@ -1503,7 +1513,8 @@ def run_iteration(
                         after_ready=len(after_cook.ready_ids),
                         after_in_progress=len(after_cook.in_progress_ids),
                         actions=all_actions,
-                        delta=BeadDelta.compute(before, after_cook)
+                        delta=BeadDelta.compute(before, after_cook),
+                        phase_timings=phase_timings,
                     )
                 continue
 
@@ -1538,7 +1549,8 @@ def run_iteration(
                 after_ready=len(before.ready_ids),
                 after_in_progress=len(before.in_progress_ids),
                 actions=all_actions,
-                delta=BeadDelta(newly_closed=[], newly_filed=[])
+                delta=BeadDelta(newly_closed=[], newly_filed=[]),
+                phase_timings=phase_timings,
             )
 
         # Cook succeeded - print progress (we'll report actions after serve since we continue to serve)
@@ -1571,6 +1583,8 @@ def run_iteration(
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
         all_output.append(serve_result.output)
+        serve_phase_duration = serve_result.duration_seconds
+        serve_phase_actions = len(serve_result.actions)
 
         if serve_result.error:
             if not json_output:
@@ -1635,7 +1649,8 @@ def run_iteration(
                     after_ready=len(after.ready_ids),
                     after_in_progress=len(after.in_progress_ids),
                     actions=all_actions,
-                    delta=BeadDelta.compute(before, after)
+                    delta=BeadDelta.compute(before, after),
+                    phase_timings=phase_timings,
                 )
             elif serve_verdict == "SKIPPED":
                 if not json_output:
@@ -1695,7 +1710,8 @@ def run_iteration(
                     after_ready=len(after.ready_ids),
                     after_in_progress=len(after.in_progress_ids),
                     actions=all_actions,
-                    delta=BeadDelta.compute(before, after)
+                    delta=BeadDelta.compute(before, after),
+                    phase_timings=phase_timings,
                 )
             else:
                 # No verdict parsed and no signals detected - retry full cook→serve cycle
@@ -1712,6 +1728,22 @@ def run_iteration(
                     if not json_output:
                         print_phase_progress("serve", "error", serve_result.duration_seconds, "no verdict")
                     break
+
+    # Record cook phase timing (cumulative across all attempts)
+    phase_timings["cook"] = {
+        "duration_seconds": round(cook_cumulative_duration, 1),
+        "action_count": cook_cumulative_actions,
+        "attempts": cook_attempts,
+    }
+    # Record serve phase timing (last serve run)
+    if serve_phase_duration > 0 or serve_phase_actions > 0:
+        serve_timing: dict = {
+            "duration_seconds": round(serve_phase_duration, 1),
+            "action_count": serve_phase_actions,
+        }
+        if serve_verdict:
+            serve_timing["verdict"] = serve_verdict
+        phase_timings["serve"] = serve_timing
 
     # Check if we exhausted retries
     if not cook_succeeded:
@@ -1734,7 +1766,8 @@ def run_iteration(
             after_ready=len(after.ready_ids),
             after_in_progress=len(after.in_progress_ids),
             actions=all_actions,
-            delta=BeadDelta.compute(before, after)
+            delta=BeadDelta.compute(before, after),
+            phase_timings=phase_timings
         )
 
     # ===== PHASE 3: TIDY =====
@@ -1763,6 +1796,15 @@ def run_iteration(
             if commit_hash:
                 extra += f", committed {commit_hash[:7]}"
             print_phase_progress("tidy", "done", tidy_result.duration_seconds, extra)
+
+    # Record tidy phase timing
+    tidy_timing: dict = {
+        "duration_seconds": round(tidy_result.duration_seconds, 1),
+        "action_count": len(tidy_result.actions),
+    }
+    if commit_hash:
+        tidy_timing["commit_hash"] = commit_hash
+    phase_timings["tidy"] = tidy_timing
 
     # Capture final state
     after = get_bead_snapshot(cwd)
@@ -1800,6 +1842,12 @@ def run_iteration(
             all_actions.extend(plate_result.actions)
             all_output.append("\n=== PLATE PHASE ===\n")
             all_output.append(plate_result.output)
+
+            # Record plate phase timing
+            phase_timings["plate"] = {
+                "duration_seconds": round(plate_result.duration_seconds, 1),
+                "action_count": len(plate_result.actions),
+            }
 
             if plate_result.error:
                 if not json_output:
@@ -1841,6 +1889,12 @@ def run_iteration(
                     all_actions.extend(cs_result.actions)
                     all_output.append("\n=== CLOSE-SERVICE PHASE ===\n")
                     all_output.append(cs_result.output)
+
+                    # Record close-service phase timing
+                    phase_timings["close-service"] = {
+                        "duration_seconds": round(cs_result.duration_seconds, 1),
+                        "action_count": len(cs_result.actions),
+                    }
 
                     if cs_result.error:
                         if not json_output:
@@ -1888,5 +1942,6 @@ def run_iteration(
         delta=delta,
         findings_count=findings_count,
         closed_epics=closed_epic_ids,
-        merged_epics=merged_epic_ids
+        merged_epics=merged_epic_ids,
+        phase_timings=phase_timings
     )

@@ -338,7 +338,7 @@ def get_next_ready_task(
 
 def serialize_iteration_for_status(result: IterationResult) -> dict:
     """Serialize an IterationResult for the status file's recent_iterations array."""
-    return {
+    data = {
         "iteration": result.iteration,
         "task_id": result.task_id,
         "task_title": result.task_title,
@@ -354,8 +354,11 @@ def serialize_iteration_for_status(result: IterationResult) -> dict:
         "action_count": result.total_actions,
         "action_types": result.action_counts,
         # Findings filed during iteration
-        "findings_count": result.findings_count
+        "findings_count": result.findings_count,
     }
+    if result.phase_timings:
+        data["phases"] = result.phase_timings
+    return data
 
 
 def serialize_action(action: ActionRecord) -> dict:
@@ -407,6 +410,8 @@ def serialize_full_iteration(result: IterationResult) -> dict:
                 for b in result.delta.newly_filed
             ],
         }
+    if result.phase_timings:
+        data["phases"] = result.phase_timings
     return data
 
 
@@ -501,7 +506,7 @@ def generate_escalation_report(
     elif stop_reason == "circuit_breaker":
         suggested_actions = [
             "Check recent failures for common patterns (timeouts, test failures, etc.)",
-            "Review loop logs: '/line:loop tail --lines 100'",
+            "Review loop logs: '/line:loop watch --log-lines 100 --interval 0'",
             "Ensure test environment is healthy (database, services, etc.)",
             "Consider reducing task complexity or adding more context",
             "Restart loop after investigation: '/line:loop start'"
@@ -509,7 +514,7 @@ def generate_escalation_report(
     else:
         suggested_actions = [
             "Review loop status: '/line:loop status'",
-            "Check logs: '/line:loop tail --lines 100'"
+            "Check logs: '/line:loop watch --log-lines 100 --interval 0'"
         ]
 
     return {

@@ -481,6 +481,9 @@ class IterationResult:
     # Epics merged to main during this iteration
     merged_epics: list[str] = field(default_factory=list)
 
+    # Per-phase timing breakdown (phase_name -> {duration_seconds, action_count, ...})
+    phase_timings: dict = field(default_factory=dict)
+
     @property
     def action_counts(self) -> dict[str, int]:
         """Count actions by tool name."""
