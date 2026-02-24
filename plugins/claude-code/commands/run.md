@@ -32,17 +32,11 @@ Skill(skill="line:prep")
 
 Wait for prep to complete.
 
-### Step 1.5: Ensure Epic Branch
+### Step 1.5: Branch Check
 
-If the task to be worked on belongs to an epic, ensure we're on the correct epic branch:
+Stay on the current branch (usually main). Epic branches are only used when explicitly requested by the user with `--epic-branch`.
 
-1. Get task details: `bd show <task-id> --json`
-2. Walk parent chain to find epic ancestor
-3. If epic found:
-   - Check if `epic/<epic-id>` branch exists: `git show-ref --verify refs/heads/epic/<epic-id>`
-   - If no branch exists: `git checkout main && git pull --rebase && git checkout -b epic/<epic-id>`
-   - If branch exists and we're not on it: commit WIP if needed, then `git checkout epic/<epic-id>`
-4. If no epic parent, stay on current branch
+If the user explicitly asked to work on an epic branch, follow the epic branching workflow. Otherwise, proceed directly to Step 2.
 
 ### Step 2: Run /line:cook
 
@@ -116,24 +110,7 @@ bd show <task-id>
 2. Wait for plate to complete. Plate handles maitre review, acceptance docs, and CHANGELOG.
 
 3. If plate output shows "EPIC READY TO CLOSE":
-
-   **First, merge the epic branch to main:**
-   ```bash
-   EPIC_BRANCH="epic/<epic-id>"
-   CURRENT=$(git branch --show-current)
-   if [ "$CURRENT" = "$EPIC_BRANCH" ]; then
-     git checkout main && git pull --rebase
-     git merge --no-ff $EPIC_BRANCH -m "Merge epic <epic-id>: <epic-title>"
-     git branch -d $EPIC_BRANCH
-     git push origin main
-     git push origin --delete $EPIC_BRANCH 2>/dev/null || true
-   fi
-   ```
-
-   If merge fails (conflict): `git merge --abort`, return to epic branch,
-   create bug bead, skip close-service.
-
-   **Then run close-service for documentation:**
+   Run close-service for documentation:
    ```
    Skill(skill="line:close-service", args="<epic-id>")
    ```

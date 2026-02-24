@@ -3382,6 +3382,7 @@ class TestClosedEpicsPopulatedWithMerge(unittest.TestCase):
              patch("line_loop.iteration.get_task_info", return_value={"title": "Feature", "issue_type": "feature"}), \
              patch("line_loop.iteration.get_children", return_value=[{"issue_type": "task", "status": "closed"}]), \
              patch("line_loop.iteration.check_epic_completion_after_feature", return_value=(True, "lc-abc")), \
+             patch("line_loop.iteration.get_current_branch", return_value="epic/lc-abc"), \
              patch("line_loop.loop.merge_completed_epic", return_value=(True, None)):
             result = line_loop.run_iteration(
                 1, 10, Path("/tmp"),
@@ -4919,6 +4920,133 @@ class TestPhaseTimings(unittest.TestCase):
         result = make_iteration_result()
         data = serialize_full_iteration(result)
         self.assertNotIn("phases", data)
+
+
+class TestTrunkBasedDefault(unittest.TestCase):
+    """Test that trunk-based development is the default (no epic branching)."""
+
+    def _make_run_loop_patches(self, snapshot, ensure_epic_mock=None):
+        """Create standard patches for run_loop tests."""
+        from unittest.mock import patch
+
+        empty_snapshot = line_loop.BeadSnapshot()
+        snapshot_call_count = [0]
+
+        def mock_get_snapshot(cwd):
+            snapshot_call_count[0] += 1
+            return snapshot if snapshot_call_count[0] <= 1 else empty_snapshot
+
+        patches = [
+            patch("line_loop.loop.sync_at_start"),
+            patch("line_loop.loop.get_bead_snapshot", side_effect=mock_get_snapshot),
+            patch("line_loop.loop.get_next_ready_task", return_value=("lc-123", "Test task")),
+            patch("line_loop.loop.run_iteration", return_value=make_iteration_result(outcome="completed", success=True)),
+            patch("line_loop.loop.build_epic_ancestor_map", return_value={}),
+            patch("line_loop.loop.check_epic_completion", return_value=[]),
+            patch("line_loop.loop.get_current_branch", return_value="main"),
+        ]
+        if ensure_epic_mock is not None:
+            patches.append(patch("line_loop.loop.ensure_epic_branch", ensure_epic_mock))
+        else:
+            patches.append(patch("line_loop.loop.ensure_epic_branch", return_value=(None, False)))
+        return patches
+
+    def test_run_loop_default_does_not_call_ensure_epic_branch(self):
+        """run_loop(epic_branch=False) does NOT call ensure_epic_branch."""
+        from unittest.mock import patch, MagicMock
+
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+        ensure_mock = MagicMock(return_value=(None, False))
+        patches = self._make_run_loop_patches(snapshot, ensure_epic_mock=ensure_mock)
+
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            line_loop.run_loop(
+                max_iterations=1,
+                stop_on_blocked=False,
+                stop_on_crash=False,
+                max_retries=0,
+                json_output=True,
+                output_file=None,
+                cwd=Path("/tmp"),
+                skip_initial_sync=True,
+                epic_branch=False
+            )
+
+        ensure_mock.assert_not_called()
+
+    def test_run_loop_epic_branch_calls_ensure_epic_branch(self):
+        """run_loop(epic_branch=True) DOES call ensure_epic_branch."""
+        from unittest.mock import patch, MagicMock
+
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+        ensure_mock = MagicMock(return_value=(None, False))
+        patches = self._make_run_loop_patches(snapshot, ensure_epic_mock=ensure_mock)
+
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            line_loop.run_loop(
+                max_iterations=1,
+                stop_on_blocked=False,
+                stop_on_crash=False,
+                max_retries=0,
+                json_output=True,
+                output_file=None,
+                cwd=Path("/tmp"),
+                skip_initial_sync=True,
+                epic_branch=True
+            )
+
+        ensure_mock.assert_called_once()
+
+    def test_run_loop_warns_on_epic_branch_in_trunk_mode(self):
+        """run_loop warns when on an epic branch without --epic-branch."""
+        from unittest.mock import patch, MagicMock
+
+        snapshot = line_loop.BeadSnapshot()  # empty, loop exits immediately
+        output = io.StringIO()
+
+        with patch("line_loop.loop.sync_at_start"), \
+             patch("line_loop.loop.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.loop.get_current_branch", return_value="epic/lc-abc"), \
+             patch("line_loop.loop.build_epic_ancestor_map", return_value={}), \
+             patch("line_loop.loop.check_epic_completion", return_value=[]), \
+             contextlib.redirect_stdout(output):
+            line_loop.run_loop(
+                max_iterations=1,
+                stop_on_blocked=False,
+                stop_on_crash=False,
+                max_retries=0,
+                json_output=False,
+                output_file=None,
+                cwd=Path("/tmp"),
+                skip_initial_sync=True,
+                epic_branch=False
+            )
+
+        self.assertIn("epic/lc-abc", output.getvalue())
+        self.assertIn("WARNING", output.getvalue())
+
+    def test_cli_argparse_has_epic_branch_flag(self):
+        """CLI entry point has --epic-branch argument."""
+        import argparse
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--epic-branch", action="store_true")
+
+        # Default is False
+        args = parser.parse_args([])
+        self.assertFalse(args.epic_branch)
+
+        # Flag sets it True
+        args = parser.parse_args(["--epic-branch"])
+        self.assertTrue(args.epic_branch)
 
 
 if __name__ == "__main__":

@@ -265,6 +265,11 @@ Examples:
         help=f"Action to take when idle detected: warn (log warning) or terminate (stop phase) (default: {DEFAULT_IDLE_ACTION})"
     )
     parser.add_argument(
+        "--epic-branch",
+        action="store_true",
+        help="Create epic/* branches for isolation (default: work on main)"
+    )
+    parser.add_argument(
         "--cli",
         choices=list(CLI_PROFILES.keys()),
         default=DEFAULT_CLI,
@@ -360,7 +365,8 @@ Examples:
             idle_timeout=args.idle_timeout,
             idle_action=args.idle_action,
             epic_mode=args.epic,
-            cli_name=args.cli
+            cli_name=args.cli,
+            epic_branch=args.epic_branch
         )
     finally:
         # Clean up PID file on exit

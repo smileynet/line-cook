@@ -2879,12 +2879,16 @@ def check_epic_completion(
         # Get epic title for merge commit
         epic_title = get_task_title(epic_id, cwd) or ""
 
-        # Step 1: Merge epic branch to main
-        merged, merge_error = merge_completed_epic(epic_id, epic_title, cwd)
-        if merged:
-            logger.info(f"Merged epic branch epic/{epic_id} to main")
-        elif merge_error == "merge_conflict":
-            logger.warning(f"Merge conflict for epic/{epic_id}, bug bead created")
+        # Step 1: Merge epic branch to main (only if on an epic branch)
+        current = get_current_branch(cwd)
+        if current and current.startswith("epic/"):
+            merged, merge_error = merge_completed_epic(epic_id, epic_title, cwd)
+            if merged:
+                logger.info(f"Merged epic branch epic/{epic_id} to main")
+            elif merge_error == "merge_conflict":
+                logger.warning(f"Merge conflict for epic/{epic_id}, bug bead created")
+        else:
+            logger.debug(f"Skipping merge for epic {epic_id} (not on epic branch)")
 
         # Step 2: Run close-service for documentation
         logger.info(f"Running close-service for epic {epic_id}")
@@ -3570,16 +3574,20 @@ def run_iteration(
                     epic_info = task_info_cache.get(epic_id)
                     epic_title_for_merge = epic_info.get("title", "") if epic_info else ""
 
-                    # Step 1: Merge epic branch to main BEFORE close-service
-                    merged, merge_error = merge_completed_epic(epic_id, epic_title_for_merge, cwd)
-                    if merged:
-                        merged_epic_ids.append(epic_id)
-                        if not json_output:
-                            print(f"  Branch: epic/{epic_id} merged to main")
-                    elif merge_error == "merge_conflict":
-                        if not json_output:
-                            print(f"  WARNING: Merge conflict for epic/{epic_id}")
-                            print(f"           Bug bead created for manual resolution")
+                    # Step 1: Merge epic branch to main (only if on an epic branch)
+                    current_br = get_current_branch(cwd)
+                    if current_br and current_br.startswith("epic/"):
+                        merged, merge_error = merge_completed_epic(epic_id, epic_title_for_merge, cwd)
+                        if merged:
+                            merged_epic_ids.append(epic_id)
+                            if not json_output:
+                                print(f"  Branch: epic/{epic_id} merged to main")
+                        elif merge_error == "merge_conflict":
+                            if not json_output:
+                                print(f"  WARNING: Merge conflict for epic/{epic_id}")
+                                print(f"           Bug bead created for manual resolution")
+                    else:
+                        logger.debug(f"Skipping merge for epic {epic_id} (not on epic branch)")
 
                     # Step 2: Run close-service for documentation
                     logger.info(f"Epic {epic_id} complete - running close-service phase")
@@ -4717,7 +4725,8 @@ def run_loop(
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
     epic_mode: Optional[str] = None,
-    cli_name: Optional[str] = None
+    cli_name: Optional[str] = None,
+    epic_branch: bool = False
 ) -> LoopReport:
     """Main loop: check ready, run iteration, handle outcome, repeat.
 
@@ -4787,6 +4796,16 @@ def run_loop(
     # Sync git and beads once at loop start
     if not skip_initial_sync:
         sync_at_start(cwd, json_output)
+
+    # Pre-start: warn about non-main branch or uncommitted changes
+    if not epic_branch:
+        current = get_current_branch(cwd)
+        if current and current != "main" and current.startswith("epic/"):
+            logger.warning(f"Starting on epic branch '{current}' in trunk-based mode")
+            if not json_output:
+                print(f"\n  WARNING: On epic branch '{current}' but running in trunk-based mode.")
+                print(f"  Merge this branch to main before starting, or use --epic-branch.")
+                print()
 
     iteration = 0
     current_retries = 0
@@ -4928,8 +4947,8 @@ def run_loop(
                     print(f"    under: {' > '.join(chain_parts)}")
             print("-" * 44)
 
-        # Pre-cook: ensure correct branch for epic work
-        if target_task_id:
+        # Pre-cook: ensure correct branch for epic work (only when --epic-branch)
+        if epic_branch and target_task_id:
             branch_name, was_created = ensure_epic_branch(target_task_id, cwd)
             if branch_name and not json_output:
                 if was_created:
@@ -5179,20 +5198,19 @@ def run_loop(
     except Exception as e:
         logger.warning(f"Error in final epic completion check: {e}")
 
-    # Return to main branch before exit.
-    # Epic branches with partial work stay intact for future loop runs,
-    # but the working directory should always be left on main.
-    try:
-        current = get_current_branch(cwd)
-        if current and current != "main" and current.startswith("epic/"):
-            auto_commit_wip(current, cwd)
-            result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
-            if result.returncode == 0:
-                logger.info(f"Returned to main from {current} at end of loop")
-            else:
-                logger.warning(f"Failed to return to main from {current}: {result.stderr}")
-    except Exception as e:
-        logger.warning(f"Error returning to main at end of loop: {e}")
+    # Return to main branch before exit (only relevant when --epic-branch was used).
+    if epic_branch:
+        try:
+            current = get_current_branch(cwd)
+            if current and current != "main" and current.startswith("epic/"):
+                auto_commit_wip(current, cwd)
+                result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
+                if result.returncode == 0:
+                    logger.info(f"Returned to main from {current} at end of loop")
+                else:
+                    logger.warning(f"Failed to return to main from {current}: {result.stderr}")
+        except Exception as e:
+            logger.warning(f"Error returning to main at end of loop: {e}")
 
     ended_at = datetime.now()
     duration = (ended_at - started_at).total_seconds()
@@ -5564,6 +5582,11 @@ Examples:
         help=f"Action to take when idle detected: warn (log warning) or terminate (stop phase) (default: {DEFAULT_IDLE_ACTION})"
     )
     parser.add_argument(
+        "--epic-branch",
+        action="store_true",
+        help="Create epic/* branches for isolation (default: work on main)"
+    )
+    parser.add_argument(
         "--cli",
         choices=list(CLI_PROFILES.keys()),
         default=DEFAULT_CLI,
@@ -5659,7 +5682,8 @@ Examples:
             idle_timeout=args.idle_timeout,
             idle_action=args.idle_action,
             epic_mode=args.epic,
-            cli_name=args.cli
+            cli_name=args.cli,
+            epic_branch=args.epic_branch
         )
     finally:
         # Clean up PID file on exit
