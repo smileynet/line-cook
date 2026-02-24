@@ -2906,7 +2906,8 @@ def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
     """Write retry context file for cook to read on next attempt.
 
     Creates .line-cook/retry-context.json with structured feedback
-    so cook can prioritize addressing review issues.
+    so cook can prioritize addressing review issues. Accumulates
+    feedback history across retries instead of replacing.
 
     Returns True if written successfully, False otherwise.
     """
@@ -2915,6 +2916,32 @@ def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
 
     try:
         context_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load existing history if present
+        history = []
+        if context_file.exists():
+            try:
+                existing = json.loads(context_file.read_text())
+                history = existing.get("history", [])
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Append current feedback to history
+        history.append({
+            "attempt": feedback.attempt,
+            "verdict": feedback.verdict,
+            "summary": feedback.summary,
+            "issues": [
+                {
+                    "severity": issue.severity,
+                    "location": issue.location,
+                    "problem": issue.problem,
+                    "suggestion": issue.suggestion
+                }
+                for issue in feedback.issues
+            ],
+            "written_at": datetime.now().isoformat()
+        })
 
         context = {
             "task_id": feedback.task_id,
@@ -2931,11 +2958,12 @@ def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
                 }
                 for issue in feedback.issues
             ],
+            "history": history,
             "written_at": datetime.now().isoformat()
         }
 
         atomic_write(context_file, json.dumps(context, indent=2))
-        logger.info(f"Wrote retry context with {len(feedback.issues)} issues to {context_file}")
+        logger.info(f"Wrote retry context with {len(feedback.issues)} issues (history: {len(history)} attempts) to {context_file}")
         return True
 
     except Exception as e:

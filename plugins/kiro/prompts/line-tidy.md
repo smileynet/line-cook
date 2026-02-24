@@ -128,17 +128,7 @@ bd comments add <id> "RESEARCH FINDINGS:
 - Option evaluated → Comment on research task
 - Decision made → Update task description
 
-### Step 3: Close Current Task
-
-Close the task that was just cooked (the one identified by `$TASK_ID`):
-
-```bash
-bd close $TASK_ID
-```
-
-**Other in-progress tasks** from the IN PROGRESS list should be left as-is. Do NOT attempt to infer completion of other tasks from git changes — that requires too much guesswork for a non-interactive command. They will be picked up in their own cook/serve/tidy cycles.
-
-### Step 4: Check for Epic Completion
+### Step 3: Check for Epic Completion
 
 Using the EPIC ELIGIBLE list from Step 1, check if any epics are now eligible for closure (all children complete).
 
@@ -157,7 +147,7 @@ bd list --parent=<epic-id> --all --json
 > Dependencies between children establish order within an epic.
 > See AGENTS.md for the full epic philosophy.
 
-### Step 5: Commit Changes with Kitchen Log
+### Step 4: Commit Changes with Kitchen Log
 
 Using the GIT STATUS output from Step 1, check for pending changes.
 
@@ -194,6 +184,18 @@ Review findings:
 - Deliverable and test info
 - Review and test quality feedback
 - Signal emitted
+
+### Step 5: Close Current Task
+
+**CRITICAL:** Only close the bead AFTER the commit is created. This ensures beads are only closed when corresponding git commits exist.
+
+Close the task that was just cooked (the one identified by `$TASK_ID`):
+
+```bash
+bd close $TASK_ID
+```
+
+**Other in-progress tasks** from the IN PROGRESS list should be left as-is. Do NOT attempt to infer completion of other tasks from git changes — that requires too much guesswork for a non-interactive command. They will be picked up in their own cook/serve/tidy cycles.
 
 ### Step 6: Verify Closing Kitchen
 
