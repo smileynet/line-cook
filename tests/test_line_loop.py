@@ -4865,5 +4865,61 @@ class TestGetNextReadyTaskP4Filter(unittest.TestCase):
         self.assertEqual(result[0], "t-none")
 
 
+class TestPhaseTimings(unittest.TestCase):
+    """Test phase_timings field on IterationResult and serialization."""
+
+    def test_default_empty(self):
+        """phase_timings defaults to empty dict."""
+        result = make_iteration_result()
+        self.assertEqual(result.phase_timings, {})
+
+    def test_round_trip(self):
+        """phase_timings can be set and read back."""
+        timings = {
+            "cook": {"duration_seconds": 120.5, "action_count": 15, "attempts": 1},
+            "serve": {"duration_seconds": 42.0, "action_count": 8, "verdict": "APPROVED"},
+            "tidy": {"duration_seconds": 13.2, "action_count": 3, "commit_hash": "abc1234"},
+        }
+        result = make_iteration_result(phase_timings=timings)
+        self.assertEqual(result.phase_timings["cook"]["duration_seconds"], 120.5)
+        self.assertEqual(result.phase_timings["serve"]["verdict"], "APPROVED")
+        self.assertEqual(result.phase_timings["tidy"]["commit_hash"], "abc1234")
+
+    def test_serialize_for_status_includes_phases(self):
+        """serialize_iteration_for_status includes phases when present."""
+        from line_loop.loop import serialize_iteration_for_status
+        timings = {"cook": {"duration_seconds": 10.0, "action_count": 5, "attempts": 1}}
+        result = make_iteration_result(phase_timings=timings)
+        data = serialize_iteration_for_status(result)
+        self.assertIn("phases", data)
+        self.assertEqual(data["phases"]["cook"]["action_count"], 5)
+
+    def test_serialize_for_status_omits_phases_when_empty(self):
+        """serialize_iteration_for_status omits phases when empty."""
+        from line_loop.loop import serialize_iteration_for_status
+        result = make_iteration_result()
+        data = serialize_iteration_for_status(result)
+        self.assertNotIn("phases", data)
+
+    def test_serialize_full_includes_phases(self):
+        """serialize_full_iteration includes phases when present."""
+        from line_loop.loop import serialize_full_iteration
+        timings = {
+            "cook": {"duration_seconds": 100.0, "action_count": 12, "attempts": 2},
+            "serve": {"duration_seconds": 30.0, "action_count": 6, "verdict": "APPROVED"},
+        }
+        result = make_iteration_result(phase_timings=timings)
+        data = serialize_full_iteration(result)
+        self.assertIn("phases", data)
+        self.assertEqual(data["phases"]["cook"]["attempts"], 2)
+
+    def test_serialize_full_omits_phases_when_empty(self):
+        """serialize_full_iteration omits phases when empty."""
+        from line_loop.loop import serialize_full_iteration
+        result = make_iteration_result()
+        data = serialize_full_iteration(result)
+        self.assertNotIn("phases", data)
+
+
 if __name__ == "__main__":
     unittest.main()

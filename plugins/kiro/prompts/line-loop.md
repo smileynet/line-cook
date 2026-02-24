@@ -2,15 +2,15 @@
 
 ## Summary
 
-**Control the autonomous line-loop process.** Provides start/status/stop/tail subcommands for managing background loop execution.
+**Control the autonomous line-loop process.** Provides start/status/stop/watch/close subcommands for managing background loop execution.
 
 **Arguments:** `$ARGUMENTS` contains the subcommand and options:
 - *(no args)* - Smart default: watch if running, start if not
 - `start [--max-iterations N] [--cook-timeout S] ...` - Start loop in background
-- `watch` - Live progress with milestones and context
+- `watch [--interval N] [--log-lines N]` - Continuous progress monitor with milestones
 - `status` - One-shot status check
 - `stop` - Gracefully stop running loop
-- `tail [--lines N]` - Show recent log output
+- `close` - Post-loop audit, review, and reconciliation
 - `history [--iteration N] [--actions]` - View full iteration history with action details
 
 ---
@@ -47,8 +47,9 @@
 | First time / unsure | `@line-loop` (smart default) |
 | Monitor with context | "loop watch" |
 | Quick status check | "loop status" |
-| Debug issues | "loop tail --lines 100" |
+| Debug loop issues | "loop watch --log-lines 100 --interval 0" |
 | Review what happened | "loop history --actions" |
+| Post-loop audit | "loop close" |
 | Stop gracefully | "loop stop" |
 | Custom iteration limit | "loop start --max-iterations N" |
 | Stop on first blocker | "loop start --stop-on-blocked" |
@@ -151,21 +152,25 @@ If `help` is passed as an argument:
 
 Usage:
   @line-loop                           # Smart default (watch if running, start if not)
-  @line-loop watch                     # Live progress with milestones
+  @line-loop watch [options]           # Continuous progress monitor
   @line-loop start [options]           # Start loop with options
   @line-loop status                    # One-shot status check
   @line-loop stop                      # Gracefully stop
-  @line-loop tail [--lines N]          # View log output
+  @line-loop close                     # Post-loop audit and reconciliation
   @line-loop history [--iteration N] [--actions]  # View iteration history
 
 Commands:
   (none)   Smart default - watch if loop running, start if not
-  watch    Live progress with milestones and before/after context
+  watch    Continuous progress monitor with milestones and phase breakdown
   start    Launch loop in background (default: 25 iterations)
   status   One-shot status check
   stop     Gracefully stop running loop
-  tail     Show recent log output (default: 50 lines)
+  close    Post-loop audit, review, and reconciliation
   history  View iteration history with action details
+
+Watch Options:
+  --interval N          Refresh interval in seconds (default: 900, 0 for one-shot)
+  --log-lines N         Number of log lines to show (default: 20)
 
 Start Options:
   --epic [EPIC_ID]      Focus on one epic (auto-select first, or specify ID)
@@ -186,7 +191,9 @@ Start Options:
 
 Examples:
   @line-loop                          # Start or watch (smart default)
-  @line-loop watch                    # Monitor progress with context
+  @line-loop watch                    # Continuous monitor (15m refresh)
+  @line-loop watch --interval 300     # Refresh every 5 minutes
+  @line-loop watch --log-lines 100 --interval 0  # One-shot with more logs
   @line-loop start --max-iterations 5 # Quick test run
   @line-loop start --cook-timeout 1800 # Complex tasks (30min cook timeout)
   @line-loop start --epic              # Auto-select first available epic
@@ -194,7 +201,7 @@ Examples:
   @line-loop start --break-on-epic    # Pause for review at epic completion
   @line-loop start --stop-on-blocked  # Stop immediately on blocked tasks
   @line-loop status                   # One-shot status check
-  @line-loop tail --lines 100         # View more log output
+  @line-loop close                    # Post-loop audit and reconciliation
   @line-loop history --actions        # View all iterations with actions
   @line-loop stop                     # Stop gracefully
 
@@ -243,11 +250,13 @@ Input examples:
   "start"                      -> subcommand: start
   "start --max-iterations 10"  -> subcommand: start, max_iterations: 10
   "start --cli kiro"           -> subcommand: start, cli: kiro
-  "watch"                      -> subcommand: watch
+  "watch"                      -> subcommand: watch, interval: 900, log_lines: 20
+  "watch --interval 300"       -> subcommand: watch, interval: 300, log_lines: 20
+  "watch --interval 0"         -> subcommand: watch, interval: 0 (one-shot, legacy)
+  "watch --log-lines 100"      -> subcommand: watch, interval: 900, log_lines: 100
   "status"                     -> subcommand: status
   "stop"                       -> subcommand: stop
-  "tail"                       -> subcommand: tail
-  "tail --lines 100"           -> subcommand: tail, lines: 100
+  "close"                      -> subcommand: close
   "help"                       -> subcommand: help
   ""                           -> smart default: check if running
                                   - If running: invoke watch
@@ -329,8 +338,8 @@ Project: <project-name>
 Loop dir: /tmp/line-loop-<project-name>
 
 Monitor with:
-  @line-loop status    - Check progress
-  @line-loop tail      - View log output
+  @line-loop watch     - Continuous progress monitor
+  @line-loop status    - One-shot status check
   @line-loop stop      - Stop gracefully
 ```
 
@@ -396,7 +405,7 @@ Last known state:
   Last update: 5m ago
 
 Check logs for details:
-  @line-loop tail --lines 100
+  @line-loop watch --log-lines 100 --interval 0
 ```
 
 **If not running but status file exists (clean exit):**
@@ -430,11 +439,33 @@ Start a loop with:
 
 ## Subcommand: watch
 
-Watch mode provides unified progress monitoring with milestones and context from completed iterations.
+Watch mode provides continuous progress monitoring with milestones, phase breakdown, and log output.
 
-### Check Running State
+### Parse Watch Arguments
 
-Same as status - verify the loop is running first.
+```
+"watch"                      -> interval: 900, log_lines: 20
+"watch --interval 300"       -> interval: 300, log_lines: 20
+"watch --interval 0"         -> interval: 0 (one-shot, legacy behavior)
+"watch --log-lines 100"      -> interval: 900, log_lines: 100
+```
+
+Default `interval` is 900 seconds (15 minutes). Default `log_lines` is 20.
+
+### Watch Loop Structure
+
+Execute the following loop:
+
+1. **Read status + state**: Read `$LOOP_DIR/status.json` and check PID running state.
+2. **Format and display output** (see Format Watch Output below).
+3. **Show log tail**: Display last `log_lines` lines of `$LOOP_DIR/loop.log`.
+4. **Check for loop continuation**:
+   - If `interval > 0` AND the loop process is still running:
+     - Print `"Next refresh in {interval/60}m. Press Ctrl+C to stop watching."`
+     - Execute `sleep <interval>` via Bash tool
+     - On each refresh (not the first), compute and show delta (see Delta Tracking below)
+     - Go back to step 1
+   - If the loop process stopped OR `interval == 0`: stop watching.
 
 ### Read Status File
 
@@ -471,7 +502,12 @@ Read `$LOOP_DIR/status.json`. The status file includes:
       "after_state": "Configurable timeout",
       "completed_at": "2026-02-01T10:15:20",
       "action_count": 18,
-      "action_types": {"Read": 8, "Edit": 6, "Bash": 3, "Write": 1}
+      "action_types": {"Read": 8, "Edit": 6, "Bash": 3, "Write": 1},
+      "phases": {
+        "cook": {"duration_seconds": 170.5, "action_count": 15, "attempts": 1},
+        "serve": {"duration_seconds": 42.0, "action_count": 8, "verdict": "APPROVED"},
+        "tidy": {"duration_seconds": 13.2, "action_count": 3, "commit_hash": "a1b2c3d"}
+      }
     }
   ]
 }
@@ -550,19 +586,23 @@ CURRENT: Iteration 3
 RECENT MILESTONES
 ───────────────────────────────────────
 [10:15] ✓ lc-041 APPROVED (3m 45s) → a1b2c3d
+        cook:  2m 50s (15 actions, 1 attempt)
+        serve: 42s (8 actions, APPROVED)
+        tidy:  13s (3 actions) → a1b2c3d
         Intent: Increase timeout for large repos
         No timeout config → Configurable timeout
-        Actions: 18 (Bash: 3, Edit: 6, Read: 8, Write: 1)
 [10:11] ✓ lc-040 APPROVED (4m 12s) → e4f5g6h
+        cook:  3m 30s (12 actions, 1 attempt)
+        serve: 30s (5 actions, APPROVED)
+        tidy:  12s (2 actions) → e4f5g6h
         Intent: Support environment-based configuration
         Hardcoded values → Environment variables
-        Actions: 12 (Bash: 2, Edit: 4, Glob: 1, Read: 5)
 
 RECENT LOG
 ───────────────────────────────────────
-<last 20 lines of loop.log>
+<last N lines of loop.log, where N = log_lines>
 
-Refresh: @line-loop watch | Stop: @line-loop stop
+Next refresh in 15m. Press Ctrl+C to stop watching.
 ```
 
 The `Phase:` line shows:
@@ -585,15 +625,36 @@ For each entry in `recent_iterations` (from status.json):
 - Show verdict symbol: ✓ for APPROVED, ✗ for NEEDS_CHANGES, ⚠ for BLOCKED
 - Show task_id and verdict
 - Show duration and commit hash
-- Show intent (why the change was made)
-- Show before_state → after_state (the transformation)
-- Show action summary (total count and breakdown by type from action_types)
 
-**Action summary format:**
+**Phase breakdown** (from `phases` field, when present):
+For each phase in `phases`:
+- `cook`: show duration, action count, attempt count (e.g., `cook:  2m 50s (15 actions, 1 attempt)`)
+- `serve`: show duration, action count, verdict (e.g., `serve: 42s (8 actions, APPROVED)`)
+- `tidy`: show duration, action count, commit hash (e.g., `tidy:  13s (3 actions) → a1b2c3d`)
+- `plate`: show duration, action count (if present)
+- `close-service`: show duration, action count (if present)
+
+When `phases` field is missing (backwards compat with old status files), fall back to the flat format:
 ```
 Actions: 18 (Bash: 3, Edit: 6, Read: 8, Write: 1)
 ```
-Only include tool types with count > 0, sorted alphabetically by tool name.
+
+- Show intent (why the change was made)
+- Show before_state → after_state (the transformation)
+
+### Delta Tracking (Refresh Iterations)
+
+On refresh iterations (not the first display), save the previous status snapshot and compare with current:
+
+```
+SINCE LAST CHECK (15m ago)
+───────────────────────────────────────
+Iterations completed: 2
+New milestones: lc-041 ✓, lc-042 ✓
+Tasks remaining: 3 (was 5)
+```
+
+Show this section between the header and CURRENT section on refreshes.
 
 ### Runtime Calculation
 
@@ -607,11 +668,11 @@ Format as human-readable (e.g., "15m 30s").
 
 ### Log Tail
 
-Include last 20 lines of `$LOOP_DIR/loop.log` at the bottom.
+Include last `log_lines` lines of `$LOOP_DIR/loop.log` at the bottom (default 20, configurable via `--log-lines N`).
 
 ### If Not Running
 
-If the loop is not running, show the final status instead:
+If the loop is not running, show the final status (one-shot, no sleep loop):
 ```
 LOOP WATCH: <project> (STOPPED)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -620,7 +681,7 @@ Completed: 6 | Failed: 2 | Stop reason: no_tasks
 
 FINAL MILESTONES
 ───────────────────────────────────────
-<last 5 completed iterations>
+<last 5 completed iterations with phase breakdown>
 
 Start a new loop: @line-loop start
 ```
@@ -680,30 +741,6 @@ Final status:
   Completed: 4
   Stop reason: shutdown
 ```
-
----
-
-## Subcommand: tail
-
-### Parse Lines Argument
-
-Default to 50 lines if not specified.
-
-### Read Log File
-
-```bash
-LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
-if [ ! -f "$LOOP_DIR/loop.log" ]; then
-  echo "No log file found. Is a loop running?"
-  exit 1
-fi
-
-tail -n "${LINES:-50}" "$LOOP_DIR/loop.log"
-```
-
-### Output
-
-Display the raw log output.
 
 ---
 
@@ -842,12 +879,129 @@ Start a loop to begin recording:
 
 ---
 
+## Subcommand: close
+
+Post-loop review and reconciliation. Audits bead state, runs tests, performs aggregate code review, reopens incomplete beads, and files new beads for issues found.
+
+### Prerequisites
+
+1. **Verify loop is NOT running:**
+   ```bash
+   LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+   if [ -f "$LOOP_DIR/loop.pid" ]; then
+     PID=$(cat "$LOOP_DIR/loop.pid" 2>/dev/null)
+     if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+       echo "Loop is still running (PID: $PID). Stop it first with: @line-loop stop"
+       exit 1
+     fi
+   fi
+   ```
+
+2. **Verify history exists:**
+   Read `$LOOP_DIR/history.jsonl`. If file doesn't exist or contains 0 iteration records, report "Nothing to close" and exit.
+
+### Step 1: Gather Loop Run Data
+
+- Read `$LOOP_DIR/history.jsonl`: parse all iteration records and the loop_summary record
+- Read `$LOOP_DIR/status.json`: final state, skipped_tasks, escalation, stop_reason
+- Extract: iteration count, task IDs worked, commit hashes, serve verdicts, stop_reason, start/end timestamps
+
+### Step 2: Audit Bead State
+
+For each task_id from iteration records that had `outcome: "completed"`:
+- Run `bd show <id> --json` and verify status is "closed"
+- Flag discrepancies (iteration claimed completed but bead not actually closed)
+
+Also check for orphaned in_progress beads:
+- Run `bd list --status=in_progress --json`
+- Flag any beads that appear in the loop's task list but are still in_progress
+
+### Step 3: Audit Commit State
+
+For each unique commit_hash from completed iterations:
+- Verify reachable from HEAD: `git merge-base --is-ancestor <hash> HEAD`
+- Flag missing or unreachable commits
+
+### Step 4: Run Test Suite
+
+Detect and run the project's test suite:
+- Look for common test runners (pytest, unittest, npm test, etc.)
+- Record pass/fail result
+- If no test suite found, note as "no tests detected"
+
+### Step 5: Aggregate Sous-Chef Review
+
+Find the range of commits from the loop run:
+- First commit: from iteration 1's commit_hash (or first non-null commit)
+- Run `git diff <first_commit>^..HEAD --stat` for overview
+
+Delegate to sous-chef via Task tool (subagent_type: `sous-chef`):
+- Provide the aggregate diff scope
+- Focus areas: cross-cutting inconsistencies, leftover debug code, TODO/FIXME from loop, style drift
+- Record findings
+
+### Step 6: Reconcile
+
+Based on findings from steps 2-5:
+
+- **Reopen incomplete beads**: `bd update <id> --status=open` for tasks that weren't actually closed
+- **File new beads** for issues found:
+  - Test failures: `bd create --title="Fix: <test failure description>" --type=bug --priority=2`
+  - Sous-chef findings: `bd create --title="Fix: <finding>" --type=bug --priority=2`
+  - Unreachable commits: `bd create --title="Investigate missing commit <hash>" --type=bug --priority=2`
+- Note skipped tasks with their failure reasons
+- Run `bd sync` after any bead state changes
+
+### Step 7: Generate Close Report
+
+Format and display:
+
+```
+LOOP CLOSE REPORT
+=================================================
+Project: <name>
+Run: <started> to <ended> (<duration>)
+Stop reason: <reason>
+
+SUMMARY
+-------------------------------------------------
+Iterations: N (completed: N, failed: N, skipped: N)
+Tasks completed: N | Commits: N | Success rate: N%
+
+QUALITY GATES
+-------------------------------------------------
+[PASS/FAIL] Serve verdicts all approved
+[PASS/FAIL] All task beads properly closed
+[PASS/FAIL] All commits reachable in git
+[PASS/FAIL] Test suite passes
+[PASS/FAIL] Aggregate code review clean
+
+ACTIONS TAKEN
+-------------------------------------------------
+Reopened: <list of reopened beads with reasons>
+Filed: <list of new beads created>
+
+ITERATION DETAIL
+-------------------------------------------------
+#1  lc-040: Add config validation ............ APPROVED (4m) → e4f5g6h
+#2  lc-041: Fix timeout handling ............. APPROVED (3m) → a1b2c3d
+#3  lc-042: Update docs ................... NEEDS_CHANGES (no commit)
+    → Bead reopened for follow-up
+
+RECOMMENDATIONS
+-------------------------------------------------
+- <actionable suggestions based on findings>
+=================================================
+```
+
+---
+
 ## Error Handling
 
 - **Start when already running:** Warn and show current status
 - **Status when not running:** Show helpful message about starting
 - **Stop when not running:** Handle gracefully, clean up stale PID file
-- **Tail when no log:** Inform user no log exists yet
+- **Close when loop running:** Tell user to stop first
 
 ---
 
@@ -860,7 +1014,7 @@ The loop includes a circuit breaker to prevent runaway failures:
 - **Reset on success:** After any successful iteration, the failure window resets
 - **Exit code:** 3 when circuit breaker trips
 
-When the circuit breaker trips, the loop stops with a message indicating too many consecutive failures. Check the logs (`@line-loop tail --lines 100`) to understand what's failing.
+When the circuit breaker trips, the loop stops with a message indicating too many consecutive failures. Check the logs (`@line-loop watch --log-lines 100 --interval 0`) to understand what's failing.
 
 ### Circuit Breaker Flow
 
@@ -968,6 +1122,7 @@ SUGGESTED ACTIONS:
   • Check if tasks have missing dependencies or unclear requirements
   • Consider breaking down complex tasks into smaller pieces
   • Use 'bd show <task_id>' to see full task details
+  • Run '@line-loop close' for post-loop audit
   • Restart loop after fixing blocking issues: '@line-loop start'
 
 ============================================================
@@ -1187,7 +1342,7 @@ This signal should be emitted at the end of successful completion output in cook
 
 ## Troubleshooting
 
-> **Kiro users:** Troubleshooting examples below show `@line-loop <args>` syntax. Use natural language instead: say "loop tail --lines 100", "loop history --actions", etc.
+> **Kiro users:** Troubleshooting examples below show `@line-loop <args>` syntax. Use natural language instead: say "loop watch --log-lines 100 --interval 0", "loop history --actions", etc.
 
 ### Quick Scan
 
@@ -1260,7 +1415,7 @@ Loop stops unexpectedly
 │
 └── No status file or stop_reason
     └── Process crashed - check logs:
-        @line-loop tail --lines 100
+        @line-loop watch --log-lines 100 --interval 0
 ```
 
 ---
@@ -1271,7 +1426,7 @@ Loop stops unexpectedly
 
 **Diagnose:**
 ```bash
-@line-loop tail --lines 100
+@line-loop watch --log-lines 100 --interval 0
 @line-loop history --actions
 ```
 
@@ -1365,7 +1520,7 @@ cat /tmp/line-loop-$(basename "$PWD")/status.json | jq '.skipped_tasks'
 
 **Fix:** This is expected behavior. For real-time logs:
 ```bash
-@line-loop tail --lines 50
+@line-loop watch --log-lines 50 --interval 0
 ```
 
 ---
@@ -1455,7 +1610,7 @@ When things go wrong:
 
 2. **Check what happened**:
    ```bash
-   @line-loop tail --lines 100
+   @line-loop watch --log-lines 100 --interval 0
    @line-loop history --actions
    ```
 
