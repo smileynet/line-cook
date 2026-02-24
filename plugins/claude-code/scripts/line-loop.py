@@ -3218,6 +3218,15 @@ def run_iteration(
                     print_phase_progress("serve", "done", serve_result.duration_seconds,
                                        f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, BLOCKED")
                 logger.warning("Serve returned BLOCKED verdict")
+                # Persist feedback so next iteration starts with context about why it was blocked
+                feedback = parse_serve_feedback(
+                    serve_result.output,
+                    task_id=task_id,
+                    task_title=_get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None,
+                    attempt=cook_attempts
+                )
+                if feedback:
+                    write_retry_context(cwd, feedback)
                 duration = (datetime.now() - start_time).total_seconds()
                 after = get_bead_snapshot(cwd)
                 return IterationResult(
@@ -3279,6 +3288,15 @@ def run_iteration(
                     print_phase_progress("serve", "done", serve_result.duration_seconds,
                                        f"{_action_dots(len(serve_result.actions))}{len(serve_result.actions)} actions, BLOCKED")
                 logger.warning("Serve returned BLOCKED verdict (from signal)")
+                # Persist feedback so next iteration starts with context about why it was blocked
+                feedback = parse_serve_feedback(
+                    serve_result.output,
+                    task_id=task_id,
+                    task_title=_get_title_from_snapshot_or_cache(task_id, before, task_info_cache) if task_id else None,
+                    attempt=cook_attempts
+                )
+                if feedback:
+                    write_retry_context(cwd, feedback)
                 duration = (datetime.now() - start_time).total_seconds()
                 after = get_bead_snapshot(cwd)
                 return IterationResult(
