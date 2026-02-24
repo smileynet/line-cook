@@ -24,3 +24,5 @@ Run `/decision` to create, list, or supersede decisions.
 | [0013](0013-github-actions-hardening.md) | GitHub Actions hardening | accepted | 2026-02-10 | ci, security, github-actions |
 | [0014](0014-spice-plugins-for-domain-knowledge.md) | Spice plugins for domain knowledge | accepted | 2026-02-11 | plugins, architecture, naming |
 | [0015](0015-shared-modules-vs-bundled-scripts.md) | Shared modules vs bundled scripts | accepted | 2026-02-13 | architecture, plugins |
+| [0016](0016-trunk-based-loop-development.md) | Trunk-based loop development | accepted | 2026-02-24 | workflow, loop |
+| [0017](0017-deferred-findings-triage.md) | Deferred findings triage | accepted | 2026-02-24 | workflow, findings, triage |

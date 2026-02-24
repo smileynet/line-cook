@@ -10,47 +10,57 @@ This is where findings from `@line-cook` and `@line-serve` get filed as beads.
 
 ## Finding Filing Strategy
 
-Findings from cook and serve are filed as **siblings under the current task's parent feature**:
+Findings are triaged to **three destinations** based on markers from serve (or inferred during tidy):
 
-**Code/project findings (any priority)** → sibling tasks under parent feature
-**Process improvement suggestions** → Retrospective epic
+| Marker | Destination | Loop picks up? | Blocks feature? |
+|--------|-------------|----------------|-----------------|
+| `[FIX]` | Sibling under parent feature | Yes (next iteration) | Yes (must close before plate) |
+| `[DEFER]` | Child of **Backlog** epic | No (excluded epic) | No (different hierarchy) |
+| `[RETRO]` | Child of **Retrospective** epic | No (excluded epic) | No (different hierarchy) |
 
-This ensures:
-- Findings are addressed before the feature is plated (all children must close)
-- The loop picks them up next (highest priority first)
-- Context is maintained (findings cluster with related work)
+**Triage heuristic:**
+- `[FIX]` — Clear defects, P0-P2, or P3 within current feature scope
+- `[DEFER]` — Ambiguous suggestions, nits, P3 outside scope, P4 code items
+- `[RETRO]` — Process/workflow improvements (not code findings)
+- **Cook findings without serve markers** default to `[DEFER]` (safe — won't block features)
 
 **Edge cases:**
-- Task parent is an **epic** (no feature layer) → file under the epic
-- Task has **no parent** → file as standalone with appropriate priority
+- Task parent is an **epic** (no feature layer) → `[FIX]` files under the epic
+- Task has **no parent** → `[FIX]` files as standalone with appropriate priority
+
+**Promotion:** Users can promote deferred items back into scope:
+`bd update <id> --parent=<feature-id>`
+
+### Parking Epics (Backlog & Retrospective)
+
+Both are auto-created if they don't exist. The loop's `EXCLUDED_EPIC_TITLES` already skips children of "Backlog" and "Retrospective" epics.
+
+```bash
+# Find-or-create pattern (run in Step 1)
+BACKLOG_ID=$(bd list --type=epic --json 2>/dev/null | jq -r '.[] | select(.title=="Backlog") | .id' | head -1)
+[ -z "$BACKLOG_ID" ] && BACKLOG_ID=$(bd create --title="Backlog" --type=epic --priority=4 --json 2>/dev/null | jq -r '.[0].id // .[0]')
+
+RETRO_ID=$(bd list --type=epic --json 2>/dev/null | jq -r '.[] | select(.title=="Retrospective") | .id' | head -1)
+[ -z "$RETRO_ID" ] && RETRO_ID=$(bd create --title="Retrospective" --type=epic --priority=4 --json 2>/dev/null | jq -r '.[0].id // .[0]')
+```
 
 ### Bead Creation Reference
 
 ```bash
-# Code/project findings → sibling under parent feature
-bd create --title="..." --type=task|bug --priority=0-4 --parent=<parent-feature-or-epic>
+# [FIX] → sibling under parent feature (blocks feature closure)
+bd create --title="..." --type=task|bug --priority=0-4 \
+  --parent=<parent-feature-or-epic> \
+  --notes="source_task: <id>, source_phase: <cook|serve>, location: <file:line>"
 
-# Priority: 0=critical, 1=high, 2=medium, 3=low, 4=backlog
-# Types: task, bug (broken), feature (new capability)
+# [DEFER] → child of Backlog epic (does NOT block feature closure)
+bd create --title="..." --type=task --priority=3-4 \
+  --parent=$BACKLOG_ID \
+  --notes="source_task: <id>, original_parent: <parent-id>, location: <file:line>"
 
-# Process improvement suggestions → Retrospective epic
-# (Ways to improve cook, serve, tidy, plate, or other workflow phases)
-bd create --title="..." --type=task --priority=4 --parent=<retrospective-epic>
-```
-
-**Retrospective epic:**
-
-Reserved for **process improvement suggestions** (not code findings):
-- Workflow phase improvements (cook, serve, tidy, etc.)
-- Tooling or automation suggestions
-- Process observations
-
-```bash
-# One-time setup (if not exists)
-bd create --title="Retrospective" --type=epic --priority=4
-
-# File process improvements as children
-bd create --title="Consider adding lint step to serve" --type=task --priority=4 --parent=<retro-epic-id>
+# [RETRO] → child of Retrospective epic (process improvements)
+bd create --title="..." --type=task --priority=4 \
+  --parent=$RETRO_ID \
+  --notes="source_task: <id>, source_phase: <cook|serve>"
 ```
 
 ## Process
@@ -64,6 +74,9 @@ TASK_ID="<current-task-id>"
 
 echo "=== PARENT ==="
 bd show $TASK_ID --json 2>/dev/null | jq -r '.[0].parent // empty' || echo "(none)"
+echo "=== PARKING EPICS ==="
+echo "Backlog: $(bd list --type=epic --json 2>/dev/null | jq -r '.[] | select(.title=="Backlog") | .id' | head -1)"
+echo "Retrospective: $(bd list --type=epic --json 2>/dev/null | jq -r '.[] | select(.title=="Retrospective") | .id' | head -1)"
 echo "=== IN PROGRESS ==="
 bd list --status=in_progress 2>/dev/null || echo "(none)"
 echo "=== EPIC ELIGIBLE ==="
@@ -72,7 +85,7 @@ echo "=== GIT STATUS ==="
 git status --porcelain
 ```
 
-Use the PARENT value from output as `--parent` for all code/project findings. If no parent exists, file as standalone beads.
+Use PARENT as `--parent` for `[FIX]` findings. Use PARKING EPICS for `[DEFER]` (Backlog) and `[RETRO]` (Retrospective) — create them if not found (see find-or-create pattern in Filing Strategy above).
 
 ### Step 2: File Discovered Issues
 
@@ -88,20 +101,25 @@ Look for `PHASE: COOK` and `PHASE: SERVE` comments containing `Findings:` sectio
 
 Create beads for all findings with full context.
 
-**Code/project findings** (file as siblings under parent feature/epic):
+**`[FIX]` findings** (sibling under parent — blocks feature closure):
 ```bash
-bd create --title="<issue>" --type=bug|task --priority=1-3 --parent=$PARENT
+bd create --title="<defect>" --type=bug|task --priority=0-3 --parent=$PARENT \
+  --notes="source_task: <id>, location: <file:line>"
 ```
 
-**Lower-priority code findings** (still under parent, not retro):
+**`[DEFER]` findings** (child of Backlog — does NOT block feature closure):
 ```bash
-bd create --title="<suggestion>" --type=task --priority=4 --parent=$PARENT
+bd create --title="<suggestion>" --type=task --priority=3-4 --parent=$BACKLOG_ID \
+  --notes="source_task: <id>, original_parent: <parent-id>, location: <file:line>"
 ```
 
-**Process improvement suggestions** (file under Retrospective epic):
+**`[RETRO]` findings** (child of Retrospective — process improvements):
 ```bash
-bd create --title="<workflow suggestion>" --type=task --priority=4 --parent=<retro-epic>
+bd create --title="<workflow suggestion>" --type=task --priority=4 --parent=$RETRO_ID \
+  --notes="source_task: <id>, source_phase: <cook|serve>"
 ```
+
+**Cook findings without serve markers** default to `[DEFER]`.
 
 #### Research Findings (for research tasks)
 
@@ -309,9 +327,11 @@ Epics ready to close: <count>
   ★ <epic-id>: <title> (<N> children) → run @line-close-service
 
 Issues filed: <count>
-  Under parent (<parent-id>):
+  [FIX] Under parent (<parent-id>) — blocks feature closure:
     + <new-id>: <title> [P<n>]
-  Under Retrospective:
+  [DEFER] Under Backlog — deferred, won't block feature:
+    + <new-id>: <title> [P<n>]
+  [RETRO] Under Retrospective — process improvements:
     + <new-id>: <title> [P4/retro]
 
 Commit: <hash>
