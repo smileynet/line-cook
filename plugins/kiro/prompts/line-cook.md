@@ -212,7 +212,6 @@ Before marking the task done, verify ALL guardrails pass:
 Only after all guardrails pass:
 
 ```bash
-bd close <id>
 bd comments add <id> "PHASE: COOK
 Status: completed
 
@@ -224,6 +223,8 @@ After: <new state - what's now possible/fixed>
 Files: <count> changed
 Findings: <issues/improvements noted for tidy>"
 ```
+
+**Note:** The bead remains `in_progress` until tidy phase closes it after creating the git commit. This ensures beads are only closed when corresponding commits exist.
 
 **Completion output format:**
 ```
