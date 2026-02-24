@@ -2852,9 +2852,10 @@ def check_epic_completion(
     exclude_ids: Optional[set[str]] = None,
     cli_profile: Optional[dict] = None
 ) -> list[dict]:
-    """Detect newly completable epics, merge branches, and close via close-service.
+    """Detect newly completable epics, optionally merge branches, and close via close-service.
 
-    Merges epic branches eagerly before running close-service for documentation.
+    When on an epic branch, merges it to main before running close-service.
+    When on main (trunk-based mode), skips the merge step.
     If close-service fails, the epic bead is closed directly and a P1 doc task
     is created as follow-up.
 
@@ -3585,7 +3586,7 @@ def run_iteration(
                         elif merge_error == "merge_conflict":
                             if not json_output:
                                 print(f"  WARNING: Merge conflict for epic/{epic_id}")
-                                print(f"           Bug bead created for manual resolution")
+                                print("           Bug bead created for manual resolution")
                     else:
                         logger.debug(f"Skipping merge for epic {epic_id} (not on epic branch)")
 
@@ -4745,6 +4746,9 @@ def run_loop(
 
     CLI selection: cli_name selects the AI coding tool profile (e.g.,
     "claude-code", "kiro"). Defaults to DEFAULT_CLI if not specified.
+
+    Branch strategy: By default, all work happens on main (trunk-based).
+    Pass epic_branch=True to create epic/* branches for isolation.
     """
     global _shutdown_requested
 
@@ -4797,14 +4801,14 @@ def run_loop(
     if not skip_initial_sync:
         sync_at_start(cwd, json_output)
 
-    # Pre-start: warn about non-main branch or uncommitted changes
+    # Pre-start: warn if on an epic branch in trunk-based mode
     if not epic_branch:
         current = get_current_branch(cwd)
         if current and current != "main" and current.startswith("epic/"):
             logger.warning(f"Starting on epic branch '{current}' in trunk-based mode")
             if not json_output:
                 print(f"\n  WARNING: On epic branch '{current}' but running in trunk-based mode.")
-                print(f"  Merge this branch to main before starting, or use --epic-branch.")
+                print("  Merge this branch to main before starting, or use --epic-branch.")
                 print()
 
     iteration = 0
@@ -4926,7 +4930,7 @@ def run_loop(
                 stop_reason = "all_tasks_skipped"
                 logger.warning(f"All remaining tasks are skipped due to repeated failures: {skipped_ids}")
                 if not json_output:
-                    print(f"\nAll remaining tasks are skipped due to repeated failures.")
+                    print("\nAll remaining tasks are skipped due to repeated failures.")
                     print(f"Skipped tasks: {', '.join(skipped_ids)}")
                 break
             target_task_id, target_task_title = None, None

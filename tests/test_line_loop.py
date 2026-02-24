@@ -5007,7 +5007,7 @@ class TestTrunkBasedDefault(unittest.TestCase):
 
     def test_run_loop_warns_on_epic_branch_in_trunk_mode(self):
         """run_loop warns when on an epic branch without --epic-branch."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
 
         snapshot = line_loop.BeadSnapshot()  # empty, loop exits immediately
         output = io.StringIO()
