@@ -69,11 +69,78 @@ The prompt should include:
 
 If reviewing multiple PRs, launch inspector agents in parallel.
 
-Parse the inspector's response to extract the verdict line (`**Verdict: <VERDICT>**`).
+Parse the inspector's response to extract:
+- The verdict line (`**Verdict: <VERDICT>**`)
+- All 8 dimension sections (What Changed, Project Value, Issue Validity, Intent Alignment, Scope, Security, Code Quality, Root Cause Depth)
+- The rationale paragraph
+
+### Step 3a: Write Feedback File
+
+After the inspector returns, write a structured feedback file to `.beads/inspect-feedback/issue-<number>.json`:
+
+```bash
+mkdir -p .beads/inspect-feedback
+```
+
+**Before writing, read existing feedback to track polish attempts:**
+
+```bash
+if [ -f .beads/inspect-feedback/issue-<number>.json ]; then
+  EXISTING_FEEDBACK=$(cat .beads/inspect-feedback/issue-<number>.json)
+  PREVIOUS_ATTEMPTS=$(echo "$EXISTING_FEEDBACK" | jq -r '.polish_attempts // 0')
+else
+  PREVIOUS_ATTEMPTS=0
+fi
+```
+
+**Calculate new attempt count:**
+- If verdict is POLISH: increment `PREVIOUS_ATTEMPTS` by 1
+- Otherwise: set to 0
+
+**Check for escalation:**
+- If `polish_attempts >= 3` and verdict is POLISH, override verdict to FEEDBACK and add escalation note to rationale
+
+Create JSON with this structure:
+```json
+{
+  "issue_number": <int>,
+  "pr_number": <int>,
+  "verdict": "<MERGE|POLISH|FEEDBACK|REWORK|REJECT>",
+  "polish_attempts": <int>,
+  "dimensions": {
+    "what_changed": "<text from What Changed section>",
+    "project_value": "<text from Project Value section>",
+    "issue_validity": "<text from Issue Validity section>",
+    "intent_alignment": "<text from Intent Alignment section>",
+    "scope": "<text from Scope section>",
+    "security": "<text from Security section>",
+    "code_quality": "<text from Code Quality section>",
+    "root_cause_depth": "<text from Root Cause Depth section>"
+  },
+  "rationale": "<verdict rationale paragraph>",
+  "reviewed_at": "<ISO 8601 timestamp>"
+}
+```
+
+Write atomically using a temp file:
+```bash
+cat > .beads/inspect-feedback/issue-<number>.json.tmp << 'EOF'
+<json content>
+EOF
+mv .beads/inspect-feedback/issue-<number>.json.tmp .beads/inspect-feedback/issue-<number>.json
+```
+
+This enables downstream agents (like issue-agent on re-trigger) to read past inspection results.
 
 ### Step 4: Display Report Locally
 
 For each PR, display the inspector's full analysis (all 8 dimensions + verdict) directly in the terminal as markdown. Do NOT write to temp files. Do NOT post to GitHub.
+
+**If verdict is POLISH and polish_attempts > 0, include attempt counter:**
+
+```
+**Verdict: POLISH** (attempt 2/3)
+```
 
 Lead with **What Changed** and **Project Value** — these help the maintainer understand the change before seeing the safety checklist. The remaining 6 dimensions (validity, alignment, scope, security, quality, root cause) follow as due diligence.
 
@@ -96,11 +163,22 @@ Use AskUserQuestion to present options based on the verdict:
 2. Squash-merge the PR: `gh pr merge <pr-number> --squash`
 
 **"Polish"** (POLISH verdict only):
-1. Note the current branch: `git branch --show-current`
-2. Fetch and checkout the PR branch: `gh pr checkout <pr-number>`
-3. Get the list of changed files: `git diff --name-only main...HEAD`
-4. Launch the polisher: `Task(subagent_type="polisher", prompt="Polish these files: <file list>")`
-5. If the polisher made changes, stage, commit, and push:
+1. **Check attempt limit:** If `polish_attempts >= 3`, skip polish action and display warning:
+   ```
+   ⚠️ POLISH limit reached (3/3 attempts)
+   
+   This PR has been polished 3 times without reaching MERGE.
+   Consider manual review or REWORK verdict.
+   
+   Options: "Comment" (post feedback), "Skip"
+   ```
+   Then skip to "Comment" or "Skip" options (do not offer "Polish" again).
+
+2. Note the current branch: `git branch --show-current`
+3. Fetch and checkout the PR branch: `gh pr checkout <pr-number>`
+4. Get the list of changed files: `git diff --name-only main...HEAD`
+5. Launch the polisher: `Task(subagent_type="polisher", prompt="Polish these files: <file list>")`
+6. If the polisher made changes, stage, commit, and push:
    ```bash
    git add <changed-files>
    ```
@@ -110,8 +188,8 @@ Use AskUserQuestion to present options based on the verdict:
    ```bash
    git push
    ```
-6. Return to the original branch: `git checkout <original-branch>`
-7. Re-run the inspector (Step 3) on the polished PR and re-prompt with the new verdict
+7. Return to the original branch: `git checkout <original-branch>`
+8. Re-run the inspector (Step 3) on the polished PR and re-prompt with the new verdict
 
 **"Comment"** (FEEDBACK/REWORK/REJECT verdicts):
 1. Post a concise comment to the PR (see format below)
@@ -159,5 +237,6 @@ Group the tally by verdict type. Only show lines for verdicts that have a count 
 - **gh CLI not authenticated:** Report the error and stop.
 - **Issue not found for a PR:** Skip that PR, note it in the summary as "SKIPPED — issue not found".
 - **Inspector fails:** Skip that PR, note it in the summary as "SKIPPED — inspection failed".
+- **Feedback file write fails:** Log warning but continue (feedback is supplementary, not critical).
 - **Polisher fails on POLISH verdict:** Display the verdict anyway. Note in the summary that polish was attempted but failed.
 - **Merge fails:** Note in the summary. The verdict was still computed.
