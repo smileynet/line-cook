@@ -1193,9 +1193,10 @@ def check_epic_completion(
     exclude_ids: Optional[set[str]] = None,
     cli_profile: Optional[dict] = None
 ) -> list[dict]:
-    """Detect newly completable epics, merge branches, and close via close-service.
+    """Detect newly completable epics, optionally merge branches, and close via close-service.
 
-    Merges epic branches eagerly before running close-service for documentation.
+    When on an epic branch, merges it to main before running close-service.
+    When on main (trunk-based mode), skips the merge step.
     If close-service fails, the epic bead is closed directly and a P1 doc task
     is created as follow-up.
 
@@ -1928,7 +1929,7 @@ def run_iteration(
                         elif merge_error == "merge_conflict":
                             if not json_output:
                                 print(f"  WARNING: Merge conflict for epic/{epic_id}")
-                                print(f"           Bug bead created for manual resolution")
+                                print("           Bug bead created for manual resolution")
                     else:
                         logger.debug(f"Skipping merge for epic {epic_id} (not on epic branch)")
 

@@ -1159,6 +1159,9 @@ def run_loop(
 
     CLI selection: cli_name selects the AI coding tool profile (e.g.,
     "claude-code", "kiro"). Defaults to DEFAULT_CLI if not specified.
+
+    Branch strategy: By default, all work happens on main (trunk-based).
+    Pass epic_branch=True to create epic/* branches for isolation.
     """
     global _shutdown_requested
 
@@ -1211,14 +1214,14 @@ def run_loop(
     if not skip_initial_sync:
         sync_at_start(cwd, json_output)
 
-    # Pre-start: warn about non-main branch or uncommitted changes
+    # Pre-start: warn if on an epic branch in trunk-based mode
     if not epic_branch:
         current = get_current_branch(cwd)
         if current and current != "main" and current.startswith("epic/"):
             logger.warning(f"Starting on epic branch '{current}' in trunk-based mode")
             if not json_output:
                 print(f"\n  WARNING: On epic branch '{current}' but running in trunk-based mode.")
-                print(f"  Merge this branch to main before starting, or use --epic-branch.")
+                print("  Merge this branch to main before starting, or use --epic-branch.")
                 print()
 
     iteration = 0
@@ -1340,7 +1343,7 @@ def run_loop(
                 stop_reason = "all_tasks_skipped"
                 logger.warning(f"All remaining tasks are skipped due to repeated failures: {skipped_ids}")
                 if not json_output:
-                    print(f"\nAll remaining tasks are skipped due to repeated failures.")
+                    print("\nAll remaining tasks are skipped due to repeated failures.")
                     print(f"Skipped tasks: {', '.join(skipped_ids)}")
                 break
             target_task_id, target_task_title = None, None
