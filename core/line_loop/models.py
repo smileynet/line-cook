@@ -22,6 +22,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
@@ -58,12 +59,30 @@ if TYPE_CHECKING:
         ) -> None: ...
 
 
+class FailureCategory(Enum):
+    """Classification of failure types for retry strategy selection.
+    
+    TRANSIENT: Temporary failures that should retry immediately (network blips, rate limits)
+    PERSISTENT: Repeatable failures needing exponential backoff (test failures, logic errors)
+    ENVIRONMENTAL: System-level failures requiring human intervention (disk full, missing deps)
+    """
+    TRANSIENT = "transient"
+    PERSISTENT = "persistent"
+    ENVIRONMENTAL = "environmental"
+
+
 @dataclass
 class CircuitBreaker:
     """Stops loop after too many failures within a sliding window."""
     failure_threshold: int = 5
+    warning_threshold: Optional[int] = None
     window_size: int = CIRCUIT_BREAKER_WINDOW_SIZE
     window: list = field(default_factory=list)
+
+    def __post_init__(self):
+        """Set default warning threshold if not provided."""
+        if self.warning_threshold is None:
+            self.warning_threshold = max(1, int(self.failure_threshold * 0.6))
 
     def record(self, success: bool):
         """Record a result (True=success, False=failure)."""
@@ -77,6 +96,13 @@ class CircuitBreaker:
             return False
         recent_failures = sum(1 for s in self.window if not s)
         return recent_failures >= self.failure_threshold
+
+    def should_warn(self) -> bool:
+        """Check if warning threshold has been reached."""
+        if self.warning_threshold is None:
+            return False
+        recent_failures = sum(1 for s in self.window if not s)
+        return recent_failures >= self.warning_threshold and not self.is_open()
 
     def reset(self):
         """Reset the circuit breaker."""
@@ -164,6 +190,53 @@ class LoopError:
             context={"path": str(path)},
             original=exc
         )
+
+    def classify_failure(self) -> FailureCategory:
+        """Classify error into failure category for retry strategy.
+        
+        Returns:
+            FailureCategory indicating retry approach:
+            - TRANSIENT: Network/rate limit errors, retry immediately
+            - PERSISTENT: Logic/test failures, exponential backoff
+            - ENVIRONMENTAL: System failures, halt loop
+        """
+        if self.error_type == "timeout":
+            # Timeouts are persistent - code is too slow or stuck
+            return FailureCategory.PERSISTENT
+        
+        if self.error_type == "json_decode":
+            # JSON parse failures are persistent - output format issue
+            return FailureCategory.PERSISTENT
+        
+        if self.error_type == "subprocess":
+            # Check stderr for environmental indicators
+            stderr = self.context.get("stderr", "").lower()
+            returncode = self.context.get("returncode", 0)
+            
+            # Environmental: disk full, permission denied, missing dependencies
+            if any(indicator in stderr for indicator in [
+                "no space left", "disk full", "permission denied",
+                "cannot allocate memory", "command not found",
+                "no such file or directory"
+            ]):
+                return FailureCategory.ENVIRONMENTAL
+            
+            # Transient: network errors, rate limits
+            if any(indicator in stderr for indicator in [
+                "connection refused", "connection reset", "timeout",
+                "rate limit", "too many requests", "503", "502"
+            ]):
+                return FailureCategory.TRANSIENT
+            
+            # Default subprocess failures are persistent (test failures, build errors)
+            return FailureCategory.PERSISTENT
+        
+        if self.error_type == "io":
+            # I/O errors are environmental - filesystem issues
+            return FailureCategory.ENVIRONMENTAL
+        
+        # Unknown errors default to persistent (safe fallback)
+        return FailureCategory.PERSISTENT
 
 
 @dataclass

@@ -27,6 +27,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional, Protocol
 
@@ -174,12 +175,30 @@ if TYPE_CHECKING:
         ) -> None: ...
 
 
+class FailureCategory(Enum):
+    """Classification of failure types for retry strategy selection.
+    
+    TRANSIENT: Temporary failures that should retry immediately (network blips, rate limits)
+    PERSISTENT: Repeatable failures needing exponential backoff (test failures, logic errors)
+    ENVIRONMENTAL: System-level failures requiring human intervention (disk full, missing deps)
+    """
+    TRANSIENT = "transient"
+    PERSISTENT = "persistent"
+    ENVIRONMENTAL = "environmental"
+
+
 @dataclass
 class CircuitBreaker:
     """Stops loop after too many failures within a sliding window."""
     failure_threshold: int = 5
+    warning_threshold: Optional[int] = None
     window_size: int = CIRCUIT_BREAKER_WINDOW_SIZE
     window: list = field(default_factory=list)
+
+    def __post_init__(self):
+        """Set default warning threshold if not provided."""
+        if self.warning_threshold is None:
+            self.warning_threshold = max(1, int(self.failure_threshold * 0.6))
 
     def record(self, success: bool):
         """Record a result (True=success, False=failure)."""
@@ -193,6 +212,13 @@ class CircuitBreaker:
             return False
         recent_failures = sum(1 for s in self.window if not s)
         return recent_failures >= self.failure_threshold
+
+    def should_warn(self) -> bool:
+        """Check if warning threshold has been reached."""
+        if self.warning_threshold is None:
+            return False
+        recent_failures = sum(1 for s in self.window if not s)
+        return recent_failures >= self.warning_threshold and not self.is_open()
 
     def reset(self):
         """Reset the circuit breaker."""
@@ -280,6 +306,53 @@ class LoopError:
             context={"path": str(path)},
             original=exc
         )
+
+    def classify_failure(self) -> FailureCategory:
+        """Classify error into failure category for retry strategy.
+        
+        Returns:
+            FailureCategory indicating retry approach:
+            - TRANSIENT: Network/rate limit errors, retry immediately
+            - PERSISTENT: Logic/test failures, exponential backoff
+            - ENVIRONMENTAL: System failures, halt loop
+        """
+        if self.error_type == "timeout":
+            # Timeouts are persistent - code is too slow or stuck
+            return FailureCategory.PERSISTENT
+        
+        if self.error_type == "json_decode":
+            # JSON parse failures are persistent - output format issue
+            return FailureCategory.PERSISTENT
+        
+        if self.error_type == "subprocess":
+            # Check stderr for environmental indicators
+            stderr = self.context.get("stderr", "").lower()
+            returncode = self.context.get("returncode", 0)
+            
+            # Environmental: disk full, permission denied, missing dependencies
+            if any(indicator in stderr for indicator in [
+                "no space left", "disk full", "permission denied",
+                "cannot allocate memory", "command not found",
+                "no such file or directory"
+            ]):
+                return FailureCategory.ENVIRONMENTAL
+            
+            # Transient: network errors, rate limits
+            if any(indicator in stderr for indicator in [
+                "connection refused", "connection reset", "timeout",
+                "rate limit", "too many requests", "503", "502"
+            ]):
+                return FailureCategory.TRANSIENT
+            
+            # Default subprocess failures are persistent (test failures, build errors)
+            return FailureCategory.PERSISTENT
+        
+        if self.error_type == "io":
+            # I/O errors are environmental - filesystem issues
+            return FailureCategory.ENVIRONMENTAL
+        
+        # Unknown errors default to persistent (safe fallback)
+        return FailureCategory.PERSISTENT
 
 
 @dataclass
@@ -3577,8 +3650,62 @@ def reset_shutdown_flag() -> None:
     _shutdown_requested = False
 
 
-def calculate_retry_delay(attempt: int, base: float = 2.0) -> float:
-    """Exponential backoff with jitter: 2s, 4s, 8s... capped at MAX_RETRY_DELAY_SECONDS."""
+def _is_environmental_error(result: IterationResult) -> bool:
+    """Detect environmental errors from iteration result.
+    
+    Environmental errors are system-level failures that won't resolve with retries:
+    - Disk full / no space left
+    - Permission denied
+    - Out of memory
+    - Missing dependencies / command not found
+    - File system errors
+    
+    Args:
+        result: IterationResult to check for environmental error indicators
+    
+    Returns:
+        True if environmental error detected, False otherwise
+    """
+    # Check action records for subprocess errors with environmental indicators
+    for action in result.actions:
+        if action.tool_name == "Bash" and not action.success:
+            output_lower = action.output_summary.lower()
+            if any(indicator in output_lower for indicator in [
+                "no space left", "disk full", "permission denied",
+                "cannot allocate memory", "command not found",
+                "no such file or directory", "read-only file system",
+                "too many open files", "device or resource busy"
+            ]):
+                logger.warning(f"Environmental error detected in action: {action.output_summary[:200]}")
+                return True
+    
+    return False
+
+
+def calculate_retry_delay(attempt: int, category: Optional[FailureCategory] = None, base: float = 2.0) -> float:
+    """Calculate retry delay based on failure category and attempt count.
+    
+    Args:
+        attempt: Retry attempt number (0-indexed)
+        category: Failure classification (TRANSIENT, PERSISTENT, ENVIRONMENTAL)
+        base: Base delay multiplier for exponential backoff
+    
+    Returns:
+        Delay in seconds before next retry
+    
+    Strategy:
+        - TRANSIENT: Immediate retry (0s) - network blips resolve quickly
+        - PERSISTENT: Exponential backoff with jitter - give code time to be fixed
+        - ENVIRONMENTAL: No retry (returns 0, caller should halt)
+        - None (unclassified): Default exponential backoff
+    """
+    if category == FailureCategory.TRANSIENT:
+        return 0.0  # Immediate retry
+    
+    if category == FailureCategory.ENVIRONMENTAL:
+        return 0.0  # No retry (caller should halt loop)
+    
+    # PERSISTENT or unclassified: exponential backoff with jitter
     delay = min(base * (2 ** attempt), MAX_RETRY_DELAY_SECONDS)
     jitter = random.uniform(0.8, 1.2)
     return delay * jitter
@@ -4646,6 +4773,19 @@ def run_loop(
                 print("\nShutdown requested. Stopping gracefully.")
             break
 
+        # Check circuit breaker warning threshold
+        if circuit_breaker.should_warn():
+            recent_failures = sum(1 for s in circuit_breaker.window if not s)
+            logger.warning(
+                f"Circuit breaker warning: {recent_failures}/{circuit_breaker.failure_threshold} "
+                f"failures in window (threshold: {circuit_breaker.warning_threshold})"
+            )
+            if not json_output:
+                print(
+                    f"\n⚠️  Warning: {recent_failures}/{circuit_breaker.failure_threshold} "
+                    f"failures detected. Circuit will trip at {circuit_breaker.failure_threshold}."
+                )
+
         # Check circuit breaker
         if circuit_breaker.is_open():
             stop_reason = "circuit_breaker"
@@ -4925,6 +5065,18 @@ def run_loop(
                     logger.warning(f"Task {result.task_id} added to skip list after {result.outcome}")
                     if not json_output:
                         print(f"\n  Task {result.task_id} added to skip list ({result.outcome}).")
+            
+            # Check for environmental errors that require halting the loop
+            # Environmental errors indicate system-level issues that won't resolve with retries
+            if _is_environmental_error(result):
+                stop_reason = "environmental_error"
+                logger.error(f"Environmental error detected in {result.outcome}, halting loop")
+                if not json_output:
+                    print(f"\n⚠️  Environmental error detected: {result.outcome}")
+                    print("   System-level issue requires human intervention.")
+                    print("   Check logs for details (disk space, permissions, dependencies).")
+                break
+            
             if stop_on_crash:
                 stop_reason = result.outcome
                 logger.info(f"Task {result.outcome}, stopping (--stop-on-crash)")
@@ -4998,6 +5150,21 @@ def run_loop(
                 loop_closed_epics.add(epic["id"])
     except Exception as e:
         logger.warning(f"Error in final epic completion check: {e}")
+
+    # Return to main branch before exit.
+    # Epic branches with partial work stay intact for future loop runs,
+    # but the working directory should always be left on main.
+    try:
+        current = get_current_branch(cwd)
+        if current and current != "main" and current.startswith("epic/"):
+            auto_commit_wip(current, cwd)
+            result = run_subprocess(["git", "checkout", "main"], GIT_SYNC_TIMEOUT, cwd)
+            if result.returncode == 0:
+                logger.info(f"Returned to main from {current} at end of loop")
+            else:
+                logger.warning(f"Failed to return to main from {current}: {result.stderr}")
+    except Exception as e:
+        logger.warning(f"Error returning to main at end of loop: {e}")
 
     ended_at = datetime.now()
     duration = (ended_at - started_at).total_seconds()
