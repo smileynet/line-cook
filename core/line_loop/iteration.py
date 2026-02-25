@@ -31,6 +31,7 @@ from .config import (
     GIT_COMMAND_TIMEOUT,
     GOAL_TEXT_MAX_LENGTH,
     HIERARCHY_MAX_DEPTH,
+    MAX_FEEDBACK_HISTORY,
 )
 from .models import (
     ActionRecord,
@@ -1289,6 +1290,9 @@ def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
             ],
             "written_at": datetime.now().isoformat()
         })
+
+        # Rolling window: keep only the most recent entries
+        history = history[-MAX_FEEDBACK_HISTORY:]
 
         context = {
             "task_id": feedback.task_id,

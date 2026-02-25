@@ -39,6 +39,7 @@ CIRCUIT_BREAKER_WINDOW_SIZE = 10    # Sliding window for failure tracking
 RECENT_ITERATIONS_LIMIT = 10        # Iterations to consider for analysis
 RECENT_ITERATIONS_DISPLAY = 5       # Iterations to show in status/reports
 CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
+MAX_FEEDBACK_HISTORY = 5            # Rolling window for retry feedback history
 
 # Hierarchy traversal
 HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks

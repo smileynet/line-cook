@@ -74,6 +74,7 @@ CIRCUIT_BREAKER_WINDOW_SIZE = 10    # Sliding window for failure tracking
 RECENT_ITERATIONS_LIMIT = 10        # Iterations to consider for analysis
 RECENT_ITERATIONS_DISPLAY = 5       # Iterations to show in status/reports
 CLOSED_TASKS_QUERY_LIMIT = 10       # Limit for closed tasks query
+MAX_FEEDBACK_HISTORY = 5            # Rolling window for retry feedback history
 
 # Hierarchy traversal
 HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy walks
@@ -2947,6 +2948,9 @@ def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
             ],
             "written_at": datetime.now().isoformat()
         })
+
+        # Rolling window: keep only the most recent entries
+        history = history[-MAX_FEEDBACK_HISTORY:]
 
         context = {
             "task_id": feedback.task_id,
