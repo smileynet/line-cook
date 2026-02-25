@@ -2908,6 +2908,19 @@ def check_epic_completion(
     return summaries
 
 
+def _serialize_issues(issues: list) -> list[dict]:
+    """Serialize ServeFeedbackIssue list to JSON-compatible dicts."""
+    return [
+        {
+            "severity": issue.severity,
+            "location": issue.location,
+            "problem": issue.problem,
+            "suggestion": issue.suggestion
+        }
+        for issue in issues
+    ]
+
+
 def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
     """Write retry context file for cook to read on next attempt.
 
@@ -2937,15 +2950,7 @@ def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
             "attempt": feedback.attempt,
             "verdict": feedback.verdict,
             "summary": feedback.summary,
-            "issues": [
-                {
-                    "severity": issue.severity,
-                    "location": issue.location,
-                    "problem": issue.problem,
-                    "suggestion": issue.suggestion
-                }
-                for issue in feedback.issues
-            ],
+            "issues": _serialize_issues(feedback.issues),
             "written_at": datetime.now().isoformat()
         })
 
@@ -2958,15 +2963,7 @@ def write_retry_context(cwd: Path, feedback: ServeFeedback) -> bool:
             "attempt": feedback.attempt,
             "verdict": feedback.verdict,
             "summary": feedback.summary,
-            "issues": [
-                {
-                    "severity": issue.severity,
-                    "location": issue.location,
-                    "problem": issue.problem,
-                    "suggestion": issue.suggestion
-                }
-                for issue in feedback.issues
-            ],
+            "issues": _serialize_issues(feedback.issues),
             "history": history,
             "written_at": datetime.now().isoformat()
         }
