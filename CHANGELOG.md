@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Loop Self-Healing (lc-3nl)
+  - Feedback history rolling window (cap at 5 entries) with cook template pattern detection for persistent issues, regression, and oscillation across retry attempts
+  - Circuit breaker warning threshold fires before tripping, giving operators early notice of failure accumulation
+  - Failure classification (transient/persistent/environmental) with category-aware retry delay strategy
+  - Per-task retry budgets tracked independently via SkipList, preventing single problematic tasks from monopolizing the loop
 - Issue Agent Self-Healing (lc-fo6)
   - Timeout fallback comments on both analyze and respond jobs — users always get feedback when the agent fails
   - Confidence scoring (HIGH/MEDIUM/LOW) in Path B analysis comments for maintainer prioritization
