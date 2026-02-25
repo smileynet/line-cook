@@ -134,8 +134,14 @@ This file contains structured feedback from the previous serve review, including
 - `summary`: Brief assessment of the changes
 - `issues`: Array of issues with severity, location, problem, and suggestion
 - `attempt`: Which retry attempt this is
+- `history`: Rolling window of prior attempts (up to 5), each with verdict, summary, and issues
 
 **Prioritize issues from the context file over bead comments**, as they're more structured and reliable.
+
+**Pattern detection from history (CRITICAL for retries):**
+- **Persistent issues**: If the same issue appears in 2+ history entries, the previous fix strategy didn't work — try a fundamentally different approach
+- **Regression**: If issue counts are increasing across attempts, step back and reassess the overall approach
+- **Oscillation**: If issues flip between two states across attempts, identify the root conflict and resolve it
 
 **Output format:**
 ```
@@ -145,6 +151,14 @@ This file contains structured feedback from the previous serve review, including
 
 Task: <id> - <title>
 Previous verdict: NEEDS_CHANGES
+
+Attempt history:
+  #1: <verdict> — <summary> (<issue count> issues)
+  #2: <verdict> — <summary> (<issue count> issues)
+
+Persistent issues (same problem in 2+ attempts → change strategy):
+  [critical] <location>: <problem>
+    → Previous fix didn't work, trying: <new approach>
 
 Issues to address:
   [critical] <location>: <problem>

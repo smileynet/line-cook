@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
+from line_loop.config import MAX_FEEDBACK_HISTORY
 from line_loop.iteration import write_retry_context, clear_retry_context
 from line_loop.models import ServeFeedback, ServeFeedbackIssue
 
@@ -84,6 +85,40 @@ class TestFeedbackHistory(unittest.TestCase):
 
         clear_retry_context(self.cwd)
         self.assertFalse(context_file.exists())
+
+    def test_feedback_history_rolling_window(self):
+        """Verify history is capped at MAX_FEEDBACK_HISTORY entries."""
+        total_entries = MAX_FEEDBACK_HISTORY + 3
+
+        for i in range(1, total_entries + 1):
+            feedback = ServeFeedback(
+                verdict="NEEDS_CHANGES",
+                summary=f"Attempt {i} feedback",
+                issues=[
+                    ServeFeedbackIssue(
+                        severity="major",
+                        location=f"foo.py:{i * 10}",
+                        problem=f"Problem {i}",
+                        suggestion=f"Fix {i}"
+                    )
+                ],
+                task_id="test-001",
+                task_title="Test task",
+                attempt=i
+            )
+            write_retry_context(self.cwd, feedback)
+
+        context_file = self.cwd / ".line-cook" / "retry-context.json"
+        data = json.loads(context_file.read_text())
+
+        self.assertEqual(len(data["history"]), MAX_FEEDBACK_HISTORY)
+        # Oldest entries (1..3) should be trimmed; first remaining is attempt 4
+        first_kept = total_entries - MAX_FEEDBACK_HISTORY + 1
+        self.assertEqual(data["history"][0]["attempt"], first_kept)
+        self.assertEqual(data["history"][0]["summary"], f"Attempt {first_kept} feedback")
+        # Last entry should be the most recent
+        self.assertEqual(data["history"][-1]["attempt"], total_entries)
+        self.assertEqual(data["history"][-1]["summary"], f"Attempt {total_entries} feedback")
 
 
 if __name__ == "__main__":

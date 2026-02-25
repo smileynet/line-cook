@@ -34,6 +34,7 @@ from .config import (
     HIERARCHY_MAX_DEPTH,
     LOG_FILE_MAX_BYTES,
     LOG_FILE_BACKUP_COUNT,
+    MAX_FEEDBACK_HISTORY,
     PERIODIC_SYNC_INTERVAL,
     get_cli_profile,
 )
@@ -162,6 +163,7 @@ __all__ = [
     "HIERARCHY_MAX_DEPTH",
     "LOG_FILE_MAX_BYTES",
     "LOG_FILE_BACKUP_COUNT",
+    "MAX_FEEDBACK_HISTORY",
     "PERIODIC_SYNC_INTERVAL",
     # Models
     "BeadDelta",
