@@ -16,8 +16,7 @@ class TestFeedbackHistory(unittest.TestCase):
     """Test feedback history accumulation in retry context."""
 
     def setUp(self):
-        self._tmpdir = tempfile.mkdtemp()
-        self.cwd = Path(self._tmpdir)
+        self.cwd = Path(tempfile.mkdtemp())
 
     def test_feedback_accumulates_across_retries(self):
         """Verify feedback history accumulates instead of replacing."""
