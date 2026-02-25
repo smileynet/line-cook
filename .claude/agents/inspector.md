@@ -118,41 +118,32 @@ After evaluating all eight dimensions, assign exactly one verdict:
 
 ## Output Format
 
-Return your analysis in this exact structure:
+Return your analysis as a single valid JSON object with no surrounding text or code fences:
 
+```json
+{
+  "issue_number": <int>,
+  "pr_number": <int>,
+  "verdict": "MERGE|POLISH|FEEDBACK|REWORK|REJECT",
+  "dimensions": {
+    "what_changed": "2-3 sentences describing the code change in plain language",
+    "project_value": "2-3 sentences on why this matters for users and the project",
+    "issue_validity": "1-2 sentences",
+    "intent_alignment": "1-2 sentences",
+    "scope": "1-2 sentences",
+    "security": "1-2 sentences",
+    "code_quality": "1-2 sentences",
+    "root_cause_depth": "1-2 sentences"
+  },
+  "rationale": "1 paragraph verdict explanation with specific concerns or recommendations"
+}
 ```
-## Inspection: PR #<number> / Issue #<number>
 
-### What Changed
-<2-3 sentences describing the code change in plain language>
-
-### Project Value
-<2-3 sentences on why this matters for users and the project>
-
-### Issue Validity
-<1-2 sentences>
-
-### Intent Alignment
-<1-2 sentences>
-
-### Scope
-<1-2 sentences>
-
-### Security
-<1-2 sentences>
-
-### Code Quality
-<1-2 sentences>
-
-### Root Cause Depth
-<1-2 sentences>
-
----
-
-**Verdict: <VERDICT>**
-
-<1 paragraph rationale explaining the verdict and any specific concerns or recommendations>
-```
+**Rules:**
+- Output ONLY the JSON object — no markdown, no explanation, no code fences
+- All 8 dimensions are required
+- Verdict must be exactly one of: MERGE, POLISH, FEEDBACK, REWORK, REJECT
+- Use `issue_number` and `pr_number` from the input context
 
 ## Guidelines
 

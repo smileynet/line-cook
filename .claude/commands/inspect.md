@@ -58,7 +58,7 @@ gh pr view <pr-number> --json files --jq '.files[].path'
 For each PR, delegate to the inspector agent via Task:
 
 ```
-Task(subagent_type="inspector", prompt=<assembled context>)
+Task(description="Inspect bot PR #<pr-number> for issue #<issue-number>", prompt=<assembled context>, subagent_type="inspector")
 ```
 
 The prompt should include:
@@ -69,20 +69,19 @@ The prompt should include:
 
 If reviewing multiple PRs, launch inspector agents in parallel.
 
-Parse the inspector's response to extract:
-- The verdict line (`**Verdict: <VERDICT>**`)
-- All 8 dimension sections (What Changed, Project Value, Issue Validity, Intent Alignment, Scope, Security, Code Quality, Root Cause Depth)
-- The rationale paragraph
+The inspector returns a JSON object. Parse it with `json.loads()` or equivalent. Validate that it contains: `issue_number`, `pr_number`, `verdict`, `dimensions` (with all 8 keys), and `rationale`.
+
+If the inspector output is not valid JSON (e.g., wrapped in markdown fences), strip fences and retry parsing. If still invalid, treat as inspection failure for that PR.
 
 ### Step 3a: Write Feedback File
 
-After the inspector returns, write a structured feedback file to `.beads/inspect-feedback/issue-<number>.json`:
+After the inspector returns valid JSON, augment it and write to `.beads/inspect-feedback/issue-<number>.json`:
 
 ```bash
 mkdir -p .beads/inspect-feedback
 ```
 
-**Before writing, read existing feedback to track polish attempts:**
+**Read existing feedback to track polish attempts:**
 
 ```bash
 if [ -f .beads/inspect-feedback/issue-<number>.json ]; then
@@ -100,32 +99,20 @@ fi
 **Check for escalation:**
 - If `polish_attempts >= 3` and verdict is POLISH, override verdict to FEEDBACK and add escalation note to rationale
 
-Create JSON with this structure:
-```json
-{
-  "issue_number": <int>,
-  "pr_number": <int>,
-  "verdict": "<MERGE|POLISH|FEEDBACK|REWORK|REJECT>",
-  "polish_attempts": <int>,
-  "dimensions": {
-    "what_changed": "<text from What Changed section>",
-    "project_value": "<text from Project Value section>",
-    "issue_validity": "<text from Issue Validity section>",
-    "intent_alignment": "<text from Intent Alignment section>",
-    "scope": "<text from Scope section>",
-    "security": "<text from Security section>",
-    "code_quality": "<text from Code Quality section>",
-    "root_cause_depth": "<text from Root Cause Depth section>"
-  },
-  "rationale": "<verdict rationale paragraph>",
-  "reviewed_at": "<ISO 8601 timestamp>"
-}
+**Augment the inspector's JSON** with `polish_attempts` and `reviewed_at`, then write:
+
+```python
+# Inspector already provides: issue_number, pr_number, verdict, dimensions, rationale
+# Augment with operational metadata:
+feedback = inspector_output  # The parsed JSON from inspector
+feedback["polish_attempts"] = new_attempt_count
+feedback["reviewed_at"] = datetime.now(timezone.utc).isoformat()
 ```
 
 Write atomically using a temp file:
 ```bash
 cat > .beads/inspect-feedback/issue-<number>.json.tmp << 'EOF'
-<json content>
+<augmented json>
 EOF
 mv .beads/inspect-feedback/issue-<number>.json.tmp .beads/inspect-feedback/issue-<number>.json
 ```
@@ -134,12 +121,42 @@ This enables downstream agents (like issue-agent on re-trigger) to read past ins
 
 ### Step 4: Display Report Locally
 
-For each PR, display the inspector's full analysis (all 8 dimensions + verdict) directly in the terminal as markdown. Do NOT write to temp files. Do NOT post to GitHub.
+For each PR, render the inspector's JSON as a readable markdown report in the terminal. Do NOT write to temp files. Do NOT post to GitHub.
 
-**If verdict is POLISH and polish_attempts > 0, include attempt counter:**
+**Render the JSON fields as markdown sections:**
 
 ```
-**Verdict: POLISH** (attempt 2/3)
+## Inspection: PR #<pr_number> / Issue #<issue_number>
+
+### What Changed
+<dimensions.what_changed>
+
+### Project Value
+<dimensions.project_value>
+
+### Issue Validity
+<dimensions.issue_validity>
+
+### Intent Alignment
+<dimensions.intent_alignment>
+
+### Scope
+<dimensions.scope>
+
+### Security
+<dimensions.security>
+
+### Code Quality
+<dimensions.code_quality>
+
+### Root Cause Depth
+<dimensions.root_cause_depth>
+
+---
+
+**Verdict: <verdict>** [(attempt N/3) if POLISH with polish_attempts > 0]
+
+<rationale>
 ```
 
 Lead with **What Changed** and **Project Value** — these help the maintainer understand the change before seeing the safety checklist. The remaining 6 dimensions (validity, alignment, scope, security, quality, root cause) follow as due diligence.
@@ -177,7 +194,7 @@ Use AskUserQuestion to present options based on the verdict:
 2. Note the current branch: `git branch --show-current`
 3. Fetch and checkout the PR branch: `gh pr checkout <pr-number>`
 4. Get the list of changed files: `git diff --name-only main...HEAD`
-5. Launch the polisher: `Task(subagent_type="polisher", prompt="Polish these files: <file list>")`
+5. Launch the polisher: `Task(description="Polish bot fix for issue #<issue-number>", prompt="Polish these files: <file list>", subagent_type="polisher")`
 6. If the polisher made changes, stage, commit, and push:
    ```bash
    git add <changed-files>
