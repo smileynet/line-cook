@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Issue Agent Self-Healing (lc-fo6)
+  - Timeout fallback comments on both analyze and respond jobs — users always get feedback when the agent fails
+  - Confidence scoring (HIGH/MEDIUM/LOW) in Path B analysis comments for maintainer prioritization
+  - Inspect feedback reading on re-trigger — agent incorporates prior review feedback when re-analyzing issues
+
 ## [0.17.1] - 2026-02-21
 ### Fixed
 - `/loop` no longer crashes when the log directory doesn't exist yet
