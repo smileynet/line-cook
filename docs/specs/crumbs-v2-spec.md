@@ -8,10 +8,10 @@ Crumbs is a git-native issue tracker that stores work items as append-only JSONL
 
 ### 1.1 Design Principles
 
-- **Git-native**: JSONL files live in-repo under `.crumbs/`, sync with normal git operations
+- **Git-native**: JSONL files in-repo under `.crumbs/`, synced with normal git operations
 - **Event-sourced state**: Phase records are append-only immutable events; current state is a projection
 - **Machine-driven prompting**: `cr next` tells the consumer what to do; the consumer doesn't decide workflow sequence
-- **Project-agnostic**: The core engine knows states, events, transitions, and guards — not cook, serve, or test-writer
+- **Project-agnostic**: The core engine knows states, events, transitions, and guards — not project-specific phase names
 - **Hierarchical**: Strict 3-tier hierarchy (epic → feature → task) with precomputed ancestry and progress
 - **Single tool**: One CLI (`cr`) for issue tracking, workflow state, and context assembly
 
@@ -26,14 +26,7 @@ The generic state machine engine. Knows about:
 - Transition execution (validate, record, cascade)
 - Context assembly protocol (calls external hook, returns structured result)
 
-Does NOT know about:
-- Cook, serve, tidy, plate (Line Cook phases)
-- Test-writer, test-review, execute (Capsule phases)
-- TDD methodology, sous-chef, polisher (Line Cook agents)
-- Writer/reviewer pairs (Capsule retry pattern)
-- Kitchen signals, SERVE_RESULT blocks (Line Cook specifics)
-
-#### Layer 2: Project Integration (Line Cook, Capsule, etc.)
+#### Layer 2: Project Integration
 
 Each project provides:
 - **Workflow definition** in `.crumbs/config.yaml`
@@ -41,56 +34,7 @@ Each project provides:
 - **Phase payload schemas** (what data each phase produces)
 - **Orchestrator** that calls `cr next` / `cr transition`
 
-### 1.3 What Changed from v1
-
-| Area | v1 | v2 |
-|------|----|----|
-| Phase names | Fixed enum (`prep \| cook \| serve \| tidy \| plate`) | Project-defined strings in workflow config |
-| State machine | Implicit in orchestrator code | Explicit in `.crumbs/config.yaml` per issue type |
-| Context assembly | Not specified (left to consumer) | Formal protocol with hook interface |
-| Transitions | No concept — phases just recorded | `cr transition` with guards, effects, cascades |
-| Storage | JSONL only | JSONL (git-friendly source of truth) + SQLite (local query cache) |
-| Payload schemas | Fixed types (CookPayload, ServePayload, TidyPayload) | Extensible — projects register their own payload schemas |
-| Workflow commands | None | `cr next`, `cr transition`, `cr workflow show/status/history/validate` |
-| Data model | All fields retained | All fields retained + WorkflowState, ContextBundle, TransitionResult |
-
-### 1.4 Anti-Patterns Avoided
-
-| Anti-pattern | How crumbs avoids it |
-|---|---|
-| God Object | Work items and phase records are separate entity types with single responsibility each |
-| Inner Platform | Workflows are declarative config, not a generic "build your own engine" framework |
-| Golden Hammer | Phase payloads are typed per project; the core accepts any JSON payload |
-| Mutable state | Phase records are append-only; current state derived from latest events |
-| Denormalization drift | Derived fields (progress_pct, close_eligible, workflow_state) are computed projections, not stored copies |
-| Missing concept | Execution state (verdicts, retry counts, findings) is a first-class entity, not text hidden in comments |
-| God state | Distinct states per phase; no single "active" state with internal branching |
-| Implicit state | All state in the machine config, not scattered across files/flags/comments |
-| Fat nodes | Core emits ContextBundle structure; project-specific hooks fill the content |
-| Boolean flags for state | States are an explicit enum from workflow config; no `is_reviewing`, `is_retrying` booleans |
-| Stuck states | Stale detection for orphaned started-without-completed phases |
-| Blind retry (BPAP AP-1) | Structured feedback persistence across retries via PhaseRecords |
-| Context amnesia (BPAP AP-2) | WorkflowState carries attempt count and phase history; hooks inject relevant context |
-
-### 1.5 State Machine Design Alignment
-
-The workflow engine design maps to established state machine best practices:
-
-| Principle | Design decision |
-|---|---|
-| Illegal states unrepresentable | States are an explicit enum from workflow config. No boolean flags. |
-| Decide/evolve split | `cr transition` is the pure decision function. Consumer executor is separate. |
-| Hierarchical states | Workflows can nest (task workflow inside feature lifecycle inside epic lifecycle). Cross-cutting error handling at parent level. |
-| Entry/exit actions | `cr next` provides entry context. `cr transition` captures exit payload. Both extensible via hooks. |
-| Pure guards | Guards evaluate PhaseRecord data only. No I/O. Declared as expressions in config. |
-| Event-sourced state | WorkflowState derived from phases.jsonl (JSONL = source of truth, SQLite = query cache). Rebuildable by replay. |
-| Checkpointing | Completed PhaseRecords serve as checkpoints. Recovery replays from last completed. |
-| Actor model | Orchestrator (Line Cook loop / Capsule campaign) invokes worker per phase. Worker sends done event. |
-| Context vs finite states | Attempt count, feedback history in context, not state names. No `cook_attempt_2` states. |
-| Machine-driven prompting | `cr next` tells consumer what to do. Consumer doesn't decide workflow sequence. |
-| Idempotent actions | PhaseRecords are append-only. Side effects tracked for safe replay. |
-| Model error states explicitly | Explicit blocked/failed states with configurable max-retry guards. |
-| Idempotent replay | JSONL is append-only; SQLite rebuild is deterministic from same JSONL. No duplicate side effects on replay. |
+> See [crumbs-v2-design.md](crumbs-v2-design.md) for rationale on this separation and what the core intentionally does NOT know about.
 
 ---
 
@@ -152,7 +96,7 @@ PhaseRecord {
 }
 ```
 
-**Key difference from v1:** The `phase` field is a free-form string validated against the workflow config, not a fixed enum. "cook" is a valid phase name in a Line Cook project; "test-writer" is a valid phase name in a Capsule project. The core engine validates that the phase name exists in the issue's workflow definition.
+The `phase` field is validated against the workflow config. The core engine validates that the phase name exists in the issue's workflow definition.
 
 ### 2.3 Typed Payloads (Extensible)
 
@@ -160,54 +104,7 @@ Payloads are project-defined JSON objects attached to completed PhaseRecords. Th
 
 Projects register payload schemas in their workflow config (Section 3.1). The core validates payloads against registered schemas when provided, but schema registration is optional. Unregistered payloads are accepted as raw JSON.
 
-**Example: Line Cook payloads**
-
-```
-CookPayload {
-    intent:         string          # What the task set out to do
-    approach:       string?         # How it was implemented
-    files_changed:  list[string]    # File paths modified
-    tests_written:  list[string]    # Test file paths
-    findings:       list[Finding]   # Issues discovered during cook
-}
-
-ServePayload {
-    verdict:          enum          # approved | needs_changes | blocked
-    blocking_issues:  int           # Count of blocking issues
-    summary:          string        # Brief review assessment
-    issues:           list[ReviewIssue]
-}
-
-TidyPayload {
-    commit_sha:     string?         # Git commit hash
-    issues_filed:   list[string]    # IDs of newly created issues (from findings)
-    issues_closed:  list[string]    # IDs closed during tidy
-    epic_merged:    bool            # Whether an epic branch was merged
-    push_status:    enum            # success | failed | skipped
-}
-```
-
-**Example: Capsule payloads**
-
-```
-TestWriterPayload {
-    test_files:     list[string]    # Test file paths created/modified
-    test_count:     int             # Number of test cases
-    coverage_delta: float?          # Coverage change if measurable
-}
-
-ExecutePayload {
-    files_changed:  list[string]    # Implementation file paths
-    approach:       string          # How the implementation works
-    test_results:   TestResults     # Pass/fail counts
-}
-
-ReviewPayload {
-    verdict:        enum            # pass | needs_work | error
-    feedback:       string          # Reviewer assessment
-    findings:       list[Finding]   # Specific issues found
-}
-```
+> See [crumbs-v2-design.md](crumbs-v2-design.md) for project-specific payload examples (Line Cook, Capsule).
 
 ### 2.4 Finding
 
@@ -272,13 +169,15 @@ ContextBundle {
     workflow_state: WorkflowState   # Current state + available events
     next_action:    string          # The event the consumer should work toward producing
     next_state:     string          # The state the issue will move to on success
-    attempt:        int             # Which attempt this is (for retry-aware context)
+    attempt:        int             # Which attempt this is (convenience copy of workflow_state.attempt)
     max_attempts:   int?            # Max attempts configured for this transition (null if unlimited)
 
     # From context assembler hook (project-specific, empty if no hook configured)
     context:        object          # Project-specific context (tools, planning docs, retry analysis, etc.)
 }
 ```
+
+**Note:** `ContextBundle.attempt` is a convenience copy of `workflow_state.attempt`, provided so consumers can access the attempt number without navigating into the workflow state object.
 
 ### 2.8 TransitionResult (cr transition Response)
 
@@ -397,227 +296,13 @@ When a transition includes the `check_parent` effect, the engine evaluates wheth
 
 Cascading is bounded by hierarchy depth (max 3 levels: task → feature → epic). The CascadeResult in the TransitionResult reports what happened at each level.
 
-### 3.5 Example: Line Cook Task Workflow
-
-```yaml
-prefix: "lc"
-workflows:
-  task:
-    states: [open, cook, serve, tidy, closed, blocked]
-    initial: open
-    terminal: [closed]
-    transitions:
-      - from: open
-        event: assign
-        to: cook
-        effects: [set_in_progress, fire_prep_hook]
-      - from: cook
-        event: cook_complete
-        to: serve
-      - from: serve
-        event: approved
-        to: tidy
-      - from: serve
-        event: needs_changes
-        to: cook
-        guard: "attempt < max_attempts"
-      - from: serve
-        event: needs_changes
-        to: blocked
-        guard: "attempt >= max_attempts"
-      - from: serve
-        event: blocked
-        to: blocked
-      - from: tidy
-        event: tidy_complete
-        to: closed
-        effects: [set_closed, check_parent]
-      - from: blocked
-        event: unblock
-        to: cook
-    max_attempts: 2
-    hooks:
-      prep: "cr sync && git fetch"
-      context_assembler: "./plugins/claude-code/scripts/crumbs-context.py"
-      cook.after_red: { agent: "taster" }
-      serve.review: { agent: "sous-chef" }
-      serve.after_approved: { agent: "polisher" }
-
-  feature:
-    states: [open, plate, closed]
-    initial: open
-    terminal: [closed]
-    transitions:
-      - from: open
-        event: all_children_closed
-        to: plate
-      - from: plate
-        event: plate_complete
-        to: closed
-        effects: [set_closed, check_parent]
-    hooks:
-      plate.review: { agent: "maitre" }
-
-  epic:
-    states: [open, close_service, closed]
-    initial: open
-    terminal: [closed]
-    transitions:
-      - from: open
-        event: all_children_closed
-        to: close_service
-      - from: close_service
-        event: complete
-        to: closed
-        effects: [set_closed]
-    hooks:
-      close_service.review: { agent: "critic" }
-```
-
-**State diagram (task):**
-```
-open ──assign──► cook ──cook_complete──► serve ──approved──► tidy ──tidy_complete──► closed
-                  ▲                        │                                           │
-                  │                        │ needs_changes                              │
-                  │                        │ (attempt < max)                            │
-                  └────────────────────────┘                                            │
-                  ▲                        │                              check_parent ─┘
-                  │                        │ needs_changes
-                  │       unblock          │ (attempt >= max)
-                  └───── blocked ◄─────────┘
-```
-
-### 3.6 Example: Capsule Pipeline Workflow
-
-```yaml
-prefix: "demo"
-workflows:
-  task:
-    states: [open, test_writing, test_reviewing, executing, execute_reviewing, signing_off, merging, closed, failed]
-    initial: open
-    terminal: [closed, failed]
-    transitions:
-      - from: open
-        event: start
-        to: test_writing
-        effects: [set_in_progress]
-      - from: test_writing
-        event: pass
-        to: test_reviewing
-      - from: test_writing
-        event: error
-        to: failed
-      - from: test_reviewing
-        event: pass
-        to: executing
-      - from: test_reviewing
-        event: needs_work
-        to: test_writing
-        guard: "attempt < max_attempts"
-      - from: test_reviewing
-        event: needs_work
-        to: failed
-        guard: "attempt >= max_attempts"
-      - from: executing
-        event: pass
-        to: execute_reviewing
-      - from: executing
-        event: error
-        to: failed
-      - from: execute_reviewing
-        event: pass
-        to: signing_off
-      - from: execute_reviewing
-        event: needs_work
-        to: executing
-        guard: "attempt < max_attempts"
-      - from: execute_reviewing
-        event: needs_work
-        to: failed
-        guard: "attempt >= max_attempts"
-      - from: signing_off
-        event: pass
-        to: merging
-      - from: signing_off
-        event: fail
-        to: failed
-      - from: merging
-        event: pass
-        to: closed
-        effects: [set_closed, check_parent]
-      - from: merging
-        event: error
-        to: failed
-    max_attempts: 3
-    hooks:
-      context_assembler: "./scripts/crumbs-context.sh"
-
-  feature:
-    states: [open, running, gating, closed]
-    initial: open
-    terminal: [closed]
-    transitions:
-      - from: open
-        event: start_campaign
-        to: running
-      - from: running
-        event: all_children_closed
-        to: gating
-      - from: gating
-        event: gate_pass
-        to: closed
-        effects: [set_closed, check_parent]
-      - from: gating
-        event: gate_fail
-        to: running
-```
-
-**State diagram (task):**
-```
-open ──start──► test_writing ──pass──► test_reviewing ──pass──► executing ──pass──► execute_reviewing
-                     ▲                       │                      ▲                      │
-                     │                       │ needs_work           │                      │ needs_work
-                     │                       │ (attempt < max)      │                      │ (attempt < max)
-                     └───────────────────────┘                      └──────────────────────┘
-                     │                       │                      │                      │
-                     │ error                 │ needs_work           │ error                │ needs_work
-                     ▼                       │ (attempt >= max)     ▼                      │ (attempt >= max)
-                   failed ◄──────────────────┘                    failed ◄────────────────┘
-
-execute_reviewing ──pass──► signing_off ──pass──► merging ──pass──► closed
-                                │                    │
-                                │ fail               │ error
-                                ▼                    ▼
-                              failed               failed
-```
-
-### 3.7 Example: Minimal 3-State Workflow
-
-The simplest valid workflow. Useful for projects that just need open/working/done tracking without complex transitions.
-
-```yaml
-prefix: "proj"
-workflows:
-  task:
-    states: [open, working, done]
-    initial: open
-    terminal: [done]
-    transitions:
-      - from: open
-        event: start
-        to: working
-        effects: [set_in_progress]
-      - from: working
-        event: complete
-        to: done
-        effects: [set_closed]
-```
+> See [crumbs-v2-design.md](crumbs-v2-design.md) for example workflows showing cascading in context.
 
 ---
 
 ## 4. Derived State (Read Projections)
 
-Computed in-memory from Issues + PhaseRecords + Workflow definitions on load. Never persisted — rebuilt from JSONL on every read. This avoids denormalization drift.
+Computed in-memory from Issues + PhaseRecords + Workflow definitions on load. Never persisted — rebuilt from JSONL on every read.
 
 ```
 IssueView {
@@ -665,9 +350,11 @@ IssueView {
 └─────────────────────────────────────────────────┘
 ```
 
-- **Git layer** (JSONL): The source of truth. Git-tracked, append-only, human-readable diffs. This is what syncs between collaborators and what survives `git clone`.
-- **Local layer** (SQLite): The query engine. Gitignored, rebuilt from JSONL. Provides indexed lookups, sub-millisecond queries, and complex filtering that JSONL alone cannot efficiently support.
-- **Access layer** (cr CLI): The interface. Reads from SQLite for all queries. Appends to JSONL for all writes, then updates SQLite in the same logical operation.
+- **Git layer** (JSONL): Source of truth. Git-tracked, append-only, human-readable diffs. Syncs between collaborators via `git clone`/`git pull`.
+- **Local layer** (SQLite): Query engine. Gitignored, rebuilt from JSONL. Indexed lookups and sub-millisecond queries.
+- **Access layer** (cr CLI): Interface. Reads from SQLite for queries. Appends to JSONL for writes, then updates SQLite in the same logical operation.
+
+> See [crumbs-v2-design.md](crumbs-v2-design.md) for the rationale behind this architecture and alternatives evaluated.
 
 ### 5.2 Directory Structure
 
@@ -683,7 +370,7 @@ IssueView {
 
 **JSONL files** (git-tracked):
 
-- `issues.jsonl`: Issue mutations appended as events with full Issue state. Latest event per `id` is the current state. History is preserved for reconstruction at any point in time.
+- `issues.jsonl`: Issue mutations appended as events with full Issue state. Latest event per `id` is the current state.
 - `phases.jsonl`: All PhaseRecords kept (not just latest). Each record is an immutable event with a unique `id`. Records for the same `issue_id` are ordered by `timestamp`.
 - `deps.jsonl`: One record per dependency relationship. Removal recorded as a new event with `removed: true`.
 
@@ -711,7 +398,7 @@ Steps 2 and 3 form a single logical operation. If the process crashes between th
 
 **Read path:**
 - All queries read from SQLite (indexed, sub-ms)
-- Never read from JSONL for queries (too slow for filtered lookups at scale)
+- Never read from JSONL for queries
 
 **Rebuild:**
 - `cr doctor --rebuild` regenerates `crumbs.db` from JSONL files
@@ -726,22 +413,9 @@ Steps 2 and 3 form a single logical operation. If the process crashes between th
 **Git merge conflicts:**
 - JSONL is append-only, so most merges are conflict-free (both sides append different lines)
 - For the rare case where both sides append to the same JSONL file: standard git merge concatenates both additions (correct for append-only files)
-- Conflict resolution for `issues.jsonl` mutations to the same issue: latest timestamp wins (same as v1)
+- Conflict resolution for `issues.jsonl` mutations to the same issue: latest timestamp wins
 
-### 5.4 Why This Architecture
-
-| Alternative | Why not |
-|---|---|
-| DuckDB | Analytical engine optimized for columnar scans, wrong workload for point queries on individual issues |
-| Native JSON per-file (one file per issue) | Great diffs, terrible query performance at scale; hundreds of files in a directory |
-| Redis / embedded KV | Wrong paradigm — no git compatibility, requires running server |
-| Vector DB | Wrong tool — structured queries on typed fields, not similarity search |
-| JSONL-only (no SQLite) | Proven as sync format but poor as query engine; every query requires full file scan |
-| SQLite-only (no JSONL) | Great queries but binary file produces unusable diffs in git |
-
-The JSONL + SQLite hybrid is the proven architecture that beads already uses. It is not a new invention — it is a well-understood pattern applied to a new domain.
-
-### 5.5 Config Extension: Workflows Section
+### 5.4 Config Extension: Workflows Section
 
 The `config.yaml` gains a `workflows` section (see Section 3.1 for the full schema). The v1 config fields (`prefix`, `sync_branch`) remain unchanged.
 
@@ -804,6 +478,8 @@ cr update <id> [--test-spec=<path>] [--feature-spec=<path>] [--epic-branch=<bran
 cr close <id> [<id2> ...] [--reason="..."]
 ```
 
+**Note on `cr update --status`:** This command sets the issue's `status` field directly (open/in_progress/closed), which is independent of the workflow state machine. The workflow state is driven by transitions and PhaseRecords, while `status` is an administrative field. Use `cr transition` to advance the workflow; use `cr update --status` only for administrative corrections.
+
 ### 6.4 Hierarchy
 
 ```
@@ -835,8 +511,6 @@ Comments are stored in `issues.jsonl` as events with `"event_type": "comment"` (
 
 ### 6.7 Workflow Commands
 
-New in v2. These commands interact with the configurable state machine.
-
 ```
 cr next [<id>] [--epic=<id>] [--json]
 ```
@@ -856,6 +530,8 @@ cr transition <id> <event> [--payload-file=<path>]
 
 Fire an event on an issue's workflow. Records a PhaseRecord, validates against guards, executes side effects, and returns a TransitionResult. If `--payload-file` is provided, the file contents are attached as the PhaseRecord payload.
 
+**Mapping to PhaseRecords:** `cr transition` creates a PhaseRecord with `status: completed` (on success) or `status: failed` (on guard rejection). The PhaseRecord's `phase` field is set to the `to_state` of the transition. Use `cr phase start` separately to record when work begins.
+
 ```
 cr workflow show <type>              # Display the workflow definition for an issue type
 cr workflow status <id>              # Show current workflow state for an issue
@@ -874,8 +550,6 @@ cr phase fail <issue-id> <phase> [--payload-file=<path>]      # Record phase fai
 cr phase history <issue-id>                             # Show phase execution history
 cr phase last-verdict <issue-id>                        # Quick lookup of last review verdict
 ```
-
-**Relationship to `cr transition`:** `cr transition` is the high-level command that validates against the workflow definition, checks guards, and executes side effects. `cr phase` is the low-level command that directly appends PhaseRecords. Projects that use `cr transition` for all state changes do not need `cr phase` — but `cr phase start` is still useful for recording when work begins (before a transition fires).
 
 ### 6.9 Sync
 
@@ -908,25 +582,9 @@ cr import-beads                      # One-time migration from .beads/
 
 Non-destructive: reads `.beads/issues.jsonl`, writes `.crumbs/` files. Builds SQLite index after import.
 
-**From crumbs v1 to v2:** Additive migration. v1 `.crumbs/` directories continue to work. The `workflows` section in `config.yaml` is optional — if absent, `cr` operates in v1 mode (phase records without workflow validation). Adding a `workflows` section enables v2 features (transitions, guards, context assembly).
+**From crumbs v1 to v2:** Additive, non-breaking. Existing `.crumbs/` directories work unchanged. Adding a `workflows` section to `config.yaml` enables v2 features. If absent, `cr` operates in v1 compatibility mode.
 
-### 6.12 Differences from Beads
-
-| Capability | `bd` (beads) | `cr` (crumbs) |
-|---|---|---|
-| Epic filtering | Client-side ancestor walks | `cr ready --epic=<id>` (native) |
-| Hierarchy display | No equivalent | `cr tree`, `cr children`, `cr progress` |
-| Close eligibility | `bd epic close-eligible` (epic-only) | `cr close-eligible [--type=X]` (any parent type) |
-| Phase tracking | `bd comments add "PHASE: ..."` | `cr phase complete <id> <phase>` with typed payload |
-| Workflow state | Not tracked | `cr workflow status <id>` (derived from phases + config) |
-| State transitions | Manual status updates | `cr transition <id> <event>` with guards and effects |
-| Context assembly | Not supported | `cr next <id>` calls project hook, returns ContextBundle |
-| Freeform comments | `bd comments add/list` | `cr comment add/list` (separate from phase records) |
-| Validation | External `plan-validator.py` | `cr audit` (built-in, single pass) |
-| Batch close | Supported | `cr close <id1> <id2> ...` |
-| Retry context | `.line-cook/retry-context.json` | `cr phase last-verdict <id>` (indexed lookup) |
-| Storage | JSONL only | JSONL (source of truth) + SQLite (query cache) |
-| Config validation | None | `cr workflow validate` |
+> See [crumbs-v2-design.md](crumbs-v2-design.md) for detailed migration guides and the beads comparison table.
 
 ---
 
@@ -995,7 +653,7 @@ The context assembler is an external script or binary. The core engine invokes i
 }
 ```
 
-The core engine does not interpret the output — it is passed through verbatim as the `context` field of the ContextBundle. The consumer (Line Cook's loop, Capsule's campaign) understands its own context format.
+The core engine does not interpret the output — it is passed through verbatim as the `context` field of the ContextBundle. The consumer understands its own context format.
 
 **Error handling:** If the hook exits with a non-zero status, `cr next` returns the ContextBundle with an empty `context` field and a warning. The consumer decides whether to proceed without context or abort.
 
@@ -1017,70 +675,9 @@ If no `context_assembler` hook is configured, `cr next` returns:
 }
 ```
 
-This is sufficient for simple projects that don't need project-specific context injection.
+This is sufficient for projects that don't need project-specific context injection.
 
-### 7.4 Example: Line Cook Context Assembler
-
-A Line Cook project's `crumbs-context.py` might produce:
-
-```json
-{
-    "tools": {
-        "test_runner": "python3 -m unittest",
-        "build": null,
-        "lint": null,
-        "formatter": null
-    },
-    "planning_context": {
-        "path": "docs/planning/lc-abc/",
-        "architecture": "Three-zone plugin architecture...",
-        "constraints": ["No pytest dependency", "Bundle after package changes"]
-    },
-    "retry_analysis": {
-        "attempt": 2,
-        "persistent_issues": [
-            {
-                "description": "Missing edge case for empty string",
-                "seen_in_attempts": [1, 2],
-                "strategy": "Previous regex approach failed; switching to explicit validation"
-            }
-        ],
-        "prior_verdicts": [
-            {"attempt": 1, "verdict": "needs_changes", "summary": "Missing edge case"}
-        ]
-    },
-    "sibling_context": {
-        "completed_siblings": ["lc-abc.1.1", "lc-abc.1.2"],
-        "patterns_established": ["Input validation uses validator module"]
-    }
-}
-```
-
-### 7.5 Example: Capsule Context Assembler
-
-A Capsule project's `crumbs-context.sh` might produce:
-
-```json
-{
-    "acceptance_criteria": [
-        "Given valid input, function returns expected output",
-        "Given invalid input, function returns descriptive error"
-    ],
-    "test_results": {
-        "pass": 5,
-        "fail": 2,
-        "skip": 0
-    },
-    "worklog_path": ".capsule/worklogs/demo-001.1.1.md",
-    "worktree_path": ".capsule/worktrees/demo-001.1.1/",
-    "phase_config": {
-        "provider": "claude-sonnet-4-6",
-        "max_retries": 3,
-        "timeout": "10m"
-    },
-    "prior_feedback": "Test for negative numbers missing. Add edge case coverage."
-}
-```
+> See [crumbs-v2-design.md](crumbs-v2-design.md) for example context assembler outputs from Line Cook and Capsule.
 
 ---
 
@@ -1102,17 +699,6 @@ When `cr next` encounters a stale issue (the issue's WorkflowState has `stale: t
 4. The stale `started` record remains in the history for audit purposes
 
 The consumer can explicitly fail the stale phase (`cr phase fail <id> <phase>`) to advance the attempt counter and trigger retry logic instead of resume.
-
-### 8.3 Checkpoint Compatibility
-
-Capsule's checkpoint-based pause/resume pattern works naturally with crumbs:
-
-1. Capsule saves a checkpoint after each phase completes (existing behavior)
-2. The checkpoint references the issue ID and current workflow state
-3. On resume, Capsule calls `cr workflow status <id>` to verify the checkpoint is consistent with crumbs state
-4. If consistent: resume from checkpoint. If not: `cr next <id>` to get fresh context.
-
-The crumbs engine does not manage checkpoints — that remains the orchestrator's responsibility. Crumbs provides the state that checkpoints reference.
 
 ---
 
@@ -1160,7 +746,7 @@ All `cr` commands support `--json` for structured output. Human-readable format 
 
 ### Example: `cr show <id> --json`
 
-Returns the full IssueView — Issue fields + derived state + workflow state:
+Returns the full IssueView:
 
 ```json
 {
@@ -1172,25 +758,10 @@ Returns the full IssueView — Issue fields + derived state + workflow state:
     "parent": "lc-abc.1",
     "epic_ancestor": "lc-abc",
     "depth": 2,
-    "description": "Validate all user inputs before processing",
-    "close_reason": null,
-    "acceptance_criteria": [],
-    "deliverables": ["validate.py module", "test coverage >90%"],
-    "user_story": null,
-    "test_spec": "tests/specs/input-validation.md",
-    "feature_spec": null,
-    "acceptance_doc": null,
-    "planning_context": null,
-    "epic_branch": null,
-    "children_total": 0,
-    "children_closed": 0,
-    "progress_pct": 0,
-    "close_eligible": true,
     "workflow_state": {
         "current_state": "cook",
         "available_events": ["cook_complete"],
         "attempt": 2,
-        "phase_history": ["(see cr phase history for full records)"],
         "is_terminal": false,
         "stale": false,
         "stale_since": null
@@ -1198,65 +769,11 @@ Returns the full IssueView — Issue fields + derived state + workflow state:
     "current_phase": "cook",
     "attempt": 2,
     "last_verdict": "needs_changes",
-    "verdict_summary": "Missing edge case for empty string",
-    "has_rework": true,
-    "created_at": "2026-02-08T10:00:00Z",
-    "updated_at": "2026-02-09T14:30:00Z"
+    "has_rework": true
 }
 ```
 
-Note: `workflow_state.phase_history` contains the full PhaseRecord array. It is abbreviated in this example — see `cr phase history <id> --json` for the full format.
-
-### Example: `cr next <id> --json`
-
-Returns a ContextBundle:
-
-```json
-{
-    "issue": {
-        "id": "lc-abc.1.3",
-        "title": "Add input validation",
-        "status": "in_progress"
-    },
-    "workflow_state": {
-        "current_state": "cook",
-        "available_events": ["cook_complete"],
-        "attempt": 2,
-        "is_terminal": false,
-        "stale": false
-    },
-    "next_action": "cook_complete",
-    "next_state": "serve",
-    "attempt": 2,
-    "max_attempts": 2,
-    "context": {
-        "tools": { "test_runner": "python3 -m unittest" },
-        "retry_analysis": {
-            "persistent_issues": [
-                { "description": "Missing edge case for empty string" }
-            ]
-        }
-    }
-}
-```
-
-### Example: `cr transition <id> <event> --json`
-
-Returns a TransitionResult:
-
-```json
-{
-    "success": true,
-    "from_state": "serve",
-    "to_state": "tidy",
-    "event": "approved",
-    "effects": ["record_phase"],
-    "error": null,
-    "cascade": null
-}
-```
-
-### Example: `cr transition <id> <event> --json` (with cascade)
+### Example: `cr transition <id> <event> --json` (success with cascade)
 
 ```json
 {
@@ -1278,14 +795,16 @@ Returns a TransitionResult:
 
 ### Example: `cr transition <id> <event> --json` (guard rejection)
 
+Firing an event for which no valid transition exists from the current state:
+
 ```json
 {
     "success": false,
-    "from_state": "serve",
-    "to_state": "serve",
-    "event": "needs_changes",
+    "from_state": "open",
+    "to_state": "open",
+    "event": "approved",
     "effects": [],
-    "error": "Guard 'attempt < max_attempts' failed: attempt 2 >= max_attempts 2",
+    "error": "No transition from state 'open' for event 'approved'",
     "cascade": null
 }
 ```
@@ -1305,10 +824,8 @@ Returns an array of PhaseRecord objects ordered by timestamp:
         "timestamp": "2026-02-08T11:00:00Z",
         "payload": {
             "intent": "Add input validation module",
-            "approach": "Regex-based validation with custom error messages",
-            "files_changed": ["src/validate.py", "src/models.py"],
-            "tests_written": ["tests/test_validate.py"],
-            "findings": []
+            "files_changed": ["src/validate.py"],
+            "tests_written": ["tests/test_validate.py"]
         }
     },
     {
@@ -1321,16 +838,7 @@ Returns an array of PhaseRecord objects ordered by timestamp:
         "payload": {
             "verdict": "needs_changes",
             "blocking_issues": 1,
-            "summary": "Missing edge case for empty string",
-            "issues": [
-                {
-                    "severity": "major",
-                    "category": "correctness",
-                    "file": "src/validate.py",
-                    "description": "Empty string input not handled",
-                    "suggestion": "Add check for empty/whitespace-only strings"
-                }
-            ]
+            "summary": "Missing edge case for empty string"
         }
     }
 ]
@@ -1346,28 +854,12 @@ Returns an array of PhaseRecord objects ordered by timestamp:
 cr import-beads
 ```
 
-One-time, non-destructive conversion. Reads `.beads/issues.jsonl`, writes `.crumbs/` files, builds SQLite index.
+One-time, non-destructive conversion. Reads `.beads/issues.jsonl`, writes `.crumbs/` files, builds SQLite index. Does not modify or remove `.beads/`.
 
-- Maps beads fields to crumbs Issue fields
-- Computes `epic_ancestor` and `depth` from parent chains
-- Parses `bd comments` for `PHASE:` markers and creates PhaseRecords
-- Reads `.line-cook/retry-context.json` if present and creates a ServePayload
-- Extracts dependency records
-- Preserves original timestamps
-- Does not modify or remove `.beads/`
-
-**Fields left empty during import** (populated going forward by `cr create`):
-- `acceptance_criteria`, `deliverables`, `user_story` — embedded as unstructured text in legacy descriptions
-- Artifact link fields — not stored in beads; backfillable via `cr update`
+> See [crumbs-v2-design.md](crumbs-v2-design.md) for detailed field mapping, import behavior, and the beads comparison table.
 
 ### 11.2 From Crumbs v1 to v2
 
-Additive, non-breaking migration:
+Additive, non-breaking. Existing `.crumbs/` directories work unchanged. Adding a `workflows` section to `config.yaml` enables v2 features. If absent, `cr` operates in v1 compatibility mode: phase records are accepted without workflow validation, and `cr next` / `cr transition` return errors indicating no workflow is configured.
 
-1. Existing `.crumbs/` directories work unchanged
-2. Add `workflows` section to `config.yaml` to enable v2 features
-3. Existing PhaseRecords are preserved — WorkflowState is derived from them
-4. Run `cr workflow validate` to verify config
-5. Run `cr doctor --rebuild` to add SQLite indexes for new query patterns
-
-If no `workflows` section exists in config, `cr` operates in v1 compatibility mode: phase records are accepted without workflow validation, and `cr next` / `cr transition` return errors indicating no workflow is configured.
+> See [crumbs-v2-design.md](crumbs-v2-design.md) for the step-by-step migration guide.
