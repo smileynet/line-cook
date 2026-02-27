@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Timeout fallback comments on both analyze and respond jobs — users always get feedback when the agent fails
   - Confidence scoring (HIGH/MEDIUM/LOW) in Path B analysis comments for maintainer prioritization
   - Inspect feedback reading on re-trigger — agent incorporates prior review feedback when re-analyzing issues
+- Inspect Self-Healing (lc-j2x)
+  - Feedback broker skill synthesizes feedback from inspect, loop, and issue-agent into a unified view — query by issue number, task ID, or PR number
+  - PR cross-reference finds inspect feedback by scanning for matching PR numbers
+  - Structured JSON handoff format eliminates markdown parsing brittleness between inspector and downstream agents
+  - POLISH attempt counter enables escalation detection after 3+ refinement attempts
+  - Inspect feedback files persist structured review data to `.beads/inspect-feedback/` for cross-session context
 
 ## [0.17.1] - 2026-02-21
 ### Fixed
