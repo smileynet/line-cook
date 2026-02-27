@@ -8,21 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Loop Self-Healing (lc-3nl)
-  - Feedback history rolling window (cap at 5 entries) with cook template pattern detection for persistent issues, regression, and oscillation across retry attempts
-  - Circuit breaker warning threshold fires before tripping, giving operators early notice of failure accumulation
-  - Failure classification (transient/persistent/environmental) with category-aware retry delay strategy
-  - Per-task retry budgets tracked independently via SkipList, preventing single problematic tasks from monopolizing the loop
-- Issue Agent Self-Healing (lc-fo6)
-  - Timeout fallback comments on both analyze and respond jobs — users always get feedback when the agent fails
-  - Confidence scoring (HIGH/MEDIUM/LOW) in Path B analysis comments for maintainer prioritization
-  - Inspect feedback reading on re-trigger — agent incorporates prior review feedback when re-analyzing issues
-- Inspect Self-Healing (lc-j2x)
-  - Feedback broker skill synthesizes feedback from inspect, loop, and issue-agent into a unified view — query by issue number, task ID, or PR number
-  - PR cross-reference finds inspect feedback by scanning for matching PR numbers
-  - Structured JSON handoff format eliminates markdown parsing brittleness between inspector and downstream agents
-  - POLISH attempt counter enables escalation detection after 3+ refinement attempts
-  - Inspect feedback files persist structured review data to `.beads/inspect-feedback/` for cross-session context
+- `/inspect` command — review bot-created issues and PRs before merging, with checks for what changed, project value, security risks, and code quality; flags PRs stuck in polish loops after 3+ attempts
+- `/feedback-broker` skill — query feedback from `/inspect`, `/loop`, and the issue agent in one place by issue number, task ID, or PR number
+- `/loop` now works on `main` by default (trunk-based) instead of requiring epic branches — opt in to branches when you need them
+- `/loop` warns before the circuit breaker trips, giving you early notice of failure accumulation
+- `/loop` automatically skips tasks that fail repeatedly instead of retrying indefinitely, and classifies failures (transient vs persistent vs environmental) to adjust retry timing
+- `/loop` detects patterns across retries — persistent failures, regressions, and oscillating fixes — so it makes smarter skip decisions
+- `/loop watch` supports configurable sleep intervals and a `close` subcommand
+- `/serve` routes findings to three destinations: [FIX] for immediate action, [DEFER] for backlog, [RETRO] for process improvement
+- Issue agent analysis now includes confidence scores (HIGH/MEDIUM/LOW) to help prioritize which findings to act on first
+- Issue agent always posts a comment when analysis times out, so issues never go silently unresolved
+- Issue agent incorporates prior `/inspect` feedback when re-analyzing an issue
+
+### Fixed
+- `/serve` now saves feedback on BLOCKED verdicts so the next iteration picks up where it left off
+- Issue agent no longer over-triggers on follow-up comments or uses an unnecessarily corrective tone
+- Issue agent comments are better structured with step-by-step instructions for testing proposed fixes locally
 
 ## [0.17.1] - 2026-02-21
 ### Fixed
