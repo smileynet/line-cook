@@ -4,12 +4,16 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime
 from pathlib import Path
 
 # Add scripts dir for feedback_broker import
 sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "claude-code" / "scripts"))
-from feedback_broker import read_inspect_feedback, read_loop_feedback, synthesize_feedback
+from feedback_broker import (
+    read_inspect_feedback,
+    read_issue_agent_feedback,
+    read_loop_feedback,
+    synthesize_feedback,
+)
 
 
 def make_broker_dir():
@@ -47,6 +51,39 @@ def write_inspect_feedback(root, issue_number=42, verdict="POLISH", polish_attem
     feedback_file = root / ".beads" / "inspect-feedback" / f"issue-{issue_number}.json"
     feedback_file.write_text(json.dumps(feedback, indent=2))
     return feedback
+
+
+def write_issue_agent_feedback(root, issue_number=42):
+    """Write a sample issue-agent feedback file and return the data."""
+    feedback = {
+        "issue_number": issue_number,
+        "classification": "bug",
+        "confidence": 0.85,
+        "labels": ["bug", "needs-triage"],
+        "analysis": "Null pointer in login handler",
+        "proposed_fix": "Add null check before dereferencing",
+        "reviewed_at": "2026-02-23T21:10:00Z"
+    }
+    feedback_file = root / ".beads" / "issue-agent-feedback" / f"issue-{issue_number}.json"
+    feedback_file.write_text(json.dumps(feedback, indent=2))
+    return feedback
+
+
+def write_retry_context(root, task_id="lc-abc"):
+    """Write a retry-context.json file (primary loop feedback path)."""
+    data = {
+        "task_id": task_id,
+        "verdict": "NEEDS_CHANGES",
+        "summary": "Variable naming needs improvement",
+        "issues": [
+            {"severity": "major", "location": "src/foo.py:10", "problem": "Unclear name"}
+        ],
+        "attempt": 2
+    }
+    line_cook_dir = root / ".line-cook"
+    line_cook_dir.mkdir(exist_ok=True)
+    (line_cook_dir / "retry-context.json").write_text(json.dumps(data, indent=2))
+    return data
 
 
 def write_loop_feedback(root, task_id="lc-abc"):
@@ -109,13 +146,7 @@ class TestFeedbackBroker(unittest.TestCase):
 
     def test_identifies_escalation_needed(self):
         """Verify broker identifies when escalation is needed."""
-        write_inspect_feedback(self.mock_root)
-
-        # Modify feedback to have 3 polish attempts
-        feedback_file = self.mock_root / ".beads" / "inspect-feedback" / "issue-42.json"
-        feedback = json.loads(feedback_file.read_text())
-        feedback["polish_attempts"] = 3
-        feedback_file.write_text(json.dumps(feedback, indent=2))
+        write_inspect_feedback(self.mock_root, polish_attempts=3)
 
         unified = synthesize_feedback(self.mock_root, issue_number=42)
         self.assertTrue(unified["summary"]["escalation_needed"])
@@ -130,6 +161,77 @@ class TestFeedbackBroker(unittest.TestCase):
         self.assertEqual(unified["context_id"], "lc-abc")
         self.assertIn("loop", unified["feedback_sources"])
         self.assertEqual(unified["summary"]["latest_verdict"], "NEEDS_CHANGES")
+
+    def test_reads_issue_agent_feedback(self):
+        """Verify broker can read issue-agent feedback."""
+        write_issue_agent_feedback(self.mock_root)
+        feedback = read_issue_agent_feedback(self.mock_root, issue_number=42)
+
+        self.assertIsNotNone(feedback)
+        self.assertEqual(feedback["classification"], "bug")
+        self.assertAlmostEqual(feedback["confidence"], 0.85)
+
+    def test_issue_agent_feedback_in_synthesis(self):
+        """Verify issue-agent feedback appears in unified view."""
+        write_issue_agent_feedback(self.mock_root)
+
+        unified = synthesize_feedback(self.mock_root, issue_number=42)
+
+        self.assertIn("issue_agent", unified["feedback_sources"])
+        self.assertEqual(
+            unified["feedback_sources"]["issue_agent"]["classification"], "bug"
+        )
+
+    def test_retry_context_primary_path(self):
+        """Verify loop feedback reads retry-context.json first."""
+        write_retry_context(self.mock_root, task_id="lc-xyz")
+        # Also write legacy file with different data
+        write_loop_feedback(self.mock_root, task_id="lc-xyz")
+
+        feedback = read_loop_feedback(self.mock_root, task_id="lc-xyz")
+
+        # Should get retry-context data (has "attempt" key), not legacy
+        self.assertIsNotNone(feedback)
+        self.assertIn("attempt", feedback)
+        self.assertEqual(feedback["attempt"], 2)
+
+    def test_retry_context_wrong_task_falls_through(self):
+        """Verify retry-context.json is skipped when task_id doesn't match."""
+        write_retry_context(self.mock_root, task_id="lc-other")
+        write_loop_feedback(self.mock_root, task_id="lc-abc")
+
+        feedback = read_loop_feedback(self.mock_root, task_id="lc-abc")
+
+        # Should get legacy fallback (no "attempt" key)
+        self.assertIsNotNone(feedback)
+        self.assertNotIn("attempt", feedback)
+        self.assertEqual(feedback["verdict"], "NEEDS_CHANGES")
+
+    def test_pr_cross_reference(self):
+        """Verify --pr finds inspect feedback by PR number."""
+        write_inspect_feedback(self.mock_root, issue_number=42)
+        # The inspect feedback for issue 42 has pr_number=7
+
+        unified = synthesize_feedback(self.mock_root, pr_number=7)
+
+        self.assertEqual(unified["context_type"], "pr")
+        self.assertEqual(unified["context_id"], "7")
+        self.assertIn("inspect", unified["feedback_sources"])
+        self.assertEqual(unified["feedback_sources"]["inspect"]["pr_number"], 7)
+
+    def test_pr_no_match(self):
+        """Verify --pr returns empty when no feedback matches."""
+        write_inspect_feedback(self.mock_root, issue_number=42)
+
+        unified = synthesize_feedback(self.mock_root, pr_number=999)
+
+        self.assertEqual(unified["context_type"], "pr")
+        self.assertEqual(unified["feedback_sources"], {})
+
+    def test_raises_without_query(self):
+        """Verify synthesize_feedback raises when no query provided."""
+        with self.assertRaises(ValueError):
+            synthesize_feedback(self.mock_root)
 
 
 if __name__ == "__main__":
