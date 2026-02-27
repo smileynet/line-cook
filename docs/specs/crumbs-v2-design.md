@@ -1,27 +1,12 @@
 # Crumbs v2 Design Companion
 
-> Rationale, examples, and migration context for the [Crumbs v2 Specification](crumbs-v2-spec.md)
+> Rationale and examples for the [Crumbs v2 Specification](crumbs-v2-spec.md)
 
 The spec defines *what*; this document explains *why*.
 
 ---
 
-## 1. What Changed from v1
-
-| Area | v1 | v2 |
-|------|----|----|
-| Phase names | Fixed enum (`prep \| cook \| serve \| tidy \| plate`) | Project-defined strings in workflow config |
-| State machine | Implicit in orchestrator code | Explicit in `.crumbs/config.yaml` per issue type |
-| Context assembly | Not specified (left to consumer) | Formal protocol with hook interface |
-| Transitions | No concept — phases just recorded | `cr transition` with guards, effects, cascades |
-| Storage | JSONL only | JSONL (git-friendly source of truth) + SQLite (local query cache) |
-| Payload schemas | Fixed types (CookPayload, ServePayload, TidyPayload) | Extensible — projects register their own payload schemas |
-| Workflow commands | None | `cr next`, `cr transition`, `cr workflow show/status/history/validate` |
-| Data model | All fields retained | All fields retained + WorkflowState, ContextBundle, TransitionResult |
-
----
-
-## 2. Two-Layer Architecture Rationale
+## 1. Two-Layer Architecture Rationale
 
 ### What the Core Does NOT Know About
 
@@ -41,7 +26,7 @@ If the core knew about "cook" or "sous-chef," every new project would need to ei
 
 ---
 
-## 3. Anti-Patterns Avoided
+## 2. Anti-Patterns Avoided
 
 | Anti-pattern | How crumbs avoids it |
 |---|---|
@@ -61,7 +46,7 @@ If the core knew about "cook" or "sous-chef," every new project would need to ei
 
 ---
 
-## 4. Storage Architecture Rationale
+## 3. Storage Architecture Rationale
 
 ### Why JSONL + SQLite
 
@@ -74,13 +59,13 @@ If the core knew about "cook" or "sous-chef," every new project would need to ei
 | JSONL-only (no SQLite) | Proven as sync format but poor as query engine; every query requires full file scan |
 | SQLite-only (no JSONL) | Great queries but binary file produces unusable diffs in git |
 
-The JSONL + SQLite hybrid is the proven architecture that beads already uses. It is not a new invention — it is a well-understood pattern applied to a new domain.
+The JSONL + SQLite hybrid is a well-understood pattern. JSONL provides git-friendly append-only storage; SQLite provides indexed sub-millisecond queries. Neither alone covers both requirements.
 
 ---
 
-## 5. Example Workflows
+## 4. Example Workflows
 
-### 5.1 Line Cook Task Workflow
+### 4.1 Line Cook Task Workflow
 
 ```yaml
 prefix: "lc"
@@ -170,7 +155,7 @@ open ──assign──► cook ──cook_complete──► serve ──approve
                   └───── blocked ◄─────────┘
 ```
 
-### 5.2 Capsule Pipeline Workflow
+### 4.2 Capsule Pipeline Workflow
 
 ```yaml
 prefix: "demo"
@@ -274,7 +259,7 @@ execute_reviewing ──pass──► signing_off ──pass──► merging �
                               failed               failed
 ```
 
-### 5.3 Minimal 3-State Workflow
+### 4.3 Minimal 3-State Workflow
 
 The simplest valid workflow. Useful for projects that just need open/working/done tracking without complex transitions.
 
@@ -298,7 +283,7 @@ workflows:
 
 ---
 
-## 6. Typed Payload Examples
+## 5. Typed Payload Examples
 
 ### Line Cook Payloads
 
@@ -351,9 +336,9 @@ ReviewPayload {
 
 ---
 
-## 7. Example Context Assemblers
+## 6. Example Context Assemblers
 
-### 7.1 Line Cook Context Assembler
+### 6.1 Line Cook Context Assembler
 
 A Line Cook project's `crumbs-context.py` might produce:
 
@@ -390,7 +375,7 @@ A Line Cook project's `crumbs-context.py` might produce:
 }
 ```
 
-### 7.2 Capsule Context Assembler
+### 6.2 Capsule Context Assembler
 
 A Capsule project's `crumbs-context.sh` might produce:
 
@@ -418,9 +403,9 @@ A Capsule project's `crumbs-context.sh` might produce:
 
 ---
 
-## 8. Interoperability Design
+## 7. Interoperability Design
 
-### 8.1 Checkpoint Compatibility
+### 7.1 Checkpoint Compatibility
 
 Capsule's checkpoint-based pause/resume pattern works naturally with crumbs:
 
@@ -431,7 +416,7 @@ Capsule's checkpoint-based pause/resume pattern works naturally with crumbs:
 
 The crumbs engine does not manage checkpoints — that remains the orchestrator's responsibility. Crumbs provides the state that checkpoints reference.
 
-### 8.2 How Projects Use Crumbs
+### 7.2 How Projects Use Crumbs
 
 Both Line Cook and Capsule would interact with crumbs through the same interface:
 
@@ -444,61 +429,90 @@ The crumbs engine is the state machine; the project is the actor that drives it.
 
 ---
 
-## 9. Migration Guide
+## 8. Orchestrator vs Worker Design
 
-### 9.1 From Beads
+### 8.1 Why the Distinction Matters
 
-```
-cr import-beads
-```
+Line Cook evolved multiple ad-hoc channels for orchestrator↔worker communication because the predecessor tracker didn't have workflow commands:
 
-One-time, non-destructive conversion:
+- **Stdout signals**: Workers emit `KITCHEN_COMPLETE`, `SERVE_RESULT` as parseable lines. The orchestrator regex-matches stdout to detect completion.
+- **File-based retry context**: Workers read/write `.line-cook/retry-context.json`. The serve agent writes it; the cook agent reads it on retry.
+- **Snapshot diffs**: The orchestrator captures tracker state before/after worker invocation and diffs to detect what changed.
+- **Tracker comments**: Workers write structured comments (`PHASE: cook completed`) that the orchestrator parses for status.
 
-- Maps beads fields to crumbs Issue fields
-- Computes `epic_ancestor` and `depth` from parent chains
-- Parses `bd comments` for `PHASE:` markers and creates PhaseRecords
-- Reads `.line-cook/retry-context.json` if present and creates a ServePayload
-- Extracts dependency records
-- Preserves original timestamps
-- Does not modify or remove `.beads/`
+Each channel evolved independently to solve a real problem, but together they create a fragile, hard-to-debug protocol. A new project (Capsule) would need to learn and reimplement all of these patterns.
 
-**Fields left empty during import** (populated going forward by `cr create`):
-- `acceptance_criteria`, `deliverables`, `user_story` — embedded as unstructured text in legacy descriptions
-- Artifact link fields — not stored in beads; backfillable via `cr update`
+### 8.2 The Clean Boundary
 
-### 9.2 Differences from Beads
+Capsule's design (the Capsule Pipeline Workflow in Section 4.2 above) achieves the same outcomes with two commands:
 
-| Capability | `bd` (beads) | `cr` (crumbs) |
+- **`cr next`** → ContextBundle (everything the worker needs)
+- **`cr transition`** → TransitionResult (everything the orchestrator needs to know)
+
+This eliminates all ad-hoc channels:
+
+| Ad-hoc channel | Replaced by |
+|---|---|
+| Stdout signal parsing | `cr transition` return value |
+| File-based retry context | `ContextBundle.context.retry_analysis` |
+| Snapshot diffs | `TransitionResult.cascade` |
+| Tracker comment parsing | `PhaseRecord.payload` (typed, queryable) |
+
+### 8.3 Why Workers Don't Drive Transitions
+
+A tempting alternative: let workers call `cr transition` directly when they finish. This fails for several reasons:
+
+1. **Retry logic is policy, not execution.** Whether to retry or escalate depends on attempt counts, guard expressions, and max_attempts config. Workers shouldn't embed this logic.
+2. **Cascade evaluation requires hierarchy context.** When a task closes, the engine checks whether the parent feature should transition. Workers don't have (and shouldn't need) this context.
+3. **Crash recovery.** If the worker crashes after doing work but before calling `cr transition`, the orchestrator can detect the stale `cr phase start` and retry. If the worker owned the transition, a crash would leave the workflow in an inconsistent state.
+4. **Observability.** The orchestrator can log, meter, and circuit-break transitions centrally. Distributed transition calls are harder to monitor.
+
+### 8.4 Why Planning Doesn't Need Its Own Interface
+
+Line Cook has an explicit planning workflow (brainstorm → scope → finalize) orchestrated by `/line:mise`. Planning agents:
+- Create issues in bulk via `cr create`
+- Link planning context via `cr update --planning-context=<path>`
+- Link test/feature specs via `cr update --test-spec=<path>`
+- Validate completeness via `cr audit`
+
+These are all admin commands (Section 6.1 of the spec). Planning agents act like humans creating and organizing work — they don't need orchestrator or worker interfaces. The `cr create` + `cr update` + `cr audit` surface is sufficient.
+
+### 8.5 Parking Epics and Filtering
+
+Line Cook creates "parking" epics (Backlog, Retrospective) for non-actionable work:
+- `[DEFER]` findings → filed under Backlog epic (P4)
+- `[RETRO]` findings → filed under Retrospective epic (P4)
+- `[FIX]` findings → filed as siblings under parent feature (actionable)
+
+Without config-driven filtering, every orchestrator must reimplement the same exclusion logic. Line Cook has `EXCLUDED_EPIC_TITLES` (hardcoded frozenset) and `BACKLOG_PRIORITY_THRESHOLD >= 4` in application code. Capsule would need its own equivalent.
+
+The `parking` config (Section 3.1 of the spec) moves this into the tracker:
+- `cr ready` and `cr next` exclude parking items by default
+- `cr list` is unfiltered (admin command, shows everything)
+- `cr ready --all` bypasses the filter when needed
+- Orchestrators call `cr next` without filtering logic — the tracker handles it
+
+### 8.6 Isolation Models
+
+Two proven models for agent isolation during concurrent work:
+
+**Epic branches (Line Cook):** Single working directory, branch switching per epic. Simple but limits concurrency — only one epic can be active at a time in a given checkout.
+
+**Git worktrees (Gas Town):** Each worker gets its own worktree with an isolated filesystem. All worktrees share a single `.crumbs/` database via redirect files (Section 5.5 of the spec). Workers operate concurrently on different tasks without branch conflicts.
+
+The crumbs spec supports both models. Epic branches work without any special configuration — `.crumbs/` lives in the repo root and is shared across branches. Worktrees use `.crumbs/redirect` to point at the canonical database, so `cr` commands resolve transparently.
+
+| Aspect | Epic branches | Worktrees |
 |---|---|---|
-| Epic filtering | Client-side ancestor walks | `cr ready --epic=<id>` (native) |
-| Hierarchy display | No equivalent | `cr tree`, `cr children`, `cr progress` |
-| Close eligibility | `bd epic close-eligible` (epic-only) | `cr close-eligible [--type=X]` (any parent type) |
-| Phase tracking | `bd comments add "PHASE: ..."` | `cr phase complete <id> <phase>` with typed payload |
-| Workflow state | Not tracked | `cr workflow status <id>` (derived from phases + config) |
-| State transitions | Manual status updates | `cr transition <id> <event>` with guards and effects |
-| Context assembly | Not supported | `cr next <id>` calls project hook, returns ContextBundle |
-| Freeform comments | `bd comments add/list` | `cr comment add/list` (separate from phase records) |
-| Validation | External `plan-validator.py` | `cr audit` (built-in, single pass) |
-| Batch close | Supported | `cr close <id1> <id2> ...` |
-| Retry context | `.line-cook/retry-context.json` | `cr phase last-verdict <id>` (indexed lookup) |
-| Storage | JSONL only | JSONL (source of truth) + SQLite (query cache) |
-| Config validation | None | `cr workflow validate` |
-
-### 9.3 From Crumbs v1 to v2
-
-Additive, non-breaking migration:
-
-1. Existing `.crumbs/` directories work unchanged
-2. Add `workflows` section to `config.yaml` to enable v2 features
-3. Existing PhaseRecords are preserved — WorkflowState is derived from them
-4. Run `cr workflow validate` to verify config
-5. Run `cr doctor --rebuild` to add SQLite indexes for new query patterns
-
-If no `workflows` section exists in config, `cr` operates in v1 compatibility mode: phase records are accepted without workflow validation, and `cr next` / `cr transition` return errors indicating no workflow is configured.
+| Concurrency | One active at a time | Multiple concurrent |
+| File isolation | None (shared working dir) | Full (separate filesystem) |
+| Setup complexity | Low (just git branch) | Medium (worktree + redirect) |
+| Crumbs integration | Automatic | Via `.crumbs/redirect` |
+| Used by | Line Cook | Gas Town (beads equivalent) |
 
 ---
 
-## 10. State Machine Design Alignment
+## 9. State Machine Design Alignment
 
 The workflow engine design maps to established state machine best practices. See [state-machine-bpap.md](../handoff/state-machine-bpap.md) for the full research document.
 

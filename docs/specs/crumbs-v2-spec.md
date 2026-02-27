@@ -214,6 +214,10 @@ Workflows are declared in `.crumbs/config.yaml`, not hardcoded in the engine. Ea
 ```yaml
 prefix: "lc"                          # Issue ID prefix
 
+parking:                                # Optional: exclude non-actionable items from cr ready / cr next
+  epics: [<title>, ...]                 # Issues under epics with these titles excluded
+  priority_threshold: <int>             # Issues at or above this priority excluded (default: none)
+
 workflows:
   <issue_type>:                       # e.g. "task", "feature", "epic"
     states:                           # List of valid states
@@ -247,6 +251,8 @@ workflows:
 - Guard expressions must be syntactically valid (see 3.2)
 - Effect names must be recognized built-ins or registered hooks
 - No duplicate `(from, event)` pairs unless distinguished by guards
+- `parking.priority_threshold` must be 0-4 if specified
+- `parking.epics` entries are validated at runtime against existing epic titles (not at config load)
 
 ### 3.2 Built-in Guards
 
@@ -360,6 +366,7 @@ IssueView {
 
 ```
 .crumbs/
+├── redirect            # Optional: path to canonical .crumbs/ (for worktrees)
 ├── issues.jsonl        # Issue events (append-only, git-tracked)
 ├── phases.jsonl        # Phase execution records (append-only, git-tracked)
 ├── deps.jsonl          # Dependency records (git-tracked)
@@ -415,16 +422,18 @@ Steps 2 and 3 form a single logical operation. If the process crashes between th
 - For the rare case where both sides append to the same JSONL file: standard git merge concatenates both additions (correct for append-only files)
 - Conflict resolution for `issues.jsonl` mutations to the same issue: latest timestamp wins
 
-### 5.4 Config Extension: Workflows Section
+### 5.4 Full Config Example
 
-The `config.yaml` gains a `workflows` section (see Section 3.1 for the full schema). The v1 config fields (`prefix`, `sync_branch`) remain unchanged.
+Complete `config.yaml` showing all sections (see Section 3.1 for the schema).
 
 ```yaml
-# v1 fields (unchanged)
 prefix: "lc"
 sync_branch: "crumbs-sync"
 
-# v2 additions
+parking:
+  epics: ["Backlog", "Retrospective"]
+  priority_threshold: 4
+
 workflows:
   task:
     states: [open, cook, serve, tidy, closed, blocked]
@@ -440,29 +449,54 @@ workflows:
     # ...
 ```
 
+### 5.5 Worktree Support (Redirect Files)
+
+Workers operating in git worktrees can share a single `.crumbs/` database via redirect files.
+
+**Redirect file:** `.crumbs/redirect` contains a single line — the path (relative or absolute) to the canonical `.crumbs/` directory. When present, all `cr` commands resolve through the redirect before accessing data.
+
+**Resolution protocol:**
+
+1. `cr` checks for `.crumbs/redirect` in the current working directory
+2. If found, reads the path (one line, trimmed)
+3. Resolves the path relative to the current working directory
+4. Follows chains up to 3 levels (with circular detection)
+5. All reads/writes target the resolved canonical `.crumbs/`
+
+**Shared resources in the canonical `.crumbs/`:**
+
+- Lock file (`crumbs.lock`) — workers in worktrees contend for the same lock, serializing writes
+- SQLite cache (`crumbs.db`) — shared across all worktrees
+- JSONL files — shared source of truth
+
+**Setup:** The orchestrator creates worktrees and redirect files. Workers use `cr` commands normally — redirect resolution is transparent. See `cr redirect` in Section 6.1 for the admin command.
+
+This enables the Gas Town pattern: a bare repo with multiple worktrees, each with `.crumbs/redirect` pointing to a shared `.crumbs/` directory. It also supports Claude Code's `EnterWorktree` tool — worktrees created via that mechanism can use `cr redirect` to share the main repo's database.
+
 ---
 
 ## 6. CLI Surface (`cr`)
 
-### 6.1 Setup
+The `cr` CLI serves three distinct roles at runtime. Organizing commands by role — rather than by category — clarifies who calls what and prevents interface leakage between layers.
+
+- **Administration** (6.1): Project setup, issue lifecycle, health checks. Used by humans, CI, and planning agents.
+- **Orchestrator** (6.2): Work selection and state transitions. Used by the loop/campaign that drives workflow.
+- **Worker** (6.3): Context reading and execution checkpoints. Used by phase agents during execution.
+- **Shared** (6.4): Reference, inspection, and collaboration. Used by both orchestrators and workers.
+
+### 6.1 Setup & Administration
+
+Commands for humans, CI, and planning agents — project setup, issue lifecycle, and health checks.
 
 ```
 cr init                              # Create .crumbs/ directory, config, and SQLite db
 cr doctor                            # Check for issues (hooks, sync, data integrity)
 cr doctor --rebuild                  # Regenerate SQLite from JSONL
+cr sync                              # Sync with git remote
+cr sync --status                     # Check sync status without syncing
 ```
 
-### 6.2 Finding Work
-
-```
-cr ready                             # Show unblocked actionable items (tasks, features, bugs — excludes epics)
-cr ready --epic=<id>                 # Ready items within a specific epic
-cr list [--status=X] [--type=X] [--parent=X] [--limit=N] [--all]
-cr show <id>                         # Full issue detail (human-readable)
-cr show <id> --json                  # Full IssueView as JSON
-```
-
-### 6.3 Creating & Updating
+**Issue lifecycle:**
 
 ```
 cr create --title="..." --type=task --priority=2 [--parent=<id>] [--description="..."]
@@ -478,87 +512,16 @@ cr update <id> [--test-spec=<path>] [--feature-spec=<path>] [--epic-branch=<bran
 cr close <id> [<id2> ...] [--reason="..."]
 ```
 
-**Note on `cr update --status`:** This command sets the issue's `status` field directly (open/in_progress/closed), which is independent of the workflow state machine. The workflow state is driven by transitions and PhaseRecords, while `status` is an administrative field. Use `cr transition` to advance the workflow; use `cr update --status` only for administrative corrections.
+**Note on `cr update --status`:** Sets the issue's `status` field directly (open/in_progress/closed), which is independent of the workflow state machine. The workflow state is driven by transitions and PhaseRecords, while `status` is an administrative field. Use `cr transition` to advance the workflow; use `cr update --status` only for administrative corrections.
 
-### 6.4 Hierarchy
-
-```
-cr children <id>                     # List direct children
-cr tree <id>                         # Show full hierarchy tree
-cr progress <id>                     # Show completion progress (bar + counts)
-cr close-eligible                    # List all issues where close_eligible=true and status!=closed
-cr close-eligible --type=epic        # Filter to epics only
-```
-
-### 6.5 Dependencies
-
-```
-cr dep add <issue> <depends-on>      # issue depends on depends-on
-cr dep remove <issue> <depends-on>
-cr blocked                           # Show all blocked issues
-```
-
-### 6.6 Comments
-
-Freeform notes on issues for human-readable context that doesn't fit into typed phase records.
-
-```
-cr comment add <id> "note text"      # Add a freeform comment
-cr comment list <id>                 # List comments on an issue
-```
-
-Comments are stored in `issues.jsonl` as events with `"event_type": "comment"` (distinct from `"event_type": "mutation"` used for issue state changes). Comment events are not phase records — use `cr phase` or `cr transition` for structured execution state.
-
-### 6.7 Workflow Commands
-
-```
-cr next [<id>] [--epic=<id>] [--json]
-```
-
-Returns a ContextBundle for the next action. If `<id>` is provided, returns context for that specific issue. If omitted, selects the highest-priority ready issue (optionally filtered by `--epic`).
-
-`cr next` performs:
-1. Derive WorkflowState from PhaseRecords
-2. Determine the next action from the workflow definition
-3. Run the `prep` hook if configured
-4. Call the project context assembler hook if configured
-5. Return the ContextBundle
-
-```
-cr transition <id> <event> [--payload-file=<path>]
-```
-
-Fire an event on an issue's workflow. Records a PhaseRecord, validates against guards, executes side effects, and returns a TransitionResult. If `--payload-file` is provided, the file contents are attached as the PhaseRecord payload.
-
-**Mapping to PhaseRecords:** `cr transition` creates a PhaseRecord with `status: completed` (on success) or `status: failed` (on guard rejection). The PhaseRecord's `phase` field is set to the `to_state` of the transition. Use `cr phase start` separately to record when work begins.
+**Workflow administration:**
 
 ```
 cr workflow show <type>              # Display the workflow definition for an issue type
-cr workflow status <id>              # Show current workflow state for an issue
-cr workflow history <id>             # Show transition history (events fired, states visited)
 cr workflow validate                 # Check config for errors (unreachable states, guard syntax, etc.)
 ```
 
-### 6.8 Phase Records
-
-Direct phase record manipulation. Lower-level than `cr transition` — useful for recording phase starts and for projects that manage transitions externally.
-
-```
-cr phase start <issue-id> <phase>                      # Record phase start
-cr phase complete <issue-id> <phase> [--payload-file=<path>]  # Record phase completion
-cr phase fail <issue-id> <phase> [--payload-file=<path>]      # Record phase failure
-cr phase history <issue-id>                             # Show phase execution history
-cr phase last-verdict <issue-id>                        # Quick lookup of last review verdict
-```
-
-### 6.9 Sync
-
-```
-cr sync                              # Sync with git remote
-cr sync --status                     # Check sync status without syncing
-```
-
-### 6.10 Project Health
+**Project health:**
 
 ```
 cr stats                             # Counts by type, status, progress
@@ -574,21 +537,160 @@ cr audit [active|full|<id>]          # Structural/content validation + workflow 
 - Workflow state consistency (WorkflowState matches issue status)
 - Stale phase detection (started without completed)
 
-### 6.11 Migration
+**Worktree setup:**
 
 ```
-cr import-beads                      # One-time migration from .beads/
+cr redirect <target-path>            # Create .crumbs/redirect pointing to target
+cr redirect --show                   # Show resolved .crumbs/ path
 ```
 
-Non-destructive: reads `.beads/issues.jsonl`, writes `.crumbs/` files. Builds SQLite index after import.
+Sets up `.crumbs/redirect` for workers operating in git worktrees (see Section 5.5).
 
-**From crumbs v1 to v2:** Additive, non-breaking. Existing `.crumbs/` directories work unchanged. Adding a `workflows` section to `config.yaml` enables v2 features. If absent, `cr` operates in v1 compatibility mode.
+### 6.2 Orchestrator Interface
 
-> See [crumbs-v2-design.md](crumbs-v2-design.md) for detailed migration guides and the beads comparison table.
+Commands for the loop or campaign that drives workflow. The orchestrator's job is to repeatedly call `cr next`, dispatch work to a phase agent, then call `cr transition` with the result. It never executes phase work itself.
+
+| Command | Purpose |
+|---|---|
+| `cr next [<id>] [--epic=<id>]` | Get next work + context bundle |
+| `cr transition <id> <event> [--payload-file]` | Record outcome + advance state |
+| `cr ready [--epic=<id>] [--all]` | List all actionable work (batch planning) |
+| `cr workflow status <id>` | Verify state consistency |
+| `cr close-eligible [--type=X]` | Check cascade readiness |
+| `cr progress <id>` | Track completion progress |
+
+**`cr next`** returns a ContextBundle (Section 2.7) for the next action. If `<id>` is provided, returns context for that specific issue. If omitted, selects the highest-priority ready issue (optionally filtered by `--epic`).
+
+`cr next` performs:
+1. Derive WorkflowState from PhaseRecords
+2. Determine the next action from the workflow definition
+3. Run the `prep` hook if configured
+4. Call the project context assembler hook if configured
+5. Return the ContextBundle
+
+**`cr transition`** fires an event on an issue's workflow. Records a PhaseRecord, validates against guards, executes side effects, and returns a TransitionResult (Section 2.8). If `--payload-file` is provided, the file contents are attached as the PhaseRecord payload.
+
+**Mapping to PhaseRecords:** `cr transition` creates a PhaseRecord with `status: completed` (on success) or `status: failed` (on guard rejection). The PhaseRecord's `phase` field is set to the `to_state` of the transition.
+
+**`cr ready`** shows unblocked actionable items (tasks, features, bugs — excludes epics). Respects the `parking` config (Section 3.1): children of parking epics and issues at or above the configured priority threshold are excluded by default. Use `--all` to bypass filtering and show everything including parking items.
+
+**`cr close-eligible`** lists issues where `close_eligible=true` and `status!=closed`. Use `--type=epic` to filter to epics only.
+
+**`cr progress`** shows completion progress (bar + counts) for a parent issue.
+
+#### `cr transition` vs `cr phase`
+
+These commands serve different roles and should not be confused:
+
+- **`cr transition`** is the **orchestrator command**. It fires a workflow event, validates guards, records a PhaseRecord, executes effects, and cascades to parents. This is the workflow driver.
+- **`cr phase start/complete/fail`** are **worker commands** (Section 6.3). They record execution checkpoints for crash recovery and audit. They do NOT fire workflow events or check guards.
+- **Typical flow:** Worker calls `cr phase start` → executes work → orchestrator calls `cr transition` (which implicitly records a PhaseRecord). The worker's `cr phase start` is optional but recommended for stale detection.
+
+### 6.3 Worker Interface
+
+Commands for phase agents during execution. The worker receives a ContextBundle (from the orchestrator, which got it from `cr next`), executes its phase, and records the result via `cr phase`. Workers do not select work or drive transitions — the orchestrator does that.
+
+| Command | Purpose |
+|---|---|
+| `cr show <id> [--json]` | Read issue details |
+| `cr phase start <id> <phase>` | Checkpoint: "I'm starting" |
+| `cr phase complete <id> <phase> [--payload-file]` | Checkpoint: "I'm done" + payload |
+| `cr phase fail <id> <phase> [--payload-file]` | Checkpoint: "I failed" + reason |
+| `cr phase last-verdict <id>` | Read previous review verdict |
+| `cr comment add <id> "..."` | Leave notes for next phase |
+
+**`cr show`** returns the full IssueView (Section 4). Use `--json` for structured output.
+
+**`cr phase start/complete/fail`** record execution checkpoints. These are lower-level than `cr transition` — they record what happened during a phase without driving the workflow state machine. The orchestrator decides when and how to transition based on the worker's result.
+
+**`cr phase last-verdict`** returns the most recent review verdict from phase payloads. Workers use this to understand what went wrong on a previous attempt.
+
+**`cr comment add`** leaves freeform notes on issues for context that doesn't fit into typed phase records. Comments are stored in `issues.jsonl` as events with `"event_type": "comment"`.
+
+### 6.4 Shared Commands
+
+Commands used by both orchestrators and workers for reference, inspection, and collaboration.
+
+| Command | Purpose |
+|---|---|
+| `cr show <id>` | Reference lookup |
+| `cr list [--status=X] [--type=X] [--parent=X] [--limit=N] [--all]` | Query related work |
+| `cr children <id>` / `cr tree <id>` | Hierarchy inspection |
+| `cr comment add/list <id>` | Collaboration |
+| `cr phase history <id>` | Execution history |
+| `cr workflow history <id>` | Transition audit trail |
+| `cr blocked` | Show blocked issues |
+| `cr dep add <issue> <depends-on>` | Add dependency |
+| `cr dep remove <issue> <depends-on>` | Remove dependency |
+
+### 6.5 Orchestrator Loop Protocol
+
+The canonical orchestrator loop. All orchestrators (Line Cook's `line_loop`, Capsule's campaign, etc.) follow this pattern:
+
+```
+while has_work:
+    bundle = cr next [--epic=<id>]
+    if bundle is empty: break
+
+    # Optional: record that work is starting (for stale detection)
+    cr phase start <bundle.issue.id> <bundle.next_state>
+
+    # Dispatch to the appropriate phase agent
+    result = invoke_worker(bundle)
+
+    # Record the outcome — engine handles guards, effects, cascade
+    if result.success:
+        cr transition <id> <success_event> --payload-file=result.json
+    else:
+        cr transition <id> <failure_event> --payload-file=result.json
+```
+
+This replaces ad-hoc completion detection patterns (snapshot diffs, stdout signal parsing, file-based retry context) with a single protocol. The orchestrator's only responsibilities are calling `cr next` and `cr transition` — the engine handles guards, retry counting, cascade evaluation, and effect execution.
+
+**Note:** The orchestrator calls `cr phase start` (a worker command, Section 6.3) before dispatching the worker. This is the one cross-boundary usage — the orchestrator records the start checkpoint for stale detection, then hands off to the worker.
+
+**What the orchestrator does NOT do:**
+- Parse phase-specific payloads (the engine evaluates guards against them)
+- Track attempt counts (the engine derives these from PhaseRecords)
+- Walk hierarchy for cascade (the `check_parent` effect handles this)
+- Filter parking items from ready lists (the `parking` config handles this)
+
+### 6.6 Worker Execution Protocol
+
+The canonical worker lifecycle. All workers (cook agent, serve agent, test-writer, etc.) follow this pattern:
+
+```
+# Worker receives ContextBundle (from orchestrator)
+issue = bundle.issue
+state = bundle.workflow_state
+context = bundle.context  # Project-specific (tools, retry analysis, etc.)
+
+# Read retry context from the bundle (no file I/O needed)
+if state.attempt > 1:
+    prior_verdicts = state.phase_history  # Previous PhaseRecords
+    retry_analysis = context.retry_analysis  # From context assembler
+
+# Execute phase work
+result = do_work(issue, context)
+
+# Report result as structured payload
+write_payload(result)  # → payload.json
+# Orchestrator calls cr transition with this payload
+```
+
+**Key constraints:**
+- Workers never call `cr next` or `cr transition` — the orchestrator does that
+- Workers MAY call `cr phase start/complete/fail` for their own checkpointing
+- Workers read retry context from `bundle.workflow_state.phase_history` and `bundle.context` — not from ad-hoc files
+- Workers write structured payloads; the orchestrator decides what event to fire
 
 ---
 
 ## 7. Context Assembly Protocol
+
+Context assembly is the **orchestrator's responsibility**. When the orchestrator calls `cr next`, the engine invokes the project's context assembler hook and assembles a ContextBundle — everything the worker needs in one structured object. The TransitionResult (returned by `cr transition`) is the **return contract** — how the orchestrator learns what happened.
+
+The worker never calls `cr next` or assembles its own context. The orchestrator provides the ContextBundle; the worker executes its phase and produces a structured payload; the orchestrator records the outcome via `cr transition`.
 
 ### 7.1 How `cr next` Works
 
@@ -844,22 +946,3 @@ Returns an array of PhaseRecord objects ordered by timestamp:
 ]
 ```
 
----
-
-## 11. Migration
-
-### 11.1 From Beads
-
-```
-cr import-beads
-```
-
-One-time, non-destructive conversion. Reads `.beads/issues.jsonl`, writes `.crumbs/` files, builds SQLite index. Does not modify or remove `.beads/`.
-
-> See [crumbs-v2-design.md](crumbs-v2-design.md) for detailed field mapping, import behavior, and the beads comparison table.
-
-### 11.2 From Crumbs v1 to v2
-
-Additive, non-breaking. Existing `.crumbs/` directories work unchanged. Adding a `workflows` section to `config.yaml` enables v2 features. If absent, `cr` operates in v1 compatibility mode: phase records are accepted without workflow validation, and `cr next` / `cr transition` return errors indicating no workflow is configured.
-
-> See [crumbs-v2-design.md](crumbs-v2-design.md) for the step-by-step migration guide.
