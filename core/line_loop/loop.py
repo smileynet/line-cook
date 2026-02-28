@@ -1520,7 +1520,7 @@ def run_loop(
             current_retries = 0
             last_task_id = None
 
-        elif result.outcome in ("crashed", "timeout"):
+        elif result.outcome in ("crashed", "timeout", "premature_completion"):
             failed_count += 1
             # Record failure to skip_list for crashed/timeout tasks
             if result.task_id:

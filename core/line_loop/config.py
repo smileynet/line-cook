@@ -47,6 +47,10 @@ HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy 
 # Priority filtering
 BACKLOG_PRIORITY_THRESHOLD = 4      # Skip P4+ beads in auto-selection (parking lot)
 
+# Premature completion detection (Kiro early-exit guardrail)
+PREMATURE_COOK_MIN_DURATION = 120   # Seconds - cook under this is suspicious
+PREMATURE_COOK_MIN_ACTIONS = 20     # Actions - fewer than this is suspicious
+
 # CLI profiles for multi-CLI support
 CLI_PROFILES = {
     'claude': {

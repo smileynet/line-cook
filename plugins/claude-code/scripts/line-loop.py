@@ -82,6 +82,10 @@ HIERARCHY_MAX_DEPTH = 10            # Max depth for epic/feature/task hierarchy 
 # Priority filtering
 BACKLOG_PRIORITY_THRESHOLD = 4      # Skip P4+ beads in auto-selection (parking lot)
 
+# Premature completion detection (Kiro early-exit guardrail)
+PREMATURE_COOK_MIN_DURATION = 120   # Seconds - cook under this is suspicious
+PREMATURE_COOK_MIN_ACTIONS = 20     # Actions - fewer than this is suspicious
+
 # CLI profiles for multi-CLI support
 CLI_PROFILES = {
     'claude': {
@@ -639,7 +643,7 @@ class IterationResult:
     iteration: int
     task_id: Optional[str]
     task_title: Optional[str]
-    outcome: str  # "completed", "needs_retry", "blocked", "crashed", "timeout", "no_work", "no_actionable_work"
+    outcome: str  # "completed", "needs_retry", "blocked", "crashed", "timeout", "no_work", "no_actionable_work", "premature_completion"
     duration_seconds: float
     serve_verdict: Optional[str]
     commit_hash: Optional[str]
@@ -1786,7 +1790,8 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         "crashed": "[CRASH]",
         "timeout": "[TIMEOUT]",
         "no_work": "[DONE]",
-        "no_actionable_work": "[IDLE]"
+        "no_actionable_work": "[IDLE]",
+        "premature_completion": "[PREMATURE]",
     }
     status = status_map.get(result.outcome, "[?]")
 
@@ -1953,6 +1958,34 @@ def detect_worked_task(
         return _prefer_target_or_deepest(completed, target_task_id)
 
     return None
+
+
+def detect_premature_completion(result: 'PhaseResult') -> bool:
+    """Detect if a cook phase exited too early without doing meaningful work.
+
+    Guards against agents (particularly Kiro) that exit quickly with exit
+    code 0 after updating beads comments but without producing code changes.
+    A phase is premature when ALL of these are true:
+    - Phase succeeded (exit code 0)
+    - No kitchen_complete or phase_complete signal
+    - Duration below PREMATURE_COOK_MIN_DURATION
+    - Action count below PREMATURE_COOK_MIN_ACTIONS
+
+    Args:
+        result: PhaseResult from the cook phase.
+
+    Returns:
+        True if the cook phase appears to have exited prematurely.
+    """
+    if not result.success:
+        return False
+    if "kitchen_complete" in result.signals or "phase_complete" in result.signals:
+        return False
+    if result.duration_seconds >= PREMATURE_COOK_MIN_DURATION:
+        return False
+    if len(result.actions) >= PREMATURE_COOK_MIN_ACTIONS:
+        return False
+    return True
 
 
 def get_task_title(task_id: str, cwd: Path) -> Optional[str]:
@@ -3244,6 +3277,38 @@ def run_iteration(
                 delta=BeadDelta(newly_closed=[], newly_filed=[]),
                 phase_timings=phase_timings,
             )
+
+        # Check for premature completion (agent exited too quickly without meaningful work)
+        if not task_completed_despite_timeout and detect_premature_completion(cook_result):
+            if not json_output:
+                print_phase_progress("cook", "error", cook_result.duration_seconds,
+                                   f"premature exit ({len(cook_result.actions)} actions in {cook_result.duration_seconds:.0f}s)")
+            logger.warning(
+                f"Cook phase premature completion on attempt {cook_attempts}: "
+                f"{cook_result.duration_seconds:.0f}s, {len(cook_result.actions)} actions, "
+                f"no kitchen_complete signal"
+            )
+            if cook_attempts > max_cook_retries:
+                duration = (datetime.now() - start_time).total_seconds()
+                after_cook = get_bead_snapshot(cwd)
+                return IterationResult(
+                    iteration=iteration,
+                    task_id=target_task_id,
+                    task_title=_get_title_from_snapshot_or_cache(target_task_id, before, task_info_cache) if target_task_id else None,
+                    outcome="premature_completion",
+                    duration_seconds=duration,
+                    serve_verdict=None,
+                    commit_hash=get_latest_commit(cwd),
+                    success=False,
+                    before_ready=len(before.ready_ids),
+                    before_in_progress=len(before.in_progress_ids),
+                    after_ready=len(after_cook.ready_ids),
+                    after_in_progress=len(after_cook.in_progress_ids),
+                    actions=all_actions,
+                    delta=BeadDelta.compute(before, after_cook),
+                    phase_timings=phase_timings,
+                )
+            continue
 
         # Cook succeeded - print progress (we'll report actions after serve since we continue to serve)
         # Skip if already printed for timeout-but-completed case
@@ -5108,7 +5173,7 @@ def run_loop(
             current_retries = 0
             last_task_id = None
 
-        elif result.outcome in ("crashed", "timeout"):
+        elif result.outcome in ("crashed", "timeout", "premature_completion"):
             failed_count += 1
             # Record failure to skip_list for crashed/timeout tasks
             if result.task_id:
