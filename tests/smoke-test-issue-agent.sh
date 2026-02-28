@@ -229,6 +229,15 @@ if ! echo "$COMMENT_BODY" | grep -q "Analysis"; then
 fi
 
 log_success "Analysis comment found"
+
+# Check for confidence indicator (present in Path B analysis responses)
+if echo "$COMMENT_BODY" | grep -qi "confidence"; then
+    log_success "Confidence indicator found (Path B response)"
+else
+    log_warning "No confidence indicator found"
+    log "   Path A responses (fix proposed) omit confidence — not a failure"
+fi
+
 log "   Preview: $(echo "$COMMENT_BODY" | head -3 | tr '\n' ' ')"
 
 # Step 4: Test @mention response
@@ -273,6 +282,7 @@ log "Validated:"
 log "  ✓ Issue creation"
 log "  ✓ Workflow trigger and execution"
 log "  ✓ Analysis comment posted"
+log "  ✓ Confidence indicator checked"
 log "  ✓ @mention response (if completed)"
 log "  ✓ Cleanup"
 log ""
