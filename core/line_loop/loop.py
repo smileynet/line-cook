@@ -28,6 +28,7 @@ from typing import Optional
 from .config import (
     BACKLOG_PRIORITY_THRESHOLD,
     BD_COMMAND_TIMEOUT,
+    CONSECUTIVE_SAME_TASK_LIMIT,
     DEFAULT_CLI,
     DEFAULT_IDLE_ACTION,
     DEFAULT_MAX_TASK_FAILURES,
@@ -1227,6 +1228,8 @@ def run_loop(
     iteration = 0
     current_retries = 0
     last_task_id = None
+    prev_selected_task: Optional[str] = None
+    consecutive_same_task_count = 0
 
     while iteration < max_iterations:
         # Check for shutdown request
@@ -1347,6 +1350,31 @@ def run_loop(
                     print(f"Skipped tasks: {', '.join(skipped_ids)}")
                 break
             target_task_id, target_task_title = None, None
+
+        # Detect consecutive same-task selection (catches false completions,
+        # stuck tasks that report success without actually closing)
+        if target_task_id:
+            if target_task_id == prev_selected_task:
+                consecutive_same_task_count += 1
+            else:
+                consecutive_same_task_count = 1
+                prev_selected_task = target_task_id
+
+            if consecutive_same_task_count > CONSECUTIVE_SAME_TASK_LIMIT:
+                logger.warning(
+                    f"Task {target_task_id} selected {consecutive_same_task_count} "
+                    f"consecutive times - adding to skip list"
+                )
+                if not json_output:
+                    print(
+                        f"\n  Task {target_task_id} selected "
+                        f"{consecutive_same_task_count} times without progress. "
+                        f"Adding to skip list."
+                    )
+                skip_list.force_skip(target_task_id)
+                consecutive_same_task_count = 0
+                prev_selected_task = None
+                continue
 
         iteration += 1
 

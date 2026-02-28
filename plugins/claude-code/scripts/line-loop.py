@@ -49,6 +49,7 @@ BANNER_MIN_WIDTH = 62
 
 # Task and iteration defaults
 DEFAULT_MAX_TASK_FAILURES = 3       # Skip task after this many failures
+CONSECUTIVE_SAME_TASK_LIMIT = 3     # Escalate after selecting same task N times in a row
 DEFAULT_MAX_ITERATIONS = 25         # Default loop iterations
 DEFAULT_IDLE_TIMEOUT = 180          # 3 minutes without tool actions triggers idle
 DEFAULT_IDLE_ACTION = "warn"        # "warn" or "terminate"
@@ -400,6 +401,22 @@ class SkipList:
         """Get set of task IDs that should be skipped."""
         return {tid for tid, count in self.failed_tasks.items()
                 if count >= self.max_failures}
+
+    def force_skip(self, task_id: Optional[str]) -> bool:
+        """Force a task onto the skip list regardless of current failure count.
+
+        Used when the same task is selected repeatedly across iterations,
+        indicating it's not making progress despite reported outcomes.
+
+        Returns:
+            True if task was newly skipped, False if already skipped or empty ID.
+        """
+        if not task_id:
+            return False
+        if self.is_skipped(task_id):
+            return False
+        self.failed_tasks[task_id] = self.max_failures
+        return True
 
     def get_skipped_tasks(self) -> list[dict]:
         """Get list of skipped tasks with their failure counts."""
@@ -4880,6 +4897,8 @@ def run_loop(
     iteration = 0
     current_retries = 0
     last_task_id = None
+    prev_selected_task: Optional[str] = None
+    consecutive_same_task_count = 0
 
     while iteration < max_iterations:
         # Check for shutdown request
@@ -5000,6 +5019,31 @@ def run_loop(
                     print(f"Skipped tasks: {', '.join(skipped_ids)}")
                 break
             target_task_id, target_task_title = None, None
+
+        # Detect consecutive same-task selection (catches false completions,
+        # stuck tasks that report success without actually closing)
+        if target_task_id:
+            if target_task_id == prev_selected_task:
+                consecutive_same_task_count += 1
+            else:
+                consecutive_same_task_count = 1
+                prev_selected_task = target_task_id
+
+            if consecutive_same_task_count > CONSECUTIVE_SAME_TASK_LIMIT:
+                logger.warning(
+                    f"Task {target_task_id} selected {consecutive_same_task_count} "
+                    f"consecutive times - adding to skip list"
+                )
+                if not json_output:
+                    print(
+                        f"\n  Task {target_task_id} selected "
+                        f"{consecutive_same_task_count} times without progress. "
+                        f"Adding to skip list."
+                    )
+                skip_list.force_skip(target_task_id)
+                consecutive_same_task_count = 0
+                prev_selected_task = None
+                continue
 
         iteration += 1
 

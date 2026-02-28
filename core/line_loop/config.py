@@ -14,6 +14,7 @@ BANNER_MIN_WIDTH = 62
 
 # Task and iteration defaults
 DEFAULT_MAX_TASK_FAILURES = 3       # Skip task after this many failures
+CONSECUTIVE_SAME_TASK_LIMIT = 3     # Escalate after selecting same task N times in a row
 DEFAULT_MAX_ITERATIONS = 25         # Default loop iterations
 DEFAULT_IDLE_TIMEOUT = 180          # 3 minutes without tool actions triggers idle
 DEFAULT_IDLE_ACTION = "warn"        # "warn" or "terminate"

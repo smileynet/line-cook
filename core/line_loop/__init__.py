@@ -20,6 +20,7 @@ __version__ = "0.1.0"
 from .config import (
     BACKLOG_PRIORITY_THRESHOLD,
     CLI_PROFILES,
+    CONSECUTIVE_SAME_TASK_LIMIT,
     DEFAULT_CLI,
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_TASK_FAILURES,
@@ -150,6 +151,7 @@ __all__ = [
     # Config
     "BACKLOG_PRIORITY_THRESHOLD",
     "CLI_PROFILES",
+    "CONSECUTIVE_SAME_TASK_LIMIT",
     "DEFAULT_CLI",
     "get_cli_profile",
     "DEFAULT_MAX_ITERATIONS",
