@@ -522,7 +522,7 @@ class IterationResult:
     iteration: int
     task_id: Optional[str]
     task_title: Optional[str]
-    outcome: str  # "completed", "needs_retry", "blocked", "crashed", "timeout", "no_work", "no_actionable_work"
+    outcome: str  # "completed", "needs_retry", "blocked", "crashed", "timeout", "no_work", "no_actionable_work", "premature_completion"
     duration_seconds: float
     serve_verdict: Optional[str]
     commit_hash: Optional[str]

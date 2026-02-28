@@ -1895,8 +1895,8 @@ class TestClosedEpicsPopulated(unittest.TestCase):
         )
 
         cook_result = line_loop.PhaseResult(
-            phase="cook", success=True, output="done",
-            exit_code=0, duration_seconds=5.0
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
         )
         serve_result = line_loop.PhaseResult(
             phase="serve", success=True,
@@ -1955,8 +1955,8 @@ class TestClosedEpicsPopulated(unittest.TestCase):
         )
 
         cook_result = line_loop.PhaseResult(
-            phase="cook", success=True, output="done",
-            exit_code=0, duration_seconds=5.0
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
         )
         serve_result = line_loop.PhaseResult(
             phase="serve", success=True,
@@ -3262,8 +3262,8 @@ class TestClosedEpicsPopulatedWithMerge(unittest.TestCase):
         )
 
         cook_result = line_loop.PhaseResult(
-            phase="cook", success=True, output="done",
-            exit_code=0, duration_seconds=5.0
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
         )
         serve_result = line_loop.PhaseResult(
             phase="serve", success=True,
@@ -3339,8 +3339,8 @@ class TestClosedEpicsPopulatedWithMerge(unittest.TestCase):
         )
 
         cook_result = line_loop.PhaseResult(
-            phase="cook", success=True, output="done",
-            exit_code=0, duration_seconds=5.0
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
         )
         serve_result = line_loop.PhaseResult(
             phase="serve", success=True,
@@ -5047,6 +5047,185 @@ class TestTrunkBasedDefault(unittest.TestCase):
         # Flag sets it True
         args = parser.parse_args(["--epic-branch"])
         self.assertTrue(args.epic_branch)
+
+
+class TestDetectPrematureCompletion(unittest.TestCase):
+    """Test detect_premature_completion() for early cook exits."""
+
+    def test_short_duration_few_actions_no_signal(self):
+        """Cook with short duration, few actions, and no kitchen_complete is premature."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="some output",
+            exit_code=0, duration_seconds=90.0, signals=[],
+            actions=[object()] * 10,
+        )
+        self.assertTrue(line_loop.detect_premature_completion(result))
+
+    def test_kitchen_complete_overrides(self):
+        """kitchen_complete signal means work was done, not premature."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=90.0, signals=["kitchen_complete"],
+            actions=[object()] * 10,
+        )
+        self.assertFalse(line_loop.detect_premature_completion(result))
+
+    def test_long_duration_not_premature(self):
+        """Normal-length cook is not premature even with few actions."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="some output",
+            exit_code=0, duration_seconds=300.0, signals=[],
+            actions=[object()] * 10,
+        )
+        self.assertFalse(line_loop.detect_premature_completion(result))
+
+    def test_many_actions_not_premature(self):
+        """Many actions means work was done, not premature."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="some output",
+            exit_code=0, duration_seconds=90.0, signals=[],
+            actions=[object()] * 30,
+        )
+        self.assertFalse(line_loop.detect_premature_completion(result))
+
+    def test_failed_phase_not_premature(self):
+        """Failed cook should not be flagged as premature (handled separately)."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=False, output="error",
+            exit_code=1, duration_seconds=30.0, signals=[],
+            actions=[object()] * 5,
+        )
+        self.assertFalse(line_loop.detect_premature_completion(result))
+
+    def test_phase_complete_signal_overrides(self):
+        """phase_complete signal means agent explicitly signaled done."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="<phase_complete>DONE</phase_complete>",
+            exit_code=0, duration_seconds=60.0, signals=["phase_complete"],
+            actions=[object()] * 5,
+        )
+        self.assertFalse(line_loop.detect_premature_completion(result))
+
+    def test_boundary_duration_exactly_at_threshold(self):
+        """Duration exactly at threshold is not premature (boundary is exclusive)."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="some output",
+            exit_code=0, duration_seconds=120.0, signals=[],
+            actions=[object()] * 10,
+        )
+        self.assertFalse(line_loop.detect_premature_completion(result))
+
+    def test_boundary_actions_exactly_at_threshold(self):
+        """Action count exactly at threshold is not premature."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="some output",
+            exit_code=0, duration_seconds=90.0, signals=[],
+            actions=[object()] * 20,
+        )
+        self.assertFalse(line_loop.detect_premature_completion(result))
+
+
+class TestPrematureCompletionRetry(unittest.TestCase):
+    """Test that premature completion triggers retry in run_iteration."""
+
+    def test_premature_cook_retries(self):
+        """Premature cook completion should trigger retry, not proceed to serve."""
+        from unittest.mock import patch
+
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+
+        # First cook: premature (short, few actions, no kitchen_complete)
+        premature_cook = line_loop.PhaseResult(
+            phase="cook", success=True, output="just beads comments",
+            exit_code=0, duration_seconds=90.0, signals=[],
+            actions=[object()] * 10,
+        )
+        # Second cook: proper completion
+        good_cook = line_loop.PhaseResult(
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=600.0, signals=["kitchen_complete"],
+            actions=[object()] * 50,
+        )
+        serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0,
+        )
+        tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0,
+        )
+
+        cook_call_count = 0
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            nonlocal cook_call_count
+            if phase == "cook":
+                cook_call_count += 1
+                if cook_call_count == 1:
+                    return premature_cook
+                return good_cook
+            elif phase == "serve":
+                return serve_result
+            return tidy_result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-123"), \
+             patch("line_loop.iteration.get_task_title", return_value="Test task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(False, None)):
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot,
+                target_task_id="lc-123",
+            )
+
+        # Cook should have been called twice (first premature, second successful)
+        self.assertEqual(cook_call_count, 2)
+        # Final result should be successful
+        self.assertTrue(result.success)
+
+    def test_all_premature_returns_failure(self):
+        """All cook attempts premature should return premature_completion outcome."""
+        from unittest.mock import patch
+
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-123", "Test task", "task")]
+        )
+
+        premature_cook = line_loop.PhaseResult(
+            phase="cook", success=True, output="just beads comments",
+            exit_code=0, duration_seconds=90.0, signals=[],
+            actions=[object()] * 10,
+        )
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            if phase == "cook":
+                return premature_cook
+            return line_loop.PhaseResult(
+                phase=phase, success=True, output="",
+                exit_code=0, duration_seconds=2.0,
+            )
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=snapshot), \
+             patch("line_loop.iteration.detect_worked_task", return_value=None), \
+             patch("line_loop.iteration.get_task_title", return_value="Test task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(False, None)):
+            result = line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=snapshot,
+                target_task_id="lc-123",
+            )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.outcome, "premature_completion")
 
 
 if __name__ == "__main__":
