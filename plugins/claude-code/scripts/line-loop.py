@@ -4899,6 +4899,7 @@ def run_loop(
     last_task_id = None
     prev_selected_task: Optional[str] = None
     consecutive_same_task_count = 0
+    task_last_commit: dict[str, Optional[str]] = {}  # task_id → commit hash after last iteration
 
     while iteration < max_iterations:
         # Check for shutdown request
@@ -5045,6 +5046,27 @@ def run_loop(
                 prev_selected_task = None
                 continue
 
+            # Zero-progress detection: if the same task is re-selected and no new
+            # commits were produced since its last iteration, skip immediately.
+            if consecutive_same_task_count > 1:
+                prev_commit = task_last_commit.get(target_task_id)
+                if prev_commit is not None:
+                    current_commit = get_latest_commit(cwd)
+                    if current_commit is not None and current_commit == prev_commit:
+                        logger.warning(
+                            f"Zero-progress: {target_task_id} re-selected with "
+                            f"unchanged commit hash ({current_commit[:7]}). Skipping."
+                        )
+                        if not json_output:
+                            print(
+                                f"\n  Task {target_task_id} re-selected with no new "
+                                f"commits. Adding to skip list."
+                            )
+                        skip_list.force_skip(target_task_id)
+                        consecutive_same_task_count = 0
+                        prev_selected_task = None
+                        continue
+
         iteration += 1
 
         if not json_output:
@@ -5100,6 +5122,12 @@ def run_loop(
             cli_profile=cli_profile
         )
         iterations.append(result)
+
+        # Track commit hash per task for zero-progress detection
+        if target_task_id:
+            effective_commit = result.commit_hash or get_latest_commit(cwd)
+            if effective_commit:
+                task_last_commit[target_task_id] = effective_commit
 
         # Circuit breaker: track failures, reset on success
         if result.success:
