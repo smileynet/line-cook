@@ -347,5 +347,144 @@ class TestFeedbackBrokerCLI(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
 
+class TestIssueAgentRetriggerE2E(unittest.TestCase):
+    """E2E: inspect writes feedback -> issue-agent reads on re-trigger.
+
+    Bridges the gap between TestInspectPipelineIntegration (write side) and
+    test_issue_agent_feedback (template text checks) by verifying the actual
+    data flow: inspect writes -> file on disk -> issue-agent's cat command
+    reads -> correct JSON parsed.
+    """
+
+    def setUp(self):
+        self.repo_root = make_repo_root()
+        self.addCleanup(shutil.rmtree, self.repo_root)
+        self.template_path = (
+            Path(__file__).parent.parent
+            / "core" / "templates" / "agents" / "issue-agent.md.template"
+        )
+
+    def _simulate_agent_cat(self, issue_number):
+        """Simulate the cat command from the issue-agent template Step 1.6.
+
+        The template uses:
+          cat .beads/inspect-feedback/issue-{{ISSUE_NUMBER}}.json 2>/dev/null
+        We run this in the repo_root to match production behavior.
+        """
+        return subprocess.run(
+            ["cat", f".beads/inspect-feedback/issue-{issue_number}.json"],
+            cwd=str(self.repo_root),
+            capture_output=True,
+            text=True,
+        )
+
+    def test_path_contract_inspect_to_issue_agent(self):
+        """Inspect write path matches issue-agent template read path."""
+        issue_number = 42
+
+        # Inspect side: augment and write
+        inspector_output = make_inspector_output(issue_number, 7, verdict="MERGE")
+        augment_and_write(self.repo_root, inspector_output)
+
+        # Verify the template's cat command path is correct after substitution
+        template = self.template_path.read_text()
+        substituted = template.replace("{{ISSUE_NUMBER}}", str(issue_number))
+        self.assertIn(
+            f"cat .beads/inspect-feedback/issue-{issue_number}.json",
+            substituted,
+            "Substituted template should reference correct feedback path",
+        )
+
+        # Issue-agent side: simulate the cat command
+        result = self._simulate_agent_cat(issue_number)
+        self.assertEqual(result.returncode, 0, "cat should succeed (file exists)")
+
+        # Parse the output as JSON (what the agent would interpret)
+        data = json.loads(result.stdout)
+        self.assertEqual(data["issue_number"], issue_number)
+        self.assertEqual(data["verdict"], "MERGE")
+
+    def test_retrigger_reads_prior_feedback(self):
+        """Re-trigger (issue reopened) reads feedback from prior inspection."""
+        issue_number = 42
+
+        # Initial inspection writes POLISH feedback
+        inspector_output = make_inspector_output(issue_number, 7, verdict="POLISH")
+        augment_and_write(self.repo_root, inspector_output)
+
+        # Re-trigger: agent reads via cat
+        result = self._simulate_agent_cat(issue_number)
+        self.assertEqual(result.returncode, 0, "cat should find prior feedback")
+        data = json.loads(result.stdout)
+
+        # Template Step 1.6 says to check these fields
+        self.assertEqual(data["verdict"], "POLISH")
+        self.assertEqual(data["polish_attempts"], 1)
+        self.assertIn("dimensions", data)
+        self.assertEqual(len(data["dimensions"]), len(REQUIRED_DIMENSIONS))
+        self.assertIn("rationale", data)
+
+    def test_retrigger_after_rework_shows_verdict(self):
+        """Agent sees REWORK verdict and rationale on re-trigger."""
+        issue_number = 42
+
+        inspector_output = make_inspector_output(issue_number, 7, verdict="REWORK")
+        augment_and_write(self.repo_root, inspector_output)
+
+        result = self._simulate_agent_cat(issue_number)
+        self.assertEqual(result.returncode, 0, "cat should find feedback")
+        data = json.loads(result.stdout)
+
+        # Template says: "If verdict was REWORK or REJECT, understand what
+        # was wrong before proposing a new fix"
+        self.assertEqual(data["verdict"], "REWORK")
+        self.assertIn("rationale", data)
+
+    def test_retrigger_high_polish_signals_caution(self):
+        """Agent sees polish_attempts >= 2, template says be cautious."""
+        issue_number = 42
+
+        # Two consecutive POLISH reviews
+        for _ in range(2):
+            augment_and_write(
+                self.repo_root, make_inspector_output(issue_number, 7, verdict="POLISH")
+            )
+
+        result = self._simulate_agent_cat(issue_number)
+        self.assertEqual(result.returncode, 0, "cat should find feedback")
+        data = json.loads(result.stdout)
+
+        # Template says: "If polish_attempts >= 2, be extra cautious
+        # about proposing another code change"
+        self.assertGreaterEqual(data["polish_attempts"], 2)
+
+    def test_first_trigger_no_feedback(self):
+        """First trigger (no prior inspection) returns no feedback."""
+        issue_number = 99  # Never inspected
+
+        # Tests raw cat (no || fallback); template's "|| echo" is a shell-level
+        # graceful degradation tested implicitly by agent behavior.
+        result = self._simulate_agent_cat(issue_number)
+        self.assertNotEqual(result.returncode, 0, "cat should fail (no file)")
+
+    def test_escalation_visible_on_retrigger(self):
+        """After 3 POLISH attempts, escalation verdict visible on re-trigger."""
+        issue_number = 42
+
+        for _ in range(3):
+            augment_and_write(
+                self.repo_root, make_inspector_output(issue_number, 7, verdict="POLISH")
+            )
+
+        result = self._simulate_agent_cat(issue_number)
+        self.assertEqual(result.returncode, 0, "cat should find feedback")
+        data = json.loads(result.stdout)
+
+        # Escalation should have overridden POLISH -> FEEDBACK
+        self.assertEqual(data["verdict"], "FEEDBACK")
+        self.assertIn("ESCALATED", data["rationale"])
+        self.assertEqual(data["polish_attempts"], 3)
+
+
 if __name__ == "__main__":
     unittest.main()
