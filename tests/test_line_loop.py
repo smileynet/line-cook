@@ -472,6 +472,51 @@ class TestSkipList(unittest.TestCase):
         self.assertTrue(sl.is_skipped("lc-001"))
         self.assertFalse(sl.is_skipped("lc-002"))
 
+    def test_force_skip_sets_task_to_max_failures(self):
+        """force_skip() immediately marks a task as skipped."""
+        sl = line_loop.SkipList(max_failures=3)
+        self.assertFalse(sl.is_skipped("lc-001"))
+        result = sl.force_skip("lc-001")
+        self.assertTrue(result)
+        self.assertTrue(sl.is_skipped("lc-001"))
+        self.assertEqual(sl.failed_tasks["lc-001"], 3)
+
+    def test_force_skip_already_skipped_returns_false(self):
+        """force_skip() returns False if task is already skipped."""
+        sl = line_loop.SkipList(max_failures=2)
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-001")
+        self.assertTrue(sl.is_skipped("lc-001"))
+        result = sl.force_skip("lc-001")
+        self.assertFalse(result)
+
+    def test_force_skip_empty_task_id(self):
+        """force_skip() handles empty/None task IDs gracefully."""
+        sl = line_loop.SkipList()
+        self.assertFalse(sl.force_skip(""))
+        self.assertFalse(sl.force_skip(None))
+        self.assertEqual(sl.failed_tasks, {})
+
+    def test_force_skip_does_not_affect_other_tasks(self):
+        """force_skip() only skips the specified task."""
+        sl = line_loop.SkipList(max_failures=3)
+        sl.record_failure("lc-002")
+        sl.force_skip("lc-001")
+        self.assertTrue(sl.is_skipped("lc-001"))
+        self.assertFalse(sl.is_skipped("lc-002"))
+        self.assertEqual(sl.failed_tasks["lc-002"], 1)
+
+    def test_force_skip_with_partial_failures(self):
+        """force_skip() works on a task that has some failures already."""
+        sl = line_loop.SkipList(max_failures=5)
+        sl.record_failure("lc-001")
+        sl.record_failure("lc-001")
+        self.assertFalse(sl.is_skipped("lc-001"))
+        result = sl.force_skip("lc-001")
+        self.assertTrue(result)
+        self.assertTrue(sl.is_skipped("lc-001"))
+        self.assertEqual(sl.failed_tasks["lc-001"], 5)
+
 
 class TestDefaultPhaseTimeouts(unittest.TestCase):
     """Test that default phase timeouts are set correctly."""

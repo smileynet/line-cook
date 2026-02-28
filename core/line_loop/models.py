@@ -280,6 +280,22 @@ class SkipList:
         return {tid for tid, count in self.failed_tasks.items()
                 if count >= self.max_failures}
 
+    def force_skip(self, task_id: Optional[str]) -> bool:
+        """Force a task onto the skip list regardless of current failure count.
+
+        Used when the same task is selected repeatedly across iterations,
+        indicating it's not making progress despite reported outcomes.
+
+        Returns:
+            True if task was newly skipped, False if already skipped or empty ID.
+        """
+        if not task_id:
+            return False
+        if self.is_skipped(task_id):
+            return False
+        self.failed_tasks[task_id] = self.max_failures
+        return True
+
     def get_skipped_tasks(self) -> list[dict]:
         """Get list of skipped tasks with their failure counts."""
         return [
