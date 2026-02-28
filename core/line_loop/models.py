@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 
 class FailureCategory(Enum):
     """Classification of failure types for retry strategy selection.
-    
+
     TRANSIENT: Temporary failures that should retry immediately (network blips, rate limits)
     PERSISTENT: Repeatable failures needing exponential backoff (test failures, logic errors)
     ENVIRONMENTAL: System-level failures requiring human intervention (disk full, missing deps)
@@ -69,6 +69,21 @@ class FailureCategory(Enum):
     TRANSIENT = "transient"
     PERSISTENT = "persistent"
     ENVIRONMENTAL = "environmental"
+
+
+# Canonical indicator lists for failure classification.
+# Used by both LoopError.classify_failure() and classify_iteration_failure().
+ENVIRONMENTAL_INDICATORS = [
+    "no space left", "disk full", "permission denied",
+    "cannot allocate memory", "command not found",
+    "no such file or directory", "read-only file system",
+    "too many open files", "device or resource busy",
+]
+
+TRANSIENT_INDICATORS = [
+    "connection refused", "connection reset", "timeout",
+    "rate limit", "too many requests", "503", "502",
+]
 
 
 @dataclass
@@ -211,21 +226,11 @@ class LoopError:
         if self.error_type == "subprocess":
             # Check stderr for environmental indicators
             stderr = self.context.get("stderr", "").lower()
-            returncode = self.context.get("returncode", 0)
-            
-            # Environmental: disk full, permission denied, missing dependencies
-            if any(indicator in stderr for indicator in [
-                "no space left", "disk full", "permission denied",
-                "cannot allocate memory", "command not found",
-                "no such file or directory"
-            ]):
+
+            if any(indicator in stderr for indicator in ENVIRONMENTAL_INDICATORS):
                 return FailureCategory.ENVIRONMENTAL
-            
-            # Transient: network errors, rate limits
-            if any(indicator in stderr for indicator in [
-                "connection refused", "connection reset", "timeout",
-                "rate limit", "too many requests", "503", "502"
-            ]):
+
+            if any(indicator in stderr for indicator in TRANSIENT_INDICATORS):
                 return FailureCategory.TRANSIENT
             
             # Default subprocess failures are persistent (test failures, build errors)
