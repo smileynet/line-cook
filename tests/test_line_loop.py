@@ -5273,5 +5273,161 @@ class TestPrematureCompletionRetry(unittest.TestCase):
         self.assertEqual(result.outcome, "premature_completion")
 
 
+class TestZeroProgressDetection(unittest.TestCase):
+    """Test zero-progress detection: skip tasks that produce no new commits on re-selection."""
+
+    def _make_run_loop_patches(self, snapshot, iteration_results, commit_sequence=None):
+        """Create standard patches for run_loop zero-progress tests.
+
+        Args:
+            snapshot: BeadSnapshot with ready tasks (returned for the first
+                len(iteration_results) calls, then empty to stop the loop).
+            iteration_results: list of IterationResult to return from run_iteration.
+            commit_sequence: list of commit hashes for get_latest_commit to return
+                in order. If None, defaults to always returning None.
+        """
+        from unittest.mock import patch
+
+        empty_snapshot = line_loop.BeadSnapshot()
+        snapshot_call_count = [0]
+
+        def mock_get_snapshot(cwd):
+            snapshot_call_count[0] += 1
+            # Return real snapshot for first N calls (once per iteration),
+            # then empty to stop the loop
+            if snapshot_call_count[0] <= len(iteration_results):
+                return snapshot
+            return empty_snapshot
+
+        iter_index = [0]
+
+        def mock_run_iteration(iteration, max_iter, cwd, **kwargs):
+            idx = iter_index[0]
+            iter_index[0] += 1
+            if idx < len(iteration_results):
+                return iteration_results[idx]
+            return make_iteration_result(outcome="no_work", success=False)
+
+        commit_index = [0]
+        commit_seq = commit_sequence or [None]
+
+        def mock_get_latest_commit(cwd):
+            idx = min(commit_index[0], len(commit_seq) - 1)
+            commit_index[0] += 1
+            return commit_seq[idx]
+
+        patches = [
+            patch("line_loop.loop.sync_at_start"),
+            patch("line_loop.loop.get_bead_snapshot", side_effect=mock_get_snapshot),
+            patch("line_loop.loop.get_next_ready_task", return_value=("lc-001", "Test task")),
+            patch("line_loop.loop.run_iteration", side_effect=mock_run_iteration),
+            patch("line_loop.loop.build_epic_ancestor_map", return_value={}),
+            patch("line_loop.loop.check_epic_completion", return_value=[]),
+            patch("line_loop.loop.get_current_branch", return_value="main"),
+            patch("line_loop.loop.ensure_epic_branch", return_value=(None, False)),
+            patch("line_loop.loop.get_latest_commit", side_effect=mock_get_latest_commit),
+        ]
+        return patches
+
+    def test_zero_progress_skips_after_one_repeat(self):
+        """Task re-selected with unchanged commit hash is skipped immediately."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-001", "Test task", "task")]
+        )
+        results = [
+            make_iteration_result(task_id="lc-001", commit_hash="abc123"),
+            make_iteration_result(task_id="lc-001", commit_hash="abc123"),
+        ]
+        # get_latest_commit returns "abc123" when checked for zero-progress
+        patches = self._make_run_loop_patches(
+            snapshot, results, commit_sequence=["abc123"]
+        )
+
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            report = line_loop.run_loop(
+                max_iterations=5,
+                stop_on_blocked=False,
+                stop_on_crash=False,
+                max_retries=0,
+                json_output=True,
+                output_file=None,
+                cwd=Path("/tmp"),
+                skip_initial_sync=True,
+            )
+
+        self.assertEqual(
+            len(report.iterations), 1,
+            "Second selection should be skipped via zero-progress detection"
+        )
+
+    def test_different_commits_no_zero_progress(self):
+        """Task re-selected with different commit hashes is not skipped early."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-001", "Test task", "task")]
+        )
+        results = [
+            make_iteration_result(task_id="lc-001", commit_hash="abc123"),
+            make_iteration_result(task_id="lc-001", commit_hash="def456"),
+        ]
+        # get_latest_commit returns "def456" (new commit) when checked
+        patches = self._make_run_loop_patches(
+            snapshot, results, commit_sequence=["def456"]
+        )
+
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            report = line_loop.run_loop(
+                max_iterations=5,
+                stop_on_blocked=False,
+                stop_on_crash=False,
+                max_retries=0,
+                json_output=True,
+                output_file=None,
+                cwd=Path("/tmp"),
+                skip_initial_sync=True,
+            )
+
+        self.assertEqual(
+            len(report.iterations), 2,
+            "Both iterations should run when commit hashes differ"
+        )
+
+    def test_zero_progress_only_triggers_on_reselection(self):
+        """Zero-progress check only runs on re-selection, not first selection."""
+        snapshot = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-001", "Test task", "task")]
+        )
+        # First iteration with a commit hash — no prior to compare against
+        results = [
+            make_iteration_result(task_id="lc-001", commit_hash="abc123"),
+        ]
+        patches = self._make_run_loop_patches(
+            snapshot, results, commit_sequence=["abc123"]
+        )
+
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            report = line_loop.run_loop(
+                max_iterations=1,
+                stop_on_blocked=False,
+                stop_on_crash=False,
+                max_retries=0,
+                json_output=True,
+                output_file=None,
+                cwd=Path("/tmp"),
+                skip_initial_sync=True,
+            )
+
+        self.assertEqual(
+            len(report.iterations), 1,
+            "First selection should run normally without zero-progress check"
+        )
+        self.assertTrue(report.iterations[0].success)
+
+
 if __name__ == "__main__":
     unittest.main()
