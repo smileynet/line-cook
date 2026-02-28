@@ -45,6 +45,7 @@ from .models import (
     BeadDelta,
     BeadInfo,
     CircuitBreaker,
+    ENVIRONMENTAL_INDICATORS,
     FailureCategory,
     LoopError,
     SkipList,
@@ -58,6 +59,7 @@ from .models import (
     IterationResult,
     LoopReport,
     ProgressState,
+    TRANSIENT_INDICATORS,
     summarize_tool_input,
 )
 
@@ -130,6 +132,7 @@ from .loop import (
     detect_first_epic,
     validate_epic_id,
     get_next_ready_task,
+    classify_iteration_failure,
     calculate_retry_delay,
     request_shutdown,
     reset_shutdown_flag,
@@ -173,6 +176,7 @@ __all__ = [
     "BeadDelta",
     "BeadInfo",
     "CircuitBreaker",
+    "ENVIRONMENTAL_INDICATORS",
     "FailureCategory",
     "LoopError",
     "SkipList",
@@ -186,6 +190,7 @@ __all__ = [
     "IterationResult",
     "LoopReport",
     "ProgressState",
+    "TRANSIENT_INDICATORS",
     "summarize_tool_input",
     # Parsing
     "parse_serve_result",
@@ -246,6 +251,7 @@ __all__ = [
     "detect_first_epic",
     "validate_epic_id",
     "get_next_ready_task",
+    "classify_iteration_failure",
     "calculate_retry_delay",
     "request_shutdown",
     "reset_shutdown_flag",

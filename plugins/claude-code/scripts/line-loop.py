@@ -183,7 +183,7 @@ if TYPE_CHECKING:
 
 class FailureCategory(Enum):
     """Classification of failure types for retry strategy selection.
-    
+
     TRANSIENT: Temporary failures that should retry immediately (network blips, rate limits)
     PERSISTENT: Repeatable failures needing exponential backoff (test failures, logic errors)
     ENVIRONMENTAL: System-level failures requiring human intervention (disk full, missing deps)
@@ -191,6 +191,21 @@ class FailureCategory(Enum):
     TRANSIENT = "transient"
     PERSISTENT = "persistent"
     ENVIRONMENTAL = "environmental"
+
+
+# Canonical indicator lists for failure classification.
+# Used by both LoopError.classify_failure() and classify_iteration_failure().
+ENVIRONMENTAL_INDICATORS = [
+    "no space left", "disk full", "permission denied",
+    "cannot allocate memory", "command not found",
+    "no such file or directory", "read-only file system",
+    "too many open files", "device or resource busy",
+]
+
+TRANSIENT_INDICATORS = [
+    "connection refused", "connection reset", "timeout",
+    "rate limit", "too many requests", "503", "502",
+]
 
 
 @dataclass
@@ -333,21 +348,11 @@ class LoopError:
         if self.error_type == "subprocess":
             # Check stderr for environmental indicators
             stderr = self.context.get("stderr", "").lower()
-            returncode = self.context.get("returncode", 0)
-            
-            # Environmental: disk full, permission denied, missing dependencies
-            if any(indicator in stderr for indicator in [
-                "no space left", "disk full", "permission denied",
-                "cannot allocate memory", "command not found",
-                "no such file or directory"
-            ]):
+
+            if any(indicator in stderr for indicator in ENVIRONMENTAL_INDICATORS):
                 return FailureCategory.ENVIRONMENTAL
-            
-            # Transient: network errors, rate limits
-            if any(indicator in stderr for indicator in [
-                "connection refused", "connection reset", "timeout",
-                "rate limit", "too many requests", "503", "502"
-            ]):
+
+            if any(indicator in stderr for indicator in TRANSIENT_INDICATORS):
                 return FailureCategory.TRANSIENT
             
             # Default subprocess failures are persistent (test failures, build errors)
@@ -3772,34 +3777,55 @@ def reset_shutdown_flag() -> None:
 
 def _is_environmental_error(result: IterationResult) -> bool:
     """Detect environmental errors from iteration result.
-    
-    Environmental errors are system-level failures that won't resolve with retries:
-    - Disk full / no space left
-    - Permission denied
-    - Out of memory
-    - Missing dependencies / command not found
-    - File system errors
-    
+
+    .. deprecated:: Use classify_iteration_failure() instead.
+
     Args:
         result: IterationResult to check for environmental error indicators
-    
+
     Returns:
         True if environmental error detected, False otherwise
     """
-    # Check action records for subprocess errors with environmental indicators
+    return classify_iteration_failure(result) == FailureCategory.ENVIRONMENTAL
+
+
+def classify_iteration_failure(result: IterationResult) -> FailureCategory:
+    """Classify an iteration's failure based on action records.
+
+    Scans failed Bash actions for error indicators to determine the
+    appropriate retry strategy. This bridges LoopError.classify_failure()
+    (which works on individual errors) with the run_loop retry path
+    (which works on IterationResult).
+
+    Priority: ENVIRONMENTAL > TRANSIENT > PERSISTENT (default).
+
+    Args:
+        result: IterationResult with action records to classify
+
+    Returns:
+        FailureCategory indicating retry approach
+    """
+    saw_transient = False
+
     for action in result.actions:
-        if action.tool_name == "Bash" and not action.success:
-            output_lower = action.output_summary.lower()
-            if any(indicator in output_lower for indicator in [
-                "no space left", "disk full", "permission denied",
-                "cannot allocate memory", "command not found",
-                "no such file or directory", "read-only file system",
-                "too many open files", "device or resource busy"
-            ]):
-                logger.warning(f"Environmental error detected in action: {action.output_summary[:200]}")
-                return True
-    
-    return False
+        if action.tool_name != "Bash" or action.success:
+            continue
+
+        output_lower = action.output_summary.lower()
+
+        # Environmental wins immediately — no point retrying
+        if any(indicator in output_lower for indicator in ENVIRONMENTAL_INDICATORS):
+            logger.warning(f"Environmental error detected in action: {action.output_summary[:200]}")
+            return FailureCategory.ENVIRONMENTAL
+
+        # Note transient but keep scanning for environmental
+        if any(indicator in output_lower for indicator in TRANSIENT_INDICATORS):
+            saw_transient = True
+
+    if saw_transient:
+        return FailureCategory.TRANSIENT
+
+    return FailureCategory.PERSISTENT
 
 
 def calculate_retry_delay(attempt: int, category: Optional[FailureCategory] = None, base: float = 2.0) -> float:
@@ -5220,9 +5246,10 @@ def run_loop(
                 if not json_output:
                     print(f"\n  Max retries ({max_retries}) reached. Moving on.")
             else:
-                # Apply exponential backoff before retry
-                delay = calculate_retry_delay(current_retries)
-                logger.info(f"Retry {current_retries}/{max_retries} for {result.task_id}, waiting {delay:.1f}s")
+                # Classify failure and apply category-aware delay
+                failure_cat = classify_iteration_failure(result)
+                delay = calculate_retry_delay(current_retries, failure_cat)
+                logger.info(f"Retry {current_retries}/{max_retries} for {result.task_id} ({failure_cat.value}), waiting {delay:.1f}s")
                 if not json_output:
                     print(f"\n  Waiting {delay:.1f}s before retry...")
                 time.sleep(delay)
@@ -5255,9 +5282,9 @@ def run_loop(
                     if not json_output:
                         print(f"\n  Task {result.task_id} added to skip list ({result.outcome}).")
             
-            # Check for environmental errors that require halting the loop
-            # Environmental errors indicate system-level issues that won't resolve with retries
-            if _is_environmental_error(result):
+            # Classify failure to determine retry strategy
+            failure_cat = classify_iteration_failure(result)
+            if failure_cat == FailureCategory.ENVIRONMENTAL:
                 stop_reason = "environmental_error"
                 logger.error(f"Environmental error detected in {result.outcome}, halting loop")
                 if not json_output:
