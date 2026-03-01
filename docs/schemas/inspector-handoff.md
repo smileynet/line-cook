@@ -2,9 +2,16 @@
 
 ## Overview
 
-The inspector agent outputs structured JSON instead of markdown to enable reliable parsing by downstream agents (inspect-issues command, issue-agent, feedback broker).
+The inspect-issues command delegates to two review agents, each outputting structured JSON for reliable parsing by downstream agents (issue-agent, feedback broker):
 
-## Format
+- **Inspector** — reviews issue/PR pairs (8 dimensions, PR-specific verdicts)
+- **Issue-reviewer** — triages standalone issues with no associated PR (5 dimensions, triage verdicts)
+
+Both output JSON with a `type` discriminator field (`"pr_review"` or `"issue_review"`).
+
+## Formats
+
+### Inspector (PR Review)
 
 The inspector returns valid JSON with this structure:
 
@@ -27,6 +34,32 @@ The inspector returns valid JSON with this structure:
 }
 ```
 
+> **Note:** The inspector does not output `type` directly. The inspect-issues command augments
+> the output with `"type": "pr_review"`, `"polish_attempts"`, and `"reviewed_at"` before
+> writing to disk. See `docs/schemas/feedback-broker.md` for the stored schema.
+
+### Issue Reviewer (Issue Review)
+
+The issue-reviewer returns valid JSON with this structure:
+
+```json
+{
+  "type": "issue_review",
+  "issue_number": 42,
+  "pr_number": null,
+  "verdict": "VALID|NEEDS_INFO|DUPLICATE|REJECT",
+  "dimensions": {
+    "issue_validity": "1-2 sentences",
+    "actionability": "1-2 sentences",
+    "project_relevance": "1-2 sentences",
+    "priority_signal": "1-2 sentences",
+    "duplicate_check": "1-2 sentences"
+  },
+  "rationale": "1 paragraph verdict explanation",
+  "duplicate_of": null
+}
+```
+
 ## Benefits
 
 1. **No parsing errors** - JSON is machine-readable, eliminating markdown parsing brittleness
@@ -36,10 +69,17 @@ The inspector returns valid JSON with this structure:
 
 ## Workflow
 
-1. **Inspector** outputs JSON
-2. **Inspect-issues command** augments with `polish_attempts` and `reviewed_at`
+### PR Path
+1. **Inspector** outputs JSON (8 dimensions)
+2. **Inspect-issues command** augments with `type: "pr_review"`, `polish_attempts`, and `reviewed_at`
 3. **Feedback file** written to `.beads/inspect-feedback/issue-<number>.json`
 4. **Downstream agents** (issue-agent, feedback broker) read structured feedback
+
+### Issue Path
+1. **Issue-reviewer** outputs JSON (5 dimensions, includes `type: "issue_review"`)
+2. **Inspect-issues command** augments with `reviewed_at`
+3. **Feedback file** written to `.beads/inspect-feedback/issue-<number>.json`
+4. **Downstream agents** (feedback broker) read structured feedback
 
 ## Migration
 

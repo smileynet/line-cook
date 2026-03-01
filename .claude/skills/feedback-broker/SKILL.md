@@ -22,9 +22,10 @@ Use the feedback broker when:
 The broker reads from three sources:
 
 1. **Inspect feedback** (`.beads/inspect-feedback/issue-<number>.json`)
-   - Human-in-the-loop review verdicts
-   - Polish attempt tracking
-   - 8-dimension analysis (what changed, value, validity, alignment, scope, security, quality, root cause)
+   - Two feedback types, discriminated by the `type` field:
+     - **PR review** (`"type": "pr_review"`): 8 dimensions (what changed, value, validity, alignment, scope, security, quality, root cause), polish attempt tracking, PR-specific verdicts (MERGE/POLISH/FEEDBACK/REWORK/REJECT)
+     - **Issue review** (`"type": "issue_review"`): 5 dimensions (validity, actionability, relevance, priority, duplicate check), no polish attempts, triage verdicts (VALID/NEEDS_INFO/DUPLICATE/REJECT)
+   - Both stored in the same directory
 
 2. **Loop feedback** (`.beads/loop-feedback/<task-id>.json`)
    - Autonomous loop serve-phase feedback

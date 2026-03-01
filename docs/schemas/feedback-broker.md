@@ -6,12 +6,15 @@ The feedback broker synthesizes feedback from multiple agents (inspect, loop, is
 
 ## Feedback Sources
 
-### 1. Inspect Feedback
+### 1a. Inspect Feedback (PR Review)
 **Location:** `.beads/inspect-feedback/issue-<number>.json`
+
+Written by `/inspect-issues` after the **inspector** agent reviews a PR.
 
 **Schema:**
 ```json
 {
+  "type": "pr_review",
   "issue_number": 42,
   "pr_number": 7,
   "verdict": "MERGE|POLISH|FEEDBACK|REWORK|REJECT",
@@ -30,6 +33,33 @@ The feedback broker synthesizes feedback from multiple agents (inspect, loop, is
   "reviewed_at": "2026-02-23T21:00:00Z"
 }
 ```
+
+### 1b. Inspect Feedback (Issue Review)
+**Location:** `.beads/inspect-feedback/issue-<number>.json`
+
+Written by `/inspect-issues` after the **issue-reviewer** agent triages a standalone issue (no associated PR).
+
+**Schema:**
+```json
+{
+  "type": "issue_review",
+  "issue_number": 42,
+  "pr_number": null,
+  "verdict": "VALID|NEEDS_INFO|DUPLICATE|REJECT",
+  "dimensions": {
+    "issue_validity": "...",
+    "actionability": "...",
+    "project_relevance": "...",
+    "priority_signal": "...",
+    "duplicate_check": "..."
+  },
+  "rationale": "...",
+  "duplicate_of": null,
+  "reviewed_at": "2026-02-23T21:00:00Z"
+}
+```
+
+**Discriminator:** The `type` field distinguishes PR reviews (`"pr_review"`) from issue reviews (`"issue_review"`). Both are stored in the same directory. Consumers should check `type` to determine which dimensions and verdicts to expect.
 
 ### 2. Loop Feedback
 **Location:** `.beads/loop-feedback/<task-id>.json`

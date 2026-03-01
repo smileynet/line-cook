@@ -205,7 +205,8 @@ Agents for Line Cook development (not shipped with the plugin):
 | Agent | Purpose |
 |-------|---------|
 | **release-editor** | Interactive release coordinator for preparing new versions |
-| **inspector** | Read-only reviewer for bot-created issue/PR pairs — evaluates what changed, project value, validity, intent alignment, scope, security, code quality, and root cause depth (used by `/inspect-issues`) |
+| **inspector** | Read-only reviewer for bot-created issue/PR pairs — evaluates what changed, project value, validity, intent alignment, scope, security, code quality, and root cause depth (used by `/inspect-issues` for PRs) |
+| **issue-reviewer** | Read-only triage for standalone GitHub issues — evaluates validity, actionability, relevance, priority, and duplicates (used by `/inspect-issues`) |
 
 > **Note:** The shipped `plugins/claude-code/agents/sous-chef.md` is used directly for this project (no local override).
 

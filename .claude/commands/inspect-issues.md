@@ -1,31 +1,40 @@
 ---
-description: Review open PRs and produce a verdict for each
+description: Review open PRs and standalone issues
 allowed-tools: Bash, Read, Glob, Grep, Task, AskUserQuestion
 ---
 
 ## Summary
 
-**Review all open PRs and produce a verdict for each.** Discovers open PRs, delegates each to the inspector agent, displays the full report locally, and prompts for action.
+**Review open PRs and standalone issues.** Discovers open PRs and issues, delegates each to the appropriate review agent (inspector for PRs, issue-reviewer for standalone issues), displays reports locally, and prompts for action.
 
 **Usage:**
-- `/inspect-issues` — review all open PRs
-- `/inspect-issues 7` — review only PR #7
+- `/inspect-issues` — review all open PRs and standalone issues
+- `/inspect-issues 7` — review PR #7 or issue #7
 
 ---
 
 ## Process
 
-### Step 1: Discover Open PRs
+### Step 1: Discover Open PRs and Issues
 
 ```bash
 gh pr list --state open --json number,title,headRefName,body,url
 ```
 
-If `$ARGUMENTS` is a number, filter to that single PR. Otherwise, include ALL open PRs.
+```bash
+gh issue list --state open --json number,title,body,labels,author,url
+```
 
-If no open PRs are found, report "No open PRs found." and stop.
+**Cross-reference to find standalone issues:**
 
-### Step 2: Fetch Context for Each PR
+1. Build a set of issue numbers referenced by open PRs:
+   - Branch name matches `fix/issue-<N>-*` → extract `N`
+   - PR body contains `Fixes #N`, `Closes #N`, or `refs #N` → extract `N`
+2. **Standalone issues** = open issues whose number is NOT in that set
+3. If `$ARGUMENTS` is a number: check PRs first (match by PR number), then check standalone issues (match by issue number). If neither matches, report "No open PR or issue #N found." and stop.
+4. If no open PRs AND no standalone issues are found, report "No open PRs or issues found." and stop.
+
+### Step 2a: Fetch Context for Each PR
 
 For each PR, extract the associated issue number:
 1. If the branch name matches `fix/issue-<N>-*`, extract `N` from the branch name
@@ -56,7 +65,19 @@ To enforce the 300-line cap: count the lines of the raw diff output. If it excee
 gh pr view <pr-number> --json files --jq '.files[].path'
 ```
 
-### Step 3: Invoke Inspector Agent
+### Step 2b: Fetch Context for Standalone Issues
+
+For each standalone issue, fetch full context:
+
+```bash
+gh issue view <N> --json number,title,body,labels,author,comments
+```
+
+Also prepare a condensed list of other open issues (number + title only) for duplicate detection by the issue-reviewer agent.
+
+### Step 3: Invoke Review Agents
+
+#### Step 3 — PRs: Invoke Inspector Agent
 
 For each PR, delegate to the inspector agent via Task:
 
@@ -70,13 +91,31 @@ The prompt should include:
 - The code diff
 - List of changed files
 
-If reviewing multiple PRs, launch inspector agents in parallel.
-
 The inspector returns a JSON object. Parse it with `json.loads()` or equivalent. Validate that it contains: `issue_number`, `pr_number`, `verdict`, `dimensions` (with all 8 keys), and `rationale`.
 
 If the inspector output is not valid JSON (e.g., wrapped in markdown fences), strip fences and retry parsing. If still invalid, treat as inspection failure for that PR.
 
-### Step 3a: Write Feedback File
+#### Step 3 — Issues: Invoke Issue Reviewer Agent
+
+For each standalone issue, delegate to the issue-reviewer agent via Task:
+
+```
+Task(description="Triage issue #<issue-number>", prompt=<issue context + open issues list>, subagent_type="issue-reviewer")
+```
+
+The prompt should include:
+- Issue number, title, body, labels, author, comments
+- Condensed list of other open issues (for duplicate detection)
+
+The issue-reviewer returns a JSON object. Validate that it contains: `type`, `issue_number`, `pr_number`, `verdict`, `dimensions` (with all 5 keys), `rationale`, and `duplicate_of`.
+
+If the output is not valid JSON, strip fences and retry parsing. If still invalid, treat as triage failure for that issue.
+
+**Launch all inspector and issue-reviewer agents in parallel** when reviewing multiple items.
+
+### Step 3a: Write Feedback Files
+
+#### PR Feedback
 
 After the inspector returns valid JSON, augment it and write to `.beads/inspect-feedback/issue-<number>.json`.
 
@@ -104,12 +143,13 @@ fi
 **Check for escalation:**
 - If `polish_attempts >= 3` and verdict is POLISH, override verdict to FEEDBACK and add escalation note to rationale
 
-**Augment the inspector's JSON** with `polish_attempts` and `reviewed_at`, then write:
+**Augment the inspector's JSON** with `type`, `polish_attempts`, and `reviewed_at`, then write:
 
 ```python
 # Inspector already provides: issue_number, pr_number, verdict, dimensions, rationale
 # Augment with operational metadata:
 feedback = inspector_output  # The parsed JSON from inspector
+feedback["type"] = "pr_review"
 feedback["polish_attempts"] = new_attempt_count
 feedback["reviewed_at"] = datetime.now(timezone.utc).isoformat()
 ```
@@ -122,13 +162,34 @@ EOF
 mv .beads/inspect-feedback/issue-<number>.json.tmp .beads/inspect-feedback/issue-<number>.json
 ```
 
-This enables downstream agents (like issue-agent on re-trigger) to read past inspection results.
+#### Issue Feedback
 
-### Step 4: Display Report Locally
+After the issue-reviewer returns valid JSON, augment it and write to `.beads/inspect-feedback/issue-<number>.json`.
+
+```bash
+mkdir -p .beads/inspect-feedback
+```
+
+**Augment the issue-reviewer's JSON** with `reviewed_at`, then write:
+
+```python
+# Issue-reviewer already provides: type, issue_number, pr_number, verdict, dimensions, rationale, duplicate_of
+# Augment with operational metadata:
+feedback = issue_reviewer_output  # The parsed JSON from issue-reviewer
+feedback["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+```
+
+Write atomically using a temp file (same pattern as PR feedback).
+
+Issue feedback does NOT track `polish_attempts` (not applicable to standalone issues).
+
+**Note:** Both PR reviews and issue reviews write to the same path pattern (`.beads/inspect-feedback/issue-<number>.json`). The cross-referencing in Step 1 prevents simultaneous collisions (a PR-linked issue is never treated as standalone). However, if a PR is later closed and the issue becomes standalone, re-running `/inspect-issues` will overwrite the old PR review with an issue review. Consumers must check the `type` field to determine the feedback shape.
+
+### Step 4: Display Reports
+
+#### PR Reports
 
 For each PR, render the inspector's JSON as a readable markdown report in the terminal. Do NOT write to temp files. Do NOT post to GitHub.
-
-**Render the JSON fields as markdown sections:**
 
 ```
 ## Inspection: PR #<pr_number> / Issue #<issue_number>
@@ -164,9 +225,40 @@ For each PR, render the inspector's JSON as a readable markdown report in the te
 <rationale>
 ```
 
-Lead with **What Changed** and **Project Value** — these help the maintainer understand the change before seeing the safety checklist. The remaining 6 dimensions (validity, alignment, scope, security, quality, root cause) follow as due diligence.
+Lead with **What Changed** and **Project Value** — these help the maintainer understand the change before seeing the safety checklist.
+
+#### Issue Reports
+
+For each standalone issue, render the issue-reviewer's JSON as a readable markdown report:
+
+```
+## Triage: Issue #<issue_number> — <title>
+
+### Issue Validity
+<dimensions.issue_validity>
+
+### Actionability
+<dimensions.actionability>
+
+### Project Relevance
+<dimensions.project_relevance>
+
+### Priority Signal
+<dimensions.priority_signal>
+
+### Duplicate Check
+<dimensions.duplicate_check>
+
+---
+
+**Verdict: <verdict>** [Duplicate of #<duplicate_of> if applicable]
+
+<rationale>
+```
 
 ### Step 5: Prompt User for Action
+
+#### PR Actions
 
 Use AskUserQuestion to present options based on the verdict:
 
@@ -188,10 +280,10 @@ Use AskUserQuestion to present options based on the verdict:
 1. **Check attempt limit:** If `polish_attempts >= 3`, skip polish action and display warning:
    ```
    ⚠️ POLISH limit reached (3/3 attempts)
-   
+
    This PR has been polished 3 times without reaching MERGE.
    Consider manual review or REWORK verdict.
-   
+
    Options: "Comment" (post feedback), "Skip"
    ```
    Then skip to "Comment" or "Skip" options (do not offer "Polish" again).
@@ -218,7 +310,7 @@ Use AskUserQuestion to present options based on the verdict:
 
 **"Skip":** No action taken for this PR.
 
-**Concise comment format** (not the full analysis):
+**PR comment format:**
 ```
 <!-- line:inspect-issues verdict -->
 **Verdict: <VERDICT>**
@@ -232,34 +324,106 @@ Post using:
 gh pr comment <pr-number> --body "<comment>"
 ```
 
+#### Issue Actions
+
+Use AskUserQuestion to present options based on the verdict:
+
+| Verdict | Options |
+|---------|---------|
+| **VALID** | "Auto-fix" (close + reopen to trigger issue-agent workflow), "Label" (apply triage label), "Skip" |
+| **NEEDS_INFO** | "Comment" (post structured question to issue), "Skip" |
+| **DUPLICATE** | "Close" (close as duplicate with reference), "Skip" |
+| **REJECT** | "Close" (close as not-planned), "Skip" |
+
+**Actions by choice:**
+
+**"Auto-fix"** (VALID verdict only):
+1. Post a concise comment to the issue (see format below)
+2. Close then reopen the issue to trigger the `issues: [reopened]` event in `.github/workflows/issue-agent.yml`:
+   ```bash
+   gh issue close <issue-number>
+   gh issue reopen <issue-number>
+   ```
+
+**"Label"** (VALID verdict only):
+1. Apply a triage label to the issue:
+   ```bash
+   gh issue edit <issue-number> --add-label "triaged"
+   ```
+
+**"Comment"** (NEEDS_INFO verdict):
+1. Post a structured question comment to the issue (see format below)
+
+**"Close"** (DUPLICATE or REJECT verdict):
+For DUPLICATE:
+```bash
+gh issue close <issue-number> --reason "not planned" --comment "Duplicate of #<duplicate_of>. Closing in favor of the existing issue."
+```
+
+For REJECT:
+```bash
+gh issue close <issue-number> --reason "not planned" --comment "Closing: not actionable."
+```
+
+**"Skip":** No action taken for this issue.
+
+**Issue comment format:**
+```
+<!-- line:inspect-issues triage -->
+**Verdict: <VERDICT>**
+<1-2 sentence rationale>
+---
+*Reviewed by `/inspect-issues`.*
+```
+
+Post using:
+```bash
+gh issue comment <issue-number> --body "<comment>"
+```
+
 ### Step 6: Output Summary
 
-Display a summary report with all verdicts and actions taken:
+Display a summary report with two sections (PRs, Issues). Only show sections that have entries.
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  INSPECT: PR Review Complete                                  ║
+║  INSPECT: Review Complete                                     ║
 ╚══════════════════════════════════════════════════════════════╝
 
-┌─────────────────────────────────────────────────────────────┐
+┌─── PRs ─────────────────────────────────────────────────────┐
 │ PR #7   MERGE    Issue #6: <title>          → merged         │
 │ PR #12  REJECT   Issue #11: <title>         → commented      │
 │ PR #15  POLISH   Issue #14: <title>         → skipped        │
 └─────────────────────────────────────────────────────────────┘
 
-  MERGE:    1 — ready to merge
-  REJECT:   1 — close issue and PR
-  POLISH:   1 — polished and ready
+┌─── Issues ──────────────────────────────────────────────────┐
+│ Issue #3   VALID       <title>              → auto-fix       │
+│ Issue #9   DUPLICATE   <title>              → closed         │
+│ Issue #18  NEEDS_INFO  <title>              → commented      │
+└─────────────────────────────────────────────────────────────┘
+
+  PRs:
+    MERGE:    1 — ready to merge
+    REJECT:   1 — close issue and PR
+    POLISH:   1 — polished and ready
+
+  Issues:
+    VALID:      1 — ready for work
+    DUPLICATE:  1 — closed as duplicate
+    NEEDS_INFO: 1 — needs clarification
 ```
 
-Group the tally by verdict type. Only show lines for verdicts that have a count > 0. Annotate each PR line with the action taken (→ merged / → commented / → polished / → skipped).
+Group the tally by verdict type within each section. Only show lines for verdicts that have a count > 0. Annotate each line with the action taken (→ merged / → commented / → polished / → skipped / → auto-fix / → closed / → labeled).
 
 ## Error Handling
 
 - **gh CLI not authenticated:** Report the error and stop.
-- **PR has no issue reference:** Proceed normally with `issue_number` as null (per Step 2). The PR is evaluated on its own merits.
+- **PR has no issue reference:** Proceed normally with `issue_number` as null (per Step 2a). The PR is evaluated on its own merits.
 - **Issue reference found but inaccessible:** Log a warning but still inspect the PR using only the PR metadata and diff.
+- **Issue has no body:** Proceed with title only. The issue-reviewer will note the lack of detail in the actionability dimension.
 - **Inspector fails:** Skip that PR, note it in the summary as "SKIPPED — inspection failed".
+- **Issue-reviewer fails:** Skip that issue, note it in the summary as "SKIPPED — triage failed".
 - **Feedback file write fails:** Log warning but continue (feedback is supplementary, not critical).
 - **Polisher fails on POLISH verdict:** Display the verdict anyway. Note in the summary that polish was attempted but failed.
 - **Merge fails:** Note in the summary. The verdict was still computed.
+- **Cross-reference mismatch** (PR closed but issue still open): Treat the issue as standalone.
