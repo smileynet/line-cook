@@ -3060,6 +3060,25 @@ def _reopen_task_for_retry(task_id: Optional[str], cwd: Path) -> None:
         logger.warning(f"Error reopening task {task_id} for retry: {e}")
 
 
+def _ensure_feature_closed(feature_id: str, cwd: Path) -> None:
+    """Defensively close a feature bead after plate succeeds.
+
+    Plate agents are expected to close the feature via `bd close`, but some
+    CLI backends (e.g., Kiro) may skip that step.  This guard prevents the
+    feature from remaining open and being re-selected in the next iteration.
+
+    The call is idempotent — closing an already-closed bead is a no-op in bd.
+    """
+    try:
+        result = run_subprocess(["bd", "close", feature_id], BD_COMMAND_TIMEOUT, cwd)
+        if result.returncode == 0:
+            logger.debug(f"Defensively closed feature {feature_id}")
+        else:
+            logger.warning(f"Failed to defensively close feature {feature_id}: {result.stderr}")
+    except Exception as e:
+        logger.warning(f"Error defensively closing feature {feature_id}: {e}")
+
+
 def _close_epic_and_create_doc_task(epic_id: str, epic_title: str, cwd: Path) -> None:
     """Close epic bead and create a standalone P1 documentation task.
 
@@ -3656,6 +3675,7 @@ def run_iteration(
                     print_phase_progress("plate", "done", plate_result.duration_seconds,
                                        f"{_action_dots(len(plate_result.actions))}{len(plate_result.actions)} actions, feature {feature_id} validated")
                 logger.info(f"Plate phase completed for feature {feature_id}")
+                _ensure_feature_closed(feature_id, cwd)
                 # Check if completing the feature completes an epic
                 epic_complete, epic_id = check_epic_completion_after_feature(feature_id, cwd, task_info_cache=task_info_cache, children_cache=children_cache)
                 if epic_complete and epic_id:
@@ -3710,6 +3730,11 @@ def run_iteration(
                                                f"{_action_dots(len(cs_result.actions))}{len(cs_result.actions)} actions, epic {epic_id} validated")
                         logger.info(f"Close-service phase completed for epic {epic_id}")
                         closed_epic_ids.append(epic_id)
+
+    # Refresh snapshot if post-tidy phases ran (plate/close-service may have
+    # closed features or epics since the initial after-tidy snapshot).
+    if "plate" in phase_timings or "close-service" in phase_timings:
+        after = get_bead_snapshot(cwd)
 
     duration = (datetime.now() - start_time).total_seconds()
 
