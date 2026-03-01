@@ -2,6 +2,7 @@
 # smoke-test-issue-agent.sh - E2E smoke test for issue-agent workflow
 #
 # Tests the complete issue agent workflow:
+# 0. Validate timeout fallback YAML structure (local, no API)
 # 1. Create test issue
 # 2. Wait for workflow to complete
 # 3. Validate analysis comment
@@ -12,6 +13,7 @@
 #   ./tests/smoke-test-issue-agent.sh
 #   ./tests/smoke-test-issue-agent.sh --dry-run
 #   ./tests/smoke-test-issue-agent.sh --cleanup-only
+#   ./tests/smoke-test-issue-agent.sh --validate-yaml   # structural check only
 #
 # Requirements:
 #   - gh CLI authenticated
@@ -44,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --cleanup-only)
             MODE="cleanup"
+            shift
+            ;;
+        --validate-yaml)
+            MODE="validate-yaml"
             shift
             ;;
         --verbose)
@@ -85,6 +91,94 @@ do_cleanup() {
 # Cleanup on unexpected exit
 trap do_cleanup EXIT
 
+# Checks that both analyze and respond jobs have:
+# - continue-on-error on the agent step
+# - A fallback step gated on agent failure
+# - Fallback comment with expected content
+validate_timeout_fallback() {
+    local workflow_file="$REPO_ROOT/.github/workflows/issue-agent.yml"
+    local failures=0
+
+    log_step "[0/5] Validating timeout fallback YAML structure..."
+
+    if [[ ! -f "$workflow_file" ]]; then
+        log_error "Workflow file not found: $workflow_file"
+        return 1
+    fi
+
+    # Check analyze job: continue-on-error on agent step
+    if grep -A2 'id: analyze' "$workflow_file" | grep -q 'continue-on-error: true'; then
+        log_success "analyze job: continue-on-error present"
+    else
+        log_error "analyze job: missing continue-on-error on agent step"
+        failures=$((failures + 1))
+    fi
+
+    # Check respond job: continue-on-error on agent step
+    if grep -A2 'id: respond' "$workflow_file" | grep -q 'continue-on-error: true'; then
+        log_success "respond job: continue-on-error present"
+    else
+        log_error "respond job: missing continue-on-error on agent step"
+        failures=$((failures + 1))
+    fi
+
+    # Check for fallback steps (both jobs should have one)
+    local fallback_count
+    fallback_count=$(grep -c 'Post timeout fallback comment' "$workflow_file" || true)
+    if [[ "$fallback_count" -ge 2 ]]; then
+        log_success "Fallback steps found: $fallback_count (analyze + respond)"
+    else
+        log_error "Expected 2 fallback steps, found: $fallback_count"
+        failures=$((failures + 1))
+    fi
+
+    # Check fallback gate conditions reference correct step outcomes
+    if grep -q "steps.analyze.outcome == 'failure'" "$workflow_file"; then
+        log_success "analyze fallback: gated on steps.analyze.outcome"
+    else
+        log_error "analyze fallback: missing or incorrect gate condition"
+        failures=$((failures + 1))
+    fi
+
+    if grep -q "steps.respond.outcome == 'failure'" "$workflow_file"; then
+        log_success "respond fallback: gated on steps.respond.outcome"
+    else
+        log_error "respond fallback: missing or incorrect gate condition"
+        failures=$((failures + 1))
+    fi
+
+    # Check fallback comment content
+    if grep -q 'Agent Timeout' "$workflow_file"; then
+        log_success "Fallback comment contains 'Agent Timeout' marker"
+    else
+        log_error "Fallback comment missing 'Agent Timeout' marker"
+        failures=$((failures + 1))
+    fi
+
+    if grep -q 'self-healing system' "$workflow_file"; then
+        log_success "Fallback comment contains self-healing attribution"
+    else
+        log_error "Fallback comment missing self-healing attribution"
+        failures=$((failures + 1))
+    fi
+
+    if [[ $failures -gt 0 ]]; then
+        log_error "Timeout fallback validation failed ($failures errors)"
+        return 1
+    fi
+
+    log_success "Timeout fallback structure valid"
+    return 0
+}
+
+# Validate-yaml mode (standalone, no auth needed)
+if [[ "$MODE" == "validate-yaml" ]]; then
+    trap - EXIT
+    log_phase "STRUCTURAL VALIDATION: Issue Agent Timeout Fallback"
+    validate_timeout_fallback
+    exit $?
+fi
+
 # Dry run mode
 if [[ "$MODE" == "dry-run" ]]; then
     log_step "Checking dependencies..."
@@ -114,6 +208,9 @@ log "Repository: ${REPO_OWNER}/${REPO_NAME}"
 
 # Test execution
 log_phase "SMOKE TEST: Issue Agent Workflow"
+
+# Step 0: Validate YAML structure (fast, local)
+validate_timeout_fallback
 
 # Step 1: Create test issue
 log_step "[1/5] Creating test issue..."
@@ -279,6 +376,7 @@ do_cleanup
 log_phase "${GREEN}✓${NC} SMOKE TEST PASSED"
 log ""
 log "Validated:"
+log "  ✓ Timeout fallback YAML structure"
 log "  ✓ Issue creation"
 log "  ✓ Workflow trigger and execution"
 log "  ✓ Analysis comment posted"
