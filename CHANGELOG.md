@@ -8,21 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `/loop` detects zero-progress iterations — when no commits are produced during
-  a cycle, the loop recognizes the stall and stops retrying the same task
-- `/loop` detects and retries premature cook phase exits — if a task's
-  implementation phase exits early without completing work, the loop retries
-  instead of moving on
-- `/loop` catches tasks that keep getting re-selected without making progress and
-  skips them, preventing infinite selection loops
+- `/loop` no longer gets stuck on stalled tasks — it detects when iterations
+  produce no progress and moves on instead of retrying the same work indefinitely
+- `/loop` automatically retries tasks whose implementation gets interrupted
+  partway through, instead of leaving work half-done
 
 ### Fixed
-- `/loop` failure classification now drives retry timing — transient failures
-  retry faster, persistent ones skip sooner
-- `/loop` properly closes completed features after `/plate` acceptance, preventing
-  features from staying open after they pass review
-- `/loop` feedback readers handle malformed or missing data gracefully instead of
-  failing silently
+- Smarter retry timing in `/loop` — transient failures retry quickly, persistent
+  ones get skipped sooner
+- Features now close automatically after passing `/plate` review instead of
+  staying open
+- `/loop` handles incomplete or corrupted feedback data gracefully instead of
+  crashing
 
 ## [0.18.0] - 2026-02-27
 ### Added
