@@ -1,37 +1,40 @@
 ---
-description: Review bot-created issue/PR pairs before merging
+description: Review open PRs and produce a verdict for each
 allowed-tools: Bash, Read, Glob, Grep, Task, AskUserQuestion
 ---
 
 ## Summary
 
-**Review all open bot-created PRs and produce a verdict for each.** Discovers PRs from `fix/issue-*` branches, delegates each to the inspector agent, displays the full report locally, and prompts for action.
+**Review all open PRs and produce a verdict for each.** Discovers open PRs, delegates each to the inspector agent, displays the full report locally, and prompts for action.
 
 **Usage:**
-- `/inspect` — review all open bot PRs
+- `/inspect` — review all open PRs
 - `/inspect 7` — review only PR #7
 
 ---
 
 ## Process
 
-### Step 1: Discover Open Bot PRs
+### Step 1: Discover Open PRs
 
 ```bash
 gh pr list --state open --json number,title,headRefName,body,url
 ```
 
-Filter to PRs whose `headRefName` starts with `fix/issue-`. If `$ARGUMENTS` is a number, filter to that single PR.
+If `$ARGUMENTS` is a number, filter to that single PR. Otherwise, include ALL open PRs.
 
-If no matching PRs are found, report "No open bot PRs found." and stop.
+If no open PRs are found, report "No open PRs found." and stop.
 
 ### Step 2: Fetch Context for Each PR
 
-For each bot PR, extract the issue number from the branch name (`fix/issue-42-desc` → `42`).
+For each PR, extract the associated issue number:
+1. If the branch name matches `fix/issue-<N>-*`, extract `N` from the branch name
+2. Otherwise, look for `Fixes #N`, `Closes #N`, or `refs #N` in the PR body
+3. If no issue reference is found, set `issue_number` to `null` (the PR will be evaluated on its own merits)
 
 Fetch context for each PR (run these in parallel where possible):
 
-**Issue body:**
+**Issue body** (skip if `issue_number` is null):
 ```bash
 gh issue view <issue-number> --json title,body,labels,author
 ```
@@ -58,7 +61,7 @@ gh pr view <pr-number> --json files --jq '.files[].path'
 For each PR, delegate to the inspector agent via Task:
 
 ```
-Task(description="Inspect bot PR #<pr-number> for issue #<issue-number>", prompt=<assembled context>, subagent_type="inspector")
+Task(description="Inspect PR #<pr-number> for issue #<issue-number>", prompt=<assembled context>, subagent_type="inspector")
 ```
 
 The prompt should include:
@@ -233,7 +236,7 @@ Display a summary report with all verdicts and actions taken:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  INSPECT: Bot PR Review Complete                             ║
+║  INSPECT: PR Review Complete                                  ║
 ╚══════════════════════════════════════════════════════════════╝
 
 ┌─────────────────────────────────────────────────────────────┐
