@@ -176,25 +176,32 @@ Open questions: <N> (if any)
 ```
 
 @IF_CLAUDECODE@
-Then **use AskUserQuestion** to ask:
+**If `$ARGUMENTS` contains `skip-sample`:** Skip the sample option — use AskUserQuestion with only scope/review/done options, and invoke `Skill(skill="@NAMESPACE@scope")` if the user continues.
+
+**Otherwise:** Use AskUserQuestion to ask:
 
 **Question:** "Brainstorm complete. How would you like to proceed?"
 **Options:**
-  - "Continue to /@NAMESPACE@scope" — Create structured work breakdown now
+  - "Continue to /@NAMESPACE@sample" — Walk through UX experience before scoping
+  - "Skip to /@NAMESPACE@scope" — Create structured work breakdown now
   - "Review brainstorm first" — Stop here, review docs/planning/brainstorm-<name>.md
   - "Done for now" — End the planning session
 
-If user chooses "Continue to /@NAMESPACE@scope", invoke `Skill(skill="@NAMESPACE@scope")`.
+If user chooses "Continue to /@NAMESPACE@sample", invoke `Skill(skill="@NAMESPACE@sample")`.
+If user chooses "Skip to /@NAMESPACE@scope", invoke `Skill(skill="@NAMESPACE@scope")`.
 Otherwise, stop and output the artifact file paths.
 @ENDIF_CLAUDECODE@
 @IF_OPENCODE@
-Then ask the user how they'd like to proceed:
+**If `$ARGUMENTS` contains `skip-sample`:** Skip the sample option — offer only scope/review/done, and run `/@NAMESPACE@scope` if the user continues.
 
-- **Continue to /@NAMESPACE@scope** — Create structured work breakdown now
+**Otherwise:** Ask the user how they'd like to proceed:
+
+- **Continue to /@NAMESPACE@sample** — Walk through UX experience before scoping
+- **Skip to /@NAMESPACE@scope** — Create structured work breakdown now
 - **Review brainstorm first** — Stop here, review docs/planning/brainstorm-<name>.md
 - **Done for now** — End the planning session
 
-Wait for the user's response before continuing. If user chooses to continue, run `/@NAMESPACE@scope`.
+Wait for the user's response before continuing. If user chooses sample, run `/@NAMESPACE@sample`. If user chooses scope, run `/@NAMESPACE@scope`.
 @ENDIF_OPENCODE@
 
 ---
@@ -209,7 +216,7 @@ Skip this phase if:
 - User explicitly asks to skip to planning
 @ENDIF_CLAUDECODE@
 
-In these cases, proceed directly to `/@NAMESPACE@scope`.
+In these cases, proceed directly to `/@NAMESPACE@sample` or `/@NAMESPACE@scope`.
 
 ---
 

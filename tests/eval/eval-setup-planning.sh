@@ -3,7 +3,7 @@
 #
 # Unlike eval-setup.sh (demo-simple), this creates an empty project with
 # pre-seeded brainstorm.md and menu-plan.yaml but NO beads.
-# The planning commands (brainstorm, scope, finalize) will create beads.
+# The planning commands (brainstorm, sample, scope, finalize) will create beads.
 #
 # Usage:
 #   TEST_DIR=$(./tests/eval/eval-setup-planning.sh)

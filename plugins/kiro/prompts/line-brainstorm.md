@@ -111,13 +111,16 @@ Key decisions:
 Open questions: <N> (if any)
 ```
 
-Then ask the user how they'd like to proceed:
+**If `$ARGUMENTS` contains `skip-sample`:** Skip the sample option — offer only scope/review/done, and run `@line-scope` if the user continues.
 
-- **Continue to @line-scope** — Create structured work breakdown now
+**Otherwise:** Ask the user how they'd like to proceed:
+
+- **Continue to @line-sample** — Walk through UX experience before scoping
+- **Skip to @line-scope** — Create structured work breakdown now
 - **Review brainstorm first** — Stop here, review docs/planning/brainstorm-<name>.md
 - **Done for now** — End the planning session
 
-Wait for the user's response before continuing. If user chooses to continue, run `@line-scope`.
+Wait for the user's response before continuing. If user chooses sample, run `@line-sample`. If user chooses scope, run `@line-scope`.
 
 ---
 
@@ -128,7 +131,7 @@ Skip this phase if:
 - Requirements are crystal clear and well-documented
 - It's a small, well-defined task (not an epic/feature)
 
-In these cases, proceed directly to `@line-scope`.
+In these cases, proceed directly to `@line-sample` or `@line-scope`.
 
 ---
 

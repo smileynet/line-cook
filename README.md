@@ -14,18 +14,18 @@ The result: you stay in deep work while AI handles structured execution with bui
  │                  │       │                  │
  │   /brainstorm    │       │   /prep ◄────┐   │
  │        ↓         │       │      ↓       │   │
- │     /scope       │       │   /cook      │   │
+ │     /sample      │       │   /cook      │   │
  │        ↓         │       │      ↓       │   │
- │   /finalize ─────┼─────► │   /serve     │   │
- │                  │       │      ↓       │   │
- └──────────────────┘       │   /tidy ─────┘   │
-                            │    next task     │
-                            └──────────────────┘
+ │     /scope       │       │   /serve     │   │
+ │        ↓         │       │      ↓       │   │
+ │   /finalize ─────┼─────► │   /tidy ─────┘   │
+ │                  │       │    next task     │
+ └──────────────────┘       └──────────────────┘
 ```
 
 ### Mise: Ideas → Tasks
 
-Brainstorm → Scope → Finalize. Turn unstructured ideas into well-scoped, dependency-ordered tasks with test specs.
+Brainstorm → Sample → Scope → Finalize. Turn unstructured ideas into well-scoped, dependency-ordered tasks with test specs.
 
 [Learn more →](docs/cycles/mise-cycle.md)
 
@@ -46,7 +46,7 @@ Repeat Run Cycles hands-free until no ready tasks remain. Same quality gates, no
 ```bash
 /line:init           # Verify your setup
 bd init              # Initialize beads in your project
-/line:mise           # Plan your work (brainstorm → scope → finalize)
+/line:mise           # Plan your work (brainstorm → sample → scope → finalize)
 # Clear context
 /line:run            # Execute (prep → cook → serve → tidy)
 ```

@@ -146,15 +146,19 @@ Open questions: <N> (if any)
   - <question 2>
 ```
 
-Then **use AskUserQuestion** to ask:
+**If `$ARGUMENTS` contains `skip-sample`:** Skip the sample option — use AskUserQuestion with only scope/review/done options, and invoke `Skill(skill="line:scope")` if the user continues.
+
+**Otherwise:** Use AskUserQuestion to ask:
 
 **Question:** "Brainstorm complete. How would you like to proceed?"
 **Options:**
-  - "Continue to /line:scope" — Create structured work breakdown now
+  - "Continue to /line:sample" — Walk through UX experience before scoping
+  - "Skip to /line:scope" — Create structured work breakdown now
   - "Review brainstorm first" — Stop here, review docs/planning/brainstorm-<name>.md
   - "Done for now" — End the planning session
 
-If user chooses "Continue to /line:scope", invoke `Skill(skill="line:scope")`.
+If user chooses "Continue to /line:sample", invoke `Skill(skill="line:sample")`.
+If user chooses "Skip to /line:scope", invoke `Skill(skill="line:scope")`.
 Otherwise, stop and output the artifact file paths.
 
 ---
@@ -167,7 +171,7 @@ Skip this phase if:
 - It's a small, well-defined task (not an epic/feature)
 - User explicitly asks to skip to planning
 
-In these cases, proceed directly to `/line:scope`.
+In these cases, proceed directly to `/line:sample` or `/line:scope`.
 
 ---
 

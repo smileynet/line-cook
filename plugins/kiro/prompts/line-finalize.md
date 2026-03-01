@@ -2,7 +2,7 @@
 
 ## Summary
 
-**Execution phase: create beads, write test specs, persist.** Third and final phase of mise en place.
+**Execution phase: create beads, write test specs, persist.** Fourth and final phase of mise en place.
 
 This phase transforms the approved menu plan into actionable beads and creates language-agnostic test specifications.
 

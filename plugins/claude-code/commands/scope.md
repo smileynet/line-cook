@@ -6,7 +6,7 @@ allowed-tools: Bash, Read, Write, Glob, Grep, Task, AskUserQuestion, Skill
 
 ## Summary
 
-**Convergent thinking phase: structure, scope, decompose.** Second phase of mise en place.
+**Convergent thinking phase: structure, scope, decompose.** Third phase of mise en place.
 
 This phase transforms exploration into a structured, reviewable plan. Output is a YAML menu plan that can be converted to beads.
 
@@ -52,9 +52,19 @@ Look for planning context:
    - Use it as input for planning
    - Create a context folder from brainstorm content (see brainstorm Step 5b)
 
-4. **If neither exists:**
+4. **Check for walkthrough documents:**
+   ```bash
+   ls docs/planning/walkthrough-*.md 2>/dev/null
+   ```
+   If found, read and use to inform scoping:
+   - Interaction sketches inform task deliverables ("what gets built")
+   - Cognitive walkthrough failures become acceptance criteria ("user can find the deploy button")
+   - Recorded decisions become design constraints in task descriptions
+   - Error/recovery scenarios become edge-case tasks or test specs
+
+5. **If no context, brainstorm, or walkthrough exists:**
    - Ask user for requirements directly
-   - Consider if brainstorm phase would be valuable first
+   - Consider if brainstorm or sample phase would be valuable first
 
 ### Step 2: Determine Scope
 

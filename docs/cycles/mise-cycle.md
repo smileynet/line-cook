@@ -2,22 +2,24 @@
 
 **Think big, then break it down.**
 
-The Mise Cycle turns unstructured ideas into well-scoped, dependency-ordered tasks ready for execution. It runs in three phases, each producing a reviewable artifact with a pause point between them.
+The Mise Cycle turns unstructured ideas into well-scoped, dependency-ordered tasks ready for execution. It runs in four phases, each producing a reviewable artifact with a pause point between them.
 
 ```
-Brainstorm (diverge) → Scope (converge) → Finalize (commit)
+Brainstorm (diverge) → Sample (experience) → Scope (converge) → Finalize (commit)
 ```
 
 ## Quick Reference
 
 | Command | Purpose | Output | Skip when... |
 |---------|---------|--------|--------------|
-| `/line:mise` | Run all three phases with pauses | All below | Never (orchestrator) |
+| `/line:mise` | Run all four phases with pauses | All below | Never (orchestrator) |
 | `/line:brainstorm` | Explore the problem space | `docs/planning/brainstorm-<name>.md` | Requirements already clear |
+| `/line:sample` | Walk through user experience | `docs/planning/walkthrough-<name>.md` | UX already documented, backend-only |
 | `/line:scope` | Create structured breakdown | `docs/planning/menu-plan.yaml` | Already have a menu plan |
 | `/line:finalize` | Convert plan to tracked work | Beads + test specs | Already have beads |
 
 **Skip brainstorm:** `/line:mise skip-brainstorm`
+**Skip sample:** `/line:mise skip-sample`
 **Run phases individually** for maximum control.
 
 ---
@@ -56,14 +58,66 @@ BRAINSTORM COMPLETE
 File: docs/planning/brainstorm-reading-cli.md
 Open questions: 0
 
-Continue to /line:scope? [Y/n]
+Continue to /line:sample? [Y/n]
 ```
 
 **When to skip:** Requirements are already clear, you've done your own research, or you're working from an existing spec.
 
 ---
 
-## Phase 2: Scope
+## Phase 2: Sample
+
+**Mode:** Experiential thinking — walk through the UX before structuring work.
+
+Sample validates the recommended approach by simulating concrete user experience scenarios. You walk through 5 beats (first encounter, discovery, core workflow, edge cases, return) and create interaction sketches that catch UX problems before scope turns them into tasks.
+
+**What happens:**
+1. Detects software type (CLI, web, API, library, TUI, mobile)
+2. Establishes a persona lens (who, what they know, goal, environment)
+3. Walks through 5 experience beats with interaction sketches
+4. Validates each beat against cognitive walkthrough questions
+5. Reviews against anti-pattern taxonomy
+
+**Output:** `docs/planning/walkthrough-<name>.md`
+
+**Example interaction:**
+
+```
+/line:sample
+
+SAMPLE: Reading List CLI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Software type: CLI
+Persona: Sam, a developer who reads ~20 books/year
+  and wants a simple way to track them from the terminal.
+
+Beat 1: First Encounter
+  Q: You've just installed readlist. What's the first
+     thing you type? What do you see?
+
+You: Just "readlist" with no args. Show a help summary.
+
+  Interaction sketch:
+  $ readlist
+  readlist - track your reading list
+
+  Usage:
+    readlist add <title> --author <name>
+    readlist list
+    readlist done <id>
+
+  CW: Q1 ✓ Q2 ✓ Q3 ✓ Q4 ✓
+  Decision: Help on bare invocation [user]
+
+Continue to /line:scope? [Y/n]
+```
+
+**When to skip:** UX is already documented, backend-only work, or small well-defined tasks with no user-facing interface.
+
+---
+
+## Phase 3: Scope
 
 **Mode:** Convergent thinking — structure the work into a hierarchy.
 
@@ -110,7 +164,7 @@ Edit the YAML directly — it's your plan.
 
 ---
 
-## Phase 3: Finalize
+## Phase 4: Finalize
 
 **Mode:** Execution prep — convert the plan into tracked work items.
 
@@ -178,6 +232,7 @@ See [beads reference](../reference/beads.md) for hierarchy commands.
 | Pause | What to check |
 |-------|---------------|
 | After brainstorm | Direction correct? Open questions resolved? |
+| After sample | UX flows make sense? Cognitive walkthrough passes? Interaction sketches feel right? |
 | After scope | Tasks right-sized? Dependencies correct? Acceptance criteria specific? |
 | After finalize | Beads look right? Ready to start execution? |
 
