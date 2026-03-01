@@ -107,9 +107,6 @@ CLI_PROFILES = {
         'has_streaming_json': False,
         'install_hint': 'Install Kiro CLI: https://kiro.dev/docs/cli',
         'phase_timeout_multiplier': 1.5,
-        # Kiro bug #4141: args after @ commands are silently dropped.
-        # Inject task ID as text before the @ command so the agent receives it.
-        'task_injection': '[task-id: {args}] ',
     },
 }
 

@@ -3795,10 +3795,9 @@ class TestBuildPhaseCommand(unittest.TestCase):
         ])
 
     def test_kiro_cook_with_args(self):
-        """Kiro cook command with task ID prepended before @ command (GAP 1)."""
+        """Kiro cook command with task ID appended after @ command."""
         cmd = line_loop.build_phase_command('cook', 'lc-042', self.kiro_profile)
-        # Task ID is prepended as natural language before @ command
-        self.assertEqual(cmd[-1], '[task-id: lc-042] @line-cook')
+        self.assertEqual(cmd[-1], '@line-cook lc-042')
 
     def test_kiro_serve_command(self):
         """Kiro serve command has prompt at end."""
@@ -4670,37 +4669,28 @@ class TestKiroTaskInjection(unittest.TestCase):
         self.kiro_profile = line_loop.get_cli_profile('kiro')
         self.claude_profile = line_loop.get_cli_profile('claude')
 
-    def test_kiro_profile_has_task_injection(self):
-        """Kiro profile includes task_injection key."""
-        self.assertIn('task_injection', self.kiro_profile)
+    def test_kiro_profile_no_task_injection(self):
+        """Kiro profile does not use task_injection (args appended after @command)."""
+        self.assertNotIn('task_injection', self.kiro_profile)
 
     def test_claude_profile_no_task_injection(self):
         """Claude profile does not have task_injection (args appended normally)."""
         self.assertNotIn('task_injection', self.claude_profile)
 
-    def test_kiro_cook_args_prepended(self):
-        """Task ID prepended before @line-cook for Kiro."""
+    def test_kiro_cook_args_appended(self):
+        """Task ID appended after @line-cook for Kiro."""
         cmd = line_loop.build_phase_command('cook', 'lc-042', self.kiro_profile)
-        prompt = cmd[-1]
-        self.assertIn('lc-042', prompt)
-        self.assertIn('@line-cook', prompt)
-        # Task ID comes before @command
-        self.assertTrue(prompt.index('lc-042') < prompt.index('@line-cook'))
+        self.assertEqual(cmd[-1], '@line-cook lc-042')
 
-    def test_kiro_plate_args_prepended(self):
-        """Feature ID prepended before @line-plate for plate phase."""
+    def test_kiro_plate_args_appended(self):
+        """Feature ID appended after @line-plate for plate phase."""
         cmd = line_loop.build_phase_command('plate', 'lc-feat-1', self.kiro_profile)
-        prompt = cmd[-1]
-        self.assertIn('lc-feat-1', prompt)
-        self.assertIn('@line-plate', prompt)
-        self.assertTrue(prompt.index('lc-feat-1') < prompt.index('@line-plate'))
+        self.assertEqual(cmd[-1], '@line-plate lc-feat-1')
 
-    def test_kiro_close_service_args_prepended(self):
-        """Epic ID prepended before @line-close-service."""
+    def test_kiro_close_service_args_appended(self):
+        """Epic ID appended after @line-close-service."""
         cmd = line_loop.build_phase_command('close-service', 'lc-epic-1', self.kiro_profile)
-        prompt = cmd[-1]
-        self.assertIn('lc-epic-1', prompt)
-        self.assertIn('@line-close-service', prompt)
+        self.assertEqual(cmd[-1], '@line-close-service lc-epic-1')
 
     def test_kiro_no_args_unchanged(self):
         """Without args, Kiro prompt is just the @command."""
