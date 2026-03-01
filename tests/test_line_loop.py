@@ -3439,6 +3439,107 @@ class TestClosedEpicsPopulatedWithMerge(unittest.TestCase):
         self.assertIn("lc-abc", result.closed_epics)
 
 
+class TestDefensiveFeatureClosure(unittest.TestCase):
+    """Test that features are defensively closed after plate succeeds.
+
+    When plate completes successfully but the agent doesn't close the feature
+    bead (e.g., Kiro backend), the loop should defensively close it to prevent
+    the feature from being re-selected in the next iteration.
+    """
+
+    def setUp(self):
+        self.snapshot_before = line_loop.BeadSnapshot(
+            ready=[make_bead("lc-abc.1.1", "Task", "task", parent="lc-abc.1")]
+        )
+        self.snapshot_after = line_loop.BeadSnapshot(
+            ready=[],
+            closed=[make_bead("lc-abc.1.1", "Task", "task", parent="lc-abc.1")]
+        )
+        self.cook_result = line_loop.PhaseResult(
+            phase="cook", success=True, output="KITCHEN_COMPLETE",
+            exit_code=0, duration_seconds=5.0, signals=["kitchen_complete"]
+        )
+        self.serve_result = line_loop.PhaseResult(
+            phase="serve", success=True,
+            output="verdict: APPROVED\ncontinue: true\nblocking_issues: 0",
+            exit_code=0, duration_seconds=3.0
+        )
+        self.tidy_result = line_loop.PhaseResult(
+            phase="tidy", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+        self.subprocess_calls = []
+
+    def _run_iteration_with_plate(self, plate_result):
+        """Run an iteration through plate phase, return subprocess calls."""
+        from unittest.mock import patch, MagicMock
+
+        def mock_run_phase(phase, cwd, **kwargs):
+            if phase == "cook":
+                return self.cook_result
+            elif phase == "serve":
+                return self.serve_result
+            elif phase == "tidy":
+                return self.tidy_result
+            elif phase == "plate":
+                return plate_result
+            return self.tidy_result
+
+        def mock_subprocess(cmd, timeout, cwd):
+            self.subprocess_calls.append(cmd)
+            result = MagicMock()
+            result.returncode = 0
+            result.stderr = ""
+            result.stdout = ""
+            return result
+
+        with patch("line_loop.iteration.run_phase", side_effect=mock_run_phase), \
+             patch("line_loop.iteration.get_bead_snapshot", return_value=self.snapshot_after), \
+             patch("line_loop.iteration.detect_worked_task", return_value="lc-abc.1.1"), \
+             patch("line_loop.iteration.get_task_title", return_value="Task"), \
+             patch("line_loop.iteration.get_latest_commit", return_value="abc1234"), \
+             patch("line_loop.iteration.check_feature_completion", return_value=(True, "lc-abc.1")), \
+             patch("line_loop.iteration.get_task_info", return_value={"title": "Feature", "issue_type": "feature"}), \
+             patch("line_loop.iteration.get_children", return_value=[{"issue_type": "task", "status": "closed"}]), \
+             patch("line_loop.iteration.check_epic_completion_after_feature", return_value=(False, None)), \
+             patch("line_loop.iteration.run_subprocess", side_effect=mock_subprocess):
+            return line_loop.run_iteration(
+                1, 10, Path("/tmp"),
+                json_output=True,
+                before_snapshot=self.snapshot_before
+            )
+
+    def test_feature_closed_defensively_after_plate_success(self):
+        """Feature bead is closed via bd close after successful plate."""
+        plate_result = line_loop.PhaseResult(
+            phase="plate", success=True, output="",
+            exit_code=0, duration_seconds=2.0
+        )
+
+        self._run_iteration_with_plate(plate_result)
+
+        cmd_strs = [" ".join(c) for c in self.subprocess_calls]
+        self.assertTrue(
+            any("bd close lc-abc.1" in s for s in cmd_strs),
+            f"Expected 'bd close lc-abc.1' in subprocess calls, got: {cmd_strs}"
+        )
+
+    def test_feature_not_closed_when_plate_fails(self):
+        """Feature bead is NOT defensively closed when plate has an error."""
+        plate_result = line_loop.PhaseResult(
+            phase="plate", success=False, output="",
+            exit_code=1, duration_seconds=2.0, error="validation failed"
+        )
+
+        self._run_iteration_with_plate(plate_result)
+
+        cmd_strs = [" ".join(c) for c in self.subprocess_calls]
+        self.assertFalse(
+            any("bd close lc-abc.1" in s for s in cmd_strs),
+            f"Expected no 'bd close lc-abc.1' when plate fails, got: {cmd_strs}"
+        )
+
+
 class TestCliProfiles(unittest.TestCase):
     """Test CLI_PROFILES configuration and get_cli_profile()."""
 
