@@ -57,10 +57,10 @@ def run_bd_cmd(cmd):
         print(f"Error running: {cmd}")
         print(f"stderr: {result.stderr}")
         return None
-    # Extract bead ID from output (typically last line or specific format)
+    # Extract bead ID from output (format: "✓ Created issue: <id>")
     output = result.stdout.strip()
-    # Try to extract ID like "lc-abc"
-    match = re.search(r'lc-[a-z0-9]+', output)
+    # Try to extract ID like "screenwriting-abc" or "lc-abc"
+    match = re.search(r'[a-z]+-[a-z0-9]+', output)
     if match:
         return match.group(0)
     return output

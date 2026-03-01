@@ -384,10 +384,6 @@ The `line_loop/` package should be a sibling directory to the script.
 
 ### Launch Background Loop
 
-> **Do NOT invoke `claude` CLI directly or spawn a new Claude Code session.**
-> The loop script manages its own `claude` subprocesses internally.
-> You invoke the script via `python3` using the Bash tool.
-
 Use the Bash tool with `run_in_background: true` to start the loop:
 
 ```bash
