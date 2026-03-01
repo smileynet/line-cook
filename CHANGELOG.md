@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-02-28
 ### Added
 - `/loop` no longer gets stuck on stalled tasks — it detects when iterations
   produce no progress and moves on instead of retrying the same work indefinitely
@@ -398,7 +399,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/smileynet/line-cook/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/smileynet/line-cook/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/smileynet/line-cook/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/smileynet/line-cook/compare/v0.16.1...v0.17.0
