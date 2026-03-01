@@ -18,6 +18,8 @@ __version__ = "0.1.0"
 
 # Re-export config constants for convenience
 from .config import (
+    ACTIVE_EXTENSION_CAP,
+    ACTIVE_EXTENSION_WINDOW,
     BACKLOG_PRIORITY_THRESHOLD,
     CLI_PROFILES,
     CONSECUTIVE_SAME_TASK_LIMIT,
@@ -152,6 +154,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     # Config
+    "ACTIVE_EXTENSION_CAP",
+    "ACTIVE_EXTENSION_WINDOW",
     "BACKLOG_PRIORITY_THRESHOLD",
     "CLI_PROFILES",
     "CONSECUTIVE_SAME_TASK_LIMIT",

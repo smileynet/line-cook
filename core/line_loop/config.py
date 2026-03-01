@@ -17,7 +17,7 @@ DEFAULT_MAX_TASK_FAILURES = 3       # Skip task after this many failures
 CONSECUTIVE_SAME_TASK_LIMIT = 3     # Escalate after selecting same task N times in a row
 DEFAULT_MAX_ITERATIONS = 25         # Default loop iterations
 DEFAULT_IDLE_TIMEOUT = 180          # 3 minutes without tool actions triggers idle
-DEFAULT_IDLE_ACTION = "warn"        # "warn" or "terminate"
+DEFAULT_IDLE_ACTION = "terminate"   # "warn" or "terminate"
 
 # Periodic sync (long-running loop resilience)
 PERIODIC_SYNC_INTERVAL = 5          # Run bd sync every N iterations
@@ -100,9 +100,13 @@ def get_cli_profile(name: str) -> dict:
 # See .kiro/steering/line-cook.md, parking lot section
 EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})
 
+# Active-extension: productive phases get more time automatically
+ACTIVE_EXTENSION_WINDOW = 600       # 10 min - deadline extends by this on each tool action
+ACTIVE_EXTENSION_CAP = 3600         # 1 hour - absolute maximum regardless of activity
+
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
-    'cook': 1200,           # 20 min - Main work phase: TDD cycle, file edits, test runs
+    'cook': 1800,           # 30 min - Main work phase: TDD cycle, file edits, test runs
     'serve': 450,           # 7.5 min - Code review by sous-chef subagent
     'tidy': 240,            # 4 min - Commit, bd sync, git push
     'plate': 450,           # 7.5 min - BDD review via maitre, acceptance doc

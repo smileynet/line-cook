@@ -522,8 +522,8 @@ class TestDefaultPhaseTimeouts(unittest.TestCase):
     """Test that default phase timeouts are set correctly."""
 
     def test_default_cook_timeout(self):
-        """Cook phase default timeout is 1200 seconds."""
-        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['cook'], 1200)
+        """Cook phase default timeout is 1800 seconds (30 min)."""
+        self.assertEqual(line_loop.DEFAULT_PHASE_TIMEOUTS['cook'], 1800)
 
     def test_default_serve_timeout(self):
         """Serve phase default timeout is 450 seconds."""
@@ -4629,18 +4629,18 @@ class TestTimeoutMultiplier(unittest.TestCase):
     """Test per-CLI phase timeout multiplier."""
 
     def test_kiro_timeout_multiplier_applied(self):
-        """Kiro cook timeout = 1200 * 1.5 = 1800."""
+        """Kiro cook timeout = 1800 * 1.5 = 2700."""
         profile = line_loop.get_cli_profile('kiro')
         base_timeout = line_loop.DEFAULT_PHASE_TIMEOUTS['cook']
         multiplier = profile.get('phase_timeout_multiplier', 1.0)
-        self.assertEqual(int(base_timeout * multiplier), 1800)
+        self.assertEqual(int(base_timeout * multiplier), 2700)
 
     def test_claude_timeout_multiplier_default(self):
-        """Claude cook timeout unchanged at 1200."""
+        """Claude cook timeout unchanged at 1800."""
         profile = line_loop.get_cli_profile('claude')
         base_timeout = line_loop.DEFAULT_PHASE_TIMEOUTS['cook']
         multiplier = profile.get('phase_timeout_multiplier', 1.0)
-        self.assertEqual(int(base_timeout * multiplier), 1200)
+        self.assertEqual(int(base_timeout * multiplier), 1800)
 
     def test_kiro_idle_timeout_multiplied(self):
         """Kiro idle timeout is also multiplied (180 * 1.5 = 270)."""
@@ -5528,6 +5528,202 @@ class TestZeroProgressDetection(unittest.TestCase):
             "First selection should run normally without zero-progress check"
         )
         self.assertTrue(report.iterations[0].success)
+
+
+class TestActiveExtensionConfig(unittest.TestCase):
+    """Test active extension configuration constants."""
+
+    def test_active_extension_window(self):
+        """Extension window is 600 seconds (10 min)."""
+        self.assertEqual(line_loop.ACTIVE_EXTENSION_WINDOW, 600)
+
+    def test_active_extension_cap(self):
+        """Extension cap is 3600 seconds (1 hour)."""
+        self.assertEqual(line_loop.ACTIVE_EXTENSION_CAP, 3600)
+
+    def test_cap_greater_than_cook_default(self):
+        """Cap must be larger than the default cook timeout."""
+        self.assertGreater(
+            line_loop.ACTIVE_EXTENSION_CAP,
+            line_loop.DEFAULT_PHASE_TIMEOUTS['cook']
+        )
+
+    def test_window_less_than_cap(self):
+        """Extension window must be less than cap."""
+        self.assertLess(
+            line_loop.ACTIVE_EXTENSION_WINDOW,
+            line_loop.ACTIVE_EXTENSION_CAP
+        )
+
+
+class TestIdleActionDefault(unittest.TestCase):
+    """Test that idle action defaults to terminate."""
+
+    def test_default_idle_action_is_terminate(self):
+        """Default idle action is 'terminate' (not 'warn')."""
+        self.assertEqual(line_loop.DEFAULT_IDLE_ACTION, "terminate")
+
+
+class TestPhaseResultTimeoutFields(unittest.TestCase):
+    """Test PhaseResult timeout budget fields."""
+
+    def test_phase_result_has_timeout_base(self):
+        """PhaseResult has timeout_base field."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="", exit_code=0,
+            duration_seconds=100.0, timeout_base=1800, timeout_effective=2400,
+        )
+        self.assertEqual(result.timeout_base, 1800)
+
+    def test_phase_result_has_timeout_effective(self):
+        """PhaseResult has timeout_effective field."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="", exit_code=0,
+            duration_seconds=100.0, timeout_base=1800, timeout_effective=2400,
+        )
+        self.assertEqual(result.timeout_effective, 2400)
+
+    def test_phase_result_timeout_defaults_zero(self):
+        """PhaseResult timeout fields default to 0."""
+        result = line_loop.PhaseResult(
+            phase="cook", success=True, output="", exit_code=0,
+            duration_seconds=100.0,
+        )
+        self.assertEqual(result.timeout_base, 0)
+        self.assertEqual(result.timeout_effective, 0)
+
+
+def make_progress_state():
+    """Create a ProgressState for testing."""
+    from datetime import datetime
+    return line_loop.ProgressState(
+        status_file=None,
+        iteration=1,
+        max_iterations=25,
+        current_task=None,
+        current_task_title=None,
+        tasks_completed=0,
+        tasks_remaining=5,
+        started_at=datetime.now(),
+        iterations=[],
+    )
+
+
+class TestProgressStateBudgetFields(unittest.TestCase):
+    """Test ProgressState timeout budget tracking."""
+
+    def test_start_phase_sets_budget(self):
+        """start_phase stores timeout budget."""
+        ps = make_progress_state()
+        ps.start_phase("cook", phase_timeout=1800, idle_timeout=180)
+        self.assertEqual(ps.phase_timeout, 1800)
+        self.assertEqual(ps.phase_timeout_extended, 1800)
+        self.assertEqual(ps.idle_timeout, 180)
+
+    def test_update_deadline(self):
+        """update_deadline updates phase_timeout_extended."""
+        ps = make_progress_state()
+        ps.start_phase("cook", phase_timeout=1800, idle_timeout=180)
+        ps.update_deadline(2400)
+        self.assertEqual(ps.phase_timeout_extended, 2400)
+
+    def test_start_phase_resets_extended(self):
+        """Starting a new phase resets extended to base."""
+        ps = make_progress_state()
+        ps.start_phase("cook", phase_timeout=1800, idle_timeout=180)
+        ps.update_deadline(2400)
+        ps.start_phase("serve", phase_timeout=450, idle_timeout=300)
+        self.assertEqual(ps.phase_timeout, 450)
+        self.assertEqual(ps.phase_timeout_extended, 450)
+        self.assertEqual(ps.idle_timeout, 300)
+
+
+class TestTimeoutTipMessaging(unittest.TestCase):
+    """Test that timeout tip appears in output."""
+
+    def test_phase_progress_timeout_shows_tip(self):
+        """print_phase_progress shows tip when 'timeout' in extra."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_phase_progress("cook", "error", 1200.0, "timeout")
+        output = buf.getvalue()
+        self.assertIn("--cook-timeout 3600", output)
+
+    def test_phase_progress_serve_timeout_shows_serve_tip(self):
+        """print_phase_progress shows --serve-timeout tip for serve phase."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_phase_progress("serve", "error", 450.0, "timeout")
+        output = buf.getvalue()
+        self.assertIn("--serve-timeout 3600", output)
+
+    def test_phase_progress_non_timeout_no_tip(self):
+        """print_phase_progress does NOT show tip for non-timeout errors."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_phase_progress("cook", "error", 100.0, "crashed")
+        output = buf.getvalue()
+        self.assertNotIn("--cook-timeout", output)
+
+    def test_human_iteration_timeout_shows_tip(self):
+        """print_human_iteration shows tip for timeout outcome."""
+        result = make_iteration_result(outcome="timeout", success=False)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_human_iteration(result)
+        output = buf.getvalue()
+        self.assertIn("--cook-timeout 3600", output)
+
+    def test_human_iteration_completed_no_tip(self):
+        """print_human_iteration does NOT show tip for completed outcome."""
+        result = make_iteration_result(outcome="completed", success=True)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_human_iteration(result)
+        output = buf.getvalue()
+        self.assertNotIn("--cook-timeout", output)
+
+
+class TestEscalationTimeoutPattern(unittest.TestCase):
+    """Test timeout pattern detection in escalation reports."""
+
+    def test_timeout_pattern_detected(self):
+        """Escalation report detects timeout pattern when >50% failures are timeouts."""
+        iterations = [
+            make_iteration_result(iteration=1, outcome="timeout", success=False),
+            make_iteration_result(iteration=2, outcome="timeout", success=False),
+            make_iteration_result(iteration=3, outcome="needs_retry", success=False),
+            make_iteration_result(iteration=4, outcome="completed", success=True),
+        ]
+        skip_list = line_loop.SkipList()
+        report = line_loop.generate_escalation_report(iterations, skip_list, "circuit_breaker")
+        # Should have timeout-specific suggestion as first action
+        self.assertIn("--cook-timeout 3600", report["suggested_actions"][0])
+        self.assertIn("2 of 3", report["suggested_actions"][0])
+
+    def test_no_timeout_pattern_when_low_ratio(self):
+        """No timeout suggestion when timeouts are <= 50% of failures."""
+        iterations = [
+            make_iteration_result(iteration=1, outcome="timeout", success=False),
+            make_iteration_result(iteration=2, outcome="needs_retry", success=False),
+            make_iteration_result(iteration=3, outcome="crashed", success=False),
+            make_iteration_result(iteration=4, outcome="completed", success=True),
+        ]
+        skip_list = line_loop.SkipList()
+        report = line_loop.generate_escalation_report(iterations, skip_list, "circuit_breaker")
+        # First suggestion should NOT be about timeouts
+        self.assertNotIn("--cook-timeout", report["suggested_actions"][0])
+
+    def test_no_timeout_pattern_all_success(self):
+        """No timeout suggestion when all iterations succeeded."""
+        iterations = [
+            make_iteration_result(iteration=1, outcome="completed", success=True),
+            make_iteration_result(iteration=2, outcome="completed", success=True),
+        ]
+        skip_list = line_loop.SkipList()
+        report = line_loop.generate_escalation_report(iterations, skip_list, "no_work")
+        for action in report["suggested_actions"]:
+            self.assertNotIn("--cook-timeout", action)
 
 
 if __name__ == "__main__":

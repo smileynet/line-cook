@@ -575,6 +575,16 @@ def generate_escalation_report(
     # Get skipped tasks
     skipped_tasks = skip_list.get_skipped_tasks()
 
+    # Detect timeout patterns in recent failures
+    recent_all = iterations[-RECENT_ITERATIONS_LIMIT:]
+    recent_failure_count = sum(1 for i in recent_all if not i.success)
+    timeout_count = sum(1 for i in recent_all if i.outcome == "timeout")
+    timeout_pattern = (
+        recent_failure_count > 0
+        and timeout_count > 0
+        and timeout_count / recent_failure_count > 0.5
+    )
+
     # Suggested actions based on stop reason
     if stop_reason == "all_tasks_skipped":
         suggested_actions = [
@@ -597,6 +607,13 @@ def generate_escalation_report(
             "Review loop status: '/line:loop status'",
             "Check logs: '/line:loop watch --log-lines 100 --interval 0'"
         ]
+
+    # Add timeout-specific suggestion if pattern detected
+    if timeout_pattern:
+        suggested_actions.insert(0,
+            f"{timeout_count} of {recent_failure_count} recent failures were timeouts. "
+            "Consider --cook-timeout 3600 or splitting large tasks."
+        )
 
     return {
         "stop_reason": stop_reason,
@@ -663,7 +680,10 @@ def write_status_file(
     escalation: Optional[dict] = None,
     epic_mode: Optional[str] = None,
     current_epic: Optional[str] = None,
-    cli_name: Optional[str] = None
+    cli_name: Optional[str] = None,
+    phase_timeout: int = 0,
+    phase_timeout_extended: int = 0,
+    idle_timeout: int = 0,
 ):
     """Write live status JSON for external monitoring.
 
@@ -714,6 +734,14 @@ def write_status_file(
         status["current_action_count"] = current_action_count
     if last_action_time:
         status["last_action_time"] = last_action_time.isoformat()
+
+    # Timeout budget fields (for watch mode display)
+    if phase_timeout > 0:
+        status["phase_timeout"] = phase_timeout
+    if phase_timeout_extended > 0 and phase_timeout_extended != phase_timeout:
+        status["phase_timeout_extended"] = phase_timeout_extended
+    if idle_timeout > 0:
+        status["idle_timeout"] = idle_timeout
 
     # Add recent_iterations (limited for display)
     if iterations:

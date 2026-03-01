@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from .config import (
+    ACTIVE_EXTENSION_CAP,
+    ACTIVE_EXTENSION_WINDOW,
     DEFAULT_CLI,
     DEFAULT_FALLBACK_PHASE_TIMEOUT,
     DEFAULT_IDLE_ACTION,
@@ -230,9 +232,14 @@ def run_phase(
     phase_timeouts: Optional[dict[str, int]] = None,
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
-    cli_profile: Optional[dict] = None
+    cli_profile: Optional[dict] = None,
+    extension_cap: int = ACTIVE_EXTENSION_CAP
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
+
+    Active extension: Each tool action extends the deadline by ACTIVE_EXTENSION_WINDOW
+    seconds, up to extension_cap from start. This keeps productive tasks alive while
+    still enforcing an absolute ceiling.
 
     Args:
         phase: Phase name (cook, serve, tidy, plate, close-service)
@@ -244,8 +251,9 @@ def run_phase(
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
         idle_timeout: Override idle timeout, or None to use per-phase default from
             DEFAULT_PHASE_IDLE_TIMEOUTS (falls back to DEFAULT_IDLE_TIMEOUT)
-        idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: warn)
+        idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: terminate)
         cli_profile: CLI profile dict, or None to use DEFAULT_CLI (backward compatible)
+        extension_cap: Absolute maximum phase duration in seconds (default: ACTIVE_EXTENSION_CAP)
 
     Returns:
         PhaseResult with output, signals, and success status
@@ -266,8 +274,9 @@ def run_phase(
 
     cmd = build_phase_command(phase, args, cli_profile)
 
-    logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s)")
+    logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s, cap={extension_cap}s)")
     start_time = time.time()
+    hard_cap = start_time + extension_cap  # Absolute ceiling regardless of activity
 
     actions: list[ActionRecord] = []
     pending_actions: dict[str, ActionRecord] = {}
@@ -278,6 +287,8 @@ def run_phase(
     last_action_time: Optional[datetime] = None
     idle_warned: bool = False
     stderr_output: str = ""
+    timeout_base = timeout  # Base after multiplier, before active extensions
+    deadline = time.time() + timeout  # Default deadline (set before try for crash safety)
 
     stderr_file = tempfile.NamedTemporaryFile(
         mode='w+', prefix=f'line-loop-{phase}-stderr-', suffix='.log', delete=False
@@ -319,10 +330,13 @@ def run_phase(
                 output_lines.append(line)
                 new_actions, text = process_output_line(line, cli_profile, pending_actions)
                 actions.extend(new_actions)
-                # Track last action time for idle detection
+                # Track last action time for idle detection + active extension
                 if new_actions:
                     last_action_time = datetime.now()
                     idle_warned = False  # Reset idle warning on new activity
+                    # Active extension: push deadline forward on each action (never shrink)
+                    extended = time.time() + ACTIVE_EXTENSION_WINDOW
+                    deadline = max(deadline, min(extended, hard_cap))
                 # Notify progress callback when new actions detected
                 if new_actions and on_progress:
                     last_ts = new_actions[-1].timestamp
@@ -404,7 +418,8 @@ def run_phase(
     except subprocess.TimeoutExpired:
         _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
-        logger.warning(f"Phase {phase} timed out after {duration:.1f}s")
+        effective_timeout = int(deadline - start_time) if deadline > start_time else timeout
+        logger.warning(f"Phase {phase} timed out after {duration:.1f}s (base={timeout_base}s, effective={effective_timeout}s)")
         return PhaseResult(
             phase=phase,
             success=False,
@@ -413,7 +428,9 @@ def run_phase(
             duration_seconds=duration,
             signals=signals,
             actions=actions,
-            error=f"Timeout after {timeout}s"
+            error=f"Timeout after {int(duration)}s ({len(actions)} actions)",
+            timeout_base=timeout_base,
+            timeout_effective=effective_timeout,
         )
     except Exception as e:
         _cleanup_stderr_file(stderr_file)
@@ -427,7 +444,9 @@ def run_phase(
             duration_seconds=duration,
             signals=signals,
             actions=actions,
-            error=str(e)
+            error=str(e),
+            timeout_base=timeout_base,
+            timeout_effective=int(deadline - start_time) if deadline > start_time else timeout,
         )
 
     duration = time.time() - start_time
@@ -454,5 +473,7 @@ def run_phase(
         signals=signals,
         actions=actions,
         error=error_msg,
-        early_completion=early_completion
+        early_completion=early_completion,
+        timeout_base=timeout_base,
+        timeout_effective=int(deadline - start_time),
     )

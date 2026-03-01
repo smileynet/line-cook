@@ -27,7 +27,9 @@ from .config import (
     BANNER_MIN_WIDTH,
     BD_COMMAND_TIMEOUT,
     CLOSED_TASKS_QUERY_LIMIT,
+    DEFAULT_FALLBACK_PHASE_TIMEOUT,
     DEFAULT_IDLE_ACTION,
+    DEFAULT_PHASE_TIMEOUTS,
     GIT_COMMAND_TIMEOUT,
     GOAL_TEXT_MAX_LENGTH,
     HIERARCHY_MAX_DEPTH,
@@ -52,6 +54,7 @@ from .parsing import (
 )
 from .phase import (
     detect_kitchen_complete,
+    resolve_idle_timeout,
     run_phase,
     run_subprocess,
 )
@@ -102,6 +105,13 @@ def _action_dots(count: int) -> str:
     return "\u00b7" * dots + " "
 
 
+def _resolve_phase_timeout(phase: str, phase_timeouts: Optional[dict] = None) -> int:
+    """Resolve the effective base timeout for a phase (for budget display)."""
+    timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
+    fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
+    return timeouts.get(phase, fallback)
+
+
 def print_phase_progress(phase: str, status: str, duration: float = 0, extra: str = ""):
     """Print phase progress indicator.
 
@@ -115,6 +125,10 @@ def print_phase_progress(phase: str, status: str, duration: float = 0, extra: st
         print(f"  [{phase}] start")
     elif extra:
         print(f"  [{phase}] {extra} ({format_duration(duration)})")
+        if "timeout" in extra.lower():
+            # Strip retry suffix like "cook (retry 1)" -> "cook"
+            phase_name = phase.split("(")[0].strip()
+            print(f"  Tip: Use --{phase_name}-timeout 3600 for a longer limit")
     else:
         print(f"  [{phase}] done ({format_duration(duration)})")
 
@@ -185,6 +199,9 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
     # Findings filed during this iteration
     if result.findings_count > 0:
         print(f"  Findings: {result.findings_count} filed")
+
+    if result.outcome == "timeout":
+        print(f"\n  Tip: Use --cook-timeout 3600 for a longer limit")
 
     if result.outcome == "needs_retry" and retries > 0:
         print(f"\n  Retrying ({retries})...")
@@ -1551,13 +1568,21 @@ def run_iteration(
             print_phase_progress(f"cook{retry_info}", "start")
 
         if progress_state:
-            progress_state.start_phase("cook")
+            progress_state.start_phase(
+                "cook",
+                phase_timeout=_resolve_phase_timeout("cook", phase_timeouts),
+                idle_timeout=resolve_idle_timeout("cook", idle_timeout),
+            )
         cook_result = run_phase("cook", cwd, args=target_task_id or "", on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
         cook_cumulative_duration += cook_result.duration_seconds
         cook_cumulative_actions += len(cook_result.actions)
+
+        # Update budget display with actual effective deadline
+        if progress_state and cook_result.timeout_effective > 0:
+            progress_state.update_deadline(cook_result.timeout_effective)
 
         # Track if task completed despite timeout (still need serve review)
         task_completed_despite_timeout = False
@@ -1694,7 +1719,11 @@ def run_iteration(
             print_phase_progress("serve", "start")
 
         if progress_state:
-            progress_state.start_phase("serve")
+            progress_state.start_phase(
+                "serve",
+                phase_timeout=_resolve_phase_timeout("serve", phase_timeouts),
+                idle_timeout=resolve_idle_timeout("serve", idle_timeout),
+            )
         serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
@@ -1910,7 +1939,11 @@ def run_iteration(
         print_phase_progress("tidy", "start")
 
     if progress_state:
-        progress_state.start_phase("tidy")
+        progress_state.start_phase(
+            "tidy",
+            phase_timeout=_resolve_phase_timeout("tidy", phase_timeouts),
+            idle_timeout=resolve_idle_timeout("tidy", idle_timeout),
+        )
     tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
     all_actions.extend(tidy_result.actions)
     all_output.append("\n=== TIDY PHASE ===\n")
@@ -1971,7 +2004,11 @@ def run_iteration(
                 print_phase_progress("plate", "start")
 
             if progress_state:
-                progress_state.start_phase("plate")
+                progress_state.start_phase(
+                    "plate",
+                    phase_timeout=_resolve_phase_timeout("plate", phase_timeouts),
+                    idle_timeout=resolve_idle_timeout("plate", idle_timeout),
+                )
             plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
             all_actions.extend(plate_result.actions)
             all_output.append("\n=== PLATE PHASE ===\n")
@@ -2023,7 +2060,11 @@ def run_iteration(
                         print_phase_progress("close-service", "start")
 
                     if progress_state:
-                        progress_state.start_phase("close-service")
+                        progress_state.start_phase(
+                            "close-service",
+                            phase_timeout=_resolve_phase_timeout("close-service", phase_timeouts),
+                            idle_timeout=resolve_idle_timeout("close-service", idle_timeout),
+                        )
                     cs_result = run_phase("close-service", cwd, args=epic_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
                     all_actions.extend(cs_result.actions)
                     all_output.append("\n=== CLOSE-SERVICE PHASE ===\n")

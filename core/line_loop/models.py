@@ -55,7 +55,11 @@ if TYPE_CHECKING:
             current_phase: Optional[str] = None,
             phase_start_time: Optional[datetime] = None,
             current_action_count: int = 0,
-            last_action_time: Optional[datetime] = None
+            last_action_time: Optional[datetime] = None,
+            cli_name: Optional[str] = None,
+            phase_timeout: int = 0,
+            phase_timeout_extended: int = 0,
+            idle_timeout: int = 0,
         ) -> None: ...
 
 
@@ -475,6 +479,8 @@ class PhaseResult:
     actions: list = field(default_factory=list)  # ActionRecords from this phase
     error: Optional[str] = None  # Error message if failed
     early_completion: bool = False  # True if phase emitted phase_complete signal
+    timeout_base: int = 0       # Original phase timeout before extensions (seconds)
+    timeout_effective: int = 0  # Actual deadline used, including extensions (seconds)
 
 
 def summarize_tool_input(tool_name: str, input_data: dict) -> str:
@@ -648,16 +654,38 @@ class ProgressState:
     idle_detected: bool = False
     idle_since: Optional[datetime] = None
 
+    # Timeout budget fields (populated per-phase for watch mode)
+    phase_timeout: int = 0           # Base timeout for current phase (seconds)
+    phase_timeout_extended: int = 0  # Current effective deadline (seconds from phase start)
+    idle_timeout: int = 0            # Idle timeout for current phase (seconds)
+
     # Status writer callback (injected to avoid circular imports)
     _status_writer: Optional[Callable] = None
 
-    def start_phase(self, phase: str):
-        """Mark the start of a new phase."""
+    def start_phase(self, phase: str, phase_timeout: int = 0, idle_timeout: int = 0):
+        """Mark the start of a new phase.
+
+        Args:
+            phase: Phase name
+            phase_timeout: Base timeout in seconds (for budget display)
+            idle_timeout: Idle timeout in seconds (for budget display)
+        """
         self.current_phase = phase
         self.phase_start_time = datetime.now()
         self.current_action_count = 0
+        self.phase_timeout = phase_timeout
+        self.phase_timeout_extended = phase_timeout  # Starts at base, grows with extensions
+        self.idle_timeout = idle_timeout
         self._write_status()
         self._last_write = time.time()  # Reset throttle after phase start write
+
+    def update_deadline(self, effective_seconds: int):
+        """Update the extended deadline (called when active extension fires).
+
+        Args:
+            effective_seconds: New effective timeout in seconds from phase start
+        """
+        self.phase_timeout_extended = effective_seconds
 
     def update_progress(self, action_count: int, last_action_time: str):
         """Called when new actions are detected during phase execution.
@@ -697,5 +725,8 @@ class ProgressState:
             phase_start_time=self.phase_start_time,
             current_action_count=self.current_action_count,
             last_action_time=self.last_action_time,
-            cli_name=self.cli_name
+            cli_name=self.cli_name,
+            phase_timeout=self.phase_timeout,
+            phase_timeout_extended=self.phase_timeout_extended,
+            idle_timeout=self.idle_timeout,
         )

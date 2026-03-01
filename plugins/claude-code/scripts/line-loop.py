@@ -52,7 +52,7 @@ DEFAULT_MAX_TASK_FAILURES = 3       # Skip task after this many failures
 CONSECUTIVE_SAME_TASK_LIMIT = 3     # Escalate after selecting same task N times in a row
 DEFAULT_MAX_ITERATIONS = 25         # Default loop iterations
 DEFAULT_IDLE_TIMEOUT = 180          # 3 minutes without tool actions triggers idle
-DEFAULT_IDLE_ACTION = "warn"        # "warn" or "terminate"
+DEFAULT_IDLE_ACTION = "terminate"   # "warn" or "terminate"
 
 # Periodic sync (long-running loop resilience)
 PERIODIC_SYNC_INTERVAL = 5          # Run bd sync every N iterations
@@ -135,9 +135,13 @@ def get_cli_profile(name: str) -> dict:
 # See .kiro/steering/line-cook.md, parking lot section
 EXCLUDED_EPIC_TITLES = frozenset({"Retrospective", "Backlog"})
 
+# Active-extension: productive phases get more time automatically
+ACTIVE_EXTENSION_WINDOW = 600       # 10 min - deadline extends by this on each tool action
+ACTIVE_EXTENSION_CAP = 3600         # 1 hour - absolute maximum regardless of activity
+
 # Default phase timeouts (in seconds) - can be overridden via CLI
 DEFAULT_PHASE_TIMEOUTS = {
-    'cook': 1200,           # 20 min - Main work phase: TDD cycle, file edits, test runs
+    'cook': 1800,           # 30 min - Main work phase: TDD cycle, file edits, test runs
     'serve': 450,           # 7.5 min - Code review by sous-chef subagent
     'tidy': 240,            # 4 min - Commit, bd sync, git push
     'plate': 450,           # 7.5 min - BDD review via maitre, acceptance doc
@@ -177,7 +181,11 @@ if TYPE_CHECKING:
             current_phase: Optional[str] = None,
             phase_start_time: Optional[datetime] = None,
             current_action_count: int = 0,
-            last_action_time: Optional[datetime] = None
+            last_action_time: Optional[datetime] = None,
+            cli_name: Optional[str] = None,
+            phase_timeout: int = 0,
+            phase_timeout_extended: int = 0,
+            idle_timeout: int = 0,
         ) -> None: ...
 
 
@@ -597,6 +605,8 @@ class PhaseResult:
     actions: list = field(default_factory=list)  # ActionRecords from this phase
     error: Optional[str] = None  # Error message if failed
     early_completion: bool = False  # True if phase emitted phase_complete signal
+    timeout_base: int = 0       # Original phase timeout before extensions (seconds)
+    timeout_effective: int = 0  # Actual deadline used, including extensions (seconds)
 
 
 def summarize_tool_input(tool_name: str, input_data: dict) -> str:
@@ -770,16 +780,38 @@ class ProgressState:
     idle_detected: bool = False
     idle_since: Optional[datetime] = None
 
+    # Timeout budget fields (populated per-phase for watch mode)
+    phase_timeout: int = 0           # Base timeout for current phase (seconds)
+    phase_timeout_extended: int = 0  # Current effective deadline (seconds from phase start)
+    idle_timeout: int = 0            # Idle timeout for current phase (seconds)
+
     # Status writer callback (injected to avoid circular imports)
     _status_writer: Optional[Callable] = None
 
-    def start_phase(self, phase: str):
-        """Mark the start of a new phase."""
+    def start_phase(self, phase: str, phase_timeout: int = 0, idle_timeout: int = 0):
+        """Mark the start of a new phase.
+
+        Args:
+            phase: Phase name
+            phase_timeout: Base timeout in seconds (for budget display)
+            idle_timeout: Idle timeout in seconds (for budget display)
+        """
         self.current_phase = phase
         self.phase_start_time = datetime.now()
         self.current_action_count = 0
+        self.phase_timeout = phase_timeout
+        self.phase_timeout_extended = phase_timeout  # Starts at base, grows with extensions
+        self.idle_timeout = idle_timeout
         self._write_status()
         self._last_write = time.time()  # Reset throttle after phase start write
+
+    def update_deadline(self, effective_seconds: int):
+        """Update the extended deadline (called when active extension fires).
+
+        Args:
+            effective_seconds: New effective timeout in seconds from phase start
+        """
+        self.phase_timeout_extended = effective_seconds
 
     def update_progress(self, action_count: int, last_action_time: str):
         """Called when new actions are detected during phase execution.
@@ -819,7 +851,10 @@ class ProgressState:
             phase_start_time=self.phase_start_time,
             current_action_count=self.current_action_count,
             last_action_time=self.last_action_time,
-            cli_name=self.cli_name
+            cli_name=self.cli_name,
+            phase_timeout=self.phase_timeout,
+            phase_timeout_extended=self.phase_timeout_extended,
+            idle_timeout=self.idle_timeout,
         )
 
 
@@ -1512,9 +1547,14 @@ def run_phase(
     phase_timeouts: Optional[dict[str, int]] = None,
     idle_timeout: Optional[int] = None,
     idle_action: str = DEFAULT_IDLE_ACTION,
-    cli_profile: Optional[dict] = None
+    cli_profile: Optional[dict] = None,
+    extension_cap: int = ACTIVE_EXTENSION_CAP
 ) -> PhaseResult:
     """Invoke a single Line Cook skill phase (cook, serve, tidy, plate, close-service).
+
+    Active extension: Each tool action extends the deadline by ACTIVE_EXTENSION_WINDOW
+    seconds, up to extension_cap from start. This keeps productive tasks alive while
+    still enforcing an absolute ceiling.
 
     Args:
         phase: Phase name (cook, serve, tidy, plate, close-service)
@@ -1526,8 +1566,9 @@ def run_phase(
         phase_timeouts: Optional dict of phase-specific timeouts (overrides defaults)
         idle_timeout: Override idle timeout, or None to use per-phase default from
             DEFAULT_PHASE_IDLE_TIMEOUTS (falls back to DEFAULT_IDLE_TIMEOUT)
-        idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: warn)
+        idle_action: Action on idle - "warn" logs warning, "terminate" stops phase (default: terminate)
         cli_profile: CLI profile dict, or None to use DEFAULT_CLI (backward compatible)
+        extension_cap: Absolute maximum phase duration in seconds (default: ACTIVE_EXTENSION_CAP)
 
     Returns:
         PhaseResult with output, signals, and success status
@@ -1548,8 +1589,9 @@ def run_phase(
 
     cmd = build_phase_command(phase, args, cli_profile)
 
-    logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s)")
+    logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s, cap={extension_cap}s)")
     start_time = time.time()
+    hard_cap = start_time + extension_cap  # Absolute ceiling regardless of activity
 
     actions: list[ActionRecord] = []
     pending_actions: dict[str, ActionRecord] = {}
@@ -1560,6 +1602,8 @@ def run_phase(
     last_action_time: Optional[datetime] = None
     idle_warned: bool = False
     stderr_output: str = ""
+    timeout_base = timeout  # Base after multiplier, before active extensions
+    deadline = time.time() + timeout  # Default deadline (set before try for crash safety)
 
     stderr_file = tempfile.NamedTemporaryFile(
         mode='w+', prefix=f'line-loop-{phase}-stderr-', suffix='.log', delete=False
@@ -1601,10 +1645,13 @@ def run_phase(
                 output_lines.append(line)
                 new_actions, text = process_output_line(line, cli_profile, pending_actions)
                 actions.extend(new_actions)
-                # Track last action time for idle detection
+                # Track last action time for idle detection + active extension
                 if new_actions:
                     last_action_time = datetime.now()
                     idle_warned = False  # Reset idle warning on new activity
+                    # Active extension: push deadline forward on each action (never shrink)
+                    extended = time.time() + ACTIVE_EXTENSION_WINDOW
+                    deadline = max(deadline, min(extended, hard_cap))
                 # Notify progress callback when new actions detected
                 if new_actions and on_progress:
                     last_ts = new_actions[-1].timestamp
@@ -1686,7 +1733,8 @@ def run_phase(
     except subprocess.TimeoutExpired:
         _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
-        logger.warning(f"Phase {phase} timed out after {duration:.1f}s")
+        effective_timeout = int(deadline - start_time) if deadline > start_time else timeout
+        logger.warning(f"Phase {phase} timed out after {duration:.1f}s (base={timeout_base}s, effective={effective_timeout}s)")
         return PhaseResult(
             phase=phase,
             success=False,
@@ -1695,7 +1743,9 @@ def run_phase(
             duration_seconds=duration,
             signals=signals,
             actions=actions,
-            error=f"Timeout after {timeout}s"
+            error=f"Timeout after {int(duration)}s ({len(actions)} actions)",
+            timeout_base=timeout_base,
+            timeout_effective=effective_timeout,
         )
     except Exception as e:
         _cleanup_stderr_file(stderr_file)
@@ -1709,7 +1759,9 @@ def run_phase(
             duration_seconds=duration,
             signals=signals,
             actions=actions,
-            error=str(e)
+            error=str(e),
+            timeout_base=timeout_base,
+            timeout_effective=int(deadline - start_time) if deadline > start_time else timeout,
         )
 
     duration = time.time() - start_time
@@ -1736,7 +1788,9 @@ def run_phase(
         signals=signals,
         actions=actions,
         error=error_msg,
-        early_completion=early_completion
+        early_completion=early_completion,
+        timeout_base=timeout_base,
+        timeout_effective=int(deadline - start_time),
     )
 
 
@@ -1785,6 +1839,13 @@ def _action_dots(count: int) -> str:
     return "\u00b7" * dots + " "
 
 
+def _resolve_phase_timeout(phase: str, phase_timeouts: Optional[dict] = None) -> int:
+    """Resolve the effective base timeout for a phase (for budget display)."""
+    timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
+    fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
+    return timeouts.get(phase, fallback)
+
+
 def print_phase_progress(phase: str, status: str, duration: float = 0, extra: str = ""):
     """Print phase progress indicator.
 
@@ -1798,6 +1859,10 @@ def print_phase_progress(phase: str, status: str, duration: float = 0, extra: st
         print(f"  [{phase}] start")
     elif extra:
         print(f"  [{phase}] {extra} ({format_duration(duration)})")
+        if "timeout" in extra.lower():
+            # Strip retry suffix like "cook (retry 1)" -> "cook"
+            phase_name = phase.split("(")[0].strip()
+            print(f"  Tip: Use --{phase_name}-timeout 3600 for a longer limit")
     else:
         print(f"  [{phase}] done ({format_duration(duration)})")
 
@@ -1868,6 +1933,9 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
     # Findings filed during this iteration
     if result.findings_count > 0:
         print(f"  Findings: {result.findings_count} filed")
+
+    if result.outcome == "timeout":
+        print(f"\n  Tip: Use --cook-timeout 3600 for a longer limit")
 
     if result.outcome == "needs_retry" and retries > 0:
         print(f"\n  Retrying ({retries})...")
@@ -3233,13 +3301,21 @@ def run_iteration(
             print_phase_progress(f"cook{retry_info}", "start")
 
         if progress_state:
-            progress_state.start_phase("cook")
+            progress_state.start_phase(
+                "cook",
+                phase_timeout=_resolve_phase_timeout("cook", phase_timeouts),
+                idle_timeout=resolve_idle_timeout("cook", idle_timeout),
+            )
         cook_result = run_phase("cook", cwd, args=target_task_id or "", on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
         all_actions.extend(cook_result.actions)
         all_output.append(f"=== COOK PHASE (attempt {cook_attempts}) ===\n")
         all_output.append(cook_result.output)
         cook_cumulative_duration += cook_result.duration_seconds
         cook_cumulative_actions += len(cook_result.actions)
+
+        # Update budget display with actual effective deadline
+        if progress_state and cook_result.timeout_effective > 0:
+            progress_state.update_deadline(cook_result.timeout_effective)
 
         # Track if task completed despite timeout (still need serve review)
         task_completed_despite_timeout = False
@@ -3376,7 +3452,11 @@ def run_iteration(
             print_phase_progress("serve", "start")
 
         if progress_state:
-            progress_state.start_phase("serve")
+            progress_state.start_phase(
+                "serve",
+                phase_timeout=_resolve_phase_timeout("serve", phase_timeouts),
+                idle_timeout=resolve_idle_timeout("serve", idle_timeout),
+            )
         serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
         all_actions.extend(serve_result.actions)
         all_output.append("\n=== SERVE PHASE ===\n")
@@ -3592,7 +3672,11 @@ def run_iteration(
         print_phase_progress("tidy", "start")
 
     if progress_state:
-        progress_state.start_phase("tidy")
+        progress_state.start_phase(
+            "tidy",
+            phase_timeout=_resolve_phase_timeout("tidy", phase_timeouts),
+            idle_timeout=resolve_idle_timeout("tidy", idle_timeout),
+        )
     tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
     all_actions.extend(tidy_result.actions)
     all_output.append("\n=== TIDY PHASE ===\n")
@@ -3653,7 +3737,11 @@ def run_iteration(
                 print_phase_progress("plate", "start")
 
             if progress_state:
-                progress_state.start_phase("plate")
+                progress_state.start_phase(
+                    "plate",
+                    phase_timeout=_resolve_phase_timeout("plate", phase_timeouts),
+                    idle_timeout=resolve_idle_timeout("plate", idle_timeout),
+                )
             plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
             all_actions.extend(plate_result.actions)
             all_output.append("\n=== PLATE PHASE ===\n")
@@ -3704,7 +3792,11 @@ def run_iteration(
                         print_phase_progress("close-service", "start")
 
                     if progress_state:
-                        progress_state.start_phase("close-service")
+                        progress_state.start_phase(
+                            "close-service",
+                            phase_timeout=_resolve_phase_timeout("close-service", phase_timeouts),
+                            idle_timeout=resolve_idle_timeout("close-service", idle_timeout),
+                        )
                     cs_result = run_phase("close-service", cwd, args=epic_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
                     all_actions.extend(cs_result.actions)
                     all_output.append("\n=== CLOSE-SERVICE PHASE ===\n")
@@ -4270,6 +4362,16 @@ def generate_escalation_report(
     # Get skipped tasks
     skipped_tasks = skip_list.get_skipped_tasks()
 
+    # Detect timeout patterns in recent failures
+    recent_all = iterations[-RECENT_ITERATIONS_LIMIT:]
+    recent_failure_count = sum(1 for i in recent_all if not i.success)
+    timeout_count = sum(1 for i in recent_all if i.outcome == "timeout")
+    timeout_pattern = (
+        recent_failure_count > 0
+        and timeout_count > 0
+        and timeout_count / recent_failure_count > 0.5
+    )
+
     # Suggested actions based on stop reason
     if stop_reason == "all_tasks_skipped":
         suggested_actions = [
@@ -4292,6 +4394,13 @@ def generate_escalation_report(
             "Review loop status: '/line:loop status'",
             "Check logs: '/line:loop watch --log-lines 100 --interval 0'"
         ]
+
+    # Add timeout-specific suggestion if pattern detected
+    if timeout_pattern:
+        suggested_actions.insert(0,
+            f"{timeout_count} of {recent_failure_count} recent failures were timeouts. "
+            "Consider --cook-timeout 3600 or splitting large tasks."
+        )
 
     return {
         "stop_reason": stop_reason,
@@ -4358,7 +4467,10 @@ def write_status_file(
     escalation: Optional[dict] = None,
     epic_mode: Optional[str] = None,
     current_epic: Optional[str] = None,
-    cli_name: Optional[str] = None
+    cli_name: Optional[str] = None,
+    phase_timeout: int = 0,
+    phase_timeout_extended: int = 0,
+    idle_timeout: int = 0,
 ):
     """Write live status JSON for external monitoring.
 
@@ -4409,6 +4521,14 @@ def write_status_file(
         status["current_action_count"] = current_action_count
     if last_action_time:
         status["last_action_time"] = last_action_time.isoformat()
+
+    # Timeout budget fields (for watch mode display)
+    if phase_timeout > 0:
+        status["phase_timeout"] = phase_timeout
+    if phase_timeout_extended > 0 and phase_timeout_extended != phase_timeout:
+        status["phase_timeout_extended"] = phase_timeout_extended
+    if idle_timeout > 0:
+        status["idle_timeout"] = idle_timeout
 
     # Add recent_iterations (limited for display)
     if iterations:
