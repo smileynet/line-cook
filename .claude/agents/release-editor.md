@@ -119,6 +119,7 @@ If the [Unreleased] section is empty, help populate it from git history:
 
 5. **Draft entries following these rules:**
    - **Lead with the user experience, not the implementation mechanism.** Name the problem solved or the capability gained — not the technique used to get there.
+   - Describe how users' workflows are affected
    - Write for plugin users, not maintainers
    - Consolidate related commits into single entries
    - Skip anything that doesn't change user experience
