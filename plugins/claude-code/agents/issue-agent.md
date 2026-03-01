@@ -96,7 +96,7 @@ If red flags are present: still analyze the issue normally, but note the concern
 
 ### Step 1.6: Check for prior inspect feedback
 
-Before classifying, check if this issue has been reviewed by `/inspect`:
+Before classifying, check if this issue has been reviewed by `/inspect-issues`:
 
 ```bash
 cat .beads/inspect-feedback/issue-{{ISSUE_NUMBER}}.json 2>/dev/null || echo "No prior feedback"

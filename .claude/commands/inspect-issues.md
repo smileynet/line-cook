@@ -8,8 +8,8 @@ allowed-tools: Bash, Read, Glob, Grep, Task, AskUserQuestion
 **Review all open PRs and produce a verdict for each.** Discovers open PRs, delegates each to the inspector agent, displays the full report locally, and prompts for action.
 
 **Usage:**
-- `/inspect` — review all open PRs
-- `/inspect 7` — review only PR #7
+- `/inspect-issues` — review all open PRs
+- `/inspect-issues 7` — review only PR #7
 
 ---
 
@@ -220,11 +220,11 @@ Use AskUserQuestion to present options based on the verdict:
 
 **Concise comment format** (not the full analysis):
 ```
-<!-- line:inspect verdict -->
+<!-- line:inspect-issues verdict -->
 **Verdict: <VERDICT>**
 <1-2 sentence rationale>
 ---
-*Reviewed by `/inspect`.*
+*Reviewed by `/inspect-issues`.*
 ```
 
 Post using:

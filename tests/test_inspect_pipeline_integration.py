@@ -71,7 +71,7 @@ def make_inspector_output(issue_number, pr_number, verdict="MERGE"):
 def augment_and_write(repo_root, inspector_output):
     """Simulate the inspect command's augmentation and atomic file write.
 
-    Source of truth: .claude/commands/inspect.md (Step 3a: Write Feedback File).
+    Source of truth: .claude/commands/inspect-issues.md (Step 3a: Write Feedback File).
     Replicates the logic from that command:
     1. Read existing feedback to get previous polish_attempts
     2. If POLISH: increment counter; else: reset to 0

@@ -24,8 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.18.0] - 2026-02-27
 ### Added
-- `/inspect` command — review bot-created issues and PRs before merging, with checks for what changed, project value, security risks, and code quality; flags PRs stuck in polish loops after 3+ attempts
-- `/feedback-broker` skill — query feedback from `/inspect`, `/loop`, and the issue agent in one place by issue number, task ID, or PR number
+- `/inspect-issues` command — review bot-created issues and PRs before merging, with checks for what changed, project value, security risks, and code quality; flags PRs stuck in polish loops after 3+ attempts
+- `/feedback-broker` skill — query feedback from `/inspect-issues`, `/loop`, and the issue agent in one place by issue number, task ID, or PR number
 - `/loop` now works on `main` by default (trunk-based) instead of requiring epic branches — opt in to branches when you need them
 - `/loop` warns before the circuit breaker trips, giving you early notice of failure accumulation
 - `/loop` automatically skips tasks that fail repeatedly instead of retrying indefinitely, and classifies failures (transient vs persistent vs environmental) to adjust retry timing
@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/serve` routes findings to three destinations: [FIX] for immediate action, [DEFER] for backlog, [RETRO] for process improvement
 - Issue agent analysis now includes confidence scores (HIGH/MEDIUM/LOW) to help prioritize which findings to act on first
 - Issue agent always posts a comment when analysis times out, so issues never go silently unresolved
-- Issue agent incorporates prior `/inspect` feedback when re-analyzing an issue
+- Issue agent incorporates prior `/inspect-issues` feedback when re-analyzing an issue
 
 ### Fixed
 - `/serve` now saves feedback on BLOCKED verdicts so the next iteration picks up where it left off

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The inspector agent outputs structured JSON instead of markdown to enable reliable parsing by downstream agents (inspect command, issue-agent, feedback broker).
+The inspector agent outputs structured JSON instead of markdown to enable reliable parsing by downstream agents (inspect-issues command, issue-agent, feedback broker).
 
 ## Format
 
@@ -37,14 +37,14 @@ The inspector returns valid JSON with this structure:
 ## Workflow
 
 1. **Inspector** outputs JSON
-2. **Inspect command** augments with `polish_attempts` and `reviewed_at`
+2. **Inspect-issues command** augments with `polish_attempts` and `reviewed_at`
 3. **Feedback file** written to `.beads/inspect-feedback/issue-<number>.json`
 4. **Downstream agents** (issue-agent, feedback broker) read structured feedback
 
 ## Migration
 
-**Before:** Inspector output markdown → inspect command parsed sections → wrote JSON
+**Before:** Inspector output markdown → inspect-issues command parsed sections → wrote JSON
 
-**After:** Inspector outputs JSON → inspect command augments → writes JSON
+**After:** Inspector outputs JSON → inspect-issues command augments → writes JSON
 
 No markdown parsing needed.

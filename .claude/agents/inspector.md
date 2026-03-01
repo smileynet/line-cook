@@ -1,6 +1,6 @@
 ---
 name: inspector
-description: "Reviews bot-created issue/PR pairs for validity, intent alignment, scope, security risks, code quality, what changed, project value, and root cause depth. Invoked by the inspect command. Read-only."
+description: "Reviews bot-created issue/PR pairs for validity, intent alignment, scope, security risks, code quality, what changed, project value, and root cause depth. Invoked by the inspect-issues command. Read-only."
 tools: Glob, Grep, Read
 ---
 
