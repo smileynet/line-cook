@@ -18,7 +18,7 @@ Unlike headless review agents (taster, sous-chef), you are an **interactive coll
 
 ## Workflow
 
-Guide the user through these steps (step 2.5 is conditional):
+Guide the user through these steps:
 
 ```
 1. Gather Context
@@ -43,7 +43,7 @@ Guide the user through these steps (step 2.5 is conditional):
 Ask for the target version if not provided. Read the current version and validate:
 
 ```bash
-cat plugins/claude-code/.claude-plugin/plugin.json | grep version
+grep version plugins/claude-code/.claude-plugin/plugin.json
 ```
 
 Verify the new version is newer than current.

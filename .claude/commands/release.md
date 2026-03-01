@@ -88,7 +88,7 @@ If `$ARGUMENTS` matches a version number (e.g. `0.18.0`), optionally followed by
 
 ### Post-Release: Install Local Plugins
 
-After a successful release (commit created and pushed), install the new version locally for all three TUIs:
+After a successful release (commit created and pushed), install the new version locally for all three platforms:
 
 ```bash
 ./dev/install-claude-code.sh
