@@ -39,7 +39,7 @@ Report the results in a clear table (pass/fail per check, any warnings).
      - **Include:** New commands, changed command/agent behavior, new workflow capabilities, bug fixes users encounter, breaking changes
      - **Exclude:** Eval/benchmark tooling, dev scripts, template syncing, build infra, agent review rule changes, CI/workflow changes, internal refactoring, beads sync commits, docs updates (unless user-facing command docs)
   5. Categorize: `feat:` → Added, `fix:` → Fixed, `refactor:` affecting behavior → Changed
-  6. Write entries that explain the **value** — what users can now do, or what problem is solved. Consolidate related commits into single entries.
+  6. Write entries that explain the **value** — what users can now do, or what problem is solved. Lead with the user experience, not the implementation mechanism. If an entry reads like a commit message describing what the code does internally, rewrite it to describe what the user experiences. Consolidate related commits into single entries.
   7. Edit `CHANGELOG.md` to add the entries under `## [Unreleased]`
   8. Commit the changelog update
 

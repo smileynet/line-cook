@@ -118,12 +118,28 @@ If the [Unreleased] section is empty, help populate it from git history:
    - `refactor:` affecting user behavior → Changed
 
 5. **Draft entries following these rules:**
-   - Explain the value first — what can users now do, or what problem is solved?
+   - **Lead with the user experience, not the implementation mechanism.** Name the problem solved or the capability gained — not the technique used to get there.
    - Write for plugin users, not maintainers
    - Consolidate related commits into single entries
-   - Explain how it affects their workflow
    - Skip anything that doesn't change user experience
    - See `docs/guidance/changelog.md` for full guidance and examples
+
+   **Anti-pattern — mechanism-focused (reads like a commit message):**
+   ```
+   - `/loop` detects zero-progress iterations via commit hash comparison
+   - `/loop` detects and retries premature cook phase exits
+   - `/loop` failure classification now drives retry timing
+   ```
+
+   **Rewrite — value-focused (reads like a release note):**
+   ```
+   - `/loop` no longer gets stuck on stalled tasks — it moves on instead of
+     retrying the same work indefinitely
+   - `/loop` automatically retries interrupted tasks instead of leaving work
+     half-done
+   - Smarter retry timing in `/loop` — transient failures retry quickly,
+     persistent ones get skipped sooner
+   ```
 
 6. **Present draft to user:**
    ```
@@ -151,9 +167,10 @@ Read the [Unreleased] section and review against the criteria from `docs/guidanc
 - [ ] Changes categorized correctly (Added, Changed, Fixed, etc.)
 - [ ] User-friendly language (no jargon without explanation)
 - [ ] Breaking changes highlighted with **BREAKING** prefix
-- [ ] Value is explicit — each entry explains WHY this matters to users (what they can now do, or what problem is solved)
+- [ ] Value is explicit — each entry names the user problem solved or capability gained, not the internal mechanism. If an entry reads like a commit message describing *what the code does*, rewrite it to describe *what the user experiences*.
 
 **Common Issues to Flag:**
+- Mechanism-focused entries that describe *what the code does* instead of *what the user experiences* (e.g., "detects zero-progress iterations" → "no longer gets stuck on stalled tasks")
 - Vague entries like "Updated config" or "Fixed bug"
 - Commit log dumps (multiple tiny entries that should be consolidated)
 - Technical jargon without explanation
