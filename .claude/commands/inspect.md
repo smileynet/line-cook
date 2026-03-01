@@ -78,7 +78,9 @@ If the inspector output is not valid JSON (e.g., wrapped in markdown fences), st
 
 ### Step 3a: Write Feedback File
 
-After the inspector returns valid JSON, augment it and write to `.beads/inspect-feedback/issue-<number>.json`:
+After the inspector returns valid JSON, augment it and write to `.beads/inspect-feedback/issue-<number>.json`.
+
+If `issue_number` is null, skip writing the feedback file — feedback is only consumed by the issue-agent, which looks up by issue number.
 
 ```bash
 mkdir -p .beads/inspect-feedback
@@ -255,7 +257,8 @@ Group the tally by verdict type. Only show lines for verdicts that have a count 
 ## Error Handling
 
 - **gh CLI not authenticated:** Report the error and stop.
-- **Issue not found for a PR:** Skip that PR, note it in the summary as "SKIPPED — issue not found".
+- **PR has no issue reference:** Proceed normally with `issue_number` as null (per Step 2). The PR is evaluated on its own merits.
+- **Issue reference found but inaccessible:** Log a warning but still inspect the PR using only the PR metadata and diff.
 - **Inspector fails:** Skip that PR, note it in the summary as "SKIPPED — inspection failed".
 - **Feedback file write fails:** Log warning but continue (feedback is supplementary, not critical).
 - **Polisher fails on POLISH verdict:** Display the verdict anyway. Note in the summary that polish was attempted but failed.
