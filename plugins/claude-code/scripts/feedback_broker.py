@@ -16,7 +16,10 @@ def read_inspect_feedback(repo_root: Path, issue_number: int) -> Optional[dict[s
     if not feedback_file.exists():
         return None
 
-    return json.loads(feedback_file.read_text())
+    try:
+        return json.loads(feedback_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def read_loop_feedback(repo_root: Path, task_id: str) -> Optional[dict[str, Any]]:
@@ -29,14 +32,20 @@ def read_loop_feedback(repo_root: Path, task_id: str) -> Optional[dict[str, Any]
     # Primary: single retry-context file written by the loop
     retry_file = repo_root / ".line-cook" / "retry-context.json"
     if retry_file.exists():
-        data = json.loads(retry_file.read_text())
-        if data.get("task_id") == task_id:
+        try:
+            data = json.loads(retry_file.read_text())
+        except (json.JSONDecodeError, OSError):
+            data = None
+        if data is not None and data.get("task_id") == task_id:
             return data
 
     # Fallback: per-task feedback file (used by tests and future writers)
     feedback_file = repo_root / ".beads" / "loop-feedback" / f"{task_id}.json"
     if feedback_file.exists():
-        return json.loads(feedback_file.read_text())
+        try:
+            return json.loads(feedback_file.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
 
     return None
 
@@ -65,7 +74,10 @@ def read_issue_agent_feedback(repo_root: Path, issue_number: int) -> Optional[di
     if not feedback_file.exists():
         return None
 
-    return json.loads(feedback_file.read_text())
+    try:
+        return json.loads(feedback_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def synthesize_feedback(
