@@ -38,6 +38,10 @@ Extract:
 
 General rule: strip `--`, replace `-` with `_`, uppercase.
 
+**Auto-populated variables** (do not pass via CLI):
+- `ISSUE_NUMBER` — extracted from the first positional argument
+- `REPORTER` — fetched from the issue author's GitHub login
+
 If `$ARGUMENTS` is empty or missing required positional args, show usage help and stop.
 
 ### Step 2: Read and Validate Template

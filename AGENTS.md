@@ -75,6 +75,8 @@ Or use `/run` for the full execution cycle, `/mise` for the full planning cycle.
 | `/loop` | Autonomous loop management |
 | `/architecture-audit` | Analyze codebase structure and code smells |
 | `/decision` | Record, list, or supersede architecture decisions |
+| `/respond` | Post templated follow-up on a GitHub issue as `line-sous-chef[bot]` |
+| `/inspect-issues` | Review open PRs and standalone issues |
 | `/help` | Contextual help for Line Cook commands |
 
 ## Platform Command Naming
