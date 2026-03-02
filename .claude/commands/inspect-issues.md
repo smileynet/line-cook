@@ -368,7 +368,7 @@ gh issue close <issue-number> --reason "not planned" --comment "Closing: not act
 **"Respond"** (all verdicts — posts as `line-sous-chef[bot]` via the respond workflow):
 
 Map the verdict to a suggested template:
-- **VALID** → `fix-shipped` (if a fix has shipped) or skip template suggestion
+- **VALID** → `fix-shipped` (if a fix has shipped), `workaround-available` (if a workaround exists but fix is pending), or skip template suggestion
 - **NEEDS_INFO** → `needs-info`
 - **DUPLICATE** → `duplicate`
 - **REJECT** → `wont-fix`

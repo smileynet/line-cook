@@ -71,6 +71,11 @@ jobs:
           should_close = os.environ.get("SHOULD_CLOSE", "false") == "true"
           close_reason = os.environ.get("CLOSE_REASON", "completed")
 
+          # Validate template name (no path traversal)
+          if "/" in template_name or "\\" in template_name or ".." in template_name:
+              print(f"::error::Invalid template name: {template_name}")
+              sys.exit(1)
+
           # Read template file
           template_path = f"core/templates/responses/{template_name}.md"
           try:
@@ -105,7 +110,9 @@ jobs:
           except subprocess.CalledProcessError:
               body = body.replace("{{REPORTER}}", "")
 
-          # Remove lines that are entirely an unreplaced optional variable
+          # Remove lines that are entirely an unreplaced optional variable.
+          # NOTE: Only cleans variables on their own line — optional variables
+          # in templates should appear on their own lines, not inline.
           body = re.sub(r'^\{\{[A-Z_]+\}\}\s*$', '', body, flags=re.MULTILINE)
           # Collapse resulting empty lines
           body = re.sub(r'\n\n\n+', '\n\n', body)
