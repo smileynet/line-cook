@@ -14,13 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/cook` timeout is now smarter — default raised to 30 minutes with active
   extension that pushes the deadline forward on each tool action (capped at 1 hour).
   Stuck tasks terminate faster. On timeout, you get a `--cook-timeout` hint
-- `/inspect-issues` can now triage standalone GitHub issues alongside PRs, with
-  actions like auto-fix, label, comment, or close
-- Issue agent automatically detects and closes duplicate issues with a reference
-  to the original
-
-### Changed
-- `/inspect` renamed to `/inspect-issues` for clarity
 
 ### Fixed
 - `/cook` timeout budget display now shows correct values on all platforms and
