@@ -330,10 +330,10 @@ Use AskUserQuestion to present options based on the verdict:
 
 | Verdict | Options |
 |---------|---------|
-| **VALID** | "Auto-fix" (close + reopen to trigger issue-agent workflow), "Label" (apply triage label), "Skip" |
-| **NEEDS_INFO** | "Comment" (post structured question to issue), "Skip" |
-| **DUPLICATE** | "Close" (close as duplicate with reference), "Skip" |
-| **REJECT** | "Close" (close as not-planned), "Skip" |
+| **VALID** | "Auto-fix" (close + reopen to trigger issue-agent workflow), "Respond" (post templated response via `/respond`), "Label" (apply triage label), "Skip" |
+| **NEEDS_INFO** | "Respond" (post templated response via `/respond`), "Comment" (post structured question to issue), "Skip" |
+| **DUPLICATE** | "Respond" (post templated response via `/respond`), "Close" (close as duplicate with reference), "Skip" |
+| **REJECT** | "Respond" (post templated response via `/respond`), "Close" (close as not-planned), "Skip" |
 
 **Actions by choice:**
 
@@ -364,6 +364,24 @@ For REJECT:
 ```bash
 gh issue close <issue-number> --reason "not planned" --comment "Closing: not actionable."
 ```
+
+**"Respond"** (all verdicts — posts as `line-sous-chef[bot]` via the respond workflow):
+
+Map the verdict to a suggested template:
+- **VALID** → `fix-shipped` (if a fix has shipped) or skip template suggestion
+- **NEEDS_INFO** → `needs-info`
+- **DUPLICATE** → `duplicate`
+- **REJECT** → `wont-fix`
+
+Then follow the `/respond` command flow:
+1. Read the suggested template from `core/templates/responses/<template>.md`
+2. Collect required variables from the user (use AskUserQuestion to ask for each required variable listed in the template's frontmatter)
+3. Render the template with variable substitution and show preview
+4. On confirmation, dispatch the workflow:
+   ```bash
+   gh workflow run respond.yml -f issue_number=<N> -f template=<template_name> -f variables='<json>' -f close=<from_frontmatter> -f close_reason=<from_frontmatter>
+   ```
+5. Write response record to `.beads/inspect-feedback/issue-<N>.json` (append to `responses` array if file exists, or create minimal file with `type: "response_only"`)
 
 **"Skip":** No action taken for this issue.
 

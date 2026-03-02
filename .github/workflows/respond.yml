@@ -1,0 +1,136 @@
+name: Respond to Issue
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Target issue number
+        required: true
+        type: string
+      template:
+        description: "Template name (e.g., fix-shipped)"
+        required: true
+        type: string
+      variables:
+        description: "JSON string of template variables"
+        required: false
+        type: string
+        default: "{}"
+      close:
+        description: Whether to close the issue after posting
+        required: false
+        type: boolean
+        default: false
+      close_reason:
+        description: "Close reason: completed or not_planned"
+        required: false
+        type: string
+        default: "completed"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: respond-${{ github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  respond:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LINE_COOK_APP_ID }}
+          private-key: ${{ secrets.LINE_COOK_APP_PRIVATE_KEY }}
+
+      - name: Render template and post comment
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
+          TEMPLATE_NAME: ${{ github.event.inputs.template }}
+          VARIABLES_JSON: ${{ github.event.inputs.variables }}
+          SHOULD_CLOSE: ${{ github.event.inputs.close }}
+          CLOSE_REASON: ${{ github.event.inputs.close_reason }}
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          template_name = os.environ["TEMPLATE_NAME"]
+          issue_number = os.environ["ISSUE_NUMBER"]
+          variables = json.loads(os.environ.get("VARIABLES_JSON", "{}"))
+          should_close = os.environ.get("SHOULD_CLOSE", "false") == "true"
+          close_reason = os.environ.get("CLOSE_REASON", "completed")
+
+          # Read template file
+          template_path = f"core/templates/responses/{template_name}.md"
+          try:
+              with open(template_path) as f:
+                  raw = f.read()
+          except FileNotFoundError:
+              print(f"::error::Template not found: {template_path}")
+              sys.exit(1)
+
+          # Strip YAML frontmatter
+          parts = raw.split("---", 2)
+          if len(parts) >= 3:
+              body = parts[2].strip()
+          else:
+              body = raw.strip()
+
+          # Substitute variables
+          for key, value in variables.items():
+              body = body.replace("{{" + key + "}}", str(value))
+
+          # Auto-populate common variables
+          body = body.replace("{{ISSUE_NUMBER}}", issue_number)
+
+          # Fetch reporter username
+          try:
+              result = subprocess.run(
+                  ["gh", "issue", "view", issue_number, "--json", "author", "--jq", ".author.login"],
+                  capture_output=True, text=True, check=True,
+              )
+              reporter = result.stdout.strip()
+              body = body.replace("{{REPORTER}}", reporter)
+          except subprocess.CalledProcessError:
+              body = body.replace("{{REPORTER}}", "")
+
+          # Remove lines that are entirely an unreplaced optional variable
+          body = re.sub(r'^\{\{[A-Z_]+\}\}\s*$', '', body, flags=re.MULTILINE)
+          # Collapse resulting empty lines
+          body = re.sub(r'\n\n\n+', '\n\n', body)
+
+          # Post comment
+          result = subprocess.run(
+              ["gh", "issue", "comment", issue_number, "--body", body],
+              capture_output=True, text=True,
+          )
+          if result.returncode != 0:
+              print(f"::error::Failed to post comment: {result.stderr}")
+              sys.exit(1)
+          print(f"Comment posted to issue #{issue_number}")
+
+          # Close issue if requested
+          if should_close:
+              if close_reason not in ("completed", "not_planned"):
+                  print(f"::warning::Invalid close_reason '{close_reason}', defaulting to 'completed'")
+                  close_reason = "completed"
+              close_args = ["gh", "issue", "close", issue_number]
+              if close_reason == "not_planned":
+                  close_args.extend(["--reason", "not planned"])
+              result = subprocess.run(close_args, capture_output=True, text=True)
+              if result.returncode != 0:
+                  print(f"::warning::Failed to close issue: {result.stderr}")
+              else:
+                  print(f"Issue #{issue_number} closed (reason: {close_reason})")
+          PYEOF
