@@ -1750,6 +1750,7 @@ def run_phase(
     except Exception as e:
         _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
+        effective_timeout = int(deadline - start_time) if deadline > start_time else timeout
         logger.error(f"Phase {phase} crashed: {e}")
         return PhaseResult(
             phase=phase,
@@ -1761,7 +1762,7 @@ def run_phase(
             actions=actions,
             error=str(e),
             timeout_base=timeout_base,
-            timeout_effective=int(deadline - start_time) if deadline > start_time else timeout,
+            timeout_effective=effective_timeout,
         )
 
     duration = time.time() - start_time
@@ -3216,7 +3217,7 @@ def run_iteration(
     completion triggers.
 
     Phase timeouts are controlled by phase_timeouts dict or DEFAULT_PHASE_TIMEOUTS
-    (cook=1200s, serve=450s, tidy=240s, plate=450s, close-service=750s).
+    (cook=1800s, serve=450s, tidy=240s, plate=450s, close-service=750s).
 
     Args:
         iteration: Current iteration number

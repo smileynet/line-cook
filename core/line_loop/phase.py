@@ -435,6 +435,7 @@ def run_phase(
     except Exception as e:
         _cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
+        effective_timeout = int(deadline - start_time) if deadline > start_time else timeout
         logger.error(f"Phase {phase} crashed: {e}")
         return PhaseResult(
             phase=phase,
@@ -446,7 +447,7 @@ def run_phase(
             actions=actions,
             error=str(e),
             timeout_base=timeout_base,
-            timeout_effective=int(deadline - start_time) if deadline > start_time else timeout,
+            timeout_effective=effective_timeout,
         )
 
     duration = time.time() - start_time

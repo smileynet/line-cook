@@ -1483,7 +1483,7 @@ def run_iteration(
     completion triggers.
 
     Phase timeouts are controlled by phase_timeouts dict or DEFAULT_PHASE_TIMEOUTS
-    (cook=1200s, serve=450s, tidy=240s, plate=450s, close-service=750s).
+    (cook=1800s, serve=450s, tidy=240s, plate=450s, close-service=750s).
 
     Args:
         iteration: Current iteration number

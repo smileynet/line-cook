@@ -160,7 +160,6 @@ __all__ = [
     "CLI_PROFILES",
     "CONSECUTIVE_SAME_TASK_LIMIT",
     "DEFAULT_CLI",
-    "get_cli_profile",
     "DEFAULT_MAX_ITERATIONS",
     "DEFAULT_MAX_TASK_FAILURES",
     "DEFAULT_PHASE_TIMEOUTS",
@@ -176,6 +175,7 @@ __all__ = [
     "LOG_FILE_BACKUP_COUNT",
     "MAX_FEEDBACK_HISTORY",
     "PERIODIC_SYNC_INTERVAL",
+    "get_cli_profile",
     # Models
     "BeadDelta",
     "BeadInfo",
