@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `/sample` command — new experiential thinking phase in the mise planning cycle
+  (brainstorm → sample → scope → finalize). Walk through five UX beats to catch
+  usability problems before scoping turns ideas into tasks
+- `/cook` timeout is now smarter — default raised to 30 minutes with active
+  extension that pushes the deadline forward on each tool action (capped at 1 hour).
+  Stuck tasks terminate faster. On timeout, you get a `--cook-timeout` hint
+- `/inspect-issues` can now triage standalone GitHub issues alongside PRs, with
+  actions like auto-fix, label, comment, or close
+- Issue agent automatically detects and closes duplicate issues with a reference
+  to the original
+
+### Changed
+- `/inspect` renamed to `/inspect-issues` for clarity
+
+### Fixed
+- `/cook` timeout budget display now shows correct values on all platforms and
+  respects user-specified timeouts beyond the extension cap
+- Bead ID parsing now works with custom prefixes (not just `lc-`), so projects
+  with other naming conventions can use `/loop` and menu-plan-to-beads
+
 ## [0.19.0] - 2026-02-28
 ### Added
 - `/loop` no longer gets stuck on stalled tasks — it detects when iterations

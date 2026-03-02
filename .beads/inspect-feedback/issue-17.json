@@ -1,0 +1,16 @@
+{
+  "type": "issue_review",
+  "issue_number": 17,
+  "pr_number": null,
+  "verdict": "NEEDS_INFO",
+  "dimensions": {
+    "issue_validity": "Real user-facing problem: the default cook phase timeout of 1200 seconds (20 minutes) is too short for some workloads. However, the issue is imprecise about what types of tasks are timing out.",
+    "actionability": "Partially actionable but lacks critical details. No specific error output shown, no mention that --cook-timeout already exists as a CLI flag for overriding the default. The proposed solution of 2-3 hours is vague and needs discussion.",
+    "project_relevance": "Directly relevant to the line-loop orchestrator's cook phase timeout configuration in core/line_loop/config.py.",
+    "priority_signal": "Low-to-medium priority. The timeout is already configurable via --cook-timeout CLI flag, so users have a workaround today.",
+    "duplicate_check": "Not a duplicate of any open issue."
+  },
+  "rationale": "Legitimate enhancement request but needs more information. The --cook-timeout CLI flag already provides a per-invocation override, which the reporter does not appear to be aware of. Before changing the default, the maintainer should understand whether this is a documentation gap, a UX issue, or something more nuanced.",
+  "duplicate_of": null,
+  "reviewed_at": "2026-03-01T22:00:00Z"
+}

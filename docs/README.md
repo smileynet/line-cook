@@ -39,10 +39,8 @@ Recorded in [decisions/](decisions/). Each ADR captures context, decision, and c
 
 ## Other
 
-- [Planning](planning/) — Brainstorm examples, menu plan format
 - [Templates](templates/) — Reusable templates for brainstorms, decisions, acceptance docs
 - [Demos](demos/) — Demo projects showing Line Cook in action
-- [Specs](specs/) — Format specifications (crumbs)
 - [Guidance: Changelog](guidance/changelog.md) — Release history
 - [Guidance: Logging](guidance/logging.md) — Debug reference
 - [Guidance: CI Actions](guidance/ci-actions.md) — GitHub Actions and CI setup
