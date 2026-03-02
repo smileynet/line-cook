@@ -5657,6 +5657,15 @@ class TestTimeoutTipMessaging(unittest.TestCase):
         output = buf.getvalue()
         self.assertIn("--serve-timeout 3600", output)
 
+    def test_phase_progress_close_service_timeout_no_tip(self):
+        """close-service timeout does NOT show tip (no CLI flag exists)."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            line_loop.print_phase_progress("close-service", "error", 750.0, "timeout")
+        output = buf.getvalue()
+        self.assertNotIn("--close-service-timeout", output)
+        self.assertNotIn("Tip:", output)
+
     def test_phase_progress_non_timeout_no_tip(self):
         """print_phase_progress does NOT show tip for non-timeout errors."""
         buf = io.StringIO()
@@ -5682,6 +5691,27 @@ class TestTimeoutTipMessaging(unittest.TestCase):
             line_loop.print_human_iteration(result)
         output = buf.getvalue()
         self.assertNotIn("--cook-timeout", output)
+
+
+class TestResolvePhaseTimeoutMultiplier(unittest.TestCase):
+    """Test that _resolve_phase_timeout applies CLI multiplier."""
+
+    def test_default_cook_no_profile(self):
+        """Without cli_profile, returns base timeout."""
+        from line_loop.iteration import _resolve_phase_timeout
+        self.assertEqual(_resolve_phase_timeout("cook"), 1800)
+
+    def test_kiro_cook_multiplied(self):
+        """Kiro 1.5x multiplier applied to cook timeout."""
+        from line_loop.iteration import _resolve_phase_timeout
+        profile = line_loop.get_cli_profile('kiro')
+        self.assertEqual(_resolve_phase_timeout("cook", cli_profile=profile), 2700)
+
+    def test_claude_cook_unchanged(self):
+        """Claude 1.0x multiplier leaves cook timeout unchanged."""
+        from line_loop.iteration import _resolve_phase_timeout
+        profile = line_loop.get_cli_profile('claude')
+        self.assertEqual(_resolve_phase_timeout("cook", cli_profile=profile), 1800)
 
 
 class TestEscalationTimeoutPattern(unittest.TestCase):

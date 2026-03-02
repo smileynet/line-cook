@@ -274,9 +274,12 @@ def run_phase(
 
     cmd = build_phase_command(phase, args, cli_profile)
 
-    logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s, cap={extension_cap}s)")
+    # Cap is the larger of extension_cap and timeout, so user-specified
+    # timeouts beyond the cap are never shrunk by active extension.
+    effective_cap = max(extension_cap, timeout)
+    logger.debug(f"Running phase {phase}: {' '.join(cmd)} (timeout={timeout}s, cap={effective_cap}s)")
     start_time = time.time()
-    hard_cap = start_time + extension_cap  # Absolute ceiling regardless of activity
+    hard_cap = start_time + effective_cap
 
     actions: list[ActionRecord] = []
     pending_actions: dict[str, ActionRecord] = {}

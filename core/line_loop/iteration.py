@@ -105,11 +105,19 @@ def _action_dots(count: int) -> str:
     return "\u00b7" * dots + " "
 
 
-def _resolve_phase_timeout(phase: str, phase_timeouts: Optional[dict] = None) -> int:
-    """Resolve the effective base timeout for a phase (for budget display)."""
+def _resolve_phase_timeout(phase: str, phase_timeouts: Optional[dict] = None,
+                           cli_profile: Optional[dict] = None) -> int:
+    """Resolve the effective base timeout for a phase (for budget display).
+
+    Includes CLI multiplier (e.g., Kiro 1.5x) so the budget shown in
+    status.json matches the actual enforcement timeout.
+    """
     timeouts = phase_timeouts or DEFAULT_PHASE_TIMEOUTS
     fallback = DEFAULT_PHASE_TIMEOUTS.get(phase, DEFAULT_FALLBACK_PHASE_TIMEOUT)
-    return timeouts.get(phase, fallback)
+    base = timeouts.get(phase, fallback)
+    if cli_profile:
+        base = int(base * cli_profile.get('phase_timeout_multiplier', 1.0))
+    return base
 
 
 def print_phase_progress(phase: str, status: str, duration: float = 0, extra: str = ""):
@@ -128,7 +136,9 @@ def print_phase_progress(phase: str, status: str, duration: float = 0, extra: st
         if "timeout" in extra.lower():
             # Strip retry suffix like "cook (retry 1)" -> "cook"
             phase_name = phase.split("(")[0].strip()
-            print(f"  Tip: Use --{phase_name}-timeout 3600 for a longer limit")
+            # Only show tip for phases that have corresponding CLI flags
+            if phase_name in ("cook", "serve", "tidy", "plate"):
+                print(f"  Tip: Use --{phase_name}-timeout 3600 for a longer limit")
     else:
         print(f"  [{phase}] done ({format_duration(duration)})")
 
@@ -1570,7 +1580,7 @@ def run_iteration(
         if progress_state:
             progress_state.start_phase(
                 "cook",
-                phase_timeout=_resolve_phase_timeout("cook", phase_timeouts),
+                phase_timeout=_resolve_phase_timeout("cook", phase_timeouts, cli_profile),
                 idle_timeout=resolve_idle_timeout("cook", idle_timeout),
             )
         cook_result = run_phase("cook", cwd, args=target_task_id or "", on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
@@ -1721,7 +1731,7 @@ def run_iteration(
         if progress_state:
             progress_state.start_phase(
                 "serve",
-                phase_timeout=_resolve_phase_timeout("serve", phase_timeouts),
+                phase_timeout=_resolve_phase_timeout("serve", phase_timeouts, cli_profile),
                 idle_timeout=resolve_idle_timeout("serve", idle_timeout),
             )
         serve_result = run_phase("serve", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
@@ -1941,7 +1951,7 @@ def run_iteration(
     if progress_state:
         progress_state.start_phase(
             "tidy",
-            phase_timeout=_resolve_phase_timeout("tidy", phase_timeouts),
+            phase_timeout=_resolve_phase_timeout("tidy", phase_timeouts, cli_profile),
             idle_timeout=resolve_idle_timeout("tidy", idle_timeout),
         )
     tidy_result = run_phase("tidy", cwd, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
@@ -2006,7 +2016,7 @@ def run_iteration(
             if progress_state:
                 progress_state.start_phase(
                     "plate",
-                    phase_timeout=_resolve_phase_timeout("plate", phase_timeouts),
+                    phase_timeout=_resolve_phase_timeout("plate", phase_timeouts, cli_profile),
                     idle_timeout=resolve_idle_timeout("plate", idle_timeout),
                 )
             plate_result = run_phase("plate", cwd, args=feature_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
@@ -2062,7 +2072,7 @@ def run_iteration(
                     if progress_state:
                         progress_state.start_phase(
                             "close-service",
-                            phase_timeout=_resolve_phase_timeout("close-service", phase_timeouts),
+                            phase_timeout=_resolve_phase_timeout("close-service", phase_timeouts, cli_profile),
                             idle_timeout=resolve_idle_timeout("close-service", idle_timeout),
                         )
                     cs_result = run_phase("close-service", cwd, args=epic_id, on_progress=progress_callback, phase_timeouts=phase_timeouts, idle_timeout=idle_timeout, idle_action=idle_action, cli_profile=cli_profile)
