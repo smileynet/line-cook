@@ -2,6 +2,7 @@
 name: acknowledged
 description: Acknowledge a valid issue and propose a solution
 close: false
+follow_up: trigger-issue-agent
 variables:
   SUMMARY:
     required: true

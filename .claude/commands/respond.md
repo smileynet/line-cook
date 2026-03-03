@@ -182,7 +182,20 @@ mkdir -p .beads/inspect-feedback
 
 Use the current UTC timestamp for `posted_at`.
 
-### Step 10: Report Result
+### Step 10: Follow-Up Actions
+
+Check the template frontmatter for a `follow_up` field:
+
+- **`follow_up: trigger-issue-agent`** — The template promises a candidate fix PR. After the response is posted, trigger the issue-agent:
+  ```bash
+  gh issue close <issue_number>
+  gh issue reopen <issue_number>
+  ```
+  This fires the `issues: [reopened]` event so the issue-agent files the candidate fix PR. Report that the issue-agent was triggered.
+
+If no `follow_up` field exists, skip this step.
+
+### Step 11: Report Result
 
 Display a success summary:
 
@@ -191,6 +204,7 @@ Response posted to issue #17
   Template: fix-shipped
   Variables: VERSION=v0.20.0
   Close: no
+  Follow-up: issue-agent triggered (candidate fix PR)
   Feedback file: .beads/inspect-feedback/issue-17.json
   Actions run: https://github.com/smileynet/line-cook/actions/runs/<id>
 ```

@@ -375,10 +375,17 @@ Use AskUserQuestion to present options based on the verdict:
 **"Respond"** (all verdicts — posts as `line-sous-chef[bot]` via the respond workflow):
 
 Map the verdict to a suggested template:
-- **VALID** → `acknowledged` (always include a proposed solution focused on user value — a candidate fix PR should follow), `fix-shipped` (if a fix has shipped), `workaround-available` (if a workaround exists but fix is pending), or skip template suggestion
+- **VALID** → `acknowledged` (always include a proposed solution focused on user value), `fix-shipped` (if a fix has shipped), `workaround-available` (if a workaround exists but fix is pending), or skip template suggestion
 - **NEEDS_INFO** → `needs-info`
 - **DUPLICATE** → `duplicate`
 - **REJECT** → `wont-fix`
+
+**IMPORTANT — `acknowledged` template follow-through:** The `acknowledged` template promises "We'll file a candidate fix PR with this approach shortly." After dispatching this template, ALWAYS trigger the issue-agent to deliver on that promise:
+```bash
+gh issue close <issue-number>
+gh issue reopen <issue-number>
+```
+This fires the `issues: [reopened]` event so the issue-agent files the candidate fix PR. Posting `acknowledged` without triggering the issue-agent leaves a broken promise to the reporter.
 
 Then follow the `/respond` command flow:
 1. Read the suggested template from `core/templates/responses/<template>.md`
