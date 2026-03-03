@@ -135,7 +135,7 @@ Decide whether you can propose a fix, since the comment format depends on the pa
 
 **Confidence criteria — take Path A when ALL of these are true:**
 - You can articulate all three of: (1) what the code is **supposed to do** (intent), (2) what the code **actually does** (behavior), (3) **why** the gap exists (cause). If you can only answer #2, you've found the symptom, not the root cause — take Path B.
-- You identified a specific bug or broken behavior (classification is "bug")
+- You identified a specific bug OR a well-defined enhancement with a clear implementation path
 - You found the exact file(s) and line(s) where the problem occurs
 - The fix requires changing **3 or fewer files** (scope guardrail — if more files are affected, do NOT attempt a fix)
 - The fix is straightforward (typo, broken import, wrong variable, missing condition, off-by-one, etc.)
@@ -219,7 +219,7 @@ Choose the format based on the path:
 
 **Path A — PR created successfully:**
 ```
-> I'm an automated assistant. I took a look at this issue and here's what I found.
+> Quick note from the project.
 
 **What's happening:** <plain-language redescription of the problem>
 
@@ -242,7 +242,7 @@ If the fix doesn't look right, let me know and I'll investigate further.
 
 **Path A fallback — branch exists but PR creation failed:**
 ```
-> I'm an automated assistant. I took a look at this issue and here's what I found.
+> Quick note from the project.
 
 **What's happening:** <plain-language redescription of the problem>
 
@@ -261,7 +261,7 @@ If you have the repository cloned:
 
 **Path B — no fix, ask clarifying questions:**
 ```
-> I'm an automated assistant. I took a look at this issue and here's what I found.
+> Quick note from the project.
 
 **Confidence:** <HIGH/MEDIUM/LOW> — <brief reason>
 
@@ -286,6 +286,7 @@ For clear enhancements, questions can focus on scope, priority, and implementati
 - Thank the reporter when the issue is detailed and well-researched
 - Never correct the reporter's suggested fix in the comment — if their suggestion was wrong, just describe what you found instead. Technical corrections belong in the PR body, not in user-facing comments.
 - Frame everything as "here's what I found" not "here's what's wrong with your report"
+- Follow `core/templates/responses/VOICE.md` for tone — warm first, informative second
 - Follow the comment template exactly — do not improvise a new format
 
 ### Step 7: Handle edge cases
