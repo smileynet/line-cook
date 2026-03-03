@@ -604,7 +604,7 @@ class LoopReport:
     started_at: str
     ended_at: str
     iterations: list[IterationResult]
-    stop_reason: str  # "no_work", "no_actionable_work", "max_iterations", "blocked", "error", "crashed", "epic_complete"
+    stop_reason: str  # "no_work", "only_epics_ready", "no_actionable_work", "max_iterations", "blocked", "error", "crashed", "epic_complete"
     completed_count: int
     failed_count: int
     duration_seconds: float
