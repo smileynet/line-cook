@@ -23,10 +23,23 @@ variables:
 
 {{QUESTIONS}}
 
-We'll file a candidate fix PR with this approach shortly. Once it's up, you can try it out locally:
+We'll file a candidate fix PR with this approach shortly. Once it's up you can try the fix before it ships — just grab the branch and reinstall the plugin:
 
 ```bash
+# check out the fix branch
 gh pr checkout <pr-number>
+
+# reinstall from your local copy so the changes take effect
+claude install /path/to/line-cook/plugins/claude-code
+```
+
+If you installed line-cook from the marketplace and don't have the repo cloned yet:
+
+```bash
+gh repo clone smileynet/line-cook
+cd line-cook
+gh pr checkout <pr-number>
+claude install ./plugins/claude-code
 ```
 
 Appreciate the report!
