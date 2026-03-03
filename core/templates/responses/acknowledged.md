@@ -23,6 +23,12 @@ variables:
 
 {{QUESTIONS}}
 
-We'll file a candidate fix PR with this approach shortly. Appreciate the report!
+We'll file a candidate fix PR with this approach shortly. Once it's up, you can try it out locally:
+
+```bash
+gh pr checkout <pr-number>
+```
+
+Appreciate the report!
 
 _— line-sous-chef_
