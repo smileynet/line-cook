@@ -81,7 +81,7 @@ The `--cli kiro` flag runs loop phases via `kiro-cli` instead of `claude`, using
 |--------|-------------------|--------|
 | **Subprocess** | `claude` CLI | `kiro-cli chat` |
 | **Phase invocation** | `/line-{phase}` skills | `@line-{phase}` prompts |
-| **Default cook timeout** | 20 minutes | 30 minutes (1.5x multiplier) |
+| **Default cook timeout** | 30 minutes | 45 minutes (1.5x multiplier) |
 | **Output parsing** | Streaming JSON | Text-based (less real-time action tracking) |
 | **Trust mode** | `--allowedTools` per phase | `--trust-all-tools` (handled automatically) |
 
@@ -219,7 +219,7 @@ Watch Options:
 Start Options:
   --epic [EPIC_ID]      Focus on one epic (auto-select first, or specify ID)
   --max-iterations N    Maximum iterations (default: 25)
-  --cook-timeout S      Cook phase timeout in seconds (default: 1200)
+  --cook-timeout S      Cook phase timeout in seconds (default: 1800)
   --serve-timeout S     Serve phase timeout in seconds (default: 450)
   --tidy-timeout S      Tidy phase timeout in seconds (default: 240)
   --plate-timeout S     Plate phase timeout in seconds (default: 450)

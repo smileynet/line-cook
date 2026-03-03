@@ -79,9 +79,9 @@ jobs:
         run: |
           gh issue comment ${{ github.event.issue.number }} --body "> Quick note from the project.
 
-          Our automated analysis took longer than expected on this one — looks like it needed more time to dig through the codebase.
+          Our automated analysis hit a timeout before it could finish digging into this. We'll re-run it and file a candidate fix PR once we get through the codebase.
 
-          A maintainer will take a look shortly. In the meantime, any extra context you can share (error messages, reproduction steps, environment details) always helps speed things along.
+          Any extra context you can share (error messages, reproduction steps, environment details) always helps speed things along.
 
           _— line-sous-chef_"
         env:
@@ -139,9 +139,9 @@ jobs:
         run: |
           gh issue comment ${{ github.event.issue.number }} --body "> Quick note from the project.
 
-          That question needed more digging than we could finish in time — sorry about that!
+          That question needed more digging than we could finish in time. A maintainer will follow up with a concrete answer.
 
-          A couple things that might help: try narrowing the question to a specific file or behavior, or break it into smaller pieces. A maintainer can also jump in if needed.
+          If you can narrow the question to a specific file or behavior, that helps us zero in faster.
 
           _— line-sous-chef_"
         env:

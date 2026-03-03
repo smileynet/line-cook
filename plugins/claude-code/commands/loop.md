@@ -240,7 +240,7 @@ Start Options:
   --tidy-timeout S      Tidy phase timeout in seconds (default: 240)
   --plate-timeout S     Plate phase timeout in seconds (default: 450)
   --idle-timeout S      Seconds without tool actions before idle triggers (default: 180, 0 to disable)
-  --idle-action ACTION  Action on idle: warn (log warning) or terminate (stop phase) (default: terminate)
+  --idle-action ACTION  Action on idle: warn (log warning) or terminate (stop phase) (default: warn)
   --max-retries N       Max retries per task on NEEDS_CHANGES (default: 2)
   --max-task-failures N Skip task after this many failures (default: 3)
   --stop-on-blocked     Stop if task is BLOCKED (default: continue)
@@ -255,7 +255,7 @@ Examples:
   /line:loop watch --interval 300     # Refresh every 5 minutes
   /line:loop watch --log-lines 100 --interval 0  # One-shot with more logs
   /line:loop start --max-iterations 5 # Quick test run
-  /line:loop start --cook-timeout 3600 # Complex tasks (60min cook timeout)
+  /line:loop start --cook-timeout 1800 # Complex tasks (30min cook timeout)
   /line:loop start --epic              # Auto-select first available epic
   /line:loop start --epic lc-001      # Focus on specific epic
   /line:loop start --break-on-epic    # Pause for review at epic completion
@@ -563,9 +563,6 @@ Read `$LOOP_DIR/status.json`. The status file includes:
   "phase_start_time": "2026-02-01T10:15:00",
   "current_action_count": 12,
   "last_action_time": "2026-02-01T10:17:45",
-  "phase_timeout": 1800,
-  "phase_timeout_extended": 2400,
-  "idle_timeout": 180,
   "recent_iterations": [
     {
       "iteration": 2,
@@ -601,9 +598,6 @@ The following fields provide real-time visibility during long-running phases:
 | `phase_start_time` | When the current phase started |
 | `current_action_count` | Number of tool actions in current phase |
 | `last_action_time` | Timestamp of most recent tool action |
-| `phase_timeout` | Base timeout for current phase in seconds |
-| `phase_timeout_extended` | Extended deadline (present only when active extension has fired) |
-| `idle_timeout` | Idle timeout for current phase in seconds |
 | `epic_mode` | Epic filter mode if active (`auto` or epic ID) |
 | `current_epic` | Currently focused epic ID (in epic mode) |
 | `cli` | CLI backend name, only present when not default (`claude`) |
@@ -612,7 +606,6 @@ These enable:
 - **Progress visibility**: Action count increasing = work happening
 - **Stall detection**: `last_action_time` unchanged for 5+ minutes = potentially hung
 - **Phase awareness**: Know which phase is executing and how long
-- **Budget tracking**: Compare elapsed time against phase_timeout / phase_timeout_extended
 
 **Note:** Status writes are throttled to max 1 per 5 seconds to avoid I/O overhead. Phase transitions always trigger an immediate write.
 
@@ -663,7 +656,7 @@ Completed: 2 | Remaining: 5 | Runtime: 15m 30s
 
 CURRENT: Iteration 3
   Task: lc-042 - Fix timeout handling
-  Phase: COOK (2m 45s / 30m, ext 40m) | Actions: 12 | Last: 5s ago
+  Phase: COOK (2m 45s) | Actions: 12 | Last: 5s ago
 
 RECENT MILESTONES
 ───────────────────────────────────────
@@ -689,21 +682,9 @@ Next refresh in 15m. Press Ctrl+C to stop watching.
 
 The `Phase:` line shows:
 - Current phase name (COOK, SERVE, TIDY, PLATE)
-- Time elapsed / base timeout (e.g., `2m 45s / 30m`)
-- Extended deadline if active extension has fired (e.g., `ext 40m`)
+- Time elapsed in current phase
 - Number of tool actions in current phase
 - Time since last action (for stall detection)
-
-Compute the phase line from status.json fields:
-```
-elapsed = now - phase_start_time
-base = phase_timeout (in human-readable duration)
-Phase: COOK ({elapsed} / {base}) | Actions: {action_count} | Last: {since_last_action} ago
-```
-If `phase_timeout_extended` is present and differs from `phase_timeout`:
-```
-Phase: COOK ({elapsed} / {base}, ext {extended}) | Actions: {action_count} | Last: {since_last_action} ago
-```
 
 ### Progress Bar Calculation
 
@@ -1557,11 +1538,11 @@ cat /tmp/line-loop-$(basename "$PWD")/status.json | jq '.skipped_tasks'
 
 **Symptom:** Cook phase times out on complex tasks.
 
-**Cause:** Default 30-minute cook timeout too short for large changes. Active extension (up to 1hr) kicks in automatically for productive tasks, but the base timeout may still be insufficient.
+**Cause:** Default 20-minute cook timeout too short for large changes.
 
 **Fix:** Increase timeout:
 ```bash
-/line:loop start --cook-timeout 3600  # 60 minutes
+/line:loop start --cook-timeout 2400  # 40 minutes
 ```
 
 ---

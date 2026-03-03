@@ -175,7 +175,7 @@ Watch Options:
 Start Options:
   --epic [EPIC_ID]      Focus on one epic (auto-select first, or specify ID)
   --max-iterations N    Maximum iterations (default: 25)
-  --cook-timeout S      Cook phase timeout in seconds (default: 1200)
+  --cook-timeout S      Cook phase timeout in seconds (default: 1800)
   --serve-timeout S     Serve phase timeout in seconds (default: 450)
   --tidy-timeout S      Tidy phase timeout in seconds (default: 240)
   --plate-timeout S     Plate phase timeout in seconds (default: 450)
