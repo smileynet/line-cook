@@ -1,16 +1,1 @@
-{
-  "type": "issue_review",
-  "issue_number": 10,
-  "pr_number": null,
-  "verdict": "VALID",
-  "dimensions": {
-    "issue_validity": "Real, well-investigated bug with clear reproduction steps. The author systematically ruled out beads dependency state and narrowed the problem to the sous-chef agent misinterpreting bd show output during the serve phase.",
-    "actionability": "Highly actionable. The sous-chef agent runs bd show as part of context collection and likely misinterprets parent-child dependency listings as real blockers. The fix is scoped to either the sous-chef prompt or the serve command template.",
-    "project_relevance": "Directly relevant. Core loop functionality bug that prevents the automated cook-serve-tidy-plate workflow from making progress.",
-    "priority_signal": "High priority. Makes the entire autonomous loop non-functional with the kiro CLI backend. Every task returns BLOCKED, the circuit breaker trips after 5 consecutive failures.",
-    "duplicate_check": "Not a duplicate of any open issue."
-  },
-  "rationale": "Well-documented, high-impact bug. The serve phase's sous-chef agent misinterprets parent-child dependencies from bd show as real blockers, causing all tasks to return BLOCKED regardless of actual dependency state. The circuit breaker then halts the loop. Fix is likely scoped to the sous-chef prompt or serve command template.",
-  "duplicate_of": null,
-  "reviewed_at": "2026-03-01T22:00:00Z"
-}
+{"type":"issue_review","issue_number":10,"pr_number":null,"verdict":"VALID","dimensions":{"issue_validity":"Legitimate bug filed by the repository owner with clear root cause analysis. The sous-chef agent misinterprets parent-child dependency metadata from bd show as real blockers, causing false BLOCKED verdicts.","actionability":"Highly actionable. The Kiro sous-chef prompt instructs running bd show for context but provides no guidance on distinguishing parent-child (structural grouping) from blocks (execution-order constraints) dependency types. Fix scope: update sous-chef prompt or filter dependency info before passing to reviewer.","project_relevance":"Directly relevant to core functionality. Involves serve phase signal detection in phase.py, BLOCKED handling in iteration.py, and circuit breaker in loop.py.","priority_signal":"High priority. Makes the entire autonomous loop non-functional for the Kiro CLI backend. Every task returns BLOCKED regardless of actual dependency state, and the circuit breaker trips after 5 consecutive failures.","duplicate_check":"No duplicate found among open issues."},"rationale":"Well-investigated, high-impact bug with a clear root cause. The sous-chef agent runs bd show and encounters parent-child dependency metadata which it misinterprets as real blockers. This produces a BLOCKED verdict that propagates through signal detection and trips the circuit breaker. The fix is scoped to the sous-chef prompt templates where dependency types need to be distinguished or filtered.","duplicate_of":null,"reviewed_at":"2026-03-02T12:00:00Z"}

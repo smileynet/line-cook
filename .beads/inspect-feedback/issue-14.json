@@ -1,16 +1,1 @@
-{
-  "type": "issue_review",
-  "issue_number": 14,
-  "pr_number": null,
-  "verdict": "VALID",
-  "dimensions": {
-    "issue_validity": "Clearly reproducible bug. The code at config.py line 77 and phase.py lines 152-156 produce [task-id: X] @line-cook which breaks Kiro's @prompt expansion. Root cause, reproduction steps, and impact are all precisely documented and verified.",
-    "actionability": "Highly actionable. The issue identifies exact lines of code, explains before/after behavior, and provides concrete reproduction commands. The fix is straightforward: remove task_injection from the kiro profile.",
-    "project_relevance": "Directly relevant. Breaks the entire cook phase for Kiro CLI users -- the loop's primary work phase never executes.",
-    "priority_signal": "High priority. Completely breaks the Kiro CLI cook workflow. Every loop iteration using Kiro with a task ID fails. Existing tests assert the broken behavior and need updating.",
-    "duplicate_check": "Not a duplicate of any open issue."
-  },
-  "rationale": "Well-documented, verified bug. The task_injection workaround for Kiro bug #4141 now actively breaks @prompt expansion in newer Kiro CLI versions, rendering the cook phase non-functional. The fix is straightforward and a PR (#15) was already created by the bot.",
-  "duplicate_of": null,
-  "reviewed_at": "2026-03-01T22:00:00Z"
-}
+{"type":"issue_review","issue_number":14,"pr_number":null,"verdict":"VALID","dimensions":{"issue_validity":"Valid, well-documented bug filed by the repository owner. The task_injection workaround breaks @prompt expansion by prepending text before the @line-cook command.","actionability":"Highly actionable. The exact file and line are identified (config.py line 77), root cause explained (workaround for now-fixed Kiro bug #4141), and concrete fix proposed (remove task_injection from kiro profile). PR #15 was created but appears not yet merged.","project_relevance":"Directly relevant. The task_injection key exists in core/line_loop/config.py and consumption logic in phase.py.","priority_signal":"High priority. This bug causes the cook phase to completely fail for all Kiro CLI users, leading to repeated premature_completion outcomes.","duplicate_check":"No duplicate found among open issues."},"rationale":"Verified, high-impact bug. The task_injection workaround at config.py line 77, originally for Kiro bug #4141, now actively breaks @prompt expansion in kiro-cli v1.26.2. The fix has not yet been applied to main despite PR #15 being referenced. The issue is well-documented with root cause analysis and concrete fix.","duplicate_of":null,"reviewed_at":"2026-03-02T12:00:00Z"}

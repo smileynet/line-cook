@@ -1,16 +1,1 @@
-{
-  "type": "issue_review",
-  "issue_number": 16,
-  "pr_number": null,
-  "verdict": "VALID",
-  "dimensions": {
-    "issue_validity": "Real issue filed by the maintainer. The core problem is genuine: line-loop.py explicitly declares Windows NOT supported, and uses select.select() on pipes, NamedTemporaryFile, and hardcoded /tmp -- all of which fail on native Windows Python. Two of five bugs (C1, M3) describe code that doesn't exist in upstream yet.",
-    "actionability": "Provides specific line numbers, environment details, and proposed fixes. Three verifiable bugs (C2 NamedTemporaryFile, C3 cleanup ordering, M1 hardcoded /tmp) are immediately actionable. The fundamental select.select() incompatibility is the primary blocker.",
-    "project_relevance": "Highly relevant. The plugin is distributed via Claude Code marketplace to potentially Windows users.",
-    "priority_signal": "Moderate priority. File explicitly declares Windows unsupported, so this is more of a feature request. The remaining blocker (claude -p zero stdout on Windows) means even with all 5 fixes, cook phase still doesn't work.",
-    "duplicate_check": "Not a duplicate of any open issue."
-  },
-  "rationale": "Valid issue from the maintainer reporting real Windows incompatibilities. Three of five bugs are directly verifiable in current code. Two bugs describe the author's local patched version. The fundamental select.select() incompatibility is the primary blocker, and the upstream Claude Code issue further limits impact.",
-  "duplicate_of": null,
-  "reviewed_at": "2026-03-01T22:00:00Z"
-}
+{"type":"issue_review","issue_number":16,"pr_number":null,"verdict":"VALID","dimensions":{"issue_validity":"Legitimate bug report from the repository owner documenting 5 real, verifiable issues in run_phase() that prevent Windows operation. The file header explicitly states Windows is NOT supported, and every bug described corresponds to real code patterns in the source.","actionability":"Highly actionable. Each bug includes the specific code location, root cause explanation, and concrete fix. The reporter has already patched all 5 locally and confirmed the orchestration works. The remaining blocker (claude -p stdout on Windows) is correctly identified as upstream.","project_relevance":"Directly relevant. All 5 bugs are in core/line_loop/phase.py and the bundled line-loop.py.","priority_signal":"Moderate priority. Windows is currently explicitly unsupported. The bugs are real blockers for Windows users, but the upstream Claude Code stdout issue means even fixing all 5 would not fully enable Windows.","duplicate_check":"No duplicate found among open issues."},"rationale":"Well-documented, owner-filed bug report identifying 5 genuine issues in run_phase that prevent Windows operation. All bugs are verifiable in the source code. The reporter has validated fixes locally and correctly scoped the remaining blocker as an upstream Claude Code issue.","duplicate_of":null,"reviewed_at":"2026-03-02T12:00:00Z"}
