@@ -1,11 +1,14 @@
 ---
 name: acknowledged
-description: Acknowledge a valid issue and signal we're looking at it
+description: Acknowledge a valid issue and propose a solution
 close: false
 variables:
   SUMMARY:
     required: true
     description: Plain-language summary of what's happening and why it matters
+  PROPOSAL:
+    required: true
+    description: Proposed solution framed in terms of user value (what improves for them)
   QUESTIONS:
     required: false
     description: Optional clarifying questions (newline-separated)
@@ -15,8 +18,10 @@ variables:
 
 {{SUMMARY}}
 
+**What we're thinking:** {{PROPOSAL}}
+
 {{QUESTIONS}}
 
-We'll follow up here as things take shape. Appreciate the report!
+We'll file a candidate fix PR with this approach shortly. Appreciate the report!
 
 _— line-sous-chef_

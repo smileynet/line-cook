@@ -5,7 +5,7 @@ The issue agent is a GitHub Actions workflow that automatically triages issues u
 1. Searches the codebase for relevant context
 2. Classifies the issue (bug, enhancement, or question)
 3. Applies a label
-4. Optionally creates a fix branch and pull request for simple bugs or well-defined enhancements
+4. Creates a candidate fix PR (always attempted — reviewed before merge)
 5. Posts a user-facing comment (with PR link, or clarifying questions)
 
 ## Prerequisites
@@ -162,8 +162,8 @@ Triggers when a new issue is opened by a human (not a bot).
 2. Load issue agent prompt with issue details
 3. Run Claude Code with analysis instructions
 4. Claude searches codebase, classifies issue, applies label
-5. If confident, Claude creates a fix branch, opens a PR with technical details, and posts a user-facing comment linking to the PR
-6. If not confident, Claude posts a user-facing comment with clarifying questions
+5. Claude creates a fix branch, opens a PR with technical details, and posts a user-facing comment with the PR link and a user-value description of what the fix does
+6. If genuinely blocked (can't identify relevant code or issue is too vague), Claude posts a comment with a proposed direction and clarifying questions
 
 **Guardrails:**
 - Only adds labels (does not modify issue title, body, or assignees)
@@ -171,7 +171,7 @@ Triggers when a new issue is opened by a human (not a bot).
 - Only creates PRs targeting `main` from fix branches (never merges, approves, or closes PRs)
 - Never pushes to `main`
 - Only modifies files in allowed directories
-- Only proposes fixes for bugs or well-defined enhancements affecting 3 or fewer files
+- Always attempts a fix (3-file scope guardrail still applies — falls back to proposing a direction if genuinely blocked)
 
 ### Respond job (on issue comment)
 
@@ -272,7 +272,7 @@ This prevents malicious issue bodies from hijacking the agent's behavior.
 
 - Check that `contents: write` and `pull-requests: write` permissions are set
 - Verify git operations and `Bash(gh pr create *)` are in the allowed tools list
-- Review the agent's issue comment — if it asks clarifying questions, confidence criteria weren't met
+- Review the agent's issue comment — if it only asked questions without filing a PR, the issue was too vague or would require changes to more than 3 files
 
 ## Cost Considerations
 

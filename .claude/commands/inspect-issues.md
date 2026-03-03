@@ -109,7 +109,7 @@ The prompt should include:
 - Issue number, title, body, labels, author, comments
 - Condensed list of other open issues (for duplicate detection)
 
-The issue-reviewer returns a JSON object. Validate that it contains: `type`, `issue_number`, `pr_number`, `verdict`, `dimensions` (with all 5 keys), `rationale`, and `duplicate_of`.
+The issue-reviewer returns a JSON object. Validate that it contains: `type`, `issue_number`, `pr_number`, `verdict`, `dimensions` (with all 6 keys), `rationale`, and `duplicate_of`.
 
 If the output is not valid JSON, strip fences and retry parsing. If still invalid, treat as triage failure for that issue.
 
@@ -251,6 +251,9 @@ For each standalone issue, render the issue-reviewer's JSON as a readable markdo
 ### Duplicate Check
 <dimensions.duplicate_check>
 
+### Proposed Direction
+<dimensions.proposed_direction>
+
 ---
 
 **Verdict: <verdict>** [Duplicate of #<duplicate_of> if applicable]
@@ -336,7 +339,7 @@ Use AskUserQuestion to present options based on the verdict:
 
 | Verdict | Options |
 |---------|---------|
-| **VALID** | "Auto-fix" (trigger issue-agent workflow), "Respond" (post templated response via `/respond`), "Label" (apply triage label), "Skip" |
+| **VALID** | "Auto-fix" (trigger issue-agent to file a candidate fix PR — recommended), "Respond" (post templated response via `/respond`), "Label" (apply triage label), "Skip" |
 | **NEEDS_INFO** | "Respond" (post templated response via `/respond`), "Skip" |
 | **DUPLICATE** | "Respond & Close" (post templated response via `/respond`, then close), "Skip" |
 | **REJECT** | "Respond & Close" (post templated response via `/respond`, then close), "Skip" |
@@ -372,7 +375,7 @@ Use AskUserQuestion to present options based on the verdict:
 **"Respond"** (all verdicts — posts as `line-sous-chef[bot]` via the respond workflow):
 
 Map the verdict to a suggested template:
-- **VALID** → `acknowledged` (issue confirmed, we're looking at it), `fix-shipped` (if a fix has shipped), `workaround-available` (if a workaround exists but fix is pending), or skip template suggestion
+- **VALID** → `acknowledged` (always include a proposed solution focused on user value — a candidate fix PR should follow), `fix-shipped` (if a fix has shipped), `workaround-available` (if a workaround exists but fix is pending), or skip template suggestion
 - **NEEDS_INFO** → `needs-info`
 - **DUPLICATE** → `duplicate`
 - **REJECT** → `wont-fix`

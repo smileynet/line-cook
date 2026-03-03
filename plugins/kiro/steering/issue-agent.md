@@ -133,18 +133,23 @@ gh issue edit {{ISSUE_NUMBER}} --add-label "<classification>"
 
 Decide whether you can propose a fix, since the comment format depends on the path chosen.
 
-**Confidence criteria — take Path A when ALL of these are true:**
-- You can articulate all three of: (1) what the code is **supposed to do** (intent), (2) what the code **actually does** (behavior), (3) **why** the gap exists (cause). If you can only answer #2, you've found the symptom, not the root cause — take Path B.
-- You identified a specific bug OR a well-defined enhancement with a clear implementation path
-- You found the exact file(s) and line(s) where the problem occurs
-- The fix requires changing **3 or fewer files** (scope guardrail — if more files are affected, do NOT attempt a fix)
-- The fix is straightforward (typo, broken import, wrong variable, missing condition, off-by-one, etc.)
-- You are confident the fix won't break other functionality
+**Default: always take Path A** — attempt a fix and file a candidate fix PR. Bias toward action: a best-effort PR that gets reviewed is more useful than a perfect analysis with no PR.
+
+**Path A criteria — attempt a fix when ANY of these are true:**
+- You identified a specific bug with a clear root cause
+- You identified a well-defined enhancement with a clear implementation path
+- You understand the user's problem and can propose a reasonable solution, even if you're not 100% certain it's right
+
+**Only fall to Path B when genuinely blocked:**
+- You cannot identify which files or code paths are involved AND the issue is too vague to attempt any reasonable solution
+- OR the fix would require changing more than 3 files (scope guardrail)
+
+**Always apply regardless of path:**
 - The fix does not conflict with any documented decision in `docs/decisions/`
 - The fix follows existing project conventions (naming, error handling, patterns)
 
-**If ALL criteria are met → Path A** (Steps 5 and 6).
-**Otherwise → Path B** (skip to Step 6).
+**If ANY Path A criteria are met → Path A** (Steps 5 and 6).
+**If ALL Path B criteria are met → Path B** (skip to Step 6).
 
 ### Step 4.5: Assess confidence level (Path B only)
 
@@ -223,6 +228,8 @@ Choose the format based on the path:
 
 **What's happening:** <plain-language redescription of the problem>
 
+**What this does for you:** <1-2 sentence description of how the fix improves their experience — user perspective, not code details>
+
 **What I did:** I created a pull request with a proposed fix: #<PR-number>
 
 A maintainer will review and merge it. Once merged, you'll get the fix by running `/plugin update line` in Claude Code.
@@ -259,7 +266,7 @@ If you have the repository cloned:
 </details>
 ```
 
-**Path B — no fix, ask clarifying questions:**
+**Path B — no fix, propose direction and ask clarifying questions:**
 ```
 > Quick note from the project.
 
@@ -267,12 +274,12 @@ If you have the repository cloned:
 
 **What I understand:** <plain-language redescription showing comprehension>
 
-**Some questions that would help:**
+**What we're thinking:** <1-2 sentence proposed solution focused on what would improve the user's experience. Always propose something — even if uncertain, suggest the most likely helpful direction.>
+
+**Some questions that would help us get this right:**
 1. <specific question>
 2. <specific question>
 3. <specific question if needed>
-
-<1-2 sentences about what info would help narrow things down>
 ```
 
 For clear enhancements, questions can focus on scope, priority, and implementation approach rather than comprehension. If no clarifying questions are genuinely needed, summarize what you found in the codebase that's relevant instead.

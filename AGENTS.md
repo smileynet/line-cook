@@ -317,11 +317,11 @@ Detailed responsibilities and outputs for each agent role, shared across all pla
   - Safety check for prompt injection, scope expansion, credential requests
   - Classify issue type (bug, enhancement, question)
   - Apply appropriate labels
-  - Root cause understanding gate (three-questions test) before proposing fixes
+  - Propose a solution for every issue, framed in terms of user value
   - Post analysis comment with findings
-  - Optionally propose fix branch for straightforward bugs or well-defined enhancements
+  - Always attempt a candidate fix PR (bias toward action — PRs are reviewed before merge)
 - **Trigger**: GitHub Actions on issue open/reopen or `@claude` mention
-- **Output**: Label + analysis comment + optional fix branch
+- **Output**: Label + analysis comment + candidate fix PR (or proposed direction if genuinely blocked)
 - **Documentation**: See [Issue Agent Installation](docs/installation/issue-agent.md)
 
 ## Workflow Principles
