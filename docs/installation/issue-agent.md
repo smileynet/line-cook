@@ -5,7 +5,7 @@ The issue agent is a GitHub Actions workflow that automatically triages issues u
 1. Searches the codebase for relevant context
 2. Classifies the issue (bug, enhancement, or question)
 3. Applies a label
-4. Optionally creates a fix branch and pull request for simple bugs
+4. Optionally creates a fix branch and pull request for simple bugs or well-defined enhancements
 5. Posts a user-facing comment (with PR link, or clarifying questions)
 
 ## Prerequisites
@@ -171,7 +171,7 @@ Triggers when a new issue is opened by a human (not a bot).
 - Only creates PRs targeting `main` from fix branches (never merges, approves, or closes PRs)
 - Never pushes to `main`
 - Only modifies files in allowed directories
-- Only proposes fixes for bugs affecting 3 or fewer files
+- Only proposes fixes for bugs or well-defined enhancements affecting 3 or fewer files
 
 ### Respond job (on issue comment)
 

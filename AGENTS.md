@@ -319,7 +319,7 @@ Detailed responsibilities and outputs for each agent role, shared across all pla
   - Apply appropriate labels
   - Root cause understanding gate (three-questions test) before proposing fixes
   - Post analysis comment with findings
-  - Optionally propose fix branch for straightforward issues
+  - Optionally propose fix branch for straightforward bugs or well-defined enhancements
 - **Trigger**: GitHub Actions on issue open/reopen or `@claude` mention
 - **Output**: Label + analysis comment + optional fix branch
 - **Documentation**: See [Issue Agent Installation](docs/installation/issue-agent.md)
@@ -331,6 +331,7 @@ Detailed responsibilities and outputs for each agent role, shared across all pla
 3. **Guardrails on completion** - Verify before marking done
 4. **Push before stop** - Work isn't done until pushed
 5. **File, don't block** - Discovered issues become beads, not interruptions
+6. **Bot identity for issues** - All comments on GitHub issues must post as `line-sous-chef[bot]` via the `respond.yml` workflow. Never use `gh issue comment` directly from local CLI — it posts as the authenticated user. Use `/respond` or dispatch `gh workflow run respond.yml ...` instead. PR comments (`gh pr comment`) from maintainers are fine as-is.
 
 ## Beads Reference
 

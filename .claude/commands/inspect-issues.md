@@ -11,6 +11,8 @@ allowed-tools: Bash, Read, Glob, Grep, Task, AskUserQuestion
 - `/inspect-issues` — review all open PRs and standalone issues
 - `/inspect-issues 7` — review PR #7 or issue #7
 
+**Bot identity rule:** All comments on GitHub **issues** must be posted as `line-sous-chef[bot]` via the `respond.yml` workflow. Never use `gh issue comment` directly from local CLI — it posts as the local user. Use the `/respond` flow (dispatch `gh workflow run respond.yml ...`) for all issue comments. PR comments (`gh pr comment`) are fine as-is since they're maintainer reviews.
+
 ---
 
 ## Process
@@ -334,20 +336,20 @@ Use AskUserQuestion to present options based on the verdict:
 
 | Verdict | Options |
 |---------|---------|
-| **VALID** | "Auto-fix" (close + reopen to trigger issue-agent workflow), "Respond" (post templated response via `/respond`), "Label" (apply triage label), "Skip" |
-| **NEEDS_INFO** | "Respond" (post templated response via `/respond`), "Comment" (post structured question to issue), "Skip" |
-| **DUPLICATE** | "Respond" (post templated response via `/respond`), "Close" (close as duplicate with reference), "Skip" |
-| **REJECT** | "Respond" (post templated response via `/respond`), "Close" (close as not-planned), "Skip" |
+| **VALID** | "Auto-fix" (trigger issue-agent workflow), "Respond" (post templated response via `/respond`), "Label" (apply triage label), "Skip" |
+| **NEEDS_INFO** | "Respond" (post templated response via `/respond`), "Skip" |
+| **DUPLICATE** | "Respond & Close" (post templated response via `/respond`, then close), "Skip" |
+| **REJECT** | "Respond & Close" (post templated response via `/respond`, then close), "Skip" |
 
 **Actions by choice:**
 
 **"Auto-fix"** (VALID verdict only):
-1. Post a concise comment to the issue (see format below)
-2. Close then reopen the issue to trigger the `issues: [reopened]` event in `.github/workflows/issue-agent.yml`:
+1. Close then reopen the issue to trigger the `issues: [reopened]` event in `.github/workflows/issue-agent.yml`:
    ```bash
    gh issue close <issue-number>
    gh issue reopen <issue-number>
    ```
+   The issue-agent workflow will post its own comment as `line-sous-chef[bot]` — do not post a separate comment here.
 
 **"Label"** (VALID verdict only):
 1. Apply a triage label to the issue:
@@ -355,24 +357,22 @@ Use AskUserQuestion to present options based on the verdict:
    gh issue edit <issue-number> --add-label "triaged"
    ```
 
-**"Comment"** (NEEDS_INFO verdict):
-1. Post a structured question comment to the issue (see format below)
-
-**"Close"** (DUPLICATE or REJECT verdict):
-For DUPLICATE:
-```bash
-gh issue close <issue-number> --reason "not planned" --comment "Duplicate of #<duplicate_of>. Closing in favor of the existing issue."
-```
-
-For REJECT:
-```bash
-gh issue close <issue-number> --reason "not planned" --comment "Closing: not actionable."
-```
+**"Respond & Close"** (DUPLICATE or REJECT verdict):
+1. Follow the "Respond" flow below to post a templated comment as `line-sous-chef[bot]` (use `duplicate` or `wont-fix` template)
+2. After the respond workflow succeeds, close the issue:
+   For DUPLICATE:
+   ```bash
+   gh issue close <issue-number> --reason "not planned"
+   ```
+   For REJECT:
+   ```bash
+   gh issue close <issue-number> --reason "not planned"
+   ```
 
 **"Respond"** (all verdicts — posts as `line-sous-chef[bot]` via the respond workflow):
 
 Map the verdict to a suggested template:
-- **VALID** → `fix-shipped` (if a fix has shipped), `workaround-available` (if a workaround exists but fix is pending), or skip template suggestion
+- **VALID** → `acknowledged` (issue confirmed, we're looking at it), `fix-shipped` (if a fix has shipped), `workaround-available` (if a workaround exists but fix is pending), or skip template suggestion
 - **NEEDS_INFO** → `needs-info`
 - **DUPLICATE** → `duplicate`
 - **REJECT** → `wont-fix`
@@ -389,22 +389,8 @@ Then follow the `/respond` command flow:
 
 **"Skip":** No action taken for this issue.
 
-**Issue comment format (follow VOICE.md — warm, conversational, specific):**
-```
-<!-- line:inspect-issues triage -->
-<Warm, conversational message following VOICE.md principles. Thank the reporter for something specific. Explain the verdict in friendly language. If asking questions, frame them helpfully ("Could you share..." not "We need clarification on..."). Close with an inviting next step.>
----
-*Reviewed by `/inspect-issues`.*
-
-Example (NEEDS_INFO): "Thanks for filing this — we'd love to help! Could you share a bit more about <specific thing>? That would really help us narrow it down."
-Example (VALID): "Nice find — this looks like a real issue. We're on it."
-Example (DUPLICATE): "This overlaps with #N, which has more context already. Closing in its favor — feel free to reopen if your situation is different."
-```
-
-Post using:
-```bash
-gh issue comment <issue-number> --body "<comment>"
-```
+**Issue comments — bot identity rule:**
+All issue comments must be posted as `line-sous-chef[bot]` via the respond workflow. Never call `gh issue comment` directly for issues — it posts as the local user. Use the "Respond" flow above, which dispatches `gh workflow run respond.yml ...` to post as the bot. Available templates: `acknowledged`, `needs-info`, `fix-shipped`, `workaround-available`, `duplicate`, `wont-fix`.
 
 ### Step 6: Output Summary
 
