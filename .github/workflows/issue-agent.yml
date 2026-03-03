@@ -77,16 +77,13 @@ jobs:
       - name: Post timeout fallback comment
         if: steps.analyze.outcome == 'failure'
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "⏱️ **Agent Timeout**
+          gh issue comment ${{ github.event.issue.number }} --body "> Quick note from the project.
 
-          The issue-agent workflow exceeded its 10-minute timeout while analyzing this issue.
+          Our automated analysis took longer than expected on this one — looks like it needed more time to dig through the codebase.
 
-          **Next steps:**
-          - A maintainer will manually triage this issue
-          - You can add more context or clarifying details to help with triage
-          - For urgent issues, mention \`@claude\` in a comment to get a quick response
+          A maintainer will take a look shortly. In the meantime, any extra context you can share (error messages, reproduction steps, environment details) always helps speed things along.
 
-          _This is an automated message from the issue-agent self-healing system._"
+          _— line-sous-chef_"
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
@@ -140,15 +137,12 @@ jobs:
       - name: Post timeout fallback comment
         if: steps.respond.outcome == 'failure'
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "⏱️ **Agent Timeout**
+          gh issue comment ${{ github.event.issue.number }} --body "> Quick note from the project.
 
-          The issue-agent workflow exceeded its 10-minute timeout while responding to your question.
+          That question needed more digging than we could finish in time — sorry about that!
 
-          **Next steps:**
-          - Try rephrasing your question more specifically
-          - Break complex questions into smaller parts
-          - A maintainer can help if the issue persists
+          A couple things that might help: try narrowing the question to a specific file or behavior, or break it into smaller pieces. A maintainer can also jump in if needed.
 
-          _This is an automated message from the issue-agent self-healing system._"
+          _— line-sous-chef_"
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}

@@ -310,13 +310,17 @@ Use AskUserQuestion to present options based on the verdict:
 
 **"Skip":** No action taken for this PR.
 
-**PR comment format:**
+**PR comment format (follow VOICE.md — warm, conversational, specific):**
 ```
 <!-- line:inspect-issues verdict -->
 **Verdict: <VERDICT>**
-<1-2 sentence rationale>
+<1-2 sentence warm rationale — acknowledge the work, explain the verdict conversationally>
 ---
 *Reviewed by `/inspect-issues`.*
+
+Example (MERGE): "Nice work — clean fix that matches existing patterns. Ready to ship."
+Example (POLISH): "Good direction! A few style nits to tidy up before this is ready."
+Example (REWORK): "Appreciate the effort — the approach needs some rethinking though. See the dimensions above for specifics."
 ```
 
 Post using:
@@ -385,13 +389,16 @@ Then follow the `/respond` command flow:
 
 **"Skip":** No action taken for this issue.
 
-**Issue comment format:**
+**Issue comment format (follow VOICE.md — warm, conversational, specific):**
 ```
 <!-- line:inspect-issues triage -->
-**Verdict: <VERDICT>**
-<1-2 sentence rationale>
+<Warm, conversational message following VOICE.md principles. Thank the reporter for something specific. Explain the verdict in friendly language. If asking questions, frame them helpfully ("Could you share..." not "We need clarification on..."). Close with an inviting next step.>
 ---
 *Reviewed by `/inspect-issues`.*
+
+Example (NEEDS_INFO): "Thanks for filing this — we'd love to help! Could you share a bit more about <specific thing>? That would really help us narrow it down."
+Example (VALID): "Nice find — this looks like a real issue. We're on it."
+Example (DUPLICATE): "This overlaps with #N, which has more context already. Closing in its favor — feel free to reopen if your situation is different."
 ```
 
 Post using:
