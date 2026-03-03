@@ -84,7 +84,7 @@ Edit `.github/workflows/issue-agent.yml` to customize behavior:
 Controls how many tool-use iterations Claude can perform. Set via `claude_args`:
 
 ```yaml
-claude_args: '--max-turns 25 ...'  # Default for analysis job
+claude_args: '--max-turns 35 ...'  # Default for analysis job
 claude_args: '--max-turns 8 ...'   # Default for respond job
 ```
 
@@ -267,6 +267,13 @@ This prevents malicious issue bodies from hijacking the agent's behavior.
 - Check that the repository has the `bug`, `enhancement`, and `question` labels
 - The agent will create missing labels automatically
 - Verify `issues: write` permission is set in the workflow
+
+### Timeout fallback comment posted despite successful work
+
+The workflow posts a fallback comment only when the agent produced no output
+(no bot comment AND no fix PR). If the agent filed a PR but exhausted its
+turn limit before posting a user-facing comment, the PR still exists — check
+the Actions tab and open PRs for the issue.
 
 ### Fix branches or PRs aren't created
 
