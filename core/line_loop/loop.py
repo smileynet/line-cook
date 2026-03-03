@@ -309,12 +309,10 @@ def _filter_excluded_epics(
 ) -> list[BeadInfo]:
     """Filter out beads that descend from excluded epics."""
     if ancestor_map is not None:
-        result = []
-        for b in beads:
-            epic_id = ancestor_map.get(b.id)
-            if epic_id is None or epic_id not in excluded_ids:
-                result.append(b)
-        return result
+        return [
+            b for b in beads
+            if ancestor_map.get(b.id) not in excluded_ids
+        ]
     result = []
     for b in beads:
         ancestor = find_epic_ancestor(b, snapshot, cwd)
@@ -1489,7 +1487,8 @@ def run_loop(
                 tasks_remaining=ready_work_count,
                 started_at=started_at,
                 iterations=iterations,
-                cli_name=cli_name
+                cli_name=cli_name,
+                _status_writer=write_status_file,
             )
 
         # Run iteration with individual phase invocations

@@ -7,7 +7,7 @@ Do not edit directly - edit the source modules in core/line_loop/ instead.
 
 Platform Support:
     Linux, macOS, WSL - Fully supported
-    Windows - NOT supported (select.select() requires Unix file descriptors)
+    Windows 11 - Supported
 """
 
 # === Standard library imports ===
@@ -18,17 +18,19 @@ import logging.handlers
 import os
 import random
 import re
-import select
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from queue import Empty, Queue
 from typing import Any, Callable, Optional, Protocol
 
 from typing import TYPE_CHECKING
@@ -1360,6 +1362,249 @@ def extract_kiro_actions_from_line(
     return actions
 
 
+# --- platform.py ---
+
+_IS_WINDOWS = sys.platform == 'win32'
+
+# select only works on sockets on Windows; use __import__ to survive bundler stripping
+select = __import__('select') if not _IS_WINDOWS else None
+
+
+# ---------------------------------------------------------------------------
+# PipeReader hierarchy
+# ---------------------------------------------------------------------------
+
+class PipeReader(ABC):
+    """Abstract interface for non-blocking line reading from a pipe."""
+
+    @abstractmethod
+    def readline(self, timeout: float) -> Optional[str]:
+        """Read one line with timeout.
+
+        Returns:
+            A line string (with newline) on data,
+            '' (empty string) on EOF,
+            None on timeout (no data available yet).
+        """
+
+    @abstractmethod
+    def drain(self) -> list[str]:
+        """Read all remaining buffered lines after process exits."""
+
+    @abstractmethod
+    def close(self):
+        """Clean up resources (join threads, etc.)."""
+
+    @staticmethod
+    def create(pipe) -> 'PipeReader':
+        """Factory: returns the right implementation for the current platform."""
+        if _IS_WINDOWS:
+            return ThreadedPipeReader(pipe)
+        return SelectPipeReader(pipe)
+
+
+class SelectPipeReader(PipeReader):
+    """Unix implementation using select.select() for timeout support."""
+
+    def __init__(self, pipe):
+        self._pipe = pipe
+
+    def readline(self, timeout: float) -> Optional[str]:
+        ready, _, _ = select.select([self._pipe], [], [], timeout)
+        if ready:
+            line = self._pipe.readline()
+            if not line:
+                return ''  # EOF
+            return line
+        return None  # timeout
+
+    def drain(self) -> list[str]:
+        remaining = self._pipe.read()
+        if remaining:
+            return remaining.splitlines(keepends=True)
+        return []
+
+    def close(self):
+        pass  # pipe owned by Popen
+
+
+class ThreadedPipeReader(PipeReader):
+    """Windows implementation using a reader thread + Queue."""
+
+    _EOF = object()  # sentinel
+
+    def __init__(self, pipe):
+        self._pipe = pipe
+        self._queue: Queue = Queue()
+        self._eof_seen = False
+        self._thread = threading.Thread(target=self._reader, daemon=True)
+        self._thread.start()
+
+    def _reader(self):
+        try:
+            for line in iter(self._pipe.readline, ''):
+                self._queue.put(line)
+        except ValueError:
+            pass  # pipe closed
+        finally:
+            self._queue.put(self._EOF)
+
+    def readline(self, timeout: float) -> Optional[str]:
+        if self._eof_seen:
+            return ''
+        try:
+            item = self._queue.get(timeout=timeout)
+        except Empty:
+            return None  # timeout
+        if item is self._EOF:
+            self._eof_seen = True
+            return ''  # EOF
+        return item
+
+    def drain(self) -> list[str]:
+        self._thread.join(timeout=5)
+        lines = []
+        while True:
+            try:
+                item = self._queue.get_nowait()
+            except Empty:
+                break
+            if item is self._EOF:
+                break
+            lines.append(item)
+        return lines
+
+    def close(self):
+        if self._thread.is_alive():
+            self._thread.join(timeout=5)
+
+
+# ---------------------------------------------------------------------------
+# Stderr temp file helpers
+# ---------------------------------------------------------------------------
+
+def create_stderr_file(phase: str):
+    """Create a temporary file for capturing subprocess stderr.
+
+    On Windows, NamedTemporaryFile holds an exclusive lock (O_TEMPORARY),
+    preventing the child process from writing. Use mkstemp + open instead.
+
+    Returns:
+        A file object opened for writing. The caller must pass it to
+        read_and_cleanup_stderr() when done.
+    """
+    prefix = f'line-loop-{phase}-stderr-'
+    if _IS_WINDOWS:
+        fd, path = tempfile.mkstemp(prefix=prefix, suffix='.log')
+        os.close(fd)  # release the fd so subprocess can write
+        return open(path, 'w+')
+    else:
+        return tempfile.NamedTemporaryFile(
+            mode='w+', prefix=prefix, suffix='.log', delete=False
+        )
+
+
+def read_and_cleanup_stderr(stderr_file) -> str:
+    """Read stderr content and remove the temp file.
+
+    On Windows, the file must be fully closed before it can be deleted.
+    """
+    try:
+        name = stderr_file.name
+        if _IS_WINDOWS:
+            stderr_file.close()
+            with open(name, 'r') as f:
+                content = f.read().strip()
+            try:
+                os.unlink(name)
+            except OSError:
+                pass
+        else:
+            stderr_file.seek(0)
+            content = stderr_file.read().strip()
+            stderr_file.close()
+            os.unlink(name)
+        return content
+    except (OSError, AttributeError):
+        return ""
+
+
+def cleanup_stderr_file(stderr_file):
+    """Close and remove a stderr temp file, ignoring errors."""
+    try:
+        name = stderr_file.name
+        stderr_file.close()
+        os.unlink(name)
+    except (OSError, AttributeError):
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Process termination
+# ---------------------------------------------------------------------------
+
+def kill_process_tree(process):
+    """Kill a process and its children.
+
+    On Windows, taskkill /T kills the entire process tree.
+    On Unix, process.kill() sends SIGKILL to the direct child.
+    """
+    try:
+        if _IS_WINDOWS:
+            subprocess.run(
+                ['taskkill', '/F', '/T', '/PID', str(process.pid)],
+                capture_output=True, timeout=10
+            )
+        else:
+            process.kill()
+        process.wait(timeout=5)
+    except (subprocess.TimeoutExpired, OSError):
+        logger.warning(f"Process {process.pid} did not terminate after kill")
+
+
+# ---------------------------------------------------------------------------
+# Popen kwargs builder
+# ---------------------------------------------------------------------------
+
+def make_popen_kwargs(cwd, stderr_file) -> dict:
+    """Build platform-appropriate kwargs for subprocess.Popen.
+
+    - Scrubs CLAUDE_CODE_* and CLAUDECODE* env vars on ALL platforms
+      to prevent the child from inheriting loop-specific state.
+    - Sets CREATE_NEW_PROCESS_GROUP on Windows for proper signal handling.
+    """
+    env = os.environ.copy()
+    # Scrub Claude Code env vars to prevent child inheriting loop state
+    for key in list(env.keys()):
+        if key.startswith('CLAUDE_CODE_') or key.startswith('CLAUDECODE'):
+            del env[key]
+
+    kwargs = {
+        'stdout': subprocess.PIPE,
+        'stderr': stderr_file,
+        'text': True,
+        'cwd': cwd,
+        'env': env,
+    }
+
+    if _IS_WINDOWS:
+        kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
+
+    return kwargs
+
+
+# ---------------------------------------------------------------------------
+# Signal setup
+# ---------------------------------------------------------------------------
+
+def setup_signals(handler):
+    """Register shutdown signal handlers, guarding SIGHUP on Windows."""
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGTERM, handler)
+    if hasattr(signal, 'SIGHUP'):
+        signal.signal(signal.SIGHUP, handler)
+
+
 # --- phase.py ---
 
 def check_idle(last_action_time: Optional[datetime], idle_timeout: int) -> bool:
@@ -1523,19 +1768,10 @@ def process_output_line(
         if event.get("type") == "assistant":
             text = extract_text_from_event(event)
         return new_actions, text
-    else:
-        cleaned = strip_ansi(line.rstrip('\n'))
-        new_actions = extract_kiro_actions_from_line(cleaned, pending_actions)
-        return new_actions, cleaned
 
-
-def _cleanup_stderr_file(stderr_file):
-    """Close and remove a stderr temp file, ignoring errors."""
-    try:
-        stderr_file.close()
-        os.unlink(stderr_file.name)
-    except (OSError, AttributeError):
-        pass
+    cleaned = strip_ansi(line.rstrip('\n'))
+    new_actions = extract_kiro_actions_from_line(cleaned, pending_actions)
+    return new_actions, cleaned
 
 
 def run_phase(
@@ -1608,43 +1844,32 @@ def run_phase(
     timeout_base = timeout  # Base after multiplier, before active extensions
     deadline = time.time() + timeout  # Default deadline (set before try for crash safety)
 
-    stderr_file = tempfile.NamedTemporaryFile(
-        mode='w+', prefix=f'line-loop-{phase}-stderr-', suffix='.log', delete=False
-    )
+    stderr_file = create_stderr_file(phase)
+    reader = None
 
     try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=stderr_file,
-            text=True,
-            cwd=cwd
-        )
+        process = subprocess.Popen(cmd, **make_popen_kwargs(cwd, stderr_file))
+        reader = PipeReader.create(process.stdout)
 
         deadline = time.time() + timeout
         while True:
             remaining = deadline - time.time()
             if remaining <= 0:
-                # Graceful termination: SIGTERM first, then SIGKILL as fallback
+                # Graceful termination: SIGTERM first, then kill tree as fallback
                 logger.debug(f"Phase {phase} timeout - sending SIGTERM")
                 process.terminate()  # SIGTERM
                 try:
                     process.wait(timeout=5)
                     logger.debug(f"Phase {phase} terminated gracefully")
                 except subprocess.TimeoutExpired:
-                    logger.warning(f"Phase {phase} did not respond to SIGTERM, sending SIGKILL")
-                    process.kill()  # SIGKILL as fallback
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        logger.warning(f"Phase {phase} process did not terminate after SIGKILL")
+                    logger.warning(f"Phase {phase} did not respond to SIGTERM, killing process tree")
+                    kill_process_tree(process)
                 raise subprocess.TimeoutExpired(cmd=' '.join(cmd), timeout=timeout)
 
-            ready, _, _ = select.select([process.stdout], [], [], min(1.0, remaining))
-            if ready:
-                line = process.stdout.readline()
-                if not line:
-                    break
+            line = reader.readline(timeout=min(1.0, remaining))
+            if line == '':
+                break  # EOF
+            if line is not None:
                 output_lines.append(line)
                 new_actions, text = process_output_line(line, cli_profile, pending_actions)
                 actions.extend(new_actions)
@@ -1683,10 +1908,10 @@ def run_phase(
                         try:
                             process.wait(timeout=5)
                         except subprocess.TimeoutExpired:
-                            process.kill()
-                            process.wait(timeout=5)
+                            kill_process_tree(process)
                         break
             else:
+                # timeout — no data available yet
                 if process.poll() is not None:
                     break
                 # Check for idle when no output is ready
@@ -1699,8 +1924,7 @@ def run_phase(
                             try:
                                 process.wait(timeout=5)
                             except subprocess.TimeoutExpired:
-                                process.kill()
-                                process.wait(timeout=5)
+                                kill_process_tree(process)
                             error = f"Idle timeout after {idle_timeout}s without tool actions"
                             break
                         elif idle_action == "warn" and not idle_warned:
@@ -1708,10 +1932,9 @@ def run_phase(
                             logger.warning(f"Phase {phase} idle for {idle_seconds:.0f}s (threshold: {idle_timeout}s)")
                             idle_warned = True
 
-        # Read any remaining output
-        remaining_out = process.stdout.read()
-        if remaining_out:
-            output_lines.extend(remaining_out.splitlines(keepends=True))
+        # Read any remaining buffered output
+        output_lines.extend(reader.drain())
+        reader.close()
         process.wait()
 
         # Flush unresolved pending actions (e.g., CLI crashed mid-tool-use).
@@ -1723,10 +1946,7 @@ def run_phase(
         pending_actions.clear()
 
         # Read stderr from temp file
-        stderr_file.seek(0)
-        stderr_output = stderr_file.read().strip()
-        stderr_file.close()
-        os.unlink(stderr_file.name)
+        stderr_output = read_and_cleanup_stderr(stderr_file)
 
         if stderr_output:
             logger.debug(f"Phase {phase} stderr: {stderr_output[:500]}")
@@ -1734,7 +1954,9 @@ def run_phase(
         exit_code = process.returncode
 
     except subprocess.TimeoutExpired:
-        _cleanup_stderr_file(stderr_file)
+        if reader:
+            reader.close()
+        cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         effective_timeout = int(deadline - start_time) if deadline > start_time else timeout
         logger.warning(f"Phase {phase} timed out after {duration:.1f}s (base={timeout_base}s, effective={effective_timeout}s)")
@@ -1751,7 +1973,9 @@ def run_phase(
             timeout_effective=effective_timeout,
         )
     except Exception as e:
-        _cleanup_stderr_file(stderr_file)
+        if reader:
+            reader.close()
+        cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         effective_timeout = int(deadline - start_time) if deadline > start_time else timeout
         logger.error(f"Phase {phase} crashed: {e}")
@@ -4110,12 +4334,10 @@ def _filter_excluded_epics(
 ) -> list[BeadInfo]:
     """Filter out beads that descend from excluded epics."""
     if ancestor_map is not None:
-        result = []
-        for b in beads:
-            epic_id = ancestor_map.get(b.id)
-            if epic_id is None or epic_id not in excluded_ids:
-                result.append(b)
-        return result
+        return [
+            b for b in beads
+            if ancestor_map.get(b.id) not in excluded_ids
+        ]
     result = []
     for b in beads:
         ancestor = find_epic_ancestor(b, snapshot, cwd)
@@ -5290,7 +5512,8 @@ def run_loop(
                 tasks_remaining=ready_work_count,
                 started_at=started_at,
                 iterations=iterations,
-                cli_name=cli_name
+                cli_name=cli_name,
+                _status_writer=write_status_file,
             )
 
         # Run iteration with individual phase invocations
@@ -5698,10 +5921,8 @@ def _handle_shutdown(signum, frame):
     logger.info(f"Shutdown requested (signal {signum})")
 
 
-# Register signal handlers
-signal.signal(signal.SIGINT, _handle_shutdown)
-signal.signal(signal.SIGTERM, _handle_shutdown)
-signal.signal(signal.SIGHUP, _handle_shutdown)
+# Register signal handlers (SIGHUP guarded on Windows)
+setup_signals(_handle_shutdown)
 
 
 def setup_logging(verbose: bool, log_file: Optional[Path] = None):
@@ -5710,11 +5931,19 @@ def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     handlers = [logging.StreamHandler()]
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.handlers.RotatingFileHandler(
+        file_handler = logging.handlers.RotatingFileHandler(
             log_file,
             maxBytes=LOG_FILE_MAX_BYTES,
             backupCount=LOG_FILE_BACKUP_COUNT
-        ))
+        )
+        # On Windows, flush after each emit to prevent log loss on kill
+        if sys.platform == 'win32':
+            _orig_emit = file_handler.emit
+            def _flush_emit(record, _emit=_orig_emit):
+                _emit(record)
+                file_handler.flush()
+            file_handler.emit = _flush_emit
+        handlers.append(file_handler)
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(message)s',
@@ -5845,12 +6074,12 @@ Examples:
     parser.add_argument(
         "--status-file",
         type=Path,
-        help="Write live status JSON (default: /tmp/line-loop-{project}/status.json)"
+        help="Write live status JSON (default: <tempdir>/line-loop-{project}/status.json)"
     )
     parser.add_argument(
         "--history-file",
         type=Path,
-        help="Write history JSONL (default: /tmp/line-loop-{project}/history.jsonl)"
+        help="Write history JSONL (default: <tempdir>/line-loop-{project}/history.jsonl)"
     )
     parser.add_argument(
         "--epic", nargs="?", const="auto", default=None,
@@ -5927,7 +6156,7 @@ Examples:
 
     # Generate default paths for status/history files if not provided
     if args.status_file is None or args.history_file is None:
-        loop_dir = Path("/tmp") / f"line-loop-{cwd.name}"
+        loop_dir = Path(tempfile.gettempdir()) / f"line-loop-{cwd.name}"
         loop_dir.mkdir(parents=True, exist_ok=True)
 
         if args.status_file is None:
@@ -5955,7 +6184,7 @@ Examples:
                 print(f"  {check}: {status}")
             if health.get('hints'):
                 print("-" * 30)
-                for check_name, hint in health['hints'].items():
+                for hint in health['hints'].values():
                     print(f"  hint: {hint}")
             if health.get('warnings'):
                 print("-" * 30)

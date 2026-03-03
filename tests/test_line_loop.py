@@ -4200,35 +4200,33 @@ class TestKiroIdleDetection(unittest.TestCase):
     def test_kiro_idle_not_reset_by_text_output(self):
         """Plain text lines don't reset idle timer for non-streaming CLIs."""
         from unittest.mock import patch, MagicMock
-        import subprocess
 
         kiro_profile = line_loop.get_cli_profile('kiro')
 
         # Simulate a process that outputs text but no tool calls, then exits
-        lines = iter([
+        line_data = [
             "Thinking about the problem...\n",
             "Let me analyze the code...\n",
             "Here's what I found:\n",
             "",  # EOF
-        ])
+        ]
+
+        mock_reader = MagicMock()
+        mock_reader.readline.side_effect = line_data
+        mock_reader.drain.return_value = []
 
         mock_process = MagicMock()
-        mock_process.stdout.readline = lambda: next(lines)
-        mock_process.stdout.read.return_value = ""
-        mock_process.stdout.fileno = lambda: 0
         mock_process.wait.return_value = None
         mock_process.returncode = 0
         mock_process.poll.return_value = None
 
         with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
-             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
-             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
-            mock_file = MagicMock()
-            mock_file.read.return_value = ""
-            mock_file.name = "/tmp/test-stderr"
-            mock_tf.return_value = mock_file
-            with patch("line_loop.phase.os.unlink"):
-                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
+             patch("line_loop.phase.PipeReader") as mock_pr_cls, \
+             patch("line_loop.phase.create_stderr_file") as mock_csf, \
+             patch("line_loop.phase.read_and_cleanup_stderr", return_value=""):
+            mock_pr_cls.create.return_value = mock_reader
+            mock_csf.return_value = MagicMock(name="/tmp/test-stderr")
+            result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
 
         # Phase should complete but last_action_time should never have been set
         # (no tool actions), so idle detection would not fire (None check)
@@ -4274,27 +4272,25 @@ class TestStderrCapture(unittest.TestCase):
     def test_stderr_captured_on_failure(self):
         """stderr contents appear in PhaseResult.error when phase fails."""
         from unittest.mock import patch, MagicMock
-        import io
 
         claude_profile = line_loop.get_cli_profile('claude')
 
+        mock_reader = MagicMock()
+        mock_reader.readline.return_value = ""  # immediate EOF
+        mock_reader.drain.return_value = []
+
         mock_process = MagicMock()
-        mock_process.stdout.readline.return_value = ""
-        mock_process.stdout.read.return_value = ""
-        mock_process.stdout.fileno = lambda: 0
         mock_process.wait.return_value = None
         mock_process.returncode = 1
         mock_process.poll.return_value = 0
 
         with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
-             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
-             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
-            mock_file = MagicMock()
-            mock_file.read.return_value = "kiro-cli: segmentation fault"
-            mock_file.name = "/tmp/test-stderr"
-            mock_tf.return_value = mock_file
-            with patch("line_loop.phase.os.unlink"):
-                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
+             patch("line_loop.phase.PipeReader") as mock_pr_cls, \
+             patch("line_loop.phase.create_stderr_file") as mock_csf, \
+             patch("line_loop.phase.read_and_cleanup_stderr", return_value="kiro-cli: segmentation fault"):
+            mock_pr_cls.create.return_value = mock_reader
+            mock_csf.return_value = MagicMock(name="/tmp/test-stderr")
+            result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
 
         self.assertFalse(result.success)
         self.assertIn("stderr:", result.error)
@@ -4306,24 +4302,23 @@ class TestStderrCapture(unittest.TestCase):
 
         claude_profile = line_loop.get_cli_profile('claude')
 
+        mock_reader = MagicMock()
+        mock_reader.readline.return_value = ""  # immediate EOF
+        mock_reader.drain.return_value = []
+
         mock_process = MagicMock()
-        mock_process.stdout.readline.return_value = ""
-        mock_process.stdout.read.return_value = ""
-        mock_process.stdout.fileno = lambda: 0
         mock_process.wait.return_value = None
         mock_process.returncode = 0
         mock_process.poll.return_value = 0
 
         with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
-             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
-             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
-            mock_file = MagicMock()
-            mock_file.read.return_value = "some warning"
-            mock_file.name = "/tmp/test-stderr"
-            mock_tf.return_value = mock_file
-            with patch("line_loop.phase.os.unlink"), \
-                 patch("line_loop.phase.logger") as mock_logger:
-                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
+             patch("line_loop.phase.PipeReader") as mock_pr_cls, \
+             patch("line_loop.phase.create_stderr_file") as mock_csf, \
+             patch("line_loop.phase.read_and_cleanup_stderr", return_value="some warning"), \
+             patch("line_loop.phase.logger") as mock_logger:
+            mock_pr_cls.create.return_value = mock_reader
+            mock_csf.return_value = MagicMock(name="/tmp/test-stderr")
+            result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
 
         self.assertTrue(result.success)
         # Check that debug was called with stderr content
@@ -4332,31 +4327,30 @@ class TestStderrCapture(unittest.TestCase):
         self.assertTrue(stderr_logged, f"stderr not logged in debug calls: {debug_calls}")
 
     def test_stderr_file_cleaned_up(self):
-        """Temp file is deleted after use."""
+        """Temp file is cleaned up via read_and_cleanup_stderr."""
         from unittest.mock import patch, MagicMock
 
         claude_profile = line_loop.get_cli_profile('claude')
 
+        mock_reader = MagicMock()
+        mock_reader.readline.return_value = ""  # immediate EOF
+        mock_reader.drain.return_value = []
+
         mock_process = MagicMock()
-        mock_process.stdout.readline.return_value = ""
-        mock_process.stdout.read.return_value = ""
-        mock_process.stdout.fileno = lambda: 0
         mock_process.wait.return_value = None
         mock_process.returncode = 0
         mock_process.poll.return_value = 0
 
-        with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
-             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
-             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
-            mock_file = MagicMock()
-            mock_file.read.return_value = ""
-            mock_file.name = "/tmp/test-stderr-cleanup"
-            mock_tf.return_value = mock_file
-            with patch("line_loop.phase.os.unlink") as mock_unlink:
-                line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
+        mock_stderr_file = MagicMock(name="/tmp/test-stderr-cleanup")
 
-        mock_file.close.assert_called()
-        mock_unlink.assert_called_with("/tmp/test-stderr-cleanup")
+        with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
+             patch("line_loop.phase.PipeReader") as mock_pr_cls, \
+             patch("line_loop.phase.create_stderr_file", return_value=mock_stderr_file), \
+             patch("line_loop.phase.read_and_cleanup_stderr", return_value="") as mock_cleanup:
+            mock_pr_cls.create.return_value = mock_reader
+            line_loop.run_phase("cook", Path("/tmp"), cli_profile=claude_profile)
+
+        mock_cleanup.assert_called_once_with(mock_stderr_file)
 
 
 class TestFlushPendingActions(unittest.TestCase):
@@ -4369,28 +4363,27 @@ class TestFlushPendingActions(unittest.TestCase):
         kiro_profile = line_loop.get_cli_profile('kiro')
 
         # Process outputs a tool use but never a result indicator
-        lines = iter([
+        line_data = [
             "(using tool: Edit)\n",
             "",  # EOF — crash before result
-        ])
+        ]
+
+        mock_reader = MagicMock()
+        mock_reader.readline.side_effect = line_data
+        mock_reader.drain.return_value = []
 
         mock_process = MagicMock()
-        mock_process.stdout.readline = lambda: next(lines)
-        mock_process.stdout.read.return_value = ""
-        mock_process.stdout.fileno = lambda: 0
         mock_process.wait.return_value = None
         mock_process.returncode = 1  # Crashed
         mock_process.poll.return_value = None
 
         with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
-             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
-             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
-            mock_file = MagicMock()
-            mock_file.read.return_value = ""
-            mock_file.name = "/tmp/test-stderr"
-            mock_tf.return_value = mock_file
-            with patch("line_loop.phase.os.unlink"):
-                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
+             patch("line_loop.phase.PipeReader") as mock_pr_cls, \
+             patch("line_loop.phase.create_stderr_file") as mock_csf, \
+             patch("line_loop.phase.read_and_cleanup_stderr", return_value=""):
+            mock_pr_cls.create.return_value = mock_reader
+            mock_csf.return_value = MagicMock(name="/tmp/test-stderr")
+            result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
 
         # The Edit action appears once (from initial detection) with success=None
         # after flush marks it unresolved in-place.
@@ -4404,29 +4397,28 @@ class TestFlushPendingActions(unittest.TestCase):
 
         kiro_profile = line_loop.get_cli_profile('kiro')
 
-        lines = iter([
+        line_data = [
             "(using tool: Read)\n",
             "\u2713 Done\n",
             "",  # EOF
-        ])
+        ]
+
+        mock_reader = MagicMock()
+        mock_reader.readline.side_effect = line_data
+        mock_reader.drain.return_value = []
 
         mock_process = MagicMock()
-        mock_process.stdout.readline = lambda: next(lines)
-        mock_process.stdout.read.return_value = ""
-        mock_process.stdout.fileno = lambda: 0
         mock_process.wait.return_value = None
         mock_process.returncode = 0
         mock_process.poll.return_value = None
 
         with patch("line_loop.phase.subprocess.Popen", return_value=mock_process), \
-             patch("line_loop.phase.select.select", return_value=([mock_process.stdout], [], [])), \
-             patch("line_loop.phase.tempfile.NamedTemporaryFile") as mock_tf:
-            mock_file = MagicMock()
-            mock_file.read.return_value = ""
-            mock_file.name = "/tmp/test-stderr"
-            mock_tf.return_value = mock_file
-            with patch("line_loop.phase.os.unlink"):
-                result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
+             patch("line_loop.phase.PipeReader") as mock_pr_cls, \
+             patch("line_loop.phase.create_stderr_file") as mock_csf, \
+             patch("line_loop.phase.read_and_cleanup_stderr", return_value=""):
+            mock_pr_cls.create.return_value = mock_reader
+            mock_csf.return_value = MagicMock(name="/tmp/test-stderr")
+            result = line_loop.run_phase("cook", Path("/tmp"), cli_profile=kiro_profile)
 
         # Only 1 action, resolved with success=True (not flushed as unresolved)
         self.assertEqual(len(result.actions), 1)

@@ -7,7 +7,7 @@ for the autonomous loop functionality.
 
 Platform Support:
     Linux, macOS, WSL - Fully supported
-    Windows - NOT supported (select.select() requires Unix file descriptors)
+    Windows 11 - Supported
 """
 
 import argparse
@@ -16,9 +16,9 @@ import logging
 import logging.handlers
 import os
 import shutil
-import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -42,6 +42,7 @@ from line_loop import (
     # Utilities
     atomic_write,
 )
+from line_loop.platform import setup_signals
 
 # Module-level logger
 logger = logging.getLogger('line-loop')
@@ -53,10 +54,8 @@ def _handle_shutdown(signum, frame):
     logger.info(f"Shutdown requested (signal {signum})")
 
 
-# Register signal handlers
-signal.signal(signal.SIGINT, _handle_shutdown)
-signal.signal(signal.SIGTERM, _handle_shutdown)
-signal.signal(signal.SIGHUP, _handle_shutdown)
+# Register signal handlers (SIGHUP guarded on Windows)
+setup_signals(_handle_shutdown)
 
 
 def setup_logging(verbose: bool, log_file: Optional[Path] = None):
@@ -65,11 +64,19 @@ def setup_logging(verbose: bool, log_file: Optional[Path] = None):
     handlers = [logging.StreamHandler()]
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.handlers.RotatingFileHandler(
+        file_handler = logging.handlers.RotatingFileHandler(
             log_file,
             maxBytes=LOG_FILE_MAX_BYTES,
             backupCount=LOG_FILE_BACKUP_COUNT
-        ))
+        )
+        # On Windows, flush after each emit to prevent log loss on kill
+        if sys.platform == 'win32':
+            _orig_emit = file_handler.emit
+            def _flush_emit(record, _emit=_orig_emit):
+                _emit(record)
+                file_handler.flush()
+            file_handler.emit = _flush_emit
+        handlers.append(file_handler)
     logging.basicConfig(
         level=level,
         format='%(asctime)s [%(levelname)s] %(message)s',
@@ -200,12 +207,12 @@ Examples:
     parser.add_argument(
         "--status-file",
         type=Path,
-        help="Write live status JSON (default: /tmp/line-loop-{project}/status.json)"
+        help="Write live status JSON (default: <tempdir>/line-loop-{project}/status.json)"
     )
     parser.add_argument(
         "--history-file",
         type=Path,
-        help="Write history JSONL (default: /tmp/line-loop-{project}/history.jsonl)"
+        help="Write history JSONL (default: <tempdir>/line-loop-{project}/history.jsonl)"
     )
     parser.add_argument(
         "--epic", nargs="?", const="auto", default=None,
@@ -282,7 +289,7 @@ Examples:
 
     # Generate default paths for status/history files if not provided
     if args.status_file is None or args.history_file is None:
-        loop_dir = Path("/tmp") / f"line-loop-{cwd.name}"
+        loop_dir = Path(tempfile.gettempdir()) / f"line-loop-{cwd.name}"
         loop_dir.mkdir(parents=True, exist_ok=True)
 
         if args.status_file is None:
@@ -310,7 +317,7 @@ Examples:
                 print(f"  {check}: {status}")
             if health.get('hints'):
                 print("-" * 30)
-                for check_name, hint in health['hints'].items():
+                for hint in health['hints'].values():
                     print(f"  hint: {hint}")
             if health.get('warnings'):
                 print("-" * 30)

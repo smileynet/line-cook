@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Optional
 
 # Module dependency order for bundling line_loop package
-LINE_LOOP_MODULES = ["config", "models", "parsing", "phase", "iteration", "loop"]
+LINE_LOOP_MODULES = ["config", "models", "parsing", "platform", "phase", "iteration", "loop"]
 
 
 # ANSI colors for terminal output
@@ -90,7 +90,7 @@ def get_current_version(repo_root: Path) -> Optional[str]:
     if not plugin_path.exists():
         return None
     try:
-        data = json.loads(plugin_path.read_text())
+        data = json.loads(plugin_path.read_text(encoding='utf-8'))
         return data.get("version")
     except (json.JSONDecodeError, KeyError):
         return None
@@ -144,7 +144,7 @@ def changelog_has_unreleased_content(repo_root: Path) -> bool:
     if not changelog_path.exists():
         return False
 
-    content = changelog_path.read_text()
+    content = changelog_path.read_text(encoding='utf-8')
 
     # Find [Unreleased] section and check if it has content before next version
     unreleased_match = re.search(
@@ -206,7 +206,7 @@ def update_json_file(file_path: Path, updates: dict[str, str], dry_run: bool = F
         True if successful
     """
     try:
-        data = json.loads(file_path.read_text())
+        data = json.loads(file_path.read_text(encoding='utf-8'))
 
         for path, value in updates.items():
             keys = path.split(".")
@@ -217,7 +217,7 @@ def update_json_file(file_path: Path, updates: dict[str, str], dry_run: bool = F
 
         if not dry_run:
             # Preserve formatting with 2-space indent
-            file_path.write_text(json.dumps(data, indent=2) + "\n")
+            file_path.write_text(json.dumps(data, indent=2) + "\n", encoding='utf-8')
 
         return True
     except (json.JSONDecodeError, KeyError, FileNotFoundError) as e:
@@ -228,7 +228,7 @@ def update_json_file(file_path: Path, updates: dict[str, str], dry_run: bool = F
 def update_kiro_version(file_path: Path, version: str, dry_run: bool = False) -> bool:
     """Update VERSION constant in Kiro install.py."""
     try:
-        content = file_path.read_text()
+        content = file_path.read_text(encoding='utf-8')
         new_content = re.sub(
             r'^VERSION = "[\d.]+"',
             f'VERSION = "{version}"',
@@ -240,7 +240,7 @@ def update_kiro_version(file_path: Path, version: str, dry_run: bool = False) ->
             print(f"  {color('✗', Colors.RED)} Could not find VERSION constant in {file_path}")
             return False
         if not dry_run:
-            file_path.write_text(new_content)
+            file_path.write_text(new_content, encoding='utf-8')
         return True
     except FileNotFoundError:
         print(f"  {color('✗', Colors.RED)} {file_path} not found")
@@ -283,7 +283,7 @@ def update_changelog(config: ReleaseConfig) -> bool:
     changelog_path = config.repo_root / "CHANGELOG.md"
 
     try:
-        content = changelog_path.read_text()
+        content = changelog_path.read_text(encoding='utf-8')
         today = date.today().isoformat()
 
         # Replace [Unreleased] content with new version section
@@ -332,7 +332,7 @@ def update_changelog(config: ReleaseConfig) -> bool:
         new_content = updated_content
 
         if not config.dry_run:
-            changelog_path.write_text(new_content)
+            changelog_path.write_text(new_content, encoding='utf-8')
 
         print(f"  {color('✓', Colors.GREEN)} Converted [Unreleased] → [{config.version}] - {today}")
         print(f"  {color('✓', Colors.GREEN)} Added new [Unreleased] section")
@@ -491,12 +491,10 @@ def collect_stdlib_imports(modules: list[tuple[str, str]], cli_content: str) -> 
                 if match:
                     module = match.group(1)
                     names = match.group(2)
-                    if module not in from_imports:
-                        from_imports[module] = set()
                     for name in names.split(','):
                         name = name.strip()
                         if name:
-                            from_imports[module].add(name)
+                            from_imports.setdefault(module, set()).add(name)
 
     # Build output: simple imports first, then from imports
     result = []
@@ -526,7 +524,7 @@ def get_original_cli_wrapper(repo_root: Path) -> str:
             f"CLI wrapper not found: {cli_file}\n"
             "This file contains the thin wrapper that imports from line_loop package."
         )
-    return cli_file.read_text()
+    return cli_file.read_text(encoding='utf-8')
 
 
 def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
@@ -553,7 +551,7 @@ def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
         if not module_path.exists():
             print(f"  {color('✗', Colors.RED)} Module not found: {module_path}")
             return False
-        modules.append((module_name, module_path.read_text()))
+        modules.append((module_name, module_path.read_text(encoding='utf-8')))
 
     # Read CLI wrapper from git HEAD (since bundling overwrites it)
     cli_content = get_original_cli_wrapper(repo_root)
@@ -572,7 +570,7 @@ def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
         "",
         "Platform Support:",
         "    Linux, macOS, WSL - Fully supported",
-        "    Windows - NOT supported (select.select() requires Unix file descriptors)",
+        "    Windows 11 - Supported",
         '"""',
         "",
         "# === Standard library imports ===",
@@ -623,12 +621,12 @@ def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
     bundled_content = re.sub(r'\n{4,}', '\n\n\n', bundled_content)
 
     if not dry_run:
-        output_file.write_text(bundled_content)
+        output_file.write_text(bundled_content, encoding='utf-8')
         print(f"  {color('✓', Colors.GREEN)} Bundled line_loop package into line-loop.py")
 
         # Verify bundled Python is syntactically valid
         try:
-            ast.parse(output_file.read_text())
+            ast.parse(output_file.read_text(encoding='utf-8'))
             print(f"  {color('✓', Colors.GREEN)} Syntax check passed")
         except SyntaxError as e:
             print(f"  {color('✗', Colors.RED)} Syntax error in bundled file: {e}")

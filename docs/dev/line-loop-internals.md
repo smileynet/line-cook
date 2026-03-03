@@ -31,6 +31,7 @@ core/
     ├── models.py         # Dataclasses: CircuitBreaker, LoopError, BeadSnapshot,
     │                     #   ServeResult, IterationResult, LoopReport, etc.
     ├── parsing.py        # Output parsing: serve_result, intent, feedback
+    ├── platform.py       # Platform abstractions: PipeReader, process tree, stderr, signals
     ├── phase.py          # Phase execution: run_phase, streaming, idle detection
     ├── iteration.py      # Single iteration: run_iteration, completion checks
     └── loop.py           # Main orchestration: run_loop, sync, status writing
@@ -45,7 +46,7 @@ plugins/claude-code/scripts/
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           line-loop.py (CLI)                            │
 │  - Parse CLI args                                                       │
-│  - Set up signal handlers (SIGINT, SIGTERM, SIGHUP → request_shutdown)  │
+│  - Set up signal handlers via setup_signals() (SIGHUP guarded on Win)   │
 │  - Call run_loop() from line_loop package                               │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │
@@ -76,7 +77,7 @@ plugins/claude-code/scripts/
 │                        phase.py (Phase Execution)                       │
 │  run_phase():                                                           │
 │  - Invoke CLI with skill (e.g., /line:cook)                             │
-│  - Stream stdout via select(), parse events as they arrive              │
+│  - Stream stdout via PipeReader (select on Unix, threaded on Windows)   │
 │  - Track tool actions (extract_actions_from_event)                      │
 │  - Detect signals (KITCHEN_COMPLETE, SERVE_RESULT, phase_complete)      │
 │  - Idle detection (configurable timeout + action)                       │
@@ -98,24 +99,24 @@ plugins/claude-code/scripts/
 ### Module Dependency Graph
 
 ```
-┌─────────────┐
-│  config.py  │  (no imports from other line_loop modules)
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  models.py  │  imports: config
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│ parsing.py  │  imports: config, models
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  phase.py   │  imports: config, models, parsing
-└──────┬──────┘
+┌─────────────┐   ┌──────────────┐
+│  config.py  │   │ platform.py  │  (no internal imports)
+└──────┬──────┘   └──────┬───────┘
+       │                 │
+       ▼                 │
+┌─────────────┐          │
+│  models.py  │          │  imports: config
+└──────┬──────┘          │
+       │                 │
+       ▼                 │
+┌─────────────┐          │
+│ parsing.py  │          │  imports: config, models
+└──────┬──────┘          │
+       │                 │
+       ▼                 ▼
+┌─────────────────────────────┐
+│  phase.py   │  imports: config, models, parsing, platform
+└──────┬──────────────────────┘
        │
        ▼
 ┌──────────────┐
@@ -137,6 +138,7 @@ plugins/claude-code/scripts/
 | `config.py` | Named constants and default values | `DEFAULT_MAX_ITERATIONS`, `DEFAULT_PHASE_TIMEOUTS`, `BD_COMMAND_TIMEOUT`, etc. | All modules |
 | `models.py` | Dataclasses for state tracking | `CircuitBreaker`, `SkipList`, `LoopError`, `LoopMetrics`, `BeadSnapshot`, `ServeResult`, `PhaseResult`, `ActionRecord`, `IterationResult`, `LoopReport`, `ProgressState` | parsing, phase, iteration, loop |
 | `parsing.py` | Parse phase output | `parse_serve_result()`, `parse_serve_feedback()`, `parse_intent_block()`, `extract_actions_from_event()`, `update_action_from_result()` | phase, iteration |
+| `platform.py` | Platform-specific abstractions | `PipeReader`, `create_stderr_file()`, `read_and_cleanup_stderr()`, `kill_process_tree()`, `make_popen_kwargs()`, `setup_signals()` | phase, CLI wrapper |
 | `phase.py` | Execute individual phases | `run_phase()`, `run_subprocess()`, `check_idle()`, `detect_kitchen_complete()`, `detect_kitchen_idle()` | iteration, loop |
 | `iteration.py` | Run one complete task iteration | `run_iteration()`, `get_bead_snapshot()`, `check_task_completed()`, `check_feature_completion()`, `check_epic_completion_after_feature()`, `check_epic_completion()`, `get_latest_commit()`, `atomic_write()` | loop |
 | `loop.py` | Main loop orchestration | `run_loop()`, `sync_at_start()`, `write_status_file()`, `generate_escalation_report()`, `request_shutdown()` | line-loop.py (CLI) |

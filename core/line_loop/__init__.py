@@ -5,6 +5,7 @@ This package modularizes line-loop.py into focused modules:
 - config: Constants and configuration values
 - models: Dataclasses for state tracking (BeadSnapshot, ServeResult, etc.)
 - parsing: Output parsing functions (serve_result, intent, feedback)
+- platform: Platform-specific abstractions (PipeReader, process tree, stderr, signals)
 - phase: Phase execution (run_phase, streaming)
 - iteration: Single iteration logic
 - loop: Main loop orchestration
@@ -44,23 +45,23 @@ from .config import (
 
 # Re-export models for convenience
 from .models import (
+    ActionRecord,
     BeadDelta,
     BeadInfo,
+    BeadSnapshot,
     CircuitBreaker,
     ENVIRONMENTAL_INDICATORS,
     FailureCategory,
-    LoopError,
-    SkipList,
-    LoopMetrics,
-    BeadSnapshot,
-    ServeResult,
-    ServeFeedbackIssue,
-    ServeFeedback,
-    PhaseResult,
-    ActionRecord,
     IterationResult,
+    LoopError,
+    LoopMetrics,
     LoopReport,
+    PhaseResult,
     ProgressState,
+    ServeResult,
+    ServeFeedback,
+    ServeFeedbackIssue,
+    SkipList,
     TRANSIENT_INDICATORS,
     summarize_tool_input,
 )
@@ -79,6 +80,17 @@ from .parsing import (
     parse_kiro_tool_action,
     parse_kiro_tool_result,
     extract_kiro_actions_from_line,
+)
+
+# Re-export platform abstractions
+from .platform import (
+    PipeReader,
+    create_stderr_file,
+    read_and_cleanup_stderr,
+    cleanup_stderr_file,
+    kill_process_tree,
+    make_popen_kwargs,
+    setup_signals,
 )
 
 # Re-export phase execution functions
@@ -177,23 +189,23 @@ __all__ = [
     "PERIODIC_SYNC_INTERVAL",
     "get_cli_profile",
     # Models
+    "ActionRecord",
     "BeadDelta",
     "BeadInfo",
+    "BeadSnapshot",
     "CircuitBreaker",
     "ENVIRONMENTAL_INDICATORS",
     "FailureCategory",
-    "LoopError",
-    "SkipList",
-    "LoopMetrics",
-    "BeadSnapshot",
-    "ServeResult",
-    "ServeFeedbackIssue",
-    "ServeFeedback",
-    "PhaseResult",
-    "ActionRecord",
     "IterationResult",
+    "LoopError",
+    "LoopMetrics",
     "LoopReport",
+    "PhaseResult",
     "ProgressState",
+    "ServeResult",
+    "ServeFeedback",
+    "ServeFeedbackIssue",
+    "SkipList",
     "TRANSIENT_INDICATORS",
     "summarize_tool_input",
     # Parsing
@@ -209,6 +221,14 @@ __all__ = [
     "parse_kiro_tool_action",
     "parse_kiro_tool_result",
     "extract_kiro_actions_from_line",
+    # Platform
+    "PipeReader",
+    "create_stderr_file",
+    "read_and_cleanup_stderr",
+    "cleanup_stderr_file",
+    "kill_process_tree",
+    "make_popen_kwargs",
+    "setup_signals",
     # Phase execution
     "build_phase_command",
     "process_output_line",

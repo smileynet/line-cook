@@ -13,14 +13,20 @@ Functions for running workflow phases:
 from __future__ import annotations
 
 import logging
-import os
-import select
 import subprocess
-import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
+
+from .platform import (
+    PipeReader,
+    create_stderr_file,
+    read_and_cleanup_stderr,
+    cleanup_stderr_file,
+    kill_process_tree,
+    make_popen_kwargs,
+)
 
 from .config import (
     ACTIVE_EXTENSION_CAP,
@@ -208,19 +214,10 @@ def process_output_line(
         if event.get("type") == "assistant":
             text = extract_text_from_event(event)
         return new_actions, text
-    else:
-        cleaned = strip_ansi(line.rstrip('\n'))
-        new_actions = extract_kiro_actions_from_line(cleaned, pending_actions)
-        return new_actions, cleaned
 
-
-def _cleanup_stderr_file(stderr_file):
-    """Close and remove a stderr temp file, ignoring errors."""
-    try:
-        stderr_file.close()
-        os.unlink(stderr_file.name)
-    except (OSError, AttributeError):
-        pass
+    cleaned = strip_ansi(line.rstrip('\n'))
+    new_actions = extract_kiro_actions_from_line(cleaned, pending_actions)
+    return new_actions, cleaned
 
 
 def run_phase(
@@ -293,43 +290,32 @@ def run_phase(
     timeout_base = timeout  # Base after multiplier, before active extensions
     deadline = time.time() + timeout  # Default deadline (set before try for crash safety)
 
-    stderr_file = tempfile.NamedTemporaryFile(
-        mode='w+', prefix=f'line-loop-{phase}-stderr-', suffix='.log', delete=False
-    )
+    stderr_file = create_stderr_file(phase)
+    reader = None
 
     try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=stderr_file,
-            text=True,
-            cwd=cwd
-        )
+        process = subprocess.Popen(cmd, **make_popen_kwargs(cwd, stderr_file))
+        reader = PipeReader.create(process.stdout)
 
         deadline = time.time() + timeout
         while True:
             remaining = deadline - time.time()
             if remaining <= 0:
-                # Graceful termination: SIGTERM first, then SIGKILL as fallback
+                # Graceful termination: SIGTERM first, then kill tree as fallback
                 logger.debug(f"Phase {phase} timeout - sending SIGTERM")
                 process.terminate()  # SIGTERM
                 try:
                     process.wait(timeout=5)
                     logger.debug(f"Phase {phase} terminated gracefully")
                 except subprocess.TimeoutExpired:
-                    logger.warning(f"Phase {phase} did not respond to SIGTERM, sending SIGKILL")
-                    process.kill()  # SIGKILL as fallback
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        logger.warning(f"Phase {phase} process did not terminate after SIGKILL")
+                    logger.warning(f"Phase {phase} did not respond to SIGTERM, killing process tree")
+                    kill_process_tree(process)
                 raise subprocess.TimeoutExpired(cmd=' '.join(cmd), timeout=timeout)
 
-            ready, _, _ = select.select([process.stdout], [], [], min(1.0, remaining))
-            if ready:
-                line = process.stdout.readline()
-                if not line:
-                    break
+            line = reader.readline(timeout=min(1.0, remaining))
+            if line == '':
+                break  # EOF
+            if line is not None:
                 output_lines.append(line)
                 new_actions, text = process_output_line(line, cli_profile, pending_actions)
                 actions.extend(new_actions)
@@ -368,10 +354,10 @@ def run_phase(
                         try:
                             process.wait(timeout=5)
                         except subprocess.TimeoutExpired:
-                            process.kill()
-                            process.wait(timeout=5)
+                            kill_process_tree(process)
                         break
             else:
+                # timeout — no data available yet
                 if process.poll() is not None:
                     break
                 # Check for idle when no output is ready
@@ -384,8 +370,7 @@ def run_phase(
                             try:
                                 process.wait(timeout=5)
                             except subprocess.TimeoutExpired:
-                                process.kill()
-                                process.wait(timeout=5)
+                                kill_process_tree(process)
                             error = f"Idle timeout after {idle_timeout}s without tool actions"
                             break
                         elif idle_action == "warn" and not idle_warned:
@@ -393,10 +378,9 @@ def run_phase(
                             logger.warning(f"Phase {phase} idle for {idle_seconds:.0f}s (threshold: {idle_timeout}s)")
                             idle_warned = True
 
-        # Read any remaining output
-        remaining_out = process.stdout.read()
-        if remaining_out:
-            output_lines.extend(remaining_out.splitlines(keepends=True))
+        # Read any remaining buffered output
+        output_lines.extend(reader.drain())
+        reader.close()
         process.wait()
 
         # Flush unresolved pending actions (e.g., CLI crashed mid-tool-use).
@@ -408,10 +392,7 @@ def run_phase(
         pending_actions.clear()
 
         # Read stderr from temp file
-        stderr_file.seek(0)
-        stderr_output = stderr_file.read().strip()
-        stderr_file.close()
-        os.unlink(stderr_file.name)
+        stderr_output = read_and_cleanup_stderr(stderr_file)
 
         if stderr_output:
             logger.debug(f"Phase {phase} stderr: {stderr_output[:500]}")
@@ -419,7 +400,9 @@ def run_phase(
         exit_code = process.returncode
 
     except subprocess.TimeoutExpired:
-        _cleanup_stderr_file(stderr_file)
+        if reader:
+            reader.close()
+        cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         effective_timeout = int(deadline - start_time) if deadline > start_time else timeout
         logger.warning(f"Phase {phase} timed out after {duration:.1f}s (base={timeout_base}s, effective={effective_timeout}s)")
@@ -436,7 +419,9 @@ def run_phase(
             timeout_effective=effective_timeout,
         )
     except Exception as e:
-        _cleanup_stderr_file(stderr_file)
+        if reader:
+            reader.close()
+        cleanup_stderr_file(stderr_file)
         duration = time.time() - start_time
         effective_timeout = int(deadline - start_time) if deadline > start_time else timeout
         logger.error(f"Phase {phase} crashed: {e}")
