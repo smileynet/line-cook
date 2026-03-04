@@ -41,6 +41,8 @@ Read the task description to understand what was implemented:
 bd show <task-id>
 ```
 
+> **Dependency note:** `bd show` output includes a dependencies section. `parent-child` deps are structural grouping only — a child task does NOT need to wait for its parent epic to close. Parents close *after* all children complete. Only `blocks`, `conditional-blocks`, and `waits-for` dep types are real execution-order constraints. Do NOT return BLOCKED because of open `parent-child` dependencies.
+
 Get the changes made:
 ```bash
 git diff HEAD~1        # If already committed
