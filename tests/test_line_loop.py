@@ -6001,6 +6001,52 @@ class TestExtractOpenCodeActionsFromEvent(unittest.TestCase):
         self.assertFalse(action.success)
         self.assertIn("ERROR:", action.output_summary)
 
+    def test_tool_use_creates_completed_action(self):
+        """OpenCode tool_use event creates self-contained ActionRecord."""
+        event = {
+            "type": "tool_use",
+            "part": {
+                "tool": "read",
+                "callID": "call_abc123",
+                "state": {
+                    "status": "completed",
+                    "input": {"filePath": "/foo/bar.py"},
+                    "output": "file contents here",
+                    "time": {"start": 1000, "end": 1016}
+                }
+            }
+        }
+        pending = {}
+        actions = line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].tool_name, "read")
+        self.assertEqual(actions[0].tool_use_id, "call_abc123")
+        self.assertTrue(actions[0].success)
+        self.assertEqual(actions[0].duration_ms, 16)
+        self.assertEqual(actions[0].output_summary, "file contents here")
+        # tool_use events are self-contained, no pending tracking
+        self.assertNotIn("call_abc123", pending)
+
+    def test_tool_use_failed_marks_error(self):
+        """OpenCode tool_use event with non-completed status marks error."""
+        event = {
+            "type": "tool_use",
+            "part": {
+                "tool": "bash",
+                "callID": "call_err1",
+                "state": {
+                    "status": "error",
+                    "input": {"command": "false"},
+                    "output": "command failed"
+                }
+            }
+        }
+        pending = {}
+        actions = line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertEqual(len(actions), 1)
+        self.assertFalse(actions[0].success)
+        self.assertIn("ERROR:", actions[0].output_summary)
+
     def test_text_event_returns_empty(self):
         """Text events return no actions."""
         event = {"type": "text", "part": {"text": "hello"}}
@@ -6053,15 +6099,16 @@ class TestProcessOutputLineOpenCode(unittest.TestCase):
         self.assertEqual(text, "SERVE_RESULT verdict: APPROVED")
         self.assertEqual(len(actions), 0)
 
-    def test_tool_call_creates_action(self):
-        """OpenCode tool_call event creates ActionRecord via process_output_line."""
+    def test_tool_use_creates_action(self):
+        """OpenCode tool_use event creates ActionRecord via process_output_line."""
         pending = {}
         actions, text = line_loop.process_output_line(
-            '{"type": "tool_call", "part": {"name": "Edit", "id": "tc-99", "input": {"file_path": "/a.py"}}}',
+            '{"type": "tool_use", "part": {"tool": "edit", "callID": "call_1", "state": {"status": "completed", "input": {"filePath": "/a.py"}, "output": "ok"}}}',
             self.profile, pending
         )
         self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0].tool_name, "Edit")
+        self.assertEqual(actions[0].tool_name, "edit")
+        self.assertTrue(actions[0].success)
         self.assertEqual(text, "")
 
     def test_invalid_json_returns_empty(self):

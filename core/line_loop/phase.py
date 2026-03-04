@@ -110,7 +110,7 @@ def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedPr
     logger.debug(f"Running: {' '.join(cmd)} (timeout={timeout}s)")
     start = time.time()
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=timeout)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=timeout, encoding='utf-8', errors='replace')
         logger.debug(f"Completed in {time.time()-start:.1f}s, exit={result.returncode}")
         return result
     except subprocess.TimeoutExpired:

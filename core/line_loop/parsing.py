@@ -497,7 +497,58 @@ def extract_opencode_actions_from_event(
     actions: list[ActionRecord] = []
     event_type = event.get("type", "")
 
-    if event_type == "tool_call":
+    # OpenCode emits a single "tool_use" event per tool invocation with
+    # state.status indicating completion.  The tool name lives in part.tool,
+    # and state.input / state.output carry the payloads.
+    if event_type == "tool_use":
+        part = event.get("part", {})
+        tool_name = part.get("tool", "unknown")
+        tool_id = part.get("callID", f"oc-{next(_opencode_action_seq)}")
+        state = part.get("state", {})
+        tool_input = state.get("input", {})
+        tool_output = state.get("output", "")
+        status = state.get("status", "")
+
+        input_summary = ""
+        if isinstance(tool_input, dict):
+            input_summary = summarize_tool_input(tool_name, tool_input)
+        elif isinstance(tool_input, str):
+            input_summary = tool_input[:100]
+
+        output_summary = ""
+        if isinstance(tool_output, str):
+            if len(tool_output) > OUTPUT_SUMMARY_MAX_LENGTH:
+                output_summary = tool_output[:OUTPUT_SUMMARY_MAX_LENGTH] + "..."
+            else:
+                output_summary = tool_output
+
+        # Compute duration from state.time if available
+        duration_ms = None
+        time_info = state.get("time", {})
+        if time_info.get("start") and time_info.get("end"):
+            try:
+                duration_ms = time_info["end"] - time_info["start"]
+            except (TypeError, ValueError):
+                pass
+
+        is_success = status == "completed"
+        if not is_success and output_summary and not output_summary.startswith("ERROR:"):
+            output_summary = f"ERROR: {output_summary}"
+
+        action = ActionRecord(
+            tool_name=tool_name,
+            tool_use_id=tool_id,
+            input_summary=input_summary,
+            output_summary=output_summary,
+            success=is_success,
+            timestamp=datetime.now().isoformat(),
+            duration_ms=duration_ms,
+        )
+        actions.append(action)
+        # No pending tracking needed — event is self-contained
+
+    elif event_type == "tool_call":
+        # Legacy/future format: separate tool_call + tool_result events
         part = event.get("part", {})
         tool_name = part.get("name", "unknown")
         tool_id = part.get("id", f"oc-{next(_opencode_action_seq)}")
@@ -514,7 +565,7 @@ def extract_opencode_actions_from_event(
             tool_use_id=tool_id,
             input_summary=input_summary,
             output_summary="",
-            success=None,  # Unknown until tool_result
+            success=None,
             timestamp=datetime.now().isoformat(),
         )
         actions.append(action)
@@ -525,16 +576,13 @@ def extract_opencode_actions_from_event(
         tool_id = part.get("id", "")
         if tool_id in pending_actions:
             action = pending_actions[tool_id]
-            # Compute duration
             try:
                 start = datetime.fromisoformat(action.timestamp)
                 action.duration_ms = (datetime.now() - start).total_seconds() * 1000
             except (ValueError, TypeError):
                 pass
-            # Check for error
             error = part.get("error")
             action.success = error is None or error == ""
-            # Extract output summary
             output = part.get("output", "")
             if isinstance(output, str):
                 if len(output) > OUTPUT_SUMMARY_MAX_LENGTH:
@@ -546,7 +594,6 @@ def extract_opencode_actions_from_event(
             del pending_actions[tool_id]
 
     elif event_type == "tool_error":
-        # Tool error without matching ID — resolve most recent pending
         if pending_actions:
             last_key = list(pending_actions.keys())[-1]
             action = pending_actions[last_key]

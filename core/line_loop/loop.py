@@ -1470,9 +1470,9 @@ def run_loop(
             branch_name, was_created = ensure_epic_branch(target_task_id, cwd)
             if branch_name and not json_output:
                 if was_created:
-                    print(f"  Branch: main → {branch_name} (new)")
+                    print(f"  Branch: main -> {branch_name} (new)")
                 else:
-                    print(f"  Branch: → {branch_name}")
+                    print(f"  Branch: -> {branch_name}")
 
         # Create progress state for real-time status updates during iteration
         progress_state = None

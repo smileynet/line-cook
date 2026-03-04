@@ -183,8 +183,8 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         print(f"  Actions: {result.total_actions} total ({', '.join(action_parts)})")
 
     # Bead state changes
-    ready_str = f"ready {result.before_ready}\u2192{result.after_ready}"
-    in_prog_str = f"in_progress {result.before_in_progress}\u2192{result.after_in_progress}"
+    ready_str = f"ready {result.before_ready}->{result.after_ready}"
+    in_prog_str = f"in_progress {result.before_in_progress}->{result.after_in_progress}"
     if result.delta:
         closed_count = len(result.delta.newly_closed)
     else:
