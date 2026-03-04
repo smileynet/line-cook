@@ -362,61 +362,69 @@ def _create_windows_pty_process(
 
 
 class _WinPtyReader(PipeReader):
-    """Adapter wrapping winpty.PtyProcess as a PipeReader."""
+    """Adapter wrapping winpty.PtyProcess as a PipeReader.
+
+    Uses a background thread for non-blocking reads since PtyProcess.read()
+    blocks and doesn't support timeout. Lines are queued and consumed
+    via readline() with timeout support (same pattern as ThreadedPipeReader).
+    """
+
+    _EOF = object()  # sentinel
 
     def __init__(self, pty_proc):
         self._proc = pty_proc
-        self._buffer = ''
-        self._eof = False
+        self._queue: Queue = Queue()
+        self._eof_seen = False
+        self._thread = threading.Thread(target=self._reader, daemon=True)
+        self._thread.start()
 
-    def readline(self, timeout: float) -> Optional[str]:
-        if self._eof:
-            return ''
-
-        # Check buffer for complete line
-        newline_pos = self._buffer.find('\n')
-        if newline_pos >= 0:
-            line = self._buffer[:newline_pos + 1]
-            self._buffer = self._buffer[newline_pos + 1:]
-            return line
-
-        try:
-            data = self._proc.read(4096, timeout=timeout)
-        except EOFError:
-            self._eof = True
-            if self._buffer:
-                line = self._buffer
-                self._buffer = ''
-                return line + '\n' if not line.endswith('\n') else line
-            return ''
-        except Exception:
-            return None  # timeout or transient error
-
-        if not data:
-            return None
-
-        self._buffer += data
-        newline_pos = self._buffer.find('\n')
-        if newline_pos >= 0:
-            line = self._buffer[:newline_pos + 1]
-            self._buffer = self._buffer[newline_pos + 1:]
-            return line
-        return None
-
-    def drain(self) -> list[str]:
-        lines = []
+    def _reader(self):
+        """Background thread: reads from PTY and enqueues complete lines."""
+        buffer = ''
         try:
             while True:
-                data = self._proc.read(4096, timeout=0.1)
+                try:
+                    data = self._proc.read(4096)
+                except EOFError:
+                    break
                 if not data:
                     break
-                self._buffer += data
-        except (EOFError, Exception):
+                buffer += data
+                # Split into lines and enqueue complete ones
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    self._queue.put(line + '\n')
+            # Flush any remaining partial line
+            if buffer:
+                self._queue.put(buffer + '\n')
+        except Exception:
             pass
-        if self._buffer:
-            for line in self._buffer.splitlines(keepends=True):
-                lines.append(line)
-            self._buffer = ''
+        finally:
+            self._queue.put(self._EOF)
+
+    def readline(self, timeout: float) -> Optional[str]:
+        if self._eof_seen:
+            return ''
+        try:
+            item = self._queue.get(timeout=timeout)
+        except Empty:
+            return None  # timeout
+        if item is self._EOF:
+            self._eof_seen = True
+            return ''  # EOF
+        return item
+
+    def drain(self) -> list[str]:
+        self._thread.join(timeout=5)
+        lines = []
+        while True:
+            try:
+                item = self._queue.get_nowait()
+            except Empty:
+                break
+            if item is self._EOF:
+                break
+            lines.append(item)
         return lines
 
     def close(self):
@@ -424,6 +432,8 @@ class _WinPtyReader(PipeReader):
             self._proc.close()
         except Exception:
             pass
+        if self._thread.is_alive():
+            self._thread.join(timeout=5)
 
 
 class _WinPtyProcessWrapper:

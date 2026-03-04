@@ -125,10 +125,13 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
         )
     # OpenCode-specific checks
     if cli_name == 'opencode':
-        # Check OpenCode config directory
-        opencode_config = cwd / '.opencode'
-        opencode_config_alt = cwd / 'opencode.json'
-        checks['opencode_config'] = opencode_config.exists() or opencode_config_alt.exists()
+        # Check OpenCode config (project or global)
+        opencode_config_locations = [
+            cwd / '.opencode',
+            cwd / 'opencode.json',
+            Path.home() / '.config' / 'opencode',
+        ]
+        checks['opencode_config'] = any(p.exists() for p in opencode_config_locations)
         if not checks['opencode_config']:
             hints['opencode_config'] = 'Create OpenCode config: .opencode/ or opencode.json (see https://opencode.ai/docs)'
         # Check pywinpty on Windows (diagnostic, not gating)
@@ -142,31 +145,32 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
                     'pywinpty not installed: OpenCode output will be buffered on Windows. '
                     'Install with: pip install pywinpty'
                 )
-        # Verify --command + --format json works (smoke test)
+        # Verify --format json works (smoke test — diagnostic, not gating)
         if checks[f'{cli_name}_cli']:
             try:
                 result = subprocess.run(
-                    [binary, 'run', '--command', 'help', '--format', 'json'],
-                    capture_output=True, text=True, timeout=15
+                    [binary, 'run', '--format', 'json', 'respond with just the word OK'],
+                    capture_output=True, text=True, timeout=60
                 )
-                checks['opencode_command_json'] = result.returncode == 0
-                if not checks['opencode_command_json']:
-                    hints['opencode_command_json'] = (
-                        'OpenCode --command + --format json failed. '
-                        'Ensure OpenCode is up to date (requires Oct 2025+ fix for PR #2926)'
+                has_json = '{"type":' in result.stdout
+                checks['opencode_json_output'] = result.returncode == 0 and has_json
+                if not checks['opencode_json_output']:
+                    hints['opencode_json_output'] = (
+                        'OpenCode --format json did not produce NDJSON output. '
+                        'Ensure OpenCode is up to date.'
                     )
             except subprocess.TimeoutExpired:
-                checks['opencode_command_json'] = False
-                hints['opencode_command_json'] = 'OpenCode --command smoke test timed out'
+                checks['opencode_json_output'] = False
+                hints['opencode_json_output'] = 'OpenCode smoke test timed out (>60s)'
             except Exception:
-                checks['opencode_command_json'] = False
+                checks['opencode_json_output'] = False
         # Warn about permission config (issue #11891 — question tool hang)
         warnings.append(
             'Ensure OpenCode permission config is set to "allow" to prevent '
             'question tool hang in non-interactive mode (issue #11891)'
         )
     # Diagnostic-only keys (not gating for overall health)
-    _diagnostic_keys = {'kiro_version', 'pywinpty'}
+    _diagnostic_keys = {'kiro_version', 'pywinpty', 'opencode_json_output'}
     healthy = all(
         v for k, v in checks.items()
         if k not in _diagnostic_keys
