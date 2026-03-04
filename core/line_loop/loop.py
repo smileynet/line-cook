@@ -1368,12 +1368,23 @@ def run_loop(
                 current_epic_id = None
                 current_epic_title = None
                 continue
-            stop_reason = "no_work"
             if snapshot.ready_ids:
-                logger.info(f"No work items ready ({len(snapshot.ready_ids)} epics ready), loop complete")
+                stop_reason = "only_epics_ready"
+                epic_count = len(snapshot.ready_ids)
+                logger.info(
+                    f"No work items ready ({epic_count} epics ready but no leaf tasks), loop complete"
+                )
                 if not json_output:
-                    print(f"\nNo work items ready ({len(snapshot.ready_ids)} epics remain). Loop complete.")
+                    print(
+                        f"\n{epic_count} ready item(s) are epics — the loop only executes "
+                        f"leaf tasks (features and tasks). Child tasks may be blocked or "
+                        f"stuck in_progress from a previous run."
+                    )
+                    print("  To diagnose:")
+                    print("    bd blocked           # show tasks blocked by dependencies")
+                    print("    bd list --status=in_progress  # show stuck in_progress tasks")
             else:
+                stop_reason = "no_work"
                 logger.info("No work items ready, loop complete")
                 if not json_output:
                     print("\nNo work items ready. Loop complete.")
