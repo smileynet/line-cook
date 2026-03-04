@@ -1,1 +1,35 @@
-{"type":"issue_review","issue_number":18,"pr_number":null,"verdict":"VALID","dimensions":{"issue_validity":"Valid enhancement request. The described behavior is real and intentional — the loop deliberately skips epics via the ready_work property in models.py which filters out items where issue_type == 'epic'.","actionability":"The proposed solution ('allow the loop to work through epics') is too vague to implement. Epics are container items — working 'through' an epic could mean decomposing into tasks, unblocking children, running close-service, or something else. The reporter does not explain why child tasks are blocked or in_progress.","project_relevance":"Highly relevant. Affects BeadSnapshot.ready_work, get_next_ready_task in loop.py, and run_iteration in iteration.py.","priority_signal":"Moderate impact. Affects users whose leaf tasks are all blocked or in_progress, leaving only epics as ready. Workaround: manually unblock tasks or create new leaf tasks.","duplicate_check":"Not a duplicate. Issue #10 is about serve phase BLOCKED, not about epic skipping."},"rationale":"The issue describes real, verified behavior — the loop intentionally skips epics as non-executable work items. However, the proposed solution lacks sufficient detail. The reporter needs to clarify what they expect the loop to do with an epic and provide context about why child tasks are all blocked or in_progress.","duplicate_of":null,"reviewed_at":"2026-03-02T12:00:00Z","responses":[{"template":"acknowledged","posted_at":"2026-03-03T07:00:20Z","variables":{"SUMMARY":"Good catch — when all leaf tasks are blocked or in_progress, the loop stops with no path forward because it skips epics by design. That's a real usability gap, even though the filtering is technically intentional. We're looking at ways to handle this gracefully.","QUESTIONS":"A couple of things that would help us pick the right approach:\n- When you hit this, were the child tasks blocked by dependencies or stuck in `in_progress` from earlier runs?\n- What would you want the loop to do — decompose the epic into new tasks, try to unblock children, or something else?"}}]}
+{
+  "type": "issue_review",
+  "issue_number": 18,
+  "pr_number": null,
+  "verdict": "VALID",
+  "dimensions": {
+    "issue_validity": "Valid enhancement request. The described behavior is real and intentional \u2014 the loop deliberately skips epics via the ready_work property in models.py which filters out items where issue_type == 'epic'.",
+    "actionability": "The proposed solution ('allow the loop to work through epics') is too vague to implement. Epics are container items \u2014 working 'through' an epic could mean decomposing into tasks, unblocking children, running close-service, or something else. The reporter does not explain why child tasks are blocked or in_progress.",
+    "project_relevance": "Highly relevant. Affects BeadSnapshot.ready_work, get_next_ready_task in loop.py, and run_iteration in iteration.py.",
+    "priority_signal": "Moderate impact. Affects users whose leaf tasks are all blocked or in_progress, leaving only epics as ready. Workaround: manually unblock tasks or create new leaf tasks.",
+    "duplicate_check": "Not a duplicate. Issue #10 is about serve phase BLOCKED, not about epic skipping."
+  },
+  "rationale": "The issue describes real, verified behavior \u2014 the loop intentionally skips epics as non-executable work items. However, the proposed solution lacks sufficient detail. The reporter needs to clarify what they expect the loop to do with an epic and provide context about why child tasks are all blocked or in_progress.",
+  "duplicate_of": null,
+  "reviewed_at": "2026-03-02T12:00:00Z",
+  "responses": [
+    {
+      "template": "acknowledged",
+      "posted_at": "2026-03-03T07:00:20Z",
+      "variables": {
+        "SUMMARY": "Good catch \u2014 when all leaf tasks are blocked or in_progress, the loop stops with no path forward because it skips epics by design. That's a real usability gap, even though the filtering is technically intentional. We're looking at ways to handle this gracefully.",
+        "QUESTIONS": "A couple of things that would help us pick the right approach:\n- When you hit this, were the child tasks blocked by dependencies or stuck in `in_progress` from earlier runs?\n- What would you want the loop to do \u2014 decompose the epic into new tasks, try to unblock children, or something else?"
+      }
+    },
+    {
+      "template": "acknowledged",
+      "posted_at": "2026-03-04T03:50:49Z",
+      "variables": {
+        "SUMMARY": "Good catch, @olegend20 \u2014 when all leaf tasks are blocked or in_progress, the loop stops with no path forward because it skips epics by design. That's a real usability gap, even though the filtering is technically intentional. We're looking at ways to handle this gracefully.",
+        "PROPOSAL": "PR #20 adds a distinct `\"only_epics_ready\"` stop reason with actionable diagnostic output \u2014 so instead of a generic \"no work\" message, you'll see exactly why there are no leaf tasks and which commands to run (`bd blocked`, `bd list --status=in_progress`) to unblock them.",
+        "QUESTIONS": "A couple of things that would help us pick the right approach:\n- When you hit this, were the child tasks blocked by dependencies or stuck in `in_progress` from earlier runs?\n- What would you want the loop to do \u2014 decompose the epic into new tasks, try to unblock children, or something else?"
+      }
+    }
+  ]
+}
