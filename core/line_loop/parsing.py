@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Optional
 
 from .config import OUTPUT_SUMMARY_MAX_LENGTH
-from .models import ActionRecord, ServeFeedback, ServeFeedbackIssue, ServeResult
+from .models import ActionRecord, ServeFeedback, ServeFeedbackIssue, ServeResult, summarize_tool_input
 
 logger = logging.getLogger(__name__)
 
@@ -418,6 +418,145 @@ def update_action_from_result(
                         action.output_summary = f"ERROR: {action.output_summary}"
                 # Remove from pending after processing
                 del pending_actions[tool_use_id]
+
+
+# ---------------------------------------------------------------------------
+# OpenCode NDJSON parsers
+# ---------------------------------------------------------------------------
+
+# Sequence counter for OpenCode action IDs (parallel to _kiro_action_seq)
+_opencode_action_seq = iter(range(1, 2**63))
+
+
+def parse_opencode_ndjson_event(line: str) -> Optional[dict]:
+    """Parse a single NDJSON line from OpenCode's --format json output.
+
+    OpenCode emits one JSON object per line with a "type" field:
+    - {"type": "text", "part": {"text": "..."}}
+    - {"type": "step_start", ...}
+    - {"type": "step_finish", "part": {"tokens": {...}, "cost": ...}}
+    - {"type": "tool_call", "part": {"name": "...", "id": "...", "input": ...}}
+    - {"type": "tool_result", "part": {"id": "...", "output": "...", "error": ...}}
+
+    PTY output may contain \\r — strip before parsing (BP-2.3).
+
+    Args:
+        line: A single NDJSON line from OpenCode output.
+
+    Returns:
+        Parsed event dict if valid JSON, None otherwise.
+    """
+    # Strip PTY artifacts (\r) before JSON parsing (BP-2.3)
+    line = line.replace('\r', '').strip()
+    if not line:
+        return None
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        return None
+
+
+def extract_opencode_text_from_event(event: dict) -> str:
+    """Extract text content from an OpenCode NDJSON event.
+
+    Text events have format: {"type": "text", "part": {"text": "..."}}
+
+    Args:
+        event: Parsed NDJSON event from OpenCode output.
+
+    Returns:
+        Text string from text events, empty string for other event types.
+    """
+    if event.get("type") == "text":
+        part = event.get("part", {})
+        if isinstance(part, dict):
+            return part.get("text", "")
+    return ""
+
+
+def extract_opencode_actions_from_event(
+    event: dict,
+    pending_actions: dict[str, ActionRecord]
+) -> list[ActionRecord]:
+    """Extract tool actions from OpenCode NDJSON events.
+
+    Handles two event types:
+    - tool_call: Creates a new ActionRecord and adds to pending_actions
+    - tool_result: Resolves a pending action by tool ID
+
+    If tool events are not exposed in NDJSON output, this returns empty
+    lists and the caller falls back to text-based signal detection.
+
+    Args:
+        event: Parsed NDJSON event from OpenCode output.
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord.
+
+    Returns:
+        List of new ActionRecords created from tool_call events.
+    """
+    actions: list[ActionRecord] = []
+    event_type = event.get("type", "")
+
+    if event_type == "tool_call":
+        part = event.get("part", {})
+        tool_name = part.get("name", "unknown")
+        tool_id = part.get("id", f"oc-{next(_opencode_action_seq)}")
+        tool_input = part.get("input", {})
+
+        input_summary = ""
+        if isinstance(tool_input, dict):
+            input_summary = summarize_tool_input(tool_name, tool_input)
+        elif isinstance(tool_input, str):
+            input_summary = tool_input[:100]
+
+        action = ActionRecord(
+            tool_name=tool_name,
+            tool_use_id=tool_id,
+            input_summary=input_summary,
+            output_summary="",
+            success=None,  # Unknown until tool_result
+            timestamp=datetime.now().isoformat(),
+        )
+        actions.append(action)
+        pending_actions[tool_id] = action
+
+    elif event_type == "tool_result":
+        part = event.get("part", {})
+        tool_id = part.get("id", "")
+        if tool_id in pending_actions:
+            action = pending_actions[tool_id]
+            # Compute duration
+            try:
+                start = datetime.fromisoformat(action.timestamp)
+                action.duration_ms = (datetime.now() - start).total_seconds() * 1000
+            except (ValueError, TypeError):
+                pass
+            # Check for error
+            error = part.get("error")
+            action.success = error is None or error == ""
+            # Extract output summary
+            output = part.get("output", "")
+            if isinstance(output, str):
+                if len(output) > OUTPUT_SUMMARY_MAX_LENGTH:
+                    action.output_summary = output[:OUTPUT_SUMMARY_MAX_LENGTH] + "..."
+                else:
+                    action.output_summary = output
+                if not action.success and not action.output_summary.startswith("ERROR:"):
+                    action.output_summary = f"ERROR: {action.output_summary}"
+            del pending_actions[tool_id]
+
+    elif event_type == "tool_error":
+        # Tool error without matching ID — resolve most recent pending
+        if pending_actions:
+            last_key = list(pending_actions.keys())[-1]
+            action = pending_actions[last_key]
+            action.success = False
+            error_msg = event.get("part", {}).get("error", "unknown error")
+            if isinstance(error_msg, str):
+                action.output_summary = f"ERROR: {error_msg[:OUTPUT_SUMMARY_MAX_LENGTH]}"
+            del pending_actions[last_key]
+
+    return actions
 
 
 def strip_ansi(text: str) -> str:

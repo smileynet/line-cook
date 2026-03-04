@@ -76,6 +76,19 @@ CLI_PROFILES = {
         # Inject task ID as text before the @ command so the agent receives it.
         'task_injection': '[task-id: {args}] ',
     },
+    'opencode': {
+        'binary': 'opencode',
+        'subcommand': 'run',
+        'command_flag': '--command',         # Slash commands use --command flag
+        'prompt_format': 'line-{phase}',     # No leading / (--command resolves it)
+        'permission_flags': [],              # run mode auto-approves all
+        'output_flags': ['--format', 'json'],
+        'has_streaming_json': False,         # Not Claude-style stream-json
+        'has_ndjson': True,                  # OpenCode NDJSON format
+        'needs_pty': True,                   # Requires PTY for flushed output
+        'install_hint': 'Install OpenCode: https://opencode.ai',
+        'phase_timeout_multiplier': 1.2,
+    },
 }
 
 DEFAULT_CLI = 'claude'
@@ -85,7 +98,7 @@ def get_cli_profile(name: str) -> dict:
     """Get CLI profile by name.
 
     Args:
-        name: Profile name ('claude' or 'kiro').
+        name: Profile name ('claude', 'kiro', or 'opencode').
 
     Returns:
         Profile dict with binary, prompt_format, flags, etc.

@@ -56,6 +56,7 @@ description: Manage autonomous loop execution from TUI
 | Epic milestone review | `/line-loop start --break-on-epic` |
 | Complex tasks (40min) | `/line-loop start --cook-timeout 2400` |
 | Use Kiro backend | `/line-loop start --cli kiro` |
+| Use OpenCode backend | `/line-loop start --cli opencode` |
 
 ---
 
@@ -96,6 +97,52 @@ The same monitoring commands work regardless of backend:
 ```
 
 When using the Kiro backend, `status.json` includes `"cli": "kiro"` and the watch/status output displays the CLI in use.
+
+---
+
+## Using OpenCode Backend
+
+The `--cli opencode` flag runs loop phases via `opencode run` instead of `claude`, using the OpenCode AI backend.
+
+### Prerequisites
+
+- `opencode` must be installed and available on PATH ([opencode.ai](https://opencode.ai))
+- OpenCode config must exist (`.opencode/` or `opencode.json`)
+- OpenCode `permission` config should be set to `"allow"` to prevent question tool hang in non-interactive mode
+- On Windows: `pywinpty` recommended for real-time output (`pip install pywinpty`)
+
+### How to Invoke
+
+```bash
+/line-loop start --cli opencode
+/line-loop start --cli opencode --max-iterations 5  # Test run
+```
+
+### Key Differences from Default (`claude`) Backend
+
+| Aspect | `claude` (default) | `opencode` |
+|--------|-------------------|------------|
+| **Subprocess** | `claude` CLI | `opencode run` |
+| **Phase invocation** | `/line-{phase}` skills | `--command line-{phase}` |
+| **Default cook timeout** | 30 minutes | 36 minutes (1.2x multiplier) |
+| **Output parsing** | Streaming JSON | NDJSON (one JSON object per line) |
+| **PTY required** | No | Yes (output buffers without PTY) |
+| **Permission mode** | `--dangerously-skip-permissions` | Auto-approved in `run` mode |
+
+### PTY Behavior
+
+OpenCode requires a pseudo-TTY to flush stdout during tool calls. The loop automatically:
+- **Unix/macOS**: Uses `pty.openpty()` for direct fd control
+- **Windows with pywinpty**: Uses ConPTY via `pywinpty`
+- **Windows without pywinpty**: Falls back to buffered output (idle detection degraded but functional)
+
+### Health Check
+
+```bash
+/line-loop start --health-check --cli opencode
+```
+
+Checks: binary on PATH, config exists, `--command` + `--format json` smoke test, pywinpty availability (Windows).
 
 ---
 
@@ -228,7 +275,7 @@ Start Options:
   --max-retries N       Max retries per task on NEEDS_CHANGES (default: 2)
   --max-task-failures N Skip task after this many failures (default: 3)
   --stop-on-blocked     Stop if task is BLOCKED (default: continue)
-  --cli CLI             AI backend: claude (default) or kiro
+  --cli CLI             AI backend: claude (default), kiro, or opencode
   --stop-on-crash       Stop on subprocess crash (default: continue)
   --break-on-epic       Pause loop when an epic completes (default: continue)
   --skip-initial-sync   Skip git fetch/pull and bd sync at loop start
@@ -294,6 +341,7 @@ Input examples:
   "start"                      -> subcommand: start
   "start --max-iterations 10"  -> subcommand: start, max_iterations: 10
   "start --cli kiro"           -> subcommand: start, cli: kiro
+  "start --cli opencode"       -> subcommand: start, cli: opencode
   "watch"                      -> subcommand: watch, interval: 900, log_lines: 20
   "watch --interval 300"       -> subcommand: watch, interval: 300, log_lines: 20
   "watch --interval 0"         -> subcommand: watch, interval: 0 (one-shot, legacy)

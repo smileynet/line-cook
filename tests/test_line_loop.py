@@ -5748,5 +5748,360 @@ class TestEscalationTimeoutPattern(unittest.TestCase):
             self.assertNotIn("--cook-timeout", action)
 
 
+# ===========================================================================
+# OpenCode connector tests
+# ===========================================================================
+
+
+class TestOpenCodeProfile(unittest.TestCase):
+    """Test OpenCode CLI profile configuration."""
+
+    def test_opencode_profile_exists(self):
+        """OpenCode profile is defined in CLI_PROFILES."""
+        self.assertIn('opencode', line_loop.CLI_PROFILES)
+
+    def test_opencode_profile_binary(self):
+        """OpenCode profile has binary='opencode'."""
+        self.assertEqual(line_loop.CLI_PROFILES['opencode']['binary'], 'opencode')
+
+    def test_opencode_profile_subcommand(self):
+        """OpenCode profile has subcommand='run'."""
+        self.assertEqual(line_loop.CLI_PROFILES['opencode']['subcommand'], 'run')
+
+    def test_opencode_profile_command_flag(self):
+        """OpenCode profile uses --command flag."""
+        self.assertEqual(line_loop.CLI_PROFILES['opencode']['command_flag'], '--command')
+
+    def test_opencode_profile_prompt_format(self):
+        """OpenCode profile prompt_format has no leading slash."""
+        self.assertEqual(line_loop.CLI_PROFILES['opencode']['prompt_format'], 'line-{phase}')
+
+    def test_opencode_profile_no_streaming_json(self):
+        """OpenCode profile does not use Claude-style streaming JSON."""
+        self.assertFalse(line_loop.CLI_PROFILES['opencode']['has_streaming_json'])
+
+    def test_opencode_profile_has_ndjson(self):
+        """OpenCode profile has NDJSON format."""
+        self.assertTrue(line_loop.CLI_PROFILES['opencode']['has_ndjson'])
+
+    def test_opencode_profile_needs_pty(self):
+        """OpenCode profile requires PTY."""
+        self.assertTrue(line_loop.CLI_PROFILES['opencode']['needs_pty'])
+
+    def test_opencode_profile_output_flags(self):
+        """OpenCode profile has --format json output flags."""
+        flags = line_loop.CLI_PROFILES['opencode']['output_flags']
+        self.assertIn('--format', flags)
+        self.assertIn('json', flags)
+
+    def test_opencode_profile_no_permission_flags(self):
+        """OpenCode run mode auto-approves, no permission flags needed."""
+        self.assertEqual(line_loop.CLI_PROFILES['opencode']['permission_flags'], [])
+
+    def test_opencode_profile_install_hint(self):
+        """OpenCode profile has install hint."""
+        self.assertIn('opencode', line_loop.CLI_PROFILES['opencode']['install_hint'].lower())
+
+    def test_opencode_profile_timeout_multiplier(self):
+        """OpenCode profile has 1.2x timeout multiplier."""
+        self.assertEqual(line_loop.CLI_PROFILES['opencode']['phase_timeout_multiplier'], 1.2)
+
+    def test_get_cli_profile_opencode(self):
+        """get_cli_profile('opencode') returns the OpenCode profile."""
+        profile = line_loop.get_cli_profile('opencode')
+        self.assertEqual(profile, line_loop.CLI_PROFILES['opencode'])
+
+
+class TestOpenCodeBuildPhaseCommand(unittest.TestCase):
+    """Test build_phase_command with OpenCode profile."""
+
+    def setUp(self):
+        self.profile = line_loop.get_cli_profile('opencode')
+
+    def test_cook_with_args(self):
+        """OpenCode cook builds: opencode run --command line-cook --format json lc-123."""
+        cmd = line_loop.build_phase_command('cook', 'lc-123', self.profile)
+        self.assertEqual(cmd, [
+            'opencode', 'run', '--command', 'line-cook',
+            '--format', 'json', 'lc-123'
+        ])
+
+    def test_serve_no_args(self):
+        """OpenCode serve builds: opencode run --command line-serve --format json."""
+        cmd = line_loop.build_phase_command('serve', '', self.profile)
+        self.assertEqual(cmd, [
+            'opencode', 'run', '--command', 'line-serve',
+            '--format', 'json'
+        ])
+
+    def test_tidy_no_args(self):
+        """OpenCode tidy builds correct command."""
+        cmd = line_loop.build_phase_command('tidy', '', self.profile)
+        self.assertEqual(cmd, [
+            'opencode', 'run', '--command', 'line-tidy',
+            '--format', 'json'
+        ])
+
+    def test_plate_with_args(self):
+        """OpenCode plate with args appends task ID at end."""
+        cmd = line_loop.build_phase_command('plate', 'lc-456', self.profile)
+        self.assertEqual(cmd, [
+            'opencode', 'run', '--command', 'line-plate',
+            '--format', 'json', 'lc-456'
+        ])
+
+    def test_close_service(self):
+        """OpenCode close-service builds correct command."""
+        cmd = line_loop.build_phase_command('close-service', 'lc-789', self.profile)
+        self.assertEqual(cmd, [
+            'opencode', 'run', '--command', 'line-close-service',
+            '--format', 'json', 'lc-789'
+        ])
+
+
+class TestParseOpenCodeNdjsonEvent(unittest.TestCase):
+    """Test parse_opencode_ndjson_event() NDJSON parsing."""
+
+    def test_text_event(self):
+        """Parses text event correctly."""
+        event = line_loop.parse_opencode_ndjson_event(
+            '{"type": "text", "part": {"text": "hello world"}}'
+        )
+        self.assertEqual(event['type'], 'text')
+        self.assertEqual(event['part']['text'], 'hello world')
+
+    def test_step_finish_event(self):
+        """Parses step_finish event correctly."""
+        event = line_loop.parse_opencode_ndjson_event(
+            '{"type": "step_finish", "part": {"tokens": {"input": 100}, "cost": 0.5}}'
+        )
+        self.assertEqual(event['type'], 'step_finish')
+
+    def test_strips_carriage_return(self):
+        """Strips \\r from PTY output before parsing (BP-2.3)."""
+        event = line_loop.parse_opencode_ndjson_event(
+            '{"type": "text", "part": {"text": "pty output"}}\r'
+        )
+        self.assertIsNotNone(event)
+        self.assertEqual(event['type'], 'text')
+
+    def test_strips_carriage_return_in_line(self):
+        """Strips \\r embedded in line."""
+        event = line_loop.parse_opencode_ndjson_event(
+            '{"type": "text",\r "part": {"text": "test"}}'
+        )
+        self.assertIsNotNone(event)
+
+    def test_empty_line_returns_none(self):
+        """Empty line returns None."""
+        self.assertIsNone(line_loop.parse_opencode_ndjson_event(''))
+
+    def test_whitespace_only_returns_none(self):
+        """Whitespace-only line returns None."""
+        self.assertIsNone(line_loop.parse_opencode_ndjson_event('   \r\n'))
+
+    def test_invalid_json_returns_none(self):
+        """Invalid JSON returns None."""
+        self.assertIsNone(line_loop.parse_opencode_ndjson_event('not json'))
+
+
+class TestExtractOpenCodeTextFromEvent(unittest.TestCase):
+    """Test extract_opencode_text_from_event() text extraction."""
+
+    def test_text_event(self):
+        """Extracts text from text event."""
+        event = {"type": "text", "part": {"text": "hello world"}}
+        self.assertEqual(line_loop.extract_opencode_text_from_event(event), "hello world")
+
+    def test_non_text_event_returns_empty(self):
+        """Non-text events return empty string."""
+        event = {"type": "step_finish", "part": {"cost": 0.5}}
+        self.assertEqual(line_loop.extract_opencode_text_from_event(event), "")
+
+    def test_tool_call_returns_empty(self):
+        """Tool call events return empty text."""
+        event = {"type": "tool_call", "part": {"name": "Read"}}
+        self.assertEqual(line_loop.extract_opencode_text_from_event(event), "")
+
+    def test_missing_part_returns_empty(self):
+        """Missing part key returns empty string."""
+        event = {"type": "text"}
+        self.assertEqual(line_loop.extract_opencode_text_from_event(event), "")
+
+    def test_missing_text_in_part_returns_empty(self):
+        """Missing text in part returns empty string."""
+        event = {"type": "text", "part": {}}
+        self.assertEqual(line_loop.extract_opencode_text_from_event(event), "")
+
+
+class TestExtractOpenCodeActionsFromEvent(unittest.TestCase):
+    """Test extract_opencode_actions_from_event() action tracking."""
+
+    def test_tool_call_creates_action(self):
+        """Tool call event creates ActionRecord."""
+        event = {
+            "type": "tool_call",
+            "part": {"name": "Read", "id": "tc-1", "input": {"file_path": "/foo/bar.py"}}
+        }
+        pending = {}
+        actions = line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].tool_name, "Read")
+        self.assertEqual(actions[0].tool_use_id, "tc-1")
+        self.assertIn("tc-1", pending)
+
+    def test_tool_result_resolves_action(self):
+        """Tool result event resolves pending action."""
+        from datetime import datetime
+        pending = {
+            "tc-1": line_loop.ActionRecord(
+                tool_name="Read", tool_use_id="tc-1",
+                input_summary="/foo", output_summary="",
+                success=None, timestamp=datetime.now().isoformat()
+            )
+        }
+        event = {
+            "type": "tool_result",
+            "part": {"id": "tc-1", "output": "file contents here"}
+        }
+        actions = line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertEqual(len(actions), 0)  # No new actions
+        self.assertNotIn("tc-1", pending)  # Removed from pending
+
+    def test_tool_result_marks_success(self):
+        """Tool result without error marks action as success."""
+        from datetime import datetime
+        action = line_loop.ActionRecord(
+            tool_name="Read", tool_use_id="tc-1",
+            input_summary="/foo", output_summary="",
+            success=None, timestamp=datetime.now().isoformat()
+        )
+        pending = {"tc-1": action}
+        event = {
+            "type": "tool_result",
+            "part": {"id": "tc-1", "output": "contents"}
+        }
+        line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertTrue(action.success)
+
+    def test_tool_result_marks_error(self):
+        """Tool result with error marks action as failed."""
+        from datetime import datetime
+        action = line_loop.ActionRecord(
+            tool_name="Bash", tool_use_id="tc-2",
+            input_summary="cmd", output_summary="",
+            success=None, timestamp=datetime.now().isoformat()
+        )
+        pending = {"tc-2": action}
+        event = {
+            "type": "tool_result",
+            "part": {"id": "tc-2", "output": "", "error": "command failed"}
+        }
+        line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertFalse(action.success)
+        self.assertIn("ERROR:", action.output_summary)
+
+    def test_text_event_returns_empty(self):
+        """Text events return no actions."""
+        event = {"type": "text", "part": {"text": "hello"}}
+        pending = {}
+        actions = line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertEqual(len(actions), 0)
+
+    def test_tool_call_generates_id_when_missing(self):
+        """Tool call with no id generates synthetic ID."""
+        event = {
+            "type": "tool_call",
+            "part": {"name": "Write"}
+        }
+        pending = {}
+        actions = line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertEqual(len(actions), 1)
+        self.assertTrue(actions[0].tool_use_id.startswith("oc-"))
+
+    def test_tool_error_resolves_pending(self):
+        """Tool error resolves most recent pending action."""
+        from datetime import datetime
+        action = line_loop.ActionRecord(
+            tool_name="Bash", tool_use_id="tc-3",
+            input_summary="cmd", output_summary="",
+            success=None, timestamp=datetime.now().isoformat()
+        )
+        pending = {"tc-3": action}
+        event = {
+            "type": "tool_error",
+            "part": {"error": "something broke"}
+        }
+        line_loop.extract_opencode_actions_from_event(event, pending)
+        self.assertFalse(action.success)
+        self.assertNotIn("tc-3", pending)
+
+
+class TestProcessOutputLineOpenCode(unittest.TestCase):
+    """Test process_output_line with OpenCode NDJSON profile."""
+
+    def setUp(self):
+        self.profile = line_loop.get_cli_profile('opencode')
+
+    def test_text_event_extracts_text(self):
+        """OpenCode text event extracts text for signal detection."""
+        pending = {}
+        actions, text = line_loop.process_output_line(
+            '{"type": "text", "part": {"text": "SERVE_RESULT verdict: APPROVED"}}',
+            self.profile, pending
+        )
+        self.assertEqual(text, "SERVE_RESULT verdict: APPROVED")
+        self.assertEqual(len(actions), 0)
+
+    def test_tool_call_creates_action(self):
+        """OpenCode tool_call event creates ActionRecord via process_output_line."""
+        pending = {}
+        actions, text = line_loop.process_output_line(
+            '{"type": "tool_call", "part": {"name": "Edit", "id": "tc-99", "input": {"file_path": "/a.py"}}}',
+            self.profile, pending
+        )
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].tool_name, "Edit")
+        self.assertEqual(text, "")
+
+    def test_invalid_json_returns_empty(self):
+        """Invalid JSON returns no actions and empty text."""
+        pending = {}
+        actions, text = line_loop.process_output_line(
+            'not valid json', self.profile, pending
+        )
+        self.assertEqual(len(actions), 0)
+        self.assertEqual(text, "")
+
+    def test_empty_line_returns_empty(self):
+        """Empty line returns no actions and empty text."""
+        pending = {}
+        actions, text = line_loop.process_output_line(
+            '', self.profile, pending
+        )
+        self.assertEqual(len(actions), 0)
+        self.assertEqual(text, "")
+
+    def test_pty_artifact_stripped(self):
+        """PTY \\r artifacts are stripped from NDJSON lines."""
+        pending = {}
+        actions, text = line_loop.process_output_line(
+            '{"type": "text", "part": {"text": "hello"}}\r\n',
+            self.profile, pending
+        )
+        self.assertEqual(text, "hello")
+
+
+class TestOpenCodeTimeoutMultiplier(unittest.TestCase):
+    """Test OpenCode 1.2x timeout multiplier."""
+
+    def test_opencode_timeout_multiplier_applied(self):
+        """OpenCode 1.2x multiplier applies to phase timeout."""
+        from line_loop.iteration import _resolve_phase_timeout
+        profile = line_loop.get_cli_profile('opencode')
+        # cook default is 1800s * 1.2 = 2160
+        self.assertEqual(_resolve_phase_timeout("cook", cli_profile=profile), 2160)
+
+
 if __name__ == "__main__":
     unittest.main()

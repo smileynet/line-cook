@@ -21,6 +21,7 @@ from typing import Callable, Optional
 
 from .platform import (
     PipeReader,
+    create_pty_reader_and_process,
     create_stderr_file,
     read_and_cleanup_stderr,
     cleanup_stderr_file,
@@ -43,8 +44,11 @@ from .models import ActionRecord, PhaseResult
 from .parsing import (
     extract_actions_from_event,
     extract_kiro_actions_from_line,
+    extract_opencode_actions_from_event,
+    extract_opencode_text_from_event,
     extract_text_from_event,
     normalize_signal_text,
+    parse_opencode_ndjson_event,
     parse_stream_json_event,
     strip_ansi,
     update_action_from_result,
@@ -157,26 +161,38 @@ def build_phase_command(phase: str, args: str, cli_profile: dict) -> list[str]:
         Command list suitable for subprocess.Popen
     """
     prompt = cli_profile['prompt_format'].format(phase=phase)
-    if args:
-        injection = cli_profile.get('task_injection')
-        if injection:
-            # Prepend args before @ command (workaround for Kiro bug #4141)
-            prompt = f"{injection.format(args=args)}{prompt}"
-        else:
-            prompt = f"{prompt} {args}"
 
     cmd = [cli_profile['binary']]
 
     if 'subcommand' in cli_profile:
         cmd.append(cli_profile['subcommand'])
 
-    if cli_profile.get('has_streaming_json'):
+    if cli_profile.get('command_flag'):
+        # OpenCode-style: --command <prompt> --format json <args>
+        cmd.extend([cli_profile['command_flag'], prompt])
+        cmd.extend(cli_profile.get('output_flags', []))
+        cmd.extend(cli_profile.get('permission_flags', []))
+        if args:
+            cmd.append(args)
+    elif cli_profile.get('has_streaming_json'):
         # Claude-style: -p prompt, then flags
+        if args:
+            injection = cli_profile.get('task_injection')
+            if injection:
+                prompt = f"{injection.format(args=args)}{prompt}"
+            else:
+                prompt = f"{prompt} {args}"
         cmd.extend(['-p', prompt])
         cmd.extend(cli_profile.get('permission_flags', []))
         cmd.extend(cli_profile.get('output_flags', []))
     else:
         # Kiro-style: flags first, prompt at end
+        if args:
+            injection = cli_profile.get('task_injection')
+            if injection:
+                prompt = f"{injection.format(args=args)}{prompt}"
+            else:
+                prompt = f"{prompt} {args}"
         cmd.extend(cli_profile.get('extra_flags', []))
         cmd.extend(cli_profile.get('permission_flags', []))
         cmd.append(prompt)
@@ -205,6 +221,7 @@ def process_output_line(
         - cleaned_text: Human-readable text extracted from the line
     """
     if cli_profile.get('has_streaming_json'):
+        # Claude: streaming JSON events
         event = parse_stream_json_event(line)
         if not event:
             return [], ""
@@ -215,6 +232,16 @@ def process_output_line(
             text = extract_text_from_event(event)
         return new_actions, text
 
+    if cli_profile.get('has_ndjson'):
+        # OpenCode: NDJSON events (one JSON object per line)
+        event = parse_opencode_ndjson_event(line)
+        if not event:
+            return [], ""
+        new_actions = extract_opencode_actions_from_event(event, pending_actions)
+        text = extract_opencode_text_from_event(event)
+        return new_actions, text
+
+    # Kiro: plain-text output
     cleaned = strip_ansi(line.rstrip('\n'))
     new_actions = extract_kiro_actions_from_line(cleaned, pending_actions)
     return new_actions, cleaned
@@ -294,8 +321,15 @@ def run_phase(
     reader = None
 
     try:
-        process = subprocess.Popen(cmd, **make_popen_kwargs(cwd, stderr_file))
-        reader = PipeReader.create(process.stdout)
+        if cli_profile.get('needs_pty'):
+            # PTY wrapper for CLIs that need a pseudo-TTY (e.g., OpenCode)
+            popen_kwargs = make_popen_kwargs(cwd, stderr_file)
+            reader, process = create_pty_reader_and_process(
+                cmd, cwd, stderr_file, popen_kwargs['env']
+            )
+        else:
+            process = subprocess.Popen(cmd, **make_popen_kwargs(cwd, stderr_file))
+            reader = PipeReader.create(process.stdout)
 
         deadline = time.time() + timeout
         while True:

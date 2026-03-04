@@ -80,11 +80,15 @@ from .parsing import (
     parse_kiro_tool_action,
     parse_kiro_tool_result,
     extract_kiro_actions_from_line,
+    parse_opencode_ndjson_event,
+    extract_opencode_text_from_event,
+    extract_opencode_actions_from_event,
 )
 
 # Re-export platform abstractions
 from .platform import (
     PipeReader,
+    create_pty_reader_and_process,
     create_stderr_file,
     read_and_cleanup_stderr,
     cleanup_stderr_file,
@@ -221,8 +225,12 @@ __all__ = [
     "parse_kiro_tool_action",
     "parse_kiro_tool_result",
     "extract_kiro_actions_from_line",
+    "parse_opencode_ndjson_event",
+    "extract_opencode_text_from_event",
+    "extract_opencode_actions_from_event",
     # Platform
     "PipeReader",
+    "create_pty_reader_and_process",
     "create_stderr_file",
     "read_and_cleanup_stderr",
     "cleanup_stderr_file",

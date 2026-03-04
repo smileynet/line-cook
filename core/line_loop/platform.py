@@ -142,6 +142,323 @@ class ThreadedPipeReader(PipeReader):
 
 
 # ---------------------------------------------------------------------------
+# PTY-based PipeReader for CLIs that need a pseudo-TTY (e.g., OpenCode)
+# ---------------------------------------------------------------------------
+
+class UnixPtyPipeReader(PipeReader):
+    """Unix PTY reader using pty.openpty() + select (BP-2.1).
+
+    OpenCode requires a PTY to flush stdout during tool calls. This reader
+    creates a master/slave fd pair, spawns the child with the slave as stdout,
+    and reads from the master fd using select() for timeout support.
+    """
+
+    def __init__(self, master_fd: int):
+        self._master_fd = master_fd
+        self._buffer = ''
+        self._eof = False
+
+    def readline(self, timeout: float) -> Optional[str]:
+        if self._eof:
+            return ''
+
+        # Check for complete line in buffer first
+        newline_pos = self._buffer.find('\n')
+        if newline_pos >= 0:
+            line = self._buffer[:newline_pos + 1]
+            self._buffer = self._buffer[newline_pos + 1:]
+            # Strip PTY \r artifacts (BP-2.3)
+            return line.replace('\r', '')
+
+        # Wait for data with timeout
+        ready, _, _ = select.select([self._master_fd], [], [], timeout)
+        if not ready:
+            return None  # timeout
+
+        try:
+            data = os.read(self._master_fd, 4096)
+        except OSError:
+            self._eof = True
+            # Flush remaining buffer
+            if self._buffer:
+                line = self._buffer.replace('\r', '')
+                self._buffer = ''
+                return line + '\n' if not line.endswith('\n') else line
+            return ''
+
+        if not data:
+            self._eof = True
+            if self._buffer:
+                line = self._buffer.replace('\r', '')
+                self._buffer = ''
+                return line + '\n' if not line.endswith('\n') else line
+            return ''
+
+        self._buffer += data.decode('utf-8', errors='replace')
+
+        # Check for complete line again
+        newline_pos = self._buffer.find('\n')
+        if newline_pos >= 0:
+            line = self._buffer[:newline_pos + 1]
+            self._buffer = self._buffer[newline_pos + 1:]
+            return line.replace('\r', '')
+
+        return None  # No complete line yet
+
+    def drain(self) -> list[str]:
+        lines = []
+        # Read any remaining data
+        try:
+            while True:
+                ready, _, _ = select.select([self._master_fd], [], [], 0.1)
+                if not ready:
+                    break
+                data = os.read(self._master_fd, 4096)
+                if not data:
+                    break
+                self._buffer += data.decode('utf-8', errors='replace')
+        except OSError:
+            pass
+
+        # Split buffer into lines
+        if self._buffer:
+            for line in self._buffer.splitlines(keepends=True):
+                lines.append(line.replace('\r', ''))
+            self._buffer = ''
+        return lines
+
+    def close(self):
+        try:
+            os.close(self._master_fd)
+        except OSError:
+            pass
+
+
+class WindowsPtyPipeReader(PipeReader):
+    """Windows PTY reader using pywinpty if available, ThreadedPipeReader fallback.
+
+    Falls back to ThreadedPipeReader with a warning if pywinpty is not installed.
+    With ThreadedPipeReader fallback, output may be buffered (idle/active extension
+    degraded but signals still detected at process exit).
+    """
+
+    def __init__(self, inner: PipeReader, is_native_pty: bool = False):
+        self._inner = inner
+        self._is_native_pty = is_native_pty
+
+    def readline(self, timeout: float) -> Optional[str]:
+        line = self._inner.readline(timeout)
+        if line is not None and self._is_native_pty:
+            # Strip PTY artifacts from ConPTY
+            line = line.replace('\r', '')
+        return line
+
+    def drain(self) -> list[str]:
+        lines = self._inner.drain()
+        if self._is_native_pty:
+            lines = [l.replace('\r', '') for l in lines]
+        return lines
+
+    def close(self):
+        self._inner.close()
+
+
+def create_pty_reader_and_process(
+    cmd: list[str],
+    cwd,
+    stderr_file,
+    env: dict,
+) -> tuple[PipeReader, subprocess.Popen]:
+    """Create a PTY-wrapped subprocess for CLIs that need a pseudo-TTY.
+
+    On Unix: uses pty.openpty() for direct fd control (BP-2.1).
+    On Windows: tries pywinpty, falls back to ThreadedPipeReader with warning.
+
+    Args:
+        cmd: Command list for subprocess.
+        cwd: Working directory.
+        stderr_file: Open file for stderr capture.
+        env: Environment variables dict.
+
+    Returns:
+        Tuple of (PipeReader, Popen process).
+    """
+    if _IS_WINDOWS:
+        return _create_windows_pty_process(cmd, cwd, stderr_file, env)
+    else:
+        return _create_unix_pty_process(cmd, cwd, stderr_file, env)
+
+
+def _create_unix_pty_process(
+    cmd: list[str],
+    cwd,
+    stderr_file,
+    env: dict,
+) -> tuple[PipeReader, subprocess.Popen]:
+    """Create Unix PTY process using pty.openpty()."""
+    import pty as pty_module
+
+    master_fd, slave_fd = pty_module.openpty()
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=slave_fd,
+            stdin=slave_fd,   # Child sees terminal; parent never writes (non-interactive)
+            stderr=stderr_file,
+            cwd=cwd,
+            env=env,
+        )
+    except Exception:
+        os.close(master_fd)
+        os.close(slave_fd)
+        raise
+
+    # Parent closes slave fd immediately (BP-2.2 — prevents EOF hang)
+    os.close(slave_fd)
+
+    reader = UnixPtyPipeReader(master_fd)
+    return reader, process
+
+
+def _create_windows_pty_process(
+    cmd: list[str],
+    cwd,
+    stderr_file,
+    env: dict,
+) -> tuple[PipeReader, subprocess.Popen]:
+    """Create Windows PTY process, with pywinpty or ThreadedPipeReader fallback."""
+    try:
+        import winpty  # type: ignore[import-untyped]
+
+        pty_proc = winpty.PtyProcess.spawn(
+            cmd,
+            cwd=str(cwd),
+            env=env,
+        )
+        # Wrap in a PipeReader-compatible interface
+        reader = _WinPtyReader(pty_proc)
+        # Create a Popen-like wrapper for the winpty process
+        process = _WinPtyProcessWrapper(pty_proc)
+        return WindowsPtyPipeReader(reader, is_native_pty=True), process
+
+    except ImportError:
+        logger.warning(
+            "pywinpty not installed — OpenCode output will be buffered. "
+            "Install pywinpty for real-time output tracking on Windows: pip install pywinpty"
+        )
+        # Fallback: standard Popen with ThreadedPipeReader
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=stderr_file,
+            text=True,
+            cwd=cwd,
+            env=env,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+        reader = ThreadedPipeReader(process.stdout)
+        return WindowsPtyPipeReader(reader, is_native_pty=False), process
+
+
+class _WinPtyReader(PipeReader):
+    """Adapter wrapping winpty.PtyProcess as a PipeReader."""
+
+    def __init__(self, pty_proc):
+        self._proc = pty_proc
+        self._buffer = ''
+        self._eof = False
+
+    def readline(self, timeout: float) -> Optional[str]:
+        if self._eof:
+            return ''
+
+        # Check buffer for complete line
+        newline_pos = self._buffer.find('\n')
+        if newline_pos >= 0:
+            line = self._buffer[:newline_pos + 1]
+            self._buffer = self._buffer[newline_pos + 1:]
+            return line
+
+        try:
+            data = self._proc.read(4096, timeout=timeout)
+        except EOFError:
+            self._eof = True
+            if self._buffer:
+                line = self._buffer
+                self._buffer = ''
+                return line + '\n' if not line.endswith('\n') else line
+            return ''
+        except Exception:
+            return None  # timeout or transient error
+
+        if not data:
+            return None
+
+        self._buffer += data
+        newline_pos = self._buffer.find('\n')
+        if newline_pos >= 0:
+            line = self._buffer[:newline_pos + 1]
+            self._buffer = self._buffer[newline_pos + 1:]
+            return line
+        return None
+
+    def drain(self) -> list[str]:
+        lines = []
+        try:
+            while True:
+                data = self._proc.read(4096, timeout=0.1)
+                if not data:
+                    break
+                self._buffer += data
+        except (EOFError, Exception):
+            pass
+        if self._buffer:
+            for line in self._buffer.splitlines(keepends=True):
+                lines.append(line)
+            self._buffer = ''
+        return lines
+
+    def close(self):
+        try:
+            self._proc.close()
+        except Exception:
+            pass
+
+
+class _WinPtyProcessWrapper:
+    """Minimal Popen-like wrapper around winpty.PtyProcess for process management."""
+
+    def __init__(self, pty_proc):
+        self._proc = pty_proc
+        self.pid = pty_proc.pid
+        self.returncode = None
+
+    def poll(self) -> Optional[int]:
+        if not self._proc.isalive():
+            self.returncode = self._proc.exitstatus or 0
+            return self.returncode
+        return None
+
+    def wait(self, timeout=None):
+        self._proc.wait()
+        self.returncode = self._proc.exitstatus or 0
+        return self.returncode
+
+    def terminate(self):
+        try:
+            self._proc.close(force=False)
+        except Exception:
+            pass
+
+    def kill(self):
+        try:
+            self._proc.close(force=True)
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
 # Stderr temp file helpers
 # ---------------------------------------------------------------------------
 

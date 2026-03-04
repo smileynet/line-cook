@@ -123,9 +123,53 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
             'Kiro lacks Task tool: sub-agent quality gates (taster, sous-chef, polisher, '
             'maitre, critic) will use inline fallbacks instead of dedicated agents'
         )
+    # OpenCode-specific checks
+    if cli_name == 'opencode':
+        # Check OpenCode config directory
+        opencode_config = cwd / '.opencode'
+        opencode_config_alt = cwd / 'opencode.json'
+        checks['opencode_config'] = opencode_config.exists() or opencode_config_alt.exists()
+        if not checks['opencode_config']:
+            hints['opencode_config'] = 'Create OpenCode config: .opencode/ or opencode.json (see https://opencode.ai/docs)'
+        # Check pywinpty on Windows (diagnostic, not gating)
+        if sys.platform == 'win32':
+            try:
+                import winpty  # type: ignore[import-untyped]  # noqa: F401
+                checks['pywinpty'] = True
+            except ImportError:
+                checks['pywinpty'] = False
+                warnings.append(
+                    'pywinpty not installed: OpenCode output will be buffered on Windows. '
+                    'Install with: pip install pywinpty'
+                )
+        # Verify --command + --format json works (smoke test)
+        if checks[f'{cli_name}_cli']:
+            try:
+                result = subprocess.run(
+                    [binary, 'run', '--command', 'help', '--format', 'json'],
+                    capture_output=True, text=True, timeout=15
+                )
+                checks['opencode_command_json'] = result.returncode == 0
+                if not checks['opencode_command_json']:
+                    hints['opencode_command_json'] = (
+                        'OpenCode --command + --format json failed. '
+                        'Ensure OpenCode is up to date (requires Oct 2025+ fix for PR #2926)'
+                    )
+            except subprocess.TimeoutExpired:
+                checks['opencode_command_json'] = False
+                hints['opencode_command_json'] = 'OpenCode --command smoke test timed out'
+            except Exception:
+                checks['opencode_command_json'] = False
+        # Warn about permission config (issue #11891 — question tool hang)
+        warnings.append(
+            'Ensure OpenCode permission config is set to "allow" to prevent '
+            'question tool hang in non-interactive mode (issue #11891)'
+        )
+    # Diagnostic-only keys (not gating for overall health)
+    _diagnostic_keys = {'kiro_version', 'pywinpty'}
     healthy = all(
         v for k, v in checks.items()
-        if k != 'kiro_version'  # Version is diagnostic, not gating
+        if k not in _diagnostic_keys
         and isinstance(v, bool)
     )
     result = {'healthy': healthy, 'checks': checks, 'hints': hints}
@@ -350,8 +394,8 @@ Examples:
     if not shutil.which(profile['binary']):
         logger.error(f"CLI binary '{profile['binary']}' not found in PATH")
         logger.error(f"Selected CLI: --cli {args.cli}")
-        if args.cli == 'kiro':
-            logger.error("Install Kiro CLI: https://kiro.dev")
+        if 'install_hint' in profile:
+            logger.error(profile['install_hint'])
         sys.exit(1)
 
     try:
