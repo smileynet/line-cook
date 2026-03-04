@@ -368,11 +368,12 @@ def strip_all_imports(content: str) -> str:
                 in_multiline_import = False
             continue
 
-        # Skip all import statements
-        if stripped.startswith('from ') or stripped.startswith('import '):
-            if '(' in line and ')' not in line:
-                in_multiline_import = True
-            continue
+        # Skip top-level import statements only (not indented ones inside functions/try)
+        if not line or line[0] not in (' ', '\t'):
+            if stripped.startswith('from ') or stripped.startswith('import '):
+                if '(' in line and ')' not in line:
+                    in_multiline_import = True
+                continue
 
         # Skip logger assignments (will be set up in CLI entry point)
         if stripped.startswith('logger = logging.getLogger'):
@@ -466,6 +467,12 @@ def collect_stdlib_imports(modules: list[tuple[str, str]], cli_content: str) -> 
 
     for content in all_content:
         for line in content.split('\n'):
+            # Only collect top-level imports (no leading whitespace).
+            # Indented imports are inside functions/try blocks (e.g.,
+            # `import winpty` inside a try, `import pty` inside a function)
+            # and must stay in-place rather than being hoisted.
+            if line and line[0] in (' ', '\t'):
+                continue
             stripped = line.strip()
             # Skip internal imports (from .xxx)
             if stripped.startswith('from .'):

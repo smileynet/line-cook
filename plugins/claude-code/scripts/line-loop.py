@@ -31,7 +31,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from queue import Empty, Queue
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Callable, Optional
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -110,6 +110,19 @@ CLI_PROFILES = {
         'install_hint': 'Install Kiro CLI: https://kiro.dev/docs/cli',
         'phase_timeout_multiplier': 1.5,
     },
+    'opencode': {
+        'binary': 'opencode',
+        'subcommand': 'run',
+        'command_flag': '--command',         # Slash commands use --command flag
+        'prompt_format': 'line-{phase}',     # No leading / (--command resolves it)
+        'permission_flags': [],              # run mode auto-approves all
+        'output_flags': ['--format', 'json'],
+        'has_streaming_json': False,         # Not Claude-style stream-json
+        'has_ndjson': True,                  # OpenCode NDJSON format
+        'needs_pty': True,                   # Requires PTY for flushed output
+        'install_hint': 'Install OpenCode: https://opencode.ai',
+        'phase_timeout_multiplier': 1.2,
+    },
 }
 
 DEFAULT_CLI = 'claude'
@@ -119,7 +132,7 @@ def get_cli_profile(name: str) -> dict:
     """Get CLI profile by name.
 
     Args:
-        name: Profile name ('claude' or 'kiro').
+        name: Profile name ('claude', 'kiro', or 'opencode').
 
     Returns:
         Profile dict with binary, prompt_format, flags, etc.
@@ -161,6 +174,7 @@ DEFAULT_PHASE_IDLE_TIMEOUTS = {
 # --- models.py ---
 
 if TYPE_CHECKING:
+    from typing import Protocol
 
     class StatusWriter(Protocol):
         """Protocol for status file writing callback."""
@@ -729,7 +743,7 @@ class LoopReport:
     started_at: str
     ended_at: str
     iterations: list[IterationResult]
-    stop_reason: str  # "no_work", "no_actionable_work", "max_iterations", "blocked", "error", "crashed", "epic_complete"
+    stop_reason: str  # "no_work", "only_epics_ready", "no_actionable_work", "max_iterations", "blocked", "error", "crashed", "epic_complete"
     completed_count: int
     failed_count: int
     duration_seconds: float
@@ -1252,6 +1266,192 @@ def update_action_from_result(
                 del pending_actions[tool_use_id]
 
 
+# ---------------------------------------------------------------------------
+# OpenCode NDJSON parsers
+# ---------------------------------------------------------------------------
+
+# Sequence counter for OpenCode action IDs (parallel to _kiro_action_seq)
+_opencode_action_seq = iter(range(1, 2**63))
+
+
+def parse_opencode_ndjson_event(line: str) -> Optional[dict]:
+    """Parse a single NDJSON line from OpenCode's --format json output.
+
+    OpenCode emits one JSON object per line with a "type" field:
+    - {"type": "text", "part": {"text": "..."}}
+    - {"type": "step_start", ...}
+    - {"type": "step_finish", "part": {"tokens": {...}, "cost": ...}}
+    - {"type": "tool_call", "part": {"name": "...", "id": "...", "input": ...}}
+    - {"type": "tool_result", "part": {"id": "...", "output": "...", "error": ...}}
+
+    PTY output may contain \\r — strip before parsing (BP-2.3).
+
+    Args:
+        line: A single NDJSON line from OpenCode output.
+
+    Returns:
+        Parsed event dict if valid JSON, None otherwise.
+    """
+    # Strip PTY artifacts (\r) before JSON parsing (BP-2.3)
+    line = line.replace('\r', '').strip()
+    if not line:
+        return None
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        return None
+
+
+def extract_opencode_text_from_event(event: dict) -> str:
+    """Extract text content from an OpenCode NDJSON event.
+
+    Text events have format: {"type": "text", "part": {"text": "..."}}
+
+    Args:
+        event: Parsed NDJSON event from OpenCode output.
+
+    Returns:
+        Text string from text events, empty string for other event types.
+    """
+    if event.get("type") == "text":
+        part = event.get("part", {})
+        if isinstance(part, dict):
+            return part.get("text", "")
+    return ""
+
+
+def extract_opencode_actions_from_event(
+    event: dict,
+    pending_actions: dict[str, ActionRecord]
+) -> list[ActionRecord]:
+    """Extract tool actions from OpenCode NDJSON events.
+
+    Handles two event types:
+    - tool_call: Creates a new ActionRecord and adds to pending_actions
+    - tool_result: Resolves a pending action by tool ID
+
+    If tool events are not exposed in NDJSON output, this returns empty
+    lists and the caller falls back to text-based signal detection.
+
+    Args:
+        event: Parsed NDJSON event from OpenCode output.
+        pending_actions: Mutable dict mapping tool_use_id to ActionRecord.
+
+    Returns:
+        List of new ActionRecords created from tool_call events.
+    """
+    actions: list[ActionRecord] = []
+    event_type = event.get("type", "")
+
+    # OpenCode emits a single "tool_use" event per tool invocation with
+    # state.status indicating completion.  The tool name lives in part.tool,
+    # and state.input / state.output carry the payloads.
+    if event_type == "tool_use":
+        part = event.get("part", {})
+        tool_name = part.get("tool", "unknown")
+        tool_id = part.get("callID", f"oc-{next(_opencode_action_seq)}")
+        state = part.get("state", {})
+        tool_input = state.get("input", {})
+        tool_output = state.get("output", "")
+        status = state.get("status", "")
+
+        input_summary = ""
+        if isinstance(tool_input, dict):
+            input_summary = summarize_tool_input(tool_name, tool_input)
+        elif isinstance(tool_input, str):
+            input_summary = tool_input[:100]
+
+        output_summary = ""
+        if isinstance(tool_output, str):
+            if len(tool_output) > OUTPUT_SUMMARY_MAX_LENGTH:
+                output_summary = tool_output[:OUTPUT_SUMMARY_MAX_LENGTH] + "..."
+            else:
+                output_summary = tool_output
+
+        # Compute duration from state.time if available
+        duration_ms = None
+        time_info = state.get("time", {})
+        if time_info.get("start") and time_info.get("end"):
+            try:
+                duration_ms = time_info["end"] - time_info["start"]
+            except (TypeError, ValueError):
+                pass
+
+        is_success = status == "completed"
+        if not is_success and output_summary and not output_summary.startswith("ERROR:"):
+            output_summary = f"ERROR: {output_summary}"
+
+        action = ActionRecord(
+            tool_name=tool_name,
+            tool_use_id=tool_id,
+            input_summary=input_summary,
+            output_summary=output_summary,
+            success=is_success,
+            timestamp=datetime.now().isoformat(),
+            duration_ms=duration_ms,
+        )
+        actions.append(action)
+        # No pending tracking needed — event is self-contained
+
+    elif event_type == "tool_call":
+        # Legacy/future format: separate tool_call + tool_result events
+        part = event.get("part", {})
+        tool_name = part.get("name", "unknown")
+        tool_id = part.get("id", f"oc-{next(_opencode_action_seq)}")
+        tool_input = part.get("input", {})
+
+        input_summary = ""
+        if isinstance(tool_input, dict):
+            input_summary = summarize_tool_input(tool_name, tool_input)
+        elif isinstance(tool_input, str):
+            input_summary = tool_input[:100]
+
+        action = ActionRecord(
+            tool_name=tool_name,
+            tool_use_id=tool_id,
+            input_summary=input_summary,
+            output_summary="",
+            success=None,
+            timestamp=datetime.now().isoformat(),
+        )
+        actions.append(action)
+        pending_actions[tool_id] = action
+
+    elif event_type == "tool_result":
+        part = event.get("part", {})
+        tool_id = part.get("id", "")
+        if tool_id in pending_actions:
+            action = pending_actions[tool_id]
+            try:
+                start = datetime.fromisoformat(action.timestamp)
+                action.duration_ms = (datetime.now() - start).total_seconds() * 1000
+            except (ValueError, TypeError):
+                pass
+            error = part.get("error")
+            action.success = error is None or error == ""
+            output = part.get("output", "")
+            if isinstance(output, str):
+                if len(output) > OUTPUT_SUMMARY_MAX_LENGTH:
+                    action.output_summary = output[:OUTPUT_SUMMARY_MAX_LENGTH] + "..."
+                else:
+                    action.output_summary = output
+                if not action.success and not action.output_summary.startswith("ERROR:"):
+                    action.output_summary = f"ERROR: {action.output_summary}"
+            del pending_actions[tool_id]
+
+    elif event_type == "tool_error":
+        if pending_actions:
+            last_key = list(pending_actions.keys())[-1]
+            action = pending_actions[last_key]
+            action.success = False
+            error_msg = event.get("part", {}).get("error", "unknown error")
+            if isinstance(error_msg, str):
+                action.output_summary = f"ERROR: {error_msg[:OUTPUT_SUMMARY_MAX_LENGTH]}"
+            del pending_actions[last_key]
+
+    return actions
+
+
 def strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences from text.
 
@@ -1477,6 +1677,333 @@ class ThreadedPipeReader(PipeReader):
 
 
 # ---------------------------------------------------------------------------
+# PTY-based PipeReader for CLIs that need a pseudo-TTY (e.g., OpenCode)
+# ---------------------------------------------------------------------------
+
+class UnixPtyPipeReader(PipeReader):
+    """Unix PTY reader using pty.openpty() + select (BP-2.1).
+
+    OpenCode requires a PTY to flush stdout during tool calls. This reader
+    creates a master/slave fd pair, spawns the child with the slave as stdout,
+    and reads from the master fd using select() for timeout support.
+    """
+
+    def __init__(self, master_fd: int):
+        self._master_fd = master_fd
+        self._buffer = ''
+        self._eof = False
+
+    def readline(self, timeout: float) -> Optional[str]:
+        if self._eof:
+            return ''
+
+        # Check for complete line in buffer first
+        newline_pos = self._buffer.find('\n')
+        if newline_pos >= 0:
+            line = self._buffer[:newline_pos + 1]
+            self._buffer = self._buffer[newline_pos + 1:]
+            # Strip PTY \r artifacts (BP-2.3)
+            return line.replace('\r', '')
+
+        # Wait for data with timeout
+        ready, _, _ = select.select([self._master_fd], [], [], timeout)
+        if not ready:
+            return None  # timeout
+
+        try:
+            data = os.read(self._master_fd, 4096)
+        except OSError:
+            self._eof = True
+            # Flush remaining buffer
+            if self._buffer:
+                line = self._buffer.replace('\r', '')
+                self._buffer = ''
+                return line + '\n' if not line.endswith('\n') else line
+            return ''
+
+        if not data:
+            self._eof = True
+            if self._buffer:
+                line = self._buffer.replace('\r', '')
+                self._buffer = ''
+                return line + '\n' if not line.endswith('\n') else line
+            return ''
+
+        self._buffer += data.decode('utf-8', errors='replace')
+
+        # Check for complete line again
+        newline_pos = self._buffer.find('\n')
+        if newline_pos >= 0:
+            line = self._buffer[:newline_pos + 1]
+            self._buffer = self._buffer[newline_pos + 1:]
+            return line.replace('\r', '')
+
+        return None  # No complete line yet
+
+    def drain(self) -> list[str]:
+        lines = []
+        # Read any remaining data
+        try:
+            while True:
+                ready, _, _ = select.select([self._master_fd], [], [], 0.1)
+                if not ready:
+                    break
+                data = os.read(self._master_fd, 4096)
+                if not data:
+                    break
+                self._buffer += data.decode('utf-8', errors='replace')
+        except OSError:
+            pass
+
+        # Split buffer into lines
+        if self._buffer:
+            for line in self._buffer.splitlines(keepends=True):
+                lines.append(line.replace('\r', ''))
+            self._buffer = ''
+        return lines
+
+    def close(self):
+        try:
+            os.close(self._master_fd)
+        except OSError:
+            pass
+
+
+class WindowsPtyPipeReader(PipeReader):
+    """Windows PTY reader using pywinpty if available, ThreadedPipeReader fallback.
+
+    Falls back to ThreadedPipeReader with a warning if pywinpty is not installed.
+    With ThreadedPipeReader fallback, output may be buffered (idle/active extension
+    degraded but signals still detected at process exit).
+    """
+
+    def __init__(self, inner: PipeReader, is_native_pty: bool = False):
+        self._inner = inner
+        self._is_native_pty = is_native_pty
+
+    def readline(self, timeout: float) -> Optional[str]:
+        line = self._inner.readline(timeout)
+        if line is not None and self._is_native_pty:
+            # Strip PTY artifacts from ConPTY
+            line = line.replace('\r', '')
+        return line
+
+    def drain(self) -> list[str]:
+        lines = self._inner.drain()
+        if self._is_native_pty:
+            lines = [l.replace('\r', '') for l in lines]
+        return lines
+
+    def close(self):
+        self._inner.close()
+
+
+def create_pty_reader_and_process(
+    cmd: list[str],
+    cwd,
+    stderr_file,
+    env: dict,
+) -> tuple[PipeReader, subprocess.Popen]:
+    """Create a PTY-wrapped subprocess for CLIs that need a pseudo-TTY.
+
+    On Unix: uses pty.openpty() for direct fd control (BP-2.1).
+    On Windows: tries pywinpty, falls back to ThreadedPipeReader with warning.
+
+    Args:
+        cmd: Command list for subprocess.
+        cwd: Working directory.
+        stderr_file: Open file for stderr capture.
+        env: Environment variables dict.
+
+    Returns:
+        Tuple of (PipeReader, Popen process).
+    """
+    if _IS_WINDOWS:
+        return _create_windows_pty_process(cmd, cwd, stderr_file, env)
+    else:
+        return _create_unix_pty_process(cmd, cwd, stderr_file, env)
+
+
+def _create_unix_pty_process(
+    cmd: list[str],
+    cwd,
+    stderr_file,
+    env: dict,
+) -> tuple[PipeReader, subprocess.Popen]:
+    """Create Unix PTY process using pty.openpty()."""
+    import pty as pty_module
+
+    master_fd, slave_fd = pty_module.openpty()
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=slave_fd,
+            stdin=slave_fd,   # Child sees terminal; parent never writes (non-interactive)
+            stderr=stderr_file,
+            cwd=cwd,
+            env=env,
+        )
+    except Exception:
+        os.close(master_fd)
+        os.close(slave_fd)
+        raise
+
+    # Parent closes slave fd immediately (BP-2.2 — prevents EOF hang)
+    os.close(slave_fd)
+
+    reader = UnixPtyPipeReader(master_fd)
+    return reader, process
+
+
+def _create_windows_pty_process(
+    cmd: list[str],
+    cwd,
+    stderr_file,
+    env: dict,
+) -> tuple[PipeReader, subprocess.Popen]:
+    """Create Windows PTY process, with pywinpty or ThreadedPipeReader fallback."""
+    try:
+        import winpty  # type: ignore[import-untyped]
+
+        pty_proc = winpty.PtyProcess.spawn(
+            cmd,
+            cwd=str(cwd),
+            env=env,
+        )
+        # Wrap in a PipeReader-compatible interface
+        reader = _WinPtyReader(pty_proc)
+        # Create a Popen-like wrapper for the winpty process
+        process = _WinPtyProcessWrapper(pty_proc)
+        return WindowsPtyPipeReader(reader, is_native_pty=True), process
+
+    except ImportError:
+        logger.warning(
+            "pywinpty not installed — OpenCode output will be buffered. "
+            "Install pywinpty for real-time output tracking on Windows: pip install pywinpty"
+        )
+        # Fallback: standard Popen with ThreadedPipeReader
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=stderr_file,
+            text=True,
+            cwd=cwd,
+            env=env,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+        reader = ThreadedPipeReader(process.stdout)
+        return WindowsPtyPipeReader(reader, is_native_pty=False), process
+
+
+class _WinPtyReader(PipeReader):
+    """Adapter wrapping winpty.PtyProcess as a PipeReader.
+
+    Uses a background thread for non-blocking reads since PtyProcess.read()
+    blocks and doesn't support timeout. Lines are queued and consumed
+    via readline() with timeout support (same pattern as ThreadedPipeReader).
+    """
+
+    _EOF = object()  # sentinel
+
+    def __init__(self, pty_proc):
+        self._proc = pty_proc
+        self._queue: Queue = Queue()
+        self._eof_seen = False
+        self._thread = threading.Thread(target=self._reader, daemon=True)
+        self._thread.start()
+
+    def _reader(self):
+        """Background thread: reads from PTY and enqueues complete lines."""
+        buffer = ''
+        try:
+            while True:
+                try:
+                    data = self._proc.read(4096)
+                except EOFError:
+                    break
+                if not data:
+                    break
+                buffer += data
+                # Split into lines and enqueue complete ones
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    self._queue.put(line + '\n')
+            # Flush any remaining partial line
+            if buffer:
+                self._queue.put(buffer + '\n')
+        except Exception:
+            pass
+        finally:
+            self._queue.put(self._EOF)
+
+    def readline(self, timeout: float) -> Optional[str]:
+        if self._eof_seen:
+            return ''
+        try:
+            item = self._queue.get(timeout=timeout)
+        except Empty:
+            return None  # timeout
+        if item is self._EOF:
+            self._eof_seen = True
+            return ''  # EOF
+        return item
+
+    def drain(self) -> list[str]:
+        self._thread.join(timeout=5)
+        lines = []
+        while True:
+            try:
+                item = self._queue.get_nowait()
+            except Empty:
+                break
+            if item is self._EOF:
+                break
+            lines.append(item)
+        return lines
+
+    def close(self):
+        try:
+            self._proc.close()
+        except Exception:
+            pass
+        if self._thread.is_alive():
+            self._thread.join(timeout=5)
+
+
+class _WinPtyProcessWrapper:
+    """Minimal Popen-like wrapper around winpty.PtyProcess for process management."""
+
+    def __init__(self, pty_proc):
+        self._proc = pty_proc
+        self.pid = pty_proc.pid
+        self.returncode = None
+
+    def poll(self) -> Optional[int]:
+        if not self._proc.isalive():
+            self.returncode = self._proc.exitstatus or 0
+            return self.returncode
+        return None
+
+    def wait(self, timeout=None):
+        self._proc.wait()
+        self.returncode = self._proc.exitstatus or 0
+        return self.returncode
+
+    def terminate(self):
+        try:
+            self._proc.close(force=False)
+        except Exception:
+            pass
+
+    def kill(self):
+        try:
+            self._proc.close(force=True)
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
 # Stderr temp file helpers
 # ---------------------------------------------------------------------------
 
@@ -1657,7 +2184,7 @@ def run_subprocess(cmd: list, timeout: int, cwd: Path) -> subprocess.CompletedPr
     logger.debug(f"Running: {' '.join(cmd)} (timeout={timeout}s)")
     start = time.time()
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=timeout)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, timeout=timeout, encoding='utf-8', errors='replace')
         logger.debug(f"Completed in {time.time()-start:.1f}s, exit={result.returncode}")
         return result
     except subprocess.TimeoutExpired:
@@ -1708,26 +2235,38 @@ def build_phase_command(phase: str, args: str, cli_profile: dict) -> list[str]:
         Command list suitable for subprocess.Popen
     """
     prompt = cli_profile['prompt_format'].format(phase=phase)
-    if args:
-        injection = cli_profile.get('task_injection')
-        if injection:
-            # Prepend args before @ command (workaround for Kiro bug #4141)
-            prompt = f"{injection.format(args=args)}{prompt}"
-        else:
-            prompt = f"{prompt} {args}"
 
     cmd = [cli_profile['binary']]
 
     if 'subcommand' in cli_profile:
         cmd.append(cli_profile['subcommand'])
 
-    if cli_profile.get('has_streaming_json'):
+    if cli_profile.get('command_flag'):
+        # OpenCode-style: --command <prompt> --format json <args>
+        cmd.extend([cli_profile['command_flag'], prompt])
+        cmd.extend(cli_profile.get('output_flags', []))
+        cmd.extend(cli_profile.get('permission_flags', []))
+        if args:
+            cmd.append(args)
+    elif cli_profile.get('has_streaming_json'):
         # Claude-style: -p prompt, then flags
+        if args:
+            injection = cli_profile.get('task_injection')
+            if injection:
+                prompt = f"{injection.format(args=args)}{prompt}"
+            else:
+                prompt = f"{prompt} {args}"
         cmd.extend(['-p', prompt])
         cmd.extend(cli_profile.get('permission_flags', []))
         cmd.extend(cli_profile.get('output_flags', []))
     else:
         # Kiro-style: flags first, prompt at end
+        if args:
+            injection = cli_profile.get('task_injection')
+            if injection:
+                prompt = f"{injection.format(args=args)}{prompt}"
+            else:
+                prompt = f"{prompt} {args}"
         cmd.extend(cli_profile.get('extra_flags', []))
         cmd.extend(cli_profile.get('permission_flags', []))
         cmd.append(prompt)
@@ -1756,6 +2295,7 @@ def process_output_line(
         - cleaned_text: Human-readable text extracted from the line
     """
     if cli_profile.get('has_streaming_json'):
+        # Claude: streaming JSON events
         event = parse_stream_json_event(line)
         if not event:
             return [], ""
@@ -1766,6 +2306,16 @@ def process_output_line(
             text = extract_text_from_event(event)
         return new_actions, text
 
+    if cli_profile.get('has_ndjson'):
+        # OpenCode: NDJSON events (one JSON object per line)
+        event = parse_opencode_ndjson_event(line)
+        if not event:
+            return [], ""
+        new_actions = extract_opencode_actions_from_event(event, pending_actions)
+        text = extract_opencode_text_from_event(event)
+        return new_actions, text
+
+    # Kiro: plain-text output
     cleaned = strip_ansi(line.rstrip('\n'))
     new_actions = extract_kiro_actions_from_line(cleaned, pending_actions)
     return new_actions, cleaned
@@ -1845,8 +2395,15 @@ def run_phase(
     reader = None
 
     try:
-        process = subprocess.Popen(cmd, **make_popen_kwargs(cwd, stderr_file))
-        reader = PipeReader.create(process.stdout)
+        if cli_profile.get('needs_pty'):
+            # PTY wrapper for CLIs that need a pseudo-TTY (e.g., OpenCode)
+            popen_kwargs = make_popen_kwargs(cwd, stderr_file)
+            reader, process = create_pty_reader_and_process(
+                cmd, cwd, stderr_file, popen_kwargs['env']
+            )
+        else:
+            process = subprocess.Popen(cmd, **make_popen_kwargs(cwd, stderr_file))
+            reader = PipeReader.create(process.stdout)
 
         deadline = time.time() + timeout
         while True:
@@ -2142,8 +2699,8 @@ def print_human_iteration(result: IterationResult, retries: int = 0):
         print(f"  Actions: {result.total_actions} total ({', '.join(action_parts)})")
 
     # Bead state changes
-    ready_str = f"ready {result.before_ready}\u2192{result.after_ready}"
-    in_prog_str = f"in_progress {result.before_in_progress}\u2192{result.after_in_progress}"
+    ready_str = f"ready {result.before_ready}->{result.after_ready}"
+    in_prog_str = f"in_progress {result.before_in_progress}->{result.after_in_progress}"
     if result.delta:
         closed_count = len(result.delta.newly_closed)
     else:
@@ -3229,6 +3786,7 @@ def check_epic_completion(
     if not epic_ids:
         return []
 
+    from .loop import merge_completed_epic
 
     summaries = []
     for epic_id in epic_ids:
@@ -4009,6 +4567,7 @@ def run_iteration(
                     # Step 1: Merge epic branch to main (only if on an epic branch)
                     current_br = get_current_branch(cwd)
                     if current_br and current_br.startswith("epic/"):
+                        from .loop import merge_completed_epic
                         merged, merge_error = merge_completed_epic(epic_id, epic_title_for_merge, cwd)
                         if merged:
                             merged_epic_ids.append(epic_id)
@@ -4113,6 +4672,8 @@ def request_shutdown() -> None:
     the loop gracefully after the current iteration completes.
 
     Example:
+        import signal
+        from line_loop import request_shutdown
 
         signal.signal(signal.SIGINT, lambda s, f: request_shutdown())
         signal.signal(signal.SIGTERM, lambda s, f: request_shutdown())
@@ -5390,12 +5951,23 @@ def run_loop(
                 current_epic_id = None
                 current_epic_title = None
                 continue
-            stop_reason = "no_work"
             if snapshot.ready_ids:
-                logger.info(f"No work items ready ({len(snapshot.ready_ids)} epics ready), loop complete")
+                stop_reason = "only_epics_ready"
+                epic_count = len(snapshot.ready_ids)
+                logger.info(
+                    f"No work items ready ({epic_count} epics ready but no leaf tasks), loop complete"
+                )
                 if not json_output:
-                    print(f"\nNo work items ready ({len(snapshot.ready_ids)} epics remain). Loop complete.")
+                    print(
+                        f"\n{epic_count} ready item(s) are epics — the loop only executes "
+                        f"leaf tasks (features and tasks). Child tasks may be blocked or "
+                        f"stuck in_progress from a previous run."
+                    )
+                    print("  To diagnose:")
+                    print("    bd blocked           # show tasks blocked by dependencies")
+                    print("    bd list --status=in_progress  # show stuck in_progress tasks")
             else:
+                stop_reason = "no_work"
                 logger.info("No work items ready, loop complete")
                 if not json_output:
                     print("\nNo work items ready. Loop complete.")
@@ -5492,9 +6064,9 @@ def run_loop(
             branch_name, was_created = ensure_epic_branch(target_task_id, cwd)
             if branch_name and not json_output:
                 if was_created:
-                    print(f"  Branch: main → {branch_name} (new)")
+                    print(f"  Branch: main -> {branch_name} (new)")
                 else:
-                    print(f"  Branch: → {branch_name}")
+                    print(f"  Branch: -> {branch_name}")
 
         # Create progress state for real-time status updates during iteration
         progress_state = None
@@ -5987,9 +6559,56 @@ def check_health(cwd: Path, cli_name: str = DEFAULT_CLI) -> dict:
             'Kiro lacks Task tool: sub-agent quality gates (taster, sous-chef, polisher, '
             'maitre, critic) will use inline fallbacks instead of dedicated agents'
         )
+    # OpenCode-specific checks
+    if cli_name == 'opencode':
+        # Check OpenCode config (project or global)
+        opencode_config_locations = [
+            cwd / '.opencode',
+            cwd / 'opencode.json',
+            Path.home() / '.config' / 'opencode',
+        ]
+        checks['opencode_config'] = any(p.exists() for p in opencode_config_locations)
+        if not checks['opencode_config']:
+            hints['opencode_config'] = 'Create OpenCode config: .opencode/ or opencode.json (see https://opencode.ai/docs)'
+        # Check pywinpty on Windows (diagnostic, not gating)
+        if sys.platform == 'win32':
+            try:
+                checks['pywinpty'] = True
+            except ImportError:
+                checks['pywinpty'] = False
+                warnings.append(
+                    'pywinpty not installed: OpenCode output will be buffered on Windows. '
+                    'Install with: pip install pywinpty'
+                )
+        # Verify --format json works (smoke test — diagnostic, not gating)
+        if checks[f'{cli_name}_cli']:
+            try:
+                result = subprocess.run(
+                    [binary, 'run', '--format', 'json', 'respond with just the word OK'],
+                    capture_output=True, text=True, timeout=60
+                )
+                has_json = '{"type":' in result.stdout
+                checks['opencode_json_output'] = result.returncode == 0 and has_json
+                if not checks['opencode_json_output']:
+                    hints['opencode_json_output'] = (
+                        'OpenCode --format json did not produce NDJSON output. '
+                        'Ensure OpenCode is up to date.'
+                    )
+            except subprocess.TimeoutExpired:
+                checks['opencode_json_output'] = False
+                hints['opencode_json_output'] = 'OpenCode smoke test timed out (>60s)'
+            except Exception:
+                checks['opencode_json_output'] = False
+        # Warn about permission config (issue #11891 — question tool hang)
+        warnings.append(
+            'Ensure OpenCode permission config is set to "allow" to prevent '
+            'question tool hang in non-interactive mode (issue #11891)'
+        )
+    # Diagnostic-only keys (not gating for overall health)
+    _diagnostic_keys = {'kiro_version', 'pywinpty', 'opencode_json_output'}
     healthy = all(
         v for k, v in checks.items()
-        if k != 'kiro_version'  # Version is diagnostic, not gating
+        if k not in _diagnostic_keys
         and isinstance(v, bool)
     )
     result = {'healthy': healthy, 'checks': checks, 'hints': hints}
@@ -6214,8 +6833,8 @@ Examples:
     if not shutil.which(profile['binary']):
         logger.error(f"CLI binary '{profile['binary']}' not found in PATH")
         logger.error(f"Selected CLI: --cli {args.cli}")
-        if args.cli == 'kiro':
-            logger.error("Install Kiro CLI: https://kiro.dev")
+        if 'install_hint' in profile:
+            logger.error(profile['install_hint'])
         sys.exit(1)
 
     try:
