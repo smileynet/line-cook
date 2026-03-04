@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-03-04
 ### Added
 - `/loop` now runs on Windows 11 natively — full PTY support, health checks,
   and the same autonomous workflow that works on Linux and macOS
@@ -434,7 +435,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/smileynet/line-cook/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/smileynet/line-cook/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/smileynet/line-cook/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/smileynet/line-cook/compare/v0.17.1...v0.18.0
