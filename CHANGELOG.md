@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Claude Code and Kiro. Run autonomous loops in whichever editor you prefer
 
 ### Fixed
+- `/loop` serve phase on Kiro no longer returns false BLOCKED verdicts — the
+  sous-chef now understands that parent-child dependencies are structural
+  grouping, not execution blockers
+- `/loop` now tells you *why* it stopped when only epics remain with no
+  actionable tasks, instead of silently exiting
+- Kiro `@prompt` expansion works again — removed a workaround that was
+  interfering with argument passing
 - `/loop` no longer warns about a timeout when the agent actually completed
   its work — the spurious "timeout fallback" message is suppressed when
   real progress was made
