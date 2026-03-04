@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: release
@@ -89,3 +90,122 @@ jobs:
             --notes-file /tmp/release-notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate app token
+        if: steps.check.outputs.exists == 'false'
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LINE_COOK_APP_ID }}
+          private-key: ${{ secrets.LINE_COOK_APP_PRIVATE_KEY }}
+
+      - name: Notify fixed issues
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ steps.version.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Find previous release tag (BP-7: skip on first release)
+          PREV_TAG=$(gh release list --exclude-drafts --exclude-pre-releases \
+            --limit 10 --json tagName --jq "[.[] | select(.tagName != \"${VERSION}\")] | .[0].tagName // empty")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous release found, skipping notifications"
+            exit 0
+          fi
+
+          echo "Finding issues fixed between $PREV_TAG and $VERSION"
+
+          # Get commits between tags (BP-1: Compare API, max 250 commits)
+          COMPARE_JSON=$(gh api "repos/${REPO}/compare/${PREV_TAG}...${VERSION}" 2>/dev/null || true)
+
+          if [ -z "$COMPARE_JSON" ]; then
+            echo "No commits found between $PREV_TAG and $VERSION"
+            exit 0
+          fi
+
+          TOTAL=$(echo "$COMPARE_JSON" | jq '.total_commits // 0')
+          SHAS=$(echo "$COMPARE_JSON" | jq -r '.commits[].sha')
+          COUNT=$(echo "$SHAS" | grep -c . || true)
+
+          if [ -z "$SHAS" ]; then
+            echo "No commits found between $PREV_TAG and $VERSION"
+            exit 0
+          fi
+
+          if [ "$TOTAL" -gt "$COUNT" ]; then
+            echo "::warning::Compare returned $COUNT of $TOTAL commits; some issues may not be notified"
+          fi
+
+          # Bridge commits → PRs, deduplicate (BP-3)
+          PR_NUMS=""
+          for SHA in $SHAS; do
+            PR=$(gh api "repos/${REPO}/commits/${SHA}/pulls" \
+              --jq '.[0].number // empty' 2>/dev/null || true)
+            [ -z "$PR" ] && continue
+            echo "$PR_NUMS" | grep -qw "$PR" && continue
+            PR_NUMS="$PR_NUMS $PR"
+          done
+
+          if [ -z "$PR_NUMS" ]; then
+            echo "No PRs found in this release"
+            exit 0
+          fi
+
+          # PRs → linked issues via GraphQL (BP-2: closingIssuesReferences)
+          ISSUE_NUMS=""
+          for PR in $PR_NUMS; do
+            ISSUES=$(gh api graphql -f query='
+              query($owner: String!, $repo: String!, $pr: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $pr) {
+                    closingIssuesReferences(first: 10) {
+                      nodes { number repository { nameWithOwner } }
+                    }
+                  }
+                }
+              }' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" -F pr="$PR" \
+              --jq ".data.repository.pullRequest.closingIssuesReferences.nodes[] | select(.repository.nameWithOwner == \"${REPO}\") | .number" 2>/dev/null || true)
+
+            for ISSUE in $ISSUES; do
+              echo "$ISSUE_NUMS" | grep -qw "$ISSUE" && continue
+              ISSUE_NUMS="$ISSUE_NUMS $ISSUE"
+            done
+          done
+
+          if [ -z "$ISSUE_NUMS" ]; then
+            echo "No linked issues found"
+            exit 0
+          fi
+
+          # Notify each issue (BP-4: dedup marker, BP-6: throttle)
+          MARKER="<!-- release-notify:${VERSION} -->"
+          for ISSUE in $ISSUE_NUMS; do
+            # Check for existing notification (BP-4)
+            EXISTING=$(gh api "repos/${REPO}/issues/${ISSUE}/comments" \
+              --paginate \
+              --jq "[.[] | select(.body | contains(\"${MARKER}\"))] | length" 2>/dev/null || echo "0")
+
+            if [ "$EXISTING" -gt 0 ]; then
+              echo "Issue #$ISSUE already notified for $VERSION, skipping"
+              continue
+            fi
+
+            # NOTE: This message mirrors core/templates/responses/fix-shipped.md.
+            # Update both if wording changes.
+            BODY="${MARKER}
+          > Automated follow-up from the maintainer.
+
+          Good news — the fix for this is live in **${VERSION}**! Update with \`/plugin update line\` in Claude Code and give it a spin.
+
+          We'd love to hear how it works for your workflow. If something's still off, let us know and we'll dig in further.
+
+          _— line-sous-chef_"
+
+            gh issue comment "$ISSUE" --body "$BODY"
+            echo "Notified issue #$ISSUE for $VERSION"
+
+            # Throttle (BP-6: stay under 80/min)
+            sleep 1
+          done
