@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `/loop` no longer crashes on epic completion — the bundler was incorrectly
+  hoisting platform-conditional imports and leaving stale relative imports in
+  the distributed script
+
 ## [0.21.0] - 2026-03-04
 ### Added
 - `/loop` now runs on Windows 11 natively — full PTY support, health checks,
