@@ -348,7 +348,7 @@ def update_changelog(config: ReleaseConfig) -> bool:
         return False
 
 
-def strip_all_imports(content: str) -> str:
+def strip_hoisted_imports(content: str) -> str:
     """Strip top-level and relative import statements from module content.
 
     Top-level stdlib imports are consolidated at the top of the bundled file,
@@ -615,7 +615,7 @@ def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
         bundled_lines.append("")
 
         # Strip all imports (consolidated at top) and module docstring
-        stripped = strip_all_imports(content)
+        stripped = strip_hoisted_imports(content)
 
         # Remove module-level docstring (first triple-quoted string)
         stripped = re.sub(r'^""".*?"""\s*\n', '', stripped, count=1, flags=re.DOTALL)
