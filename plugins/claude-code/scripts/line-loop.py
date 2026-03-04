@@ -3786,7 +3786,6 @@ def check_epic_completion(
     if not epic_ids:
         return []
 
-    from .loop import merge_completed_epic
 
     summaries = []
     for epic_id in epic_ids:
@@ -4567,7 +4566,6 @@ def run_iteration(
                     # Step 1: Merge epic branch to main (only if on an epic branch)
                     current_br = get_current_branch(cwd)
                     if current_br and current_br.startswith("epic/"):
-                        from .loop import merge_completed_epic
                         merged, merge_error = merge_completed_epic(epic_id, epic_title_for_merge, cwd)
                         if merged:
                             merged_epic_ids.append(epic_id)

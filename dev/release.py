@@ -349,10 +349,14 @@ def update_changelog(config: ReleaseConfig) -> bool:
 
 
 def strip_all_imports(content: str) -> str:
-    """Strip all import statements and module-level boilerplate from content.
+    """Strip top-level and relative import statements from module content.
 
-    Since imports are consolidated at the top of the bundled file,
-    we strip them from individual module sections to avoid duplication.
+    Top-level stdlib imports are consolidated at the top of the bundled file,
+    so we strip them from individual module sections to avoid duplication.
+    Indented imports inside functions/try blocks (e.g., platform-conditional
+    imports like `import pty`) are preserved in-place.
+    Relative imports (from .xxx) are always stripped regardless of indentation,
+    since the package structure doesn't exist in the bundled single-file context.
     Also strips logger assignments since the CLI entry point sets up logging.
     """
     lines = content.split('\n')
@@ -366,6 +370,14 @@ def strip_all_imports(content: str) -> str:
         if in_multiline_import:
             if ')' in line:
                 in_multiline_import = False
+            continue
+
+        # Always strip relative imports (from .xxx) regardless of indentation —
+        # these reference package structure that doesn't exist in the bundle.
+        # The target symbols are already defined at module scope in the bundled file.
+        if stripped.startswith('from .'):
+            if '(' in line and ')' not in line:
+                in_multiline_import = True
             continue
 
         # Skip top-level import statements only (not indented ones inside functions/try)
