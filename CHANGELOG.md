@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-03-04
 ### Fixed
 - `/loop` no longer crashes on epic completion — the bundler was incorrectly
   hoisting platform-conditional imports and leaving stale relative imports in
@@ -440,7 +441,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded tutorial with propose-review-approve pattern
 - Improved brainstorming section documentation
 
-[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/smileynet/line-cook/compare/v0.21.1...HEAD
+[0.21.1]: https://github.com/smileynet/line-cook/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/smileynet/line-cook/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/smileynet/line-cook/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/smileynet/line-cook/compare/v0.18.0...v0.19.0
