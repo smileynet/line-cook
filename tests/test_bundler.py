@@ -108,6 +108,11 @@ class TestCollectStdlibImports(unittest.TestCase):
         result = collect_stdlib_imports(modules, "")
         self.assertEqual(result, [])
 
+    def test_skips_future_imports(self):
+        modules = [("mod.py", "from __future__ import annotations")]
+        result = collect_stdlib_imports(modules, "")
+        self.assertEqual(result, [])
+
     def test_merges_from_imports(self):
         modules = [
             ("a.py", "from typing import Optional"),

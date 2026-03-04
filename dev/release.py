@@ -614,7 +614,7 @@ def bundle_line_loop(repo_root: Path, dry_run: bool = False) -> bool:
         bundled_lines.append(f"# --- {module_name}.py ---")
         bundled_lines.append("")
 
-        # Strip all imports (consolidated at top) and module docstring
+        # Strip hoisted imports (consolidated at top) and module docstring
         stripped = strip_hoisted_imports(content)
 
         # Remove module-level docstring (first triple-quoted string)
