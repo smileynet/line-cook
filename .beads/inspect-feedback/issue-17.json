@@ -1,1 +1,24 @@
-{"type":"issue_review","issue_number":17,"pr_number":null,"verdict":"VALID","dimensions":{"issue_validity":"Legitimate enhancement request from a real user experiencing cook phase timeouts at the 20-minute default.","actionability":"Already addressed. The owner confirmed the fix in commit cfe0684, raising the default to 30 minutes with active extension up to 1 hour. Fix shipped in v0.20.0.","project_relevance":"Directly relevant. Timeout configuration in core/line_loop/config.py.","priority_signal":"Medium-high impact, but already resolved. The issue can be closed pending confirmation from the reporter.","duplicate_check":"No duplicate found among open issues."},"rationale":"Valid enhancement that identified a real usability problem with the default cook phase timeout being too short. The owner has already addressed it comprehensively in v0.20.0. The issue can likely be closed as resolved, pending confirmation from the reporter.","duplicate_of":null,"reviewed_at":"2026-03-02T12:00:00Z","responses":[{"template":"fix-shipped","variables":{"VERSION":"v0.20.0"},"dispatched_at":"2026-03-02T12:00:00Z"}]}
+{
+  "type": "issue_review",
+  "issue_number": 17,
+  "pr_number": null,
+  "verdict": "VALID",
+  "dimensions": {
+    "issue_validity": "Legitimate enhancement request from a real user experiencing cook phase timeouts at the 20-minute default.",
+    "actionability": "Already addressed in v0.20.0: default raised to 30 min with active extension up to 1 hour. Fix-shipped response already posted.",
+    "project_relevance": "Directly relevant to timeout configuration in core/line_loop/config.py.",
+    "priority_signal": "Medium-high impact, but already resolved.",
+    "duplicate_check": "No duplicate found.",
+    "proposed_direction": "Issue is resolved. Can be closed. Minor housekeeping: some docs still reference the old 20-minute default."
+  },
+  "rationale": "Valid enhancement that identified a real usability problem. Already comprehensively addressed in v0.20.0. Ready to close.",
+  "duplicate_of": null,
+  "reviewed_at": "2026-03-03T17:00:00Z",
+  "responses": [
+    {
+      "template": "fix-shipped",
+      "variables": {"VERSION": "v0.20.0"},
+      "dispatched_at": "2026-03-02T12:00:00Z"
+    }
+  ]
+}

@@ -1,1 +1,19 @@
-{"type":"issue_review","issue_number":14,"pr_number":null,"verdict":"VALID","dimensions":{"issue_validity":"Valid, well-documented bug filed by the repository owner. The task_injection workaround breaks @prompt expansion by prepending text before the @line-cook command.","actionability":"Highly actionable. The exact file and line are identified (config.py line 77), root cause explained (workaround for now-fixed Kiro bug #4141), and concrete fix proposed (remove task_injection from kiro profile). PR #15 was created but appears not yet merged.","project_relevance":"Directly relevant. The task_injection key exists in core/line_loop/config.py and consumption logic in phase.py.","priority_signal":"High priority. This bug causes the cook phase to completely fail for all Kiro CLI users, leading to repeated premature_completion outcomes.","duplicate_check":"No duplicate found among open issues."},"rationale":"Verified, high-impact bug. The task_injection workaround at config.py line 77, originally for Kiro bug #4141, now actively breaks @prompt expansion in kiro-cli v1.26.2. The fix has not yet been applied to main despite PR #15 being referenced. The issue is well-documented with root cause analysis and concrete fix.","duplicate_of":null,"reviewed_at":"2026-03-02T12:00:00Z"}
+{
+  "type": "pr_review",
+  "issue_number": 14,
+  "pr_number": 19,
+  "verdict": "MERGE",
+  "dimensions": {
+    "what_changed": "Removes task_injection from the Kiro CLI profile in both source (config.py) and bundled copy (line-loop.py). Args now append after the @prompt instead of prepending before it. Tests updated to verify new behavior.",
+    "project_value": "Fixes a critical Kiro integration issue where the cook phase never executes, rendering the autonomous loop non-functional for all Kiro users.",
+    "issue_validity": "Valid bug filed by the repo owner with clear root cause analysis.",
+    "intent_alignment": "PR precisely addresses the issue by removing the offending config.",
+    "scope": "Three files changed, all directly traceable to the issue.",
+    "security": "No security concerns.",
+    "code_quality": "Clean removal with well-updated tests. Generic task_injection lookup preserved for extensibility.",
+    "root_cause_depth": "Root cause fix. The workaround was for an upstream Kiro bug now fixed in v1.26.2."
+  },
+  "rationale": "Clean, well-scoped root cause fix for a critical Kiro integration bug. Removes an obsolete workaround that actively breaks @prompt expansion. Tests thoroughly updated. Ready to merge.",
+  "polish_attempts": 0,
+  "reviewed_at": "2026-03-03T17:00:00Z"
+}

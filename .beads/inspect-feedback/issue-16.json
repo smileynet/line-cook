@@ -1,1 +1,17 @@
-{"type":"issue_review","issue_number":16,"pr_number":null,"verdict":"VALID","dimensions":{"issue_validity":"Legitimate bug report from the repository owner documenting 5 real, verifiable issues in run_phase() that prevent Windows operation. The file header explicitly states Windows is NOT supported, and every bug described corresponds to real code patterns in the source.","actionability":"Highly actionable. Each bug includes the specific code location, root cause explanation, and concrete fix. The reporter has already patched all 5 locally and confirmed the orchestration works. The remaining blocker (claude -p stdout on Windows) is correctly identified as upstream.","project_relevance":"Directly relevant. All 5 bugs are in core/line_loop/phase.py and the bundled line-loop.py.","priority_signal":"Moderate priority. Windows is currently explicitly unsupported. The bugs are real blockers for Windows users, but the upstream Claude Code stdout issue means even fixing all 5 would not fully enable Windows.","duplicate_check":"No duplicate found among open issues."},"rationale":"Well-documented, owner-filed bug report identifying 5 genuine issues in run_phase that prevent Windows operation. All bugs are verifiable in the source code. The reporter has validated fixes locally and correctly scoped the remaining blocker as an upstream Claude Code issue.","duplicate_of":null,"reviewed_at":"2026-03-02T12:00:00Z"}
+{
+  "type": "issue_review",
+  "issue_number": 16,
+  "pr_number": null,
+  "verdict": "VALID",
+  "dimensions": {
+    "issue_validity": "Thorough, owner-filed bug report documenting 10 real Windows-specific bugs in line-loop subprocess orchestration.",
+    "actionability": "Highly actionable. Most original bugs (C1-C3, M1, M3) already upstreamed in core/line_loop/platform.py. Remaining gap: unguarded process.wait() on normal-exit path in phase.py.",
+    "project_relevance": "Directly relevant to core line-loop execution on Windows.",
+    "priority_signal": "Medium-high. Windows is a supported platform and most fixes are landed, but one gap remains.",
+    "duplicate_check": "No duplicate found.",
+    "proposed_direction": "Keep open as tracking ticket. Add timeout guard to process.wait() in phase.py normal-exit path. Verify all 10 patches covered before v0.21.0."
+  },
+  "rationale": "Well-documented bug report with most fixes already upstreamed. One remaining gap (unguarded process.wait) needs attention before v0.21.0. Worth keeping open as tracking ticket.",
+  "duplicate_of": null,
+  "reviewed_at": "2026-03-03T17:00:00Z"
+}

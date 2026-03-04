@@ -1,1 +1,17 @@
-{"type":"issue_review","issue_number":10,"pr_number":null,"verdict":"VALID","dimensions":{"issue_validity":"Legitimate bug filed by the repository owner with clear root cause analysis. The sous-chef agent misinterprets parent-child dependency metadata from bd show as real blockers, causing false BLOCKED verdicts.","actionability":"Highly actionable. The Kiro sous-chef prompt instructs running bd show for context but provides no guidance on distinguishing parent-child (structural grouping) from blocks (execution-order constraints) dependency types. Fix scope: update sous-chef prompt or filter dependency info before passing to reviewer.","project_relevance":"Directly relevant to core functionality. Involves serve phase signal detection in phase.py, BLOCKED handling in iteration.py, and circuit breaker in loop.py.","priority_signal":"High priority. Makes the entire autonomous loop non-functional for the Kiro CLI backend. Every task returns BLOCKED regardless of actual dependency state, and the circuit breaker trips after 5 consecutive failures.","duplicate_check":"No duplicate found among open issues."},"rationale":"Well-investigated, high-impact bug with a clear root cause. The sous-chef agent runs bd show and encounters parent-child dependency metadata which it misinterprets as real blockers. This produces a BLOCKED verdict that propagates through signal detection and trips the circuit breaker. The fix is scoped to the sous-chef prompt templates where dependency types need to be distinguished or filtered.","duplicate_of":null,"reviewed_at":"2026-03-02T12:00:00Z"}
+{
+  "type": "issue_review",
+  "issue_number": 10,
+  "pr_number": null,
+  "verdict": "VALID",
+  "dimensions": {
+    "issue_validity": "Legitimate, well-investigated bug. The Kiro sous-chef template misinterprets parent-child dependency metadata as real blockers, producing false BLOCKED verdicts.",
+    "actionability": "Highly actionable. Fix scoped to Kiro sous-chef template: distinguish parent-child (structural) from blocks (execution-order) deps, and align verdict definitions with Claude Code/OpenCode versions.",
+    "project_relevance": "Directly relevant to core autonomous loop functionality. Affects serve phase, signal detection, and circuit breaker.",
+    "priority_signal": "High priority. Makes the entire autonomous loop non-functional for the Kiro CLI backend.",
+    "duplicate_check": "No duplicate found.",
+    "proposed_direction": "Update Kiro sous-chef template Check Dependencies step to distinguish dependency types. Align Kiro verdict definitions with other backends."
+  },
+  "rationale": "Well-diagnosed, high-impact bug that makes the Kiro autonomous loop unusable. Fix is scoped to template content — no Python changes needed. The sous-chef needs guidance on distinguishing structural parent-child deps from real execution blockers.",
+  "duplicate_of": null,
+  "reviewed_at": "2026-03-03T17:00:00Z"
+}
