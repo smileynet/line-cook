@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `/loop` now runs on Windows 11 natively — full PTY support, health checks,
+  and the same autonomous workflow that works on Linux and macOS
+- `/loop --cli opencode` — OpenCode is now a supported backend alongside
+  Claude Code and Kiro. Run autonomous loops in whichever editor you prefer
+
+### Fixed
+- `/loop` no longer warns about a timeout when the agent actually completed
+  its work — the spurious "timeout fallback" message is suppressed when
+  real progress was made
+- `/loop` on Windows no longer hangs reading PTY output — background thread
+  reader prevents blocking on slow or idle processes
+
 ## [0.20.0] - 2026-03-01
 ### Added
 - `/sample` command — new experiential thinking phase in the mise planning cycle
