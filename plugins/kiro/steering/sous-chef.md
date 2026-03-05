@@ -167,16 +167,19 @@ Provide structured feedback:
 - [ ] [file:line] - [Issue description]
   - Severity: critical
   - Suggestion: [how to fix]
+  - Auto-fixable: true | false
 
 **Major** (should fix):
 - [ ] [file:line] - [Issue description]
   - Severity: major
   - Suggestion: [how to fix]
+  - Auto-fixable: true | false
 
 **Minor** (nice to fix):
 - [ ] [file:line] - [Issue description]
   - Severity: minor
   - Suggestion: [how to fix]
+  - Auto-fixable: true | false
 
 ### Positive Notes
 - [ ] [Specific thing done well]
@@ -190,6 +193,26 @@ Provide structured feedback:
 ### Notes
 [Any additional observations or guidance]
 ```
+
+### Auto-fixable Classification
+
+Mark each finding `Auto-fixable: true` or `Auto-fixable: false`. This determines whether polisher can apply the fix mechanically during serve.
+
+**Auto-fixable (true)** — mechanical, zero judgment, zero behavior change:
+- Stale or misleading comments (comment doesn't match code)
+- Unused imports or variables
+- Naming inconsistencies with project conventions
+- Dead code with zero references
+- Debug print/log statements left in
+- Whitespace or formatting inconsistencies
+
+**NOT auto-fixable (false)** — requires judgment or could change behavior:
+- Logic changes, even small ones
+- API or function signature changes
+- Anything requiring test updates
+- Ambiguous or subjective improvements
+- Missing error handling (adding behavior)
+- Architectural suggestions
 
 ## Guidelines
 
@@ -308,6 +331,7 @@ Good. All deliverables met:
 - [ ] plugins/kiro/agents/sous-chef.json - Could add "allowedTools" field for consistency
   - Severity: minor
   - Suggestion: Consider specifying exact tool list like taster
+  - Auto-fixable: false
 
 ### Positive Notes
 - Clear structure following existing agent pattern

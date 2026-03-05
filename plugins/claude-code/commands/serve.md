@@ -104,17 +104,33 @@ git diff | claude \
   --allowedTools "Read,Glob,Grep"
 ```
 
-### Step 3: Polish Changes (APPROVED only)
+### Step 3: Polish Changes and Apply Auto-fixes (APPROVED only)
 
 **Only run polisher if sous-chef verdict is APPROVED.** Skip polishing on NEEDS_CHANGES (code needs rework, not polish) and BLOCKED (must fix first).
+
+#### Step 3a: Extract auto-fixable findings
+
+From the sous-chef output, identify all findings marked `Auto-fixable: true`. For each, note:
+- **File:line** — where the problem is
+- **Problem** — what's wrong
+- **Suggestion** — how to fix it
+
+#### Step 3b: Invoke polisher with review findings
 
 Extract modified files from the REVIEW JSON's `changes.files` array.
 
 ```
 Use Task tool to invoke polisher subagent:
-Task(description="Polish code changes", prompt="Polish the following files for clarity and consistency:
+Task(description="Polish code and apply auto-fixes", prompt="Polish the following files for clarity and consistency, and apply the review-directed fixes listed below.
 
+Files to polish:
 <list of modified files from REVIEW JSON changes.files>
+
+Review-directed fixes (from sous-chef, marked Auto-fixable: true):
+<For each auto-fixable finding, include:>
+- File:line: <location>
+  Problem: <description>
+  Suggestion: <fix>
 
 Apply these principles:
 - Preserve exact functionality (never change behavior)
@@ -123,9 +139,22 @@ Apply these principles:
 - Follow project conventions from CLAUDE.md
 - Remove dead code and redundancy
 - Avoid nested ternaries (prefer if/else or switch)
+- Apply review-directed fixes FIRST, then standard polish
+- Skip any directed fix where the code has shifted or the fix is ambiguous
 
-Output: List of refinements made (file:line - change)", subagent_type="polisher")
+Output format:
+1. Review Fixes Applied (file:line - what was fixed)
+2. Review Fixes Skipped (file:line - reason)
+3. Polish Changes (file:line - change)", subagent_type="polisher")
 ```
+
+If there are no auto-fixable findings, invoke polisher without the review-directed fixes section (standard polish only).
+
+#### Step 3c: Track results
+
+After polisher returns, note:
+- **Applied** review fixes — these will populate the `Auto-fixed:` output section
+- **Skipped** review fixes — these become `[DEFER]` findings in the output
 
 **After polisher completes:**
 - If changes were made, stage and commit them separately: `git add <polished files> && git commit -m "polish: refine <task-id> for clarity"`
@@ -178,9 +207,11 @@ Summary:
   <brief overall assessment of the changes>
 
 Auto-fixed:
-  - <file>:<line> - <fix applied>
+  - <file>:<line> - <fix applied> (from polisher's "Review Fixes Applied")
+  (or "None" if no auto-fixes were applied)
 
 Issues to file in tidy (see tidy.md Finding Filing Strategy):
+  NOTE: Auto-fixed findings are EXCLUDED from this list. Skipped auto-fixes appear as [DEFER].
 
   Triage markers — apply ONE per finding:
     [FIX]   Clear defect or required change (P0-P2, or P3 in current scope)

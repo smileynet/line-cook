@@ -13,6 +13,8 @@ This is where findings from `/line-cook` and `/line-serve` get filed as beads.
 
 ## Finding Filing Strategy
 
+> **Note:** Findings marked `Auto-fixable: true` that polisher successfully applied during serve are already resolved — they appear in serve's `Auto-fixed:` section and do NOT appear here.
+
 Findings are triaged to **three destinations** based on markers from serve (or inferred during tidy):
 
 | Marker | Destination | Loop picks up? | Blocks feature? |

@@ -165,23 +165,13 @@ Assign severity to each issue:
 
 ### Step 7: Determine Verdict
 @ENDIF_KIRO@
-@IF_CLAUDECODE@
+@IF_NOT_KIRO@
 ### Step 4: Determine Verdict
-@ENDIF_CLAUDECODE@
-@IF_OPENCODE@
-### Step 4: Determine Verdict
-@ENDIF_OPENCODE@
 
-@IF_CLAUDECODE@
 - **APPROVED**: No issues or only nits. Code is acceptable to proceed.
 - **NEEDS_CHANGES**: Minor or major issues found that should be addressed but aren't blocking.
 - **BLOCKED**: Critical issues that MUST be fixed before proceeding. Reserved for security vulnerabilities, data integrity risks, or crash-inducing bugs.
-@ENDIF_CLAUDECODE@
-@IF_OPENCODE@
-- **APPROVED**: No issues or only nits. Code is acceptable to proceed.
-- **NEEDS_CHANGES**: Minor or major issues found that should be addressed but aren't blocking.
-- **BLOCKED**: Critical issues that MUST be fixed before proceeding. Reserved for security vulnerabilities, data integrity risks, or crash-inducing bugs.
-@ENDIF_OPENCODE@
+@ENDIF_NOT_KIRO@
 
 @IF_KIRO@
 - **APPROVED**: Code meets quality bar, proceed to commit.
@@ -191,7 +181,7 @@ Assign severity to each issue:
 
 ## Output Format
 
-@IF_CLAUDECODE@
+@IF_NOT_KIRO@
 Provide your review in this exact structure:
 
 ```
@@ -223,48 +213,32 @@ Provide your review in this exact structure:
 - **Location:** [file:line or function/method name]
 - **Problem:** [Clear description of the issue]
 - **Suggestion:** [Specific fix recommendation with code example if helpful]
+- **Auto-fixable:** true | false
 
 ## Positive Observations
 [Note 1-2 things done well to provide balanced feedback]
 ```
-@ENDIF_CLAUDECODE@
-@IF_OPENCODE@
-Provide your review in this exact structure:
 
-```
-## Review Summary
+### Auto-fixable Classification
 
-**Verdict: [APPROVED | NEEDS_CHANGES | BLOCKED]**
+Mark each finding `Auto-fixable: true` or `Auto-fixable: false`. This determines whether polisher can apply the fix mechanically during serve.
 
-**Overview:** [1-2 sentence summary of the code quality and main findings]
+**Auto-fixable (true)** — mechanical, zero judgment, zero behavior change:
+- Stale or misleading comments (comment doesn't match code)
+- Unused imports or variables
+- Naming inconsistencies with project conventions
+- Dead code with zero references
+- Debug print/log statements left in
+- Whitespace or formatting inconsistencies
 
-## Issues Found
-
-### Critical Issues
-[List any critical issues, or "None" if none found]
-
-### Major Issues
-[List any major issues, or "None" if none found]
-
-### Minor Issues
-[List any minor issues, or "None" if none found]
-
-### Nits
-[List any nits, or "None" if none found]
-
-## Issue Details
-
-[For each issue, provide:]
-
-**[Severity] - [Brief title]**
-- **Location:** [file:line or function/method name]
-- **Problem:** [Clear description of the issue]
-- **Suggestion:** [Specific fix recommendation with code example if helpful]
-
-## Positive Observations
-[Note 1-2 things done well to provide balanced feedback]
-```
-@ENDIF_OPENCODE@
+**NOT auto-fixable (false)** — requires judgment or could change behavior:
+- Logic changes, even small ones
+- API or function signature changes
+- Anything requiring test updates
+- Ambiguous or subjective improvements
+- Missing error handling (adding behavior)
+- Architectural suggestions
+@ENDIF_NOT_KIRO@
 @IF_KIRO@
 Provide structured feedback:
 
@@ -294,16 +268,19 @@ Provide structured feedback:
 - [ ] [file:line] - [Issue description]
   - Severity: critical
   - Suggestion: [how to fix]
+  - Auto-fixable: true | false
 
 **Major** (should fix):
 - [ ] [file:line] - [Issue description]
   - Severity: major
   - Suggestion: [how to fix]
+  - Auto-fixable: true | false
 
 **Minor** (nice to fix):
 - [ ] [file:line] - [Issue description]
   - Severity: minor
   - Suggestion: [how to fix]
+  - Auto-fixable: true | false
 
 ### Positive Notes
 - [ ] [Specific thing done well]
@@ -317,6 +294,26 @@ Provide structured feedback:
 ### Notes
 [Any additional observations or guidance]
 ```
+
+### Auto-fixable Classification
+
+Mark each finding `Auto-fixable: true` or `Auto-fixable: false`. This determines whether polisher can apply the fix mechanically during serve.
+
+**Auto-fixable (true)** — mechanical, zero judgment, zero behavior change:
+- Stale or misleading comments (comment doesn't match code)
+- Unused imports or variables
+- Naming inconsistencies with project conventions
+- Dead code with zero references
+- Debug print/log statements left in
+- Whitespace or formatting inconsistencies
+
+**NOT auto-fixable (false)** — requires judgment or could change behavior:
+- Logic changes, even small ones
+- API or function signature changes
+- Anything requiring test updates
+- Ambiguous or subjective improvements
+- Missing error handling (adding behavior)
+- Architectural suggestions
 @ENDIF_KIRO@
 
 ## Guidelines
@@ -329,7 +326,7 @@ Provide structured feedback:
 6. **Consider Context**: Align feedback with project standards and existing patterns
 7. **Provide Solutions**: Every issue should include a suggested fix
 
-@IF_CLAUDECODE@
+@IF_NOT_KIRO@
 ## Decision Framework
 
 When uncertain about severity:
@@ -345,24 +342,7 @@ When uncertain about verdict:
 - Only nits → APPROVED
 
 You are the last line of defense before code moves forward. Be thorough but fair, critical but constructive.
-@ENDIF_CLAUDECODE@
-@IF_OPENCODE@
-## Decision Framework
-
-When uncertain about severity:
-- If it could cause a security breach → critical
-- If it could cause incorrect behavior in production → major
-- If it could cause confusion or technical debt → minor
-- If it's purely preferential → nit
-
-When uncertain about verdict:
-- Any critical issue → BLOCKED
-- Multiple major issues or major + several minor → NEEDS_CHANGES
-- Only minor issues and nits → APPROVED (mention issues but don't block)
-- Only nits → APPROVED
-
-You are the last line of defense before code moves forward. Be thorough but fair, critical but constructive.
-@ENDIF_OPENCODE@
+@ENDIF_NOT_KIRO@
 @IF_KIRO@
 ## Quality Standards
 
@@ -471,6 +451,7 @@ Good. All deliverables met:
 - [ ] plugins/kiro/agents/sous-chef.json - Could add "allowedTools" field for consistency
   - Severity: minor
   - Suggestion: Consider specifying exact tool list like taster
+  - Auto-fixable: false
 
 ### Positive Notes
 - Clear structure following existing agent pattern

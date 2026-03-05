@@ -265,7 +265,7 @@ Examples:
   /line:loop history --actions        # View all iterations with actions
   /line:loop stop                     # Stop gracefully
 
-Files stored in: /tmp/line-loop-<project-name>/
+Files stored in: <tempdir>/line-loop-<project-name>/
 ```
 
 ---
@@ -275,7 +275,10 @@ Files stored in: /tmp/line-loop-<project-name>/
 Loop artifacts are stored in a **project-specific directory** to avoid conflicts when working on multiple projects:
 
 ```
+# Unix/WSL/Git Bash:
 LOOP_DIR="/tmp/line-loop-$(basename "$PWD")"
+# Windows (PowerShell): $env:TEMP\line-loop-<project-name>
+# Portable: python -c "import tempfile; print(tempfile.gettempdir())"
 ```
 
 | File | Purpose |

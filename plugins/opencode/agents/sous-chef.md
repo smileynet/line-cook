@@ -115,10 +115,31 @@ Provide your review in this exact structure:
 - **Location:** [file:line or function/method name]
 - **Problem:** [Clear description of the issue]
 - **Suggestion:** [Specific fix recommendation with code example if helpful]
+- **Auto-fixable:** true | false
 
 ## Positive Observations
 [Note 1-2 things done well to provide balanced feedback]
 ```
+
+### Auto-fixable Classification
+
+Mark each finding `Auto-fixable: true` or `Auto-fixable: false`. This determines whether polisher can apply the fix mechanically during serve.
+
+**Auto-fixable (true)** — mechanical, zero judgment, zero behavior change:
+- Stale or misleading comments (comment doesn't match code)
+- Unused imports or variables
+- Naming inconsistencies with project conventions
+- Dead code with zero references
+- Debug print/log statements left in
+- Whitespace or formatting inconsistencies
+
+**NOT auto-fixable (false)** — requires judgment or could change behavior:
+- Logic changes, even small ones
+- API or function signature changes
+- Anything requiring test updates
+- Ambiguous or subjective improvements
+- Missing error handling (adding behavior)
+- Architectural suggestions
 
 ## Guidelines
 

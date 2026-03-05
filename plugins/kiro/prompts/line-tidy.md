@@ -10,6 +10,8 @@ This is where findings from `@line-cook` and `@line-serve` get filed as beads.
 
 ## Finding Filing Strategy
 
+> **Note:** Findings marked `Auto-fixable: true` that polisher successfully applied during serve are already resolved — they appear in serve's `Auto-fixed:` section and do NOT appear here.
+
 Findings are triaged to **three destinations** based on markers from serve (or inferred during tidy):
 
 | Marker | Destination | Loop picks up? | Blocks feature? |
@@ -165,7 +167,6 @@ bd list --parent=<epic-id> --all --json
 > Dependencies between children establish order within an epic.
 > See AGENTS.md for the full epic philosophy.
 
-### Step 4: Commit Changes with Kitchen Log
 
 Using the GIT STATUS output from Step 1, check for pending changes.
 
@@ -203,7 +204,6 @@ Review findings:
 - Review and test quality feedback
 - Signal emitted
 
-### Step 5: Close Current Task
 
 **CRITICAL:** Only close the bead AFTER the commit is created. This ensures beads are only closed when corresponding git commits exist.
 
@@ -215,7 +215,6 @@ bd close $TASK_ID
 
 **Other in-progress tasks** from the IN PROGRESS list should be left as-is. Do NOT attempt to infer completion of other tasks from git changes — that requires too much guesswork for a non-interactive command. They will be picked up in their own cook/serve/tidy cycles.
 
-### Step 6: Verify Closing Kitchen
 
 Before pushing, verify all quality gates pass:
 
@@ -231,7 +230,6 @@ Before pushing, verify all quality gates pass:
 - Note in commit body
 - Continue with push if non-blocking issue
 
-### Step 7: Sync and Push
 
 ```bash
 bd sync                        # Commit beads changes
@@ -247,7 +245,6 @@ bd create --title="Resolve git push failure: <error>" --type=bug --priority=2
 
 **CRITICAL:** Work is NOT complete until `git push` succeeds. If push fails, resolve and retry.
 
-### Step 8: Record Session Summary
 
 **Add final comment to the task:**
 ```bash
@@ -270,7 +267,6 @@ Commit: <hash>
 Push: <success|failed>"
 ```
 
-### Step 9: Output Kitchen Report
 
 **If an epic is eligible for closure**, output the epic ready banner first:
 
